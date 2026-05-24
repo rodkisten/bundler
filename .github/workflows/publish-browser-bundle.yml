@@ -12,13 +12,11 @@ on:
       - "tsconfig.json"
       - "vitest.config.*"
       - ".github/workflows/publish-browser-bundle.yml"
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - ".vscode/**"
-      - ".idea/**"
-      - ".DS_Store"
-
+      - "!**/*.md"
+      - "!docs/**"
+      - "!.vscode/**"
+      - "!.idea/**"
+      - "!.DS_Store"
   workflow_dispatch:
     inputs:
       min_hours_between_runs:
