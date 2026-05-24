@@ -15,6 +15,7 @@ env:
   BUILD_ENTRYPOINT: src/index.ts
   BUILD_GLOBAL_NAME: Rod
   BUILD_MINIFY: false
+  GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
 
 jobs:
   build:
@@ -73,7 +74,7 @@ jobs:
           path: dist
 
       - name: Publish public Gist
-        if: ${{ secrets.GIST_TOKEN != '' }}
+        if: ${{ env.GIST_TOKEN != '' }}
         run: pnpm publish:gist
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
