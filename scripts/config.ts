@@ -3,7 +3,7 @@ import process from "node:process";
 
 export const DIST_DIR = path.resolve("dist");
 export const DEFAULT_ENTRYPOINT = "src/index.ts";
-export const DEFAULT_GLOBAL_NAME = "Rod";
+export const DEFAULT_GLOBAL_NAME = "RodK";
 
 /**
  * Reads an environment variable with a safe default.
