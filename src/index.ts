@@ -1524,7 +1524,7 @@ function isPseudoName(name: string): boolean {
       return false;
   }
 }
-
+/**
 export interface CipoBrowserGlobal {
   readonly configure: typeof configure;
   readonly theme: typeof theme;
@@ -1569,5 +1569,5 @@ if (typeof window !== "undefined") {
   window.Cipo = createBrowserGlobal();
   window.RodK = window.Cipo;
 }
-
+**/
 
