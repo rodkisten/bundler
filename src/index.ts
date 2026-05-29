@@ -1,976 +1,917 @@
-/* ============================================================================
- * src/cipo.ts
+/*
+ * ============================================================================
+ * Cipó Runtime Usage Examples
+ * ============================================================================
+ *
+ * 1. Basic atomic CSS
+ *
+ * const button = css`
+ *   color: white;
+ *   background: #111827;
+ *   padding: 12px 16px;
+ *   border-radius: 12px;
+ * `;
+ *
+ * html`
+ *   <button class="${button}">
+ *     Save
+ *   </button>
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 2. Configure runtime
+ *
+ * configure({
+ *   prefix: "rod",
+ *   debug: false,
+ *   breakpoints: {
+ *     base: null,
+ *     sm: "(min-width: 640px)",
+ *     md: "(min-width: 768px)",
+ *     lg: "(min-width: 1024px)",
+ *   },
+ * });
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 3. Theme tokens
+ *
+ * theme({
+ *   colors: {
+ *     brand: "#22c55e",
+ *     ink: "#0f172a",
+ *   },
+ *   space: {
+ *     md: "16px",
+ *   },
+ * });
+ *
+ * const title = css`
+ *   color: $theme.colors.brand;
+ *   margin-bottom: $theme.space.md;
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 4. Utility directive
+ *
+ * const card = css`
+ *   @with(
+ *     bg(#111827),
+ *     color(white),
+ *     px(16px),
+ *     py(12px),
+ *     rounded(18px)
+ *   );
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 5. Spacing helper
+ *
+ * const stack = css`
+ *   gap: x:spacing(4);
+ *   padding: x:spacing(6);
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 6. Alpha helper
+ *
+ * const glass = css`
+ *   background: x:alpha($theme.colors.brand / 18%);
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 7. Responsive rules
+ *
+ * const panel = css`
+ *   width: 100%;
+ *
+ *   x:md {
+ *     width: 720px;
+ *   }
+ *
+ *   x:lg {
+ *     width: 960px;
+ *   }
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 8. Inverted responsive rules
+ *
+ * const mobileOnly = css`
+ *   display: block;
+ *
+ *   x:not(md) {
+ *     font-size: 14px;
+ *   }
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 9. Scoped child selector
+ *
+ * const list = css`
+ *   padding: 0;
+ *
+ *   li {
+ *     list-style: none;
+ *     padding: 8px;
+ *   }
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 10. Scoped self selector with &
+ *
+ * const link = css`
+ *   color: #38bdf8;
+ *
+ *   &:hover {
+ *     color: #7dd3fc;
+ *   }
+ *
+ *   &[aria-current="page"] {
+ *     font-weight: 700;
+ *   }
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 11. Style object interpolation
+ *
+ * const box = css`
+ *   ${{
+ *     display: "grid",
+ *     placeItems: "center",
+ *     minHeight: "100dvh",
+ *   }}
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 12. Compose artifacts
+ *
+ * const base = css`
+ *   border-radius: 12px;
+ * `;
+ *
+ * const danger = css`
+ *   ${base}
+ *   background: #ef4444;
+ *   color: white;
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 13. HTML arrays
+ *
+ * const items = ["Home", "Settings", "Profile"];
+ *
+ * html`
+ *   <nav>
+ *     ${items.map(item => html`
+ *       <a>${item}</a>
+ *     `)}
+ *   </nav>
+ * `;
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 14. Read generated CSS
+ *
+ * const generated = getCssText();
+ * console.log(generated);
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 15. Reset runtime
+ *
+ * reset();
+ *
+ * ----------------------------------------------------------------------------
+ *
+ * 16. Browser global install
+ *
+ * installBrowserGlobal("RodK");
+ *
+ * window.RodK.css`
+ *   color: red;
+ * `;
+ *
  * ============================================================================
  */
 
-const STYLE_ID = 'cipo-runtime-style'
-const HASH_SEED = 5381
-const HASH_MASK = 0xffffffff
+const STYLE_ID = "cipo-runtime-style";
+const HASH_SEED = 5381;
+const HASH_MASK = 0xffffffff;
+const DEFAULT_PREFIX = "cipo";
 
-type Primitive = string | number | boolean | null | undefined
-type CssValue = Primitive | CssArtifact | StyleObject
-type CssTemplateValues = readonly CssValue[]
+type Primitive = string | number | boolean | null | undefined;
+type CssValue = Primitive | CssArtifact | StyleObject;
+type CssTemplateValues = readonly CssValue[];
+type Breakpoints = Readonly<Record<string, string | null>>;
 
 interface StyleObject {
-  readonly [property: string]:
-    | string
-    | number
-    | StyleObject
-    | null
-    | undefined
+  readonly [property: string]: string | number | StyleObject | null | undefined;
 }
 
 interface RuntimeConfig {
-  readonly prefix?: string
-  readonly debug?: boolean
-  readonly breakpoints?: Record<string, string | null>
+  readonly prefix?: string;
+  readonly debug?: boolean;
+  readonly breakpoints?: Breakpoints;
+}
+
+interface RuntimeState {
+  config: {
+    prefix: string;
+    debug: boolean;
+    breakpoints: Breakpoints;
+  };
+  insertedCss: Set<string>;
+  atomicCache: Map<string, AtomicRule>;
+  sheet: CSSStyleSheet | null;
 }
 
 interface AtomicRule {
-  readonly property: string
-  readonly value: string
-  readonly className: string
-  readonly breakpoint?: string
-  readonly pseudo?: string
+  readonly property: string;
+  readonly value: string;
+  readonly className: string;
+  readonly breakpoint?: string;
+  readonly notBreakpoint?: string;
 }
 
 interface ScopedRule {
-  readonly selector: string
-  readonly cssText: string
+  readonly selector: string;
+  readonly cssText: string;
 }
 
 interface CssArtifact {
-  readonly kind: 'cipo.css'
-  readonly className: string
-  readonly atoms: readonly AtomicRule[]
-  readonly scopedRules: readonly ScopedRule[]
-  readonly rawCss: string
-  readonly compiledCss: string
-
-  toString(): string
-
-  [Symbol.toPrimitive](): string
-
-  readonly [Symbol.toStringTag]: string
+  readonly kind: "cipo.css";
+  readonly className: string;
+  readonly scopeClassName: string;
+  readonly atoms: readonly AtomicRule[];
+  readonly scopedRules: readonly ScopedRule[];
+  readonly rawCss: string;
+  readonly compiledCss: string;
+  toString(): string;
+  [Symbol.toPrimitive](): string;
+  readonly [Symbol.toStringTag]: string;
 }
 
 interface ThemeDefinition {
-  readonly [key: string]:
-    | string
-    | number
-    | ThemeDefinition
+  readonly [key: string]: string | number | ThemeDefinition;
 }
 
 interface ParsedDeclaration {
-  readonly property: string
-  readonly value: string
-}
-
-interface ParsedRule {
-  readonly selector: string | null
-  readonly declarations: readonly ParsedDeclaration[]
-  readonly nested: readonly ParsedNestedRule[]
+  readonly property: string;
+  readonly value: string;
 }
 
 interface ParsedNestedRule {
-  readonly type: 'media' | 'not-media' | 'selector'
-  readonly value: string
-  readonly declarations: readonly ParsedDeclaration[]
+  readonly type: "media" | "not-media" | "selector";
+  readonly value: string;
+  readonly declarations: readonly ParsedDeclaration[];
 }
 
-const runtime = {
+interface ParsedRule {
+  readonly declarations: readonly ParsedDeclaration[];
+  readonly nested: readonly ParsedNestedRule[];
+}
+
+const runtime: RuntimeState = {
   config: {
-    prefix: 'cipo',
+    prefix: DEFAULT_PREFIX,
     debug: true,
     breakpoints: {
       base: null,
       sm: null,
-      md: '(min-width: 768px)',
-      lg: '(min-width: 1024px)',
-      xl: '(min-width: 1280px)',
+      md: "(min-width: 768px)",
+      lg: "(min-width: 1024px)",
+      xl: "(min-width: 1280px)",
     },
-  } satisfies Required<RuntimeConfig>,
-
+  },
   insertedCss: new Set<string>(),
   atomicCache: new Map<string, AtomicRule>(),
-  sheet: null as CSSStyleSheet | null,
-}
+  sheet: null,
+};
 
-/* ============================================================================
- * Public API
- * ============================================================================
- */
-
-/**
- * Configures the Cipó runtime.
- *
- * @param config - Runtime configuration.
- * @returns Nothing.
- *
- * @example
- * ```css
- * configure({
- *   prefix: 'x',
- * })
- * ```
- */
 export function configure(config: RuntimeConfig): void {
   runtime.config = {
-    ...runtime.config,
-    ...config,
+    prefix: config.prefix ?? runtime.config.prefix,
+    debug: config.debug ?? runtime.config.debug,
     breakpoints: {
       ...runtime.config.breakpoints,
-      ...config.breakpoints,
+      ...(config.breakpoints ?? {}),
     },
-  }
+  };
 }
 
-/**
- * Registers theme variables.
- *
- * @param tokens - Theme tokens.
- * @returns Nothing.
- *
- * @example
- * ```css
- * theme({
- *   colors: {
- *     brand: '#bada55',
- *   },
- * })
- * ```
- */
 export function theme(tokens: ThemeDefinition): void {
-  const declarations = flattenTheme(tokens)
-    .map(([name, value]) => {
-      return `--${runtime.config.prefix}-${name}:${String(value)};`
-    })
-    .join('')
+  const pairs = flattenTheme(tokens);
+  let declarations = "";
 
-  insertCss(`:root{${declarations}}`)
+  for (let index = 0; index < pairs.length; index += 1) {
+    const [name, value] = pairs[index];
+    declarations += `--${runtime.config.prefix}-${name}:${String(value)};`;
+  }
+
+  insertCss(`:root{${declarations}}`);
 }
 
-/**
- * Creates semantic CSS that compiles into atomic reusable classes.
- *
- * @param strings - Template strings.
- * @param values - Template interpolations.
- * @returns A CSS artifact.
- *
- * @example
- * ```css
- * const button = css`
- *   margin: x:spacing(4);
- *   color: x:alpha($theme.colors.brand / 50%);
- * `
- * ```
- */
 export function css(
   strings: TemplateStringsArray,
   ...values: CssTemplateValues
 ): CssArtifact {
-  const rawCss = buildCss(strings, values)
-  const expandedCss = transformCss(rawCss)
-  const parsed = parseCss(expandedCss)
+  const rawCss = buildCss(strings, values);
+  const expandedCss = transformCss(rawCss);
+  const parsed = parseCss(expandedCss);
+  const scopeClassName = `${runtime.config.prefix}-s-${hashString(expandedCss)}`;
 
-  const atoms: AtomicRule[] = []
-  const scopedRules: ScopedRule[] = []
+  const atoms: AtomicRule[] = [];
+  const scopedRules: ScopedRule[] = [];
 
   for (const rule of parsed) {
     for (const declaration of rule.declarations) {
-      atoms.push(createAtomicRule(declaration))
+      atoms.push(createAtomicRule(declaration));
     }
 
     for (const nested of rule.nested) {
-      if (nested.type === 'selector') {
+      if (nested.type === "selector") {
         scopedRules.push({
-          selector: nested.value,
-          cssText: nested.declarations
-            .map(item => `${item.property}:${item.value};`)
-            .join(''),
-        })
+          selector: resolveScopedSelector(scopeClassName, nested.value),
+          cssText: declarationsToCssText(nested.declarations),
+        });
 
-        continue
+        continue;
       }
 
       for (const declaration of nested.declarations) {
         atoms.push(
           createAtomicRule(declaration, {
-            breakpoint:
-              nested.type === 'media'
-                ? nested.value
-                : undefined,
-            notBreakpoint:
-              nested.type === 'not-media'
-                ? nested.value
-                : undefined,
+            breakpoint: nested.type === "media" ? nested.value : undefined,
+            notBreakpoint: nested.type === "not-media" ? nested.value : undefined,
           }),
-        )
+        );
       }
     }
   }
 
-  const className = atoms
-    .map(item => item.className)
-    .join(' ')
+  const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : "");
+  const compiledCss = buildCompiledCss(atoms, scopedRules);
 
-  const compiledCss = buildCompiledCss(atoms, scopedRules)
-
-  insertCss(compiledCss)
+  insertCss(compiledCss);
 
   return {
-    kind: 'cipo.css',
+    kind: "cipo.css",
     className,
+    scopeClassName,
     atoms,
     scopedRules,
     rawCss,
     compiledCss,
-
-    toString() {
-      return className
-    },
-
-    [Symbol.toPrimitive]() {
-      return className
-    },
-
-    [Symbol.toStringTag]: 'CipoCssArtifact',
-  }
+    toString: () => className,
+    [Symbol.toPrimitive]: () => className,
+    [Symbol.toStringTag]: "CipoCssArtifact",
+  };
 }
 
-/**
- * Tagged HTML template.
- *
- * @param strings - Template strings.
- * @param values - Template values.
- * @returns HTML string.
- *
- * @example
- * ```html
- * html`
- *   <button class=${button}>
- *     Save
- *   </button>
- * `
- * ```
- */
 export function html(
   strings: TemplateStringsArray,
   ...values: readonly unknown[]
 ): string {
-  let output = ''
+  let output = "";
 
   for (let index = 0; index < strings.length; index += 1) {
-    output += strings[index]
+    output += strings[index];
 
     if (index >= values.length) {
-      continue
+      continue;
     }
 
-    const value = values[index]
-
-    if (Array.isArray(value)) {
-      output += value.join('')
-      continue
-    }
-
-    output += String(value ?? '')
+    const value = values[index];
+    output += Array.isArray(value) ? value.join("") : String(value ?? "");
   }
 
-  return output
+  return output;
 }
 
-/**
- * Reads generated CSS.
- *
- * @returns CSS text.
- */
 export function getCssText(): string {
-  const style = document.getElementById(STYLE_ID)
+  if (!hasDocument()) {
+    return "";
+  }
+
+  const style = document.getElementById(STYLE_ID);
 
   if (!(style instanceof HTMLStyleElement)) {
-    return ''
+    return "";
   }
 
-  return [
-    style.textContent ?? '',
-    style.sheet
-      ? Array.from(style.sheet.cssRules)
-          .map(rule => rule.cssText)
-          .join('\n')
-      : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
+  return style.textContent ?? "";
 }
 
-/**
- * Clears runtime state.
- *
- * @returns Nothing.
- */
 export function reset(): void {
-  runtime.insertedCss.clear()
-  runtime.atomicCache.clear()
-  runtime.sheet = null
+  runtime.insertedCss.clear();
+  runtime.atomicCache.clear();
+  runtime.sheet = null;
 
-  document.getElementById(STYLE_ID)?.remove()
+  if (hasDocument()) {
+    document.getElementById(STYLE_ID)?.remove();
+  }
 }
 
-/* ============================================================================
- * CSS Compiler
- * ============================================================================
- */
-
-function buildCss(
-  strings: TemplateStringsArray,
-  values: CssTemplateValues,
-): string {
-  let output = ''
+function buildCss(strings: TemplateStringsArray, values: CssTemplateValues): string {
+  let output = "";
 
   for (let index = 0; index < strings.length; index += 1) {
-    output += strings[index]
+    output += strings[index];
 
     if (index >= values.length) {
-      continue
+      continue;
     }
 
-    const value = values[index]
+    const value = values[index];
 
     if (isCssArtifact(value)) {
-      output += value.rawCss
-      continue
+      output += value.rawCss;
+    } else if (isPlainObject(value)) {
+      output += styleObjectToCss(value);
+    } else {
+      output += String(value ?? "");
     }
-
-    if (isPlainObject(value)) {
-      output += styleObjectToCss(value)
-      continue
-    }
-
-    output += String(value ?? '')
   }
 
-  return output
+  return output;
 }
 
 function transformCss(input: string): string {
-  let output = input
-
-  output = replaceThemeTokens(output)
-  output = replaceSpacingFunctions(output)
-  output = replaceAlphaFunctions(output)
-  output = replaceWithDirectives(output)
-
-  return output
+  return replaceWithDirectives(
+    replaceAlphaFunctions(replaceSpacingFunctions(replaceThemeTokens(input))),
+  );
 }
 
 function replaceThemeTokens(input: string): string {
-  return input.replace(
-    /\$theme\.([a-zA-Z0-9._-]+)/g,
-    (_match, tokenPath: string) => {
-      return `var(--${runtime.config.prefix}-${tokenPath.replaceAll('.', '-')})`
-    },
-  )
+  return input.replace(/\$theme\.([a-zA-Z0-9._-]+)/g, (_match, tokenPath: string) => {
+    return `var(--${runtime.config.prefix}-${tokenPath.replaceAll(".", "-")})`;
+  });
 }
 
 function replaceSpacingFunctions(input: string): string {
-  return input.replace(
-    /x:spacing\((.*?)\)/g,
-    (_match, value: string) => {
-      return `calc(var(--spacing) * ${value.trim()})`
-    },
-  )
+  return input.replace(/x:spacing\((.*?)\)/g, (_match, value: string) => {
+    return `calc(var(--spacing) * ${value.trim()})`;
+  });
 }
 
 function replaceAlphaFunctions(input: string): string {
-  return input.replace(
-    /x:alpha\((.*?)\s*\/\s*(.*?)\)/g,
-    (_match, color: string, alpha: string) => {
-      return `color-mix(in oklab, ${color.trim()} ${alpha.trim()}, transparent)`
-    },
-  )
+  return input.replace(/x:alpha\((.*?)\s*\/\s*(.*?)\)/g, (_match, color: string, alpha: string) => {
+    return `color-mix(in oklab, ${color.trim()} ${alpha.trim()}, transparent)`;
+  });
 }
 
 function replaceWithDirectives(input: string): string {
-  return input.replace(
-    /@with\(([\s\S]*?)\);?/g,
-    (_match, content: string) => {
-      return expandUtilities(content)
-    },
-  )
+  return input.replace(/@with\(([\s\S]*?)\);?/g, (_match, content: string) => {
+    return expandUtilities(content);
+  });
 }
 
 function expandUtilities(input: string): string {
-  const utilities = splitTopLevel(input, ',')
+  const utilities = splitTopLevel(input, ",");
+  let output = "";
 
-  return utilities
-    .map(utility => {
-      const normalized = utility.trim()
+  for (const utility of utilities) {
+    const normalized = utility.trim();
 
-      if (!normalized) {
-        return ''
-      }
+    if (!normalized) {
+      continue;
+    }
 
-      if (normalized.startsWith('bg(')) {
-        const value = extractFunctionArguments(normalized)
+    const value = extractFunctionArguments(normalized);
 
-        return `background:${value};`
-      }
+    if (normalized.startsWith("bg(")) output += `background:${value};`;
+    else if (normalized.startsWith("color(")) output += `color:${value};`;
+    else if (normalized.startsWith("py(")) output += `padding-block:${value};`;
+    else if (normalized.startsWith("px(")) output += `padding-inline:${value};`;
+    else if (normalized.startsWith("rounded(")) output += `border-radius:${value};`;
+    else if (normalized === "hidden") output += "display:none;";
+  }
 
-      if (normalized.startsWith('color(')) {
-        const value = extractFunctionArguments(normalized)
-
-        return `color:${value};`
-      }
-
-      if (normalized.startsWith('py(')) {
-        const value = extractFunctionArguments(normalized)
-
-        return `padding-block:${value};`
-      }
-
-      if (normalized.startsWith('px(')) {
-        const value = extractFunctionArguments(normalized)
-
-        return `padding-inline:${value};`
-      }
-
-      if (normalized.startsWith('rounded(')) {
-        const value = extractFunctionArguments(normalized)
-
-        return `border-radius:${value};`
-      }
-
-      if (normalized === 'hidden') {
-        return 'display:none;'
-      }
-
-      return ''
-    })
-    .join('')
+  return output;
 }
 
 function parseCss(input: string): readonly ParsedRule[] {
-  const rules: ParsedRule[] = []
+  const declarations: ParsedDeclaration[] = [];
+  const nested: ParsedNestedRule[] = [];
 
-  const declarations: ParsedDeclaration[] = []
-  const nested: ParsedNestedRule[] = []
-
-  const blocks = parseBlocks(input)
-
-  for (const block of blocks) {
-    if (block.type === 'declaration') {
-      declarations.push(block.value)
-      continue
-    }
-
-    if (block.type === 'media') {
-      nested.push({
-        type: 'media',
-        value: block.name,
-        declarations: parseDeclarations(block.body),
-      })
-
-      continue
-    }
-
-    if (block.type === 'not-media') {
-      nested.push({
-        type: 'not-media',
-        value: block.name,
-        declarations: parseDeclarations(block.body),
-      })
-
-      continue
+  for (const block of parseBlocks(input)) {
+    if (block.type === "declaration") {
+      declarations.push(block.value);
+      continue;
     }
 
     nested.push({
-      type: 'selector',
+      type: block.type,
       value: block.name,
       declarations: parseDeclarations(block.body),
-    })
+    });
   }
 
-  rules.push({
-    selector: null,
-    declarations,
-    nested,
-  })
-
-  return rules
+  return [{ declarations, nested }];
 }
 
 function parseBlocks(input: string): Array<
-  | {
-      readonly type: 'declaration'
-      readonly value: ParsedDeclaration
-    }
-  | {
-      readonly type: 'media' | 'not-media' | 'selector'
-      readonly name: string
-      readonly body: string
-    }
+  | { readonly type: "declaration"; readonly value: ParsedDeclaration }
+  | { readonly type: "media" | "not-media" | "selector"; readonly name: string; readonly body: string }
 > {
   const output: Array<
-    | {
-        readonly type: 'declaration'
-        readonly value: ParsedDeclaration
-      }
-    | {
-        readonly type: 'media' | 'not-media' | 'selector'
-        readonly name: string
-        readonly body: string
-      }
-  > = []
+    | { readonly type: "declaration"; readonly value: ParsedDeclaration }
+    | { readonly type: "media" | "not-media" | "selector"; readonly name: string; readonly body: string }
+  > = [];
 
-  let buffer = ''
-  let index = 0
+  let buffer = "";
+  let index = 0;
 
   while (index < input.length) {
-    const char = input[index]
+    const char = input[index];
 
-    if (char !== '{') {
-      buffer += char
-      index += 1
-      continue
+    if (char !== "{") {
+      buffer += char;
+      index += 1;
+      continue;
     }
 
-    const name = buffer.trim()
-    buffer = ''
+    const name = buffer.trim();
+    buffer = "";
 
-    const endIndex = findMatchingBrace(input, index)
-    const body = input.slice(index + 1, endIndex)
+    const endIndex = findMatchingBrace(input, index);
 
-    if (name.startsWith('x:not(')) {
+    if (endIndex < 0) {
+      buffer += input.slice(index);
+      break;
+    }
+
+    const body = input.slice(index + 1, endIndex);
+
+    if (name.startsWith("x:not(")) {
       output.push({
-        type: 'not-media',
-        name: name
-          .replace(/^x:not\(/, '')
-          .replace(/\)$/, ''),
+        type: "not-media",
+        name: name.replace(/^x:not\(/, "").replace(/\)$/, "").trim(),
         body,
-      })
-    } else if (name.startsWith('x:')) {
+      });
+    } else if (name.startsWith("x:")) {
       output.push({
-        type: 'media',
-        name: name.replace(/^x:/, ''),
+        type: "media",
+        name: name.slice(2).trim(),
         body,
-      })
+      });
     } else {
       output.push({
-        type: 'selector',
+        type: "selector",
         name,
         body,
-      })
+      });
     }
 
-    index = endIndex + 1
+    index = endIndex + 1;
   }
 
   for (const declaration of parseDeclarations(buffer)) {
-    output.push({
-      type: 'declaration',
-      value: declaration,
-    })
+    output.push({ type: "declaration", value: declaration });
   }
 
-  return output
+  return output;
 }
 
 function parseDeclarations(input: string): ParsedDeclaration[] {
-  return splitTopLevel(input, ';')
-    .map(item => item.trim())
-    .filter(Boolean)
-    .map(item => {
-      const index = findTopLevelColon(item)
+  const items = splitTopLevel(input, ";");
+  const output: ParsedDeclaration[] = [];
 
-      return {
-        property: item.slice(0, index).trim(),
-        value: item.slice(index + 1).trim(),
-      }
-    })
-    .filter(item => item.property && item.value)
+  for (const item of items) {
+    const normalized = item.trim();
+
+    if (!normalized) {
+      continue;
+    }
+
+    const colonIndex = findTopLevelColon(normalized);
+
+    if (colonIndex <= 0) {
+      continue;
+    }
+
+    const property = normalized.slice(0, colonIndex).trim();
+    const value = normalized.slice(colonIndex + 1).trim();
+
+    if (property && value) {
+      output.push({ property, value });
+    }
+  }
+
+  return output;
 }
-
-/* ============================================================================
- * Atomic CSS
- * ============================================================================
- */
 
 function createAtomicRule(
   declaration: ParsedDeclaration,
-  options?: {
-    readonly breakpoint?: string
-    readonly notBreakpoint?: string
-  },
+  options: {
+    readonly breakpoint?: string;
+    readonly notBreakpoint?: string;
+  } = {},
 ): AtomicRule {
-  const normalizedProperty = normalizeCss(declaration.property)
-  const normalizedValue = normalizeCss(declaration.value)
-
-  const cacheKey = [
-    normalizedProperty,
-    normalizedValue,
-    options?.breakpoint ?? '',
-    options?.notBreakpoint ?? '',
-  ].join('|')
-
-  const cached = runtime.atomicCache.get(cacheKey)
+  const normalizedProperty = normalizeCss(declaration.property);
+  const normalizedValue = normalizeCss(declaration.value);
+  const cacheKey = `${normalizedProperty}|${normalizedValue}|${options.breakpoint ?? ""}|${options.notBreakpoint ?? ""}`;
+  const cached = runtime.atomicCache.get(cacheKey);
 
   if (cached) {
-    return cached
+    return cached;
   }
-
-  const className = [
-    runtime.config.prefix,
-    'a',
-    hashString(cacheKey),
-  ].join('-')
 
   const rule: AtomicRule = {
     property: declaration.property,
     value: declaration.value,
-    className,
-    breakpoint: options?.breakpoint,
-  }
+    className: `${runtime.config.prefix}-a-${hashString(cacheKey)}`,
+    breakpoint: options.breakpoint,
+    notBreakpoint: options.notBreakpoint,
+  };
 
-  runtime.atomicCache.set(cacheKey, rule)
-
-  return rule
+  runtime.atomicCache.set(cacheKey, rule);
+  return rule;
 }
 
-function buildCompiledCss(
-  atoms: readonly AtomicRule[],
-  scopedRules: readonly ScopedRule[],
-): string {
-  const output: string[] = []
+function buildCompiledCss(atoms: readonly AtomicRule[], scopedRules: readonly ScopedRule[]): string {
+  let output = "";
 
   for (const atom of atoms) {
-    const rule = `.${atom.className}{${atom.property}:${atom.value};}`
+    const rule = `.${atom.className}{${atom.property}:${atom.value};}`;
+    const wrapped = wrapRule(atom, rule);
 
-    if (!atom.breakpoint) {
-      output.push(rule)
-      continue
-    }
-
-    const mediaQuery =
-      runtime.config.breakpoints[atom.breakpoint]
-
-    if (!mediaQuery) {
-      output.push(rule)
-      continue
-    }
-
-    output.push(`@media ${mediaQuery}{${rule}}`)
+    output += wrapped;
+    output += "\n";
   }
 
   for (const scopedRule of scopedRules) {
-    output.push(`${scopedRule.selector}{${scopedRule.cssText}}`)
+    output += `${scopedRule.selector}{${scopedRule.cssText}}\n`;
   }
 
-  return output.join('\n')
+  return output.trim();
 }
 
-/* ============================================================================
- * DOM
- * ============================================================================
- */
+function wrapRule(atom: AtomicRule, rule: string): string {
+  if (atom.notBreakpoint) {
+    const mediaQuery = runtime.config.breakpoints[atom.notBreakpoint];
+    return mediaQuery ? `@media not all and ${mediaQuery}{${rule}}` : rule;
+  }
+
+  if (atom.breakpoint) {
+    const mediaQuery = runtime.config.breakpoints[atom.breakpoint];
+    return mediaQuery ? `@media ${mediaQuery}{${rule}}` : rule;
+  }
+
+  return rule;
+}
 
 function insertCss(cssText: string): void {
-  const normalized = normalizeCss(cssText)
+  const normalized = normalizeCss(cssText);
 
-  if (!normalized) {
-    return
+  if (!normalized || runtime.insertedCss.has(normalized) || !hasDocument()) {
+    return;
   }
 
-  if (runtime.insertedCss.has(normalized)) {
-    return
-  }
+  runtime.insertedCss.add(normalized);
 
-  runtime.insertedCss.add(normalized)
-
-  const sheet = getSheet()
-
-  for (const rule of splitTopLevelRules(cssText)) {
-    try {
-      sheet.insertRule(rule, sheet.cssRules.length)
-    } catch {
-      ensureStyleElement().appendChild(
-        document.createTextNode(`\n${rule}\n`),
-      )
-    }
-  }
-}
-
-function getSheet(): CSSStyleSheet {
-  if (runtime.sheet) {
-    return runtime.sheet
-  }
-
-  const style = ensureStyleElement()
-  const sheet = style.sheet
-
-  if (!sheet) {
-    throw new Error('Unable to create stylesheet.')
-  }
-
-  runtime.sheet = sheet
-
-  return sheet
+  const style = ensureStyleElement();
+  style.appendChild(document.createTextNode(`\n${cssText}\n`));
 }
 
 function ensureStyleElement(): HTMLStyleElement {
-  const existing = document.getElementById(STYLE_ID)
+  const existing = document.getElementById(STYLE_ID);
 
   if (existing instanceof HTMLStyleElement) {
-    return existing
+    return existing;
   }
 
-  const style = document.createElement('style')
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.dataset.cipo = "runtime";
+  document.head.appendChild(style);
 
-  style.id = STYLE_ID
-  style.dataset.cipo = 'runtime'
-
-  document.head.appendChild(style)
-
-  return style
+  return style;
 }
 
-/* ============================================================================
- * Utilities
- * ============================================================================
- */
+function flattenTheme(tokens: ThemeDefinition, path: readonly string[] = []): Array<readonly [string, string | number]> {
+  const output: Array<readonly [string, string | number]> = [];
 
-function flattenTheme(
-  tokens: ThemeDefinition,
-  path: string[] = [],
-): Array<readonly [string, string | number]> {
-  return Object.entries(tokens).flatMap(([key, value]) => {
-    const nextPath = [...path, key]
+  for (const [key, value] of Object.entries(tokens)) {
+    const nextPath = [...path, key];
 
     if (isPlainObject(value)) {
-      return flattenTheme(
-        value as ThemeDefinition,
-        nextPath,
-      )
+      output.push(...flattenTheme(value as ThemeDefinition, nextPath));
+      continue;
     }
 
-    return [[nextPath.join('-'), value]]
-  })
+    output.push([nextPath.join("-"), value]);
+  }
+
+  return output;
 }
 
 function styleObjectToCss(styleObject: StyleObject): string {
-  return Object.entries(styleObject)
-    .flatMap(([key, value]) => {
-      if (value === null || value === undefined) {
-        return []
-      }
+  let output = "";
 
-      if (isPlainObject(value)) {
-        return `${key}{${styleObjectToCss(value as StyleObject)}}`
-      }
+  for (const [key, value] of Object.entries(styleObject)) {
+    if (value === null || value === undefined) {
+      continue;
+    }
 
-      return `${toKebabCase(key)}:${String(value)};`
-    })
-    .join('')
+    if (isPlainObject(value)) {
+      output += `${key}{${styleObjectToCss(value as StyleObject)}}`;
+      continue;
+    }
+
+    output += `${toKebabCase(key)}:${String(value)};`;
+  }
+
+  return output;
+}
+
+function declarationsToCssText(declarations: readonly ParsedDeclaration[]): string {
+  let output = "";
+
+  for (const declaration of declarations) {
+    output += `${declaration.property}:${declaration.value};`;
+  }
+
+  return output;
+}
+
+function resolveScopedSelector(scopeClassName: string, selector: string): string {
+  const normalized = selector.trim();
+
+  if (!normalized) {
+    return `.${scopeClassName}`;
+  }
+
+  if (normalized.includes("&")) {
+    return normalized.replaceAll("&", `.${scopeClassName}`);
+  }
+
+  return `.${scopeClassName} ${normalized}`;
+}
+
+function joinClassNames(atoms: readonly AtomicRule[], scopeClassName: string): string {
+  const seen = new Set<string>();
+  let output = "";
+
+  if (scopeClassName) {
+    seen.add(scopeClassName);
+    output += scopeClassName;
+  }
+
+  for (const atom of atoms) {
+    if (seen.has(atom.className)) {
+      continue;
+    }
+
+    seen.add(atom.className);
+    output += output ? ` ${atom.className}` : atom.className;
+  }
+
+  return output;
 }
 
 function extractFunctionArguments(input: string): string {
-  const start = input.indexOf('(')
-  const end = input.lastIndexOf(')')
+  const start = input.indexOf("(");
+  const end = input.lastIndexOf(")");
 
-  return input.slice(start + 1, end).trim()
+  if (start < 0 || end <= start) {
+    return "";
+  }
+
+  return input.slice(start + 1, end).trim();
 }
 
-function splitTopLevel(
-  input: string,
-  separator: string,
-): string[] {
-  const output: string[] = []
-
-  let buffer = ''
-  let depth = 0
-  let quote: '"' | "'" | null = null
+function splitTopLevel(input: string, separator: string): string[] {
+  const output: string[] = [];
+  let buffer = "";
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
 
   for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
+    const char = input[index];
 
     if (quote) {
-      buffer += char
+      buffer += char;
 
-      if (
-        char === quote &&
-        input[index - 1] !== '\\'
-      ) {
-        quote = null
+      if (char === quote && input[index - 1] !== "\\") {
+        quote = null;
       }
 
-      continue
+      continue;
     }
 
     if (char === '"' || char === "'") {
-      quote = char
-      buffer += char
-      continue
+      quote = char;
+      buffer += char;
+      continue;
     }
 
-    if (char === '(' || char === '[') {
-      depth += 1
-    }
-
-    if (char === ')' || char === ']') {
-      depth -= 1
-    }
+    if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth -= 1;
 
     if (char === separator && depth === 0) {
-      output.push(buffer.trim())
-      buffer = ''
-      continue
+      output.push(buffer.trim());
+      buffer = "";
+      continue;
     }
 
-    buffer += char
+    buffer += char;
   }
 
   if (buffer.trim()) {
-    output.push(buffer.trim())
+    output.push(buffer.trim());
   }
 
-  return output
+  return output;
 }
 
-function splitTopLevelRules(input: string): string[] {
-  const output: string[] = []
+function findMatchingBrace(input: string, startIndex: number): number {
+  let depth = 0;
 
-  let start = 0
-  let depth = 0
+  for (let index = startIndex; index < input.length; index += 1) {
+    const char = input[index];
 
-  for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
+    if (char === "{") depth += 1;
+    else if (char === "}") depth -= 1;
 
-    if (char === '{') {
-      depth += 1
-    }
-
-    if (char === '}') {
-      depth -= 1
-
-      if (depth === 0) {
-        output.push(
-          input.slice(start, index + 1).trim(),
-        )
-
-        start = index + 1
-      }
+    if (depth === 0) {
+      return index;
     }
   }
 
-  return output.filter(Boolean)
-}
-
-function findMatchingBrace(
-  input: string,
-  startIndex: number,
-): number {
-  let depth = 0
-
-  for (
-    let index = startIndex;
-    index < input.length;
-    index += 1
-  ) {
-    const char = input[index]
-
-    if (char === '{') {
-      depth += 1
-    }
-
-    if (char === '}') {
-      depth -= 1
-
-      if (depth === 0) {
-        return index
-      }
-    }
-  }
-
-  return input.length
+  return -1;
 }
 
 function findTopLevelColon(input: string): number {
-  let depth = 0
+  let depth = 0;
 
   for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
+    const char = input[index];
 
-    if (char === '(' || char === '[') {
-      depth += 1
-    }
-
-    if (char === ')' || char === ']') {
-      depth -= 1
-    }
-
-    if (char === ':' && depth === 0) {
-      return index
-    }
+    if (char === "(" || char === "[") depth += 1;
+    else if (char === ")" || char === "]") depth -= 1;
+    else if (char === ":" && depth === 0) return index;
   }
 
-  return -1
+  return -1;
 }
 
 function normalizeCss(input: string): string {
-  return input
-    .replace(/\s+/g, ' ')
-    .replace(/\s*([{}:;,>+~])\s*/g, '$1')
-    .trim()
+  return input.replace(/\s+/g, " ").replace(/\s*([{}:;,>+~])\s*/g, "$1").trim();
 }
 
 function hashString(input: string): string {
-  let hash = HASH_SEED
+  let hash = HASH_SEED;
 
   for (let index = 0; index < input.length; index += 1) {
-    hash =
-      ((hash << 5) + hash + input.charCodeAt(index)) &
-      HASH_MASK
+    hash = ((hash << 5) + hash + input.charCodeAt(index)) & HASH_MASK;
   }
 
-  return Math.abs(hash).toString(36)
+  return (hash >>> 0).toString(36);
 }
 
 function toKebabCase(input: string): string {
-  return input.replace(/[A-Z]/g, match => {
-    return `-${match.toLowerCase()}`
-  })
+  return input.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+}
+
+function hasDocument(): boolean {
+  return typeof document !== "undefined" && Boolean(document.head);
 }
 
 function isCssArtifact(value: unknown): value is CssArtifact {
-  return (
-    isPlainObject(value) &&
-    value.kind === 'cipo.css'
-  )
+  return isPlainObject(value) && value.kind === "cipo.css";
 }
 
-function isPlainObject(
-  value: unknown,
-): value is Record<string, unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  )
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
-/**
- * Browser global installer for userscript `@require` usage.
- *
- * @remarks
- * The build can expose this module as `window.FabricaHTML` or any other global
- * name through the BUILD_GLOBAL_NAME environment variable.
- *
- * @example
- * ```ts
- * installBrowserGlobal("MigosDemo");
- * console.log(window.MigosDemo.createGreeting({ name: "Rod" }));
- * ```
- */
+
 export function installBrowserGlobal(globalName = "RodK"): void {
   const target = globalThis as typeof globalThis & Record<string, unknown>;
-  target[globalName] = { configure, theme, html, css };
+
+  target[globalName] = {
+    configure,
+    theme,
+    html,
+    css,
+    getCssText,
+    reset,
+  };
 }
