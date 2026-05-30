@@ -1436,19 +1436,20 @@ function updateRepeat(
     const key = directive.key(item, index);
 
     nextKeys.add(key);
-
     let record = records.get(key);
 
     if (!record) {
       record = createRepeatRecord(item, index, key, directive.render);
       records.set(key, record);
     } else {
+      const currentRecord = record;
+
       batch(() => {
-        record.item.set(item);
-        record.index.set(index);
-        record.key.set(key);
+        currentRecord.item.set(item);
+        currentRecord.index.set(index);
+        currentRecord.key.set(key);
       });
-    }
+}
 
     if (record.fragment) {
       end.parentNode?.insertBefore(record.fragment, cursor ?? end);
@@ -2332,4 +2333,4 @@ if (typeof window !== "undefined") {
   window.Fabrica = Fabrica;
 }
 
-export default Fábrica;
+export default Fabrica;
