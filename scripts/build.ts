@@ -85,11 +85,13 @@ async function main(): Promise<void> {
   console.log(`✅ Built private TypeScript entrypoint: ${entrypoint}`);
   console.log(`📦 ESM:  dist/bundle.esm.js`);
   console.log(`🌍 IIFE: dist/bundle.iife.js as window.${globalName}`);
-  for (const file of result.outputFiles) {
+  for (const file of result?.outputFiles) {
     console.log(`📦 FILE:  ${file.path}`);
   }
 
-  await writeFile(
+  const outputs = Object.keys(result?.metafile?.outputs);
+  
+  await fs.writeFile(
    "dist/metafile-outputs.json",
     JSON.stringify(outputs, null, 2)
   );
