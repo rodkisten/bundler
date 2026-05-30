@@ -1,21 +1,25 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+
 import { DIST_DIR, readEnv } from "./config";
 
 const githubToken = process.env.GIST_TOKEN ?? process.env.GITHUB_TOKEN;
 const gistId = process.env.GIST_ID;
-const description = readEnv("GIST_DESCRIPTION", "Browser bundle generated from a private TypeScript repository");
+const description = readEnv(
+  "GIST_DESCRIPTION",
+  "Browser bundle generated from a private TypeScript repository",
+);
 
 /**
- * Publishes the generated bundle files to a public GitHub Gist.
+ * Publishes every generated distribution file to a GitHub Gist.
  *
  * @returns A promise that resolves when the gist API call succeeds.
  *
  * @example
  * ```ts
  * await main();
- * // The configured public gist contains bundle.esm.js and bundle.iife.js.
+ * // The configured gist contains every generated dist file.
  * ```
  */
 async function main(): Promise<void> {
@@ -23,11 +27,7 @@ async function main(): Promise<void> {
     throw new Error("Missing GIST_TOKEN or GITHUB_TOKEN.");
   }
 
-  const files = {
-    "bundle.esm.js": { content: await readDistFile("bundle.esm.js") },
-    "bundle.iife.js": { content: await readDistFile("bundle.iife.js") },
-    "index.html": { content: await readDistFile("index.html") },
-  };
+  const files = await collectDistFiles();
 
   const endpoint = gistId
     ? `https://api.github.com/gists/${gistId}`
@@ -50,29 +50,77 @@ async function main(): Promise<void> {
     }),
   });
 
-  const payload = await response.json() as { html_url?: string; message?: string };
+  const payload = (await response.json()) as {
+    html_url?: string;
+    message?: string;
+  };
 
   if (!response.ok) {
-    throw new Error(`GitHub Gist publish failed: ${payload.message ?? response.statusText}`);
+    throw new Error(
+      `GitHub Gist publish failed: ${payload.message ?? response.statusText}`,
+    );
   }
 
   console.log(`✅ Gist published: ${payload.html_url ?? "unknown URL"}`);
 }
 
 /**
- * Reads one generated distribution file.
+ * Collects every file from the dist directory and converts it into the Gist files payload.
  *
- * @param fileName - File name inside the dist directory.
- * @returns The file content as UTF-8 text.
+ * @returns A GitHub Gist files object keyed by relative file name.
  *
  * @example
  * ```ts
- * await readDistFile("bundle.esm.js");
- * // "export {...}"
+ * const files = await collectDistFiles();
+ * // { "bundle.esm.js": { content: "..." } }
  * ```
  */
-async function readDistFile(fileName: string): Promise<string> {
-  return fs.readFile(path.join(DIST_DIR, fileName), "utf8");
+async function collectDistFiles(): Promise<Record<string, { content: string }>> {
+  const files: Record<string, { content: string }> = {};
+
+  await walkDist(DIST_DIR, async (absolutePath) => {
+    const relativePath = path.relative(DIST_DIR, absolutePath).replaceAll(path.sep, "/");
+
+    files[relativePath] = {
+      content: await fs.readFile(absolutePath, "utf8"),
+    };
+  });
+
+  return files;
+}
+
+/**
+ * Walks through the dist directory recursively.
+ *
+ * @param directory - Directory to inspect.
+ * @param onFile - Callback called for every file found.
+ * @returns A promise that resolves after all files are visited.
+ *
+ * @example
+ * ```ts
+ * await walkDist("dist", async file => {
+ *   console.log(file);
+ * });
+ * ```
+ */
+async function walkDist(
+  directory: string,
+  onFile: (absolutePath: string) => Promise<void>,
+): Promise<void> {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const absolutePath = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      await walkDist(absolutePath, onFile);
+      continue;
+    }
+
+    if (entry.isFile()) {
+      await onFile(absolutePath);
+    }
+  }
 }
 
 await main();
