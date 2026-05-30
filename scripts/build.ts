@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { glob } from "node:fs/promises";
+import { relative } from "node:path";
 import { build } from "esbuild";
+
 import {
   DEFAULT_ENTRYPOINT,
   DEFAULT_GLOBAL_NAME,
@@ -61,9 +64,35 @@ async function main(): Promise<void> {
     "utf8",
   );
 
+  const files: string[] = [];
+  for await (const file of glob("src/**/*.ts")) {
+    if (file === "src/index.ts") {
+      continue;
+    }
+    files.push(file);
+  }
+
+  const result = await build({
+    entryPoints: files,
+    outdir: "dist",
+    bundle: false,
+    minify: true,
+    target: "es2022",
+    metafile: true,
+    write: true,
+  });
+
   console.log(`✅ Built private TypeScript entrypoint: ${entrypoint}`);
   console.log(`📦 ESM:  dist/bundle.esm.js`);
   console.log(`🌍 IIFE: dist/bundle.iife.js as window.${globalName}`);
+  for (const file of result.outputFiles) {
+    console.log(`📦 FILE:  ${file.path}`);
+  }
+
+  await writeFile(
+   "dist/metafile-outputs.json",
+    JSON.stringify(outputs, null, 2)
+  );
 }
 
 /**
