@@ -780,7 +780,7 @@ const PREACT_ADAPTER: CipoAdapter = {
 const runtime: CipoRuntimeState = {
   config: {
     prefix: DEFAULT_PREFIX,
-    debug: false,
+    debug: true,
     important: false,
     adapter: "dom",
     darkSelector: '[data-theme="dark"]',
