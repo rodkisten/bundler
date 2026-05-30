@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     },
     body: JSON.stringify({
       description,
-      public: true,
+      public: false,
       files,
     }),
   });
