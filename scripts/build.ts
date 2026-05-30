@@ -146,11 +146,11 @@ function createIndexHtml(globalName: string, outputs: string[]): string {
   const moduleLinks = outputs
     .filter((output) => output.endsWith(".js"))
     .map((output) => {
-      const href = output.startsWith(`${DIST_DIR}/`)
+     /** const href = output.startsWith(`${DIST_DIR}/`)
         ? output.slice(DIST_DIR.length + 1)
-        : output;
+        : output;**/
 
-      return `<p>${href}: <a href="./${href}" target="_blank" rel="noreferrer">${href}</a></p>`;
+      return `<p>${output}: <a href="./${output}" target="_blank" rel="noreferrer">${href}</a></p>`;
     })
     .join("\n");
 
