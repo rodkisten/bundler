@@ -341,6 +341,19 @@ function createIndexHtml(
         ${exampleBlocks || "<p>No TSDoc examples found.</p>"}
       </section>
     </main>
+
+    <script type="module">
+
+import { codeToHtml } from "https://esm.run/shiki@3.0.0";
+document.querySelectorAll("code").forEach(
+  (code) =>
+    (code.innerHTML = await codeToHtml(code.innerText, {
+      lang: "js",
+      theme: "rose-pine",
+    })),
+);
+
+  </script>
   </body>
 </html>`;
 }
