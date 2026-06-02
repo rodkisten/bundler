@@ -7,7 +7,7 @@ import type {
   RefDirective,
   Signal,
   StyleMapDirective,
-} from "@/types";
+} from "./types";
 
 /**
  * Checks whether a value is a FabricaDOM signal.
