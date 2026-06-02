@@ -1,6 +1,6 @@
-import { isPlainObject, isTemplateStringsArray } from "@/guards";
-import { readValue } from "@/value";
-import type { CssInput } from "@/types";
+import { isPlainObject, isTemplateStringsArray } from "./guards";
+import { readValue } from "./value";
+import type { CssInput } from "./types";
 
 /** Parsed CSS declaration. */
 type CssDeclaration = {
