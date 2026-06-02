@@ -1,14 +1,14 @@
-import { $, createDomBag } from "@/bag";
-import { component } from "@/component";
-import { css } from "@/css";
-import { debug, setDebug } from "@/debug";
-import { classMap, ref, repeat, styleMap, when } from "@/directives";
-import { html, mount, render } from "@/dom";
-import { install as installGlobal, noConflict as restoreGlobals } from "@/install";
-import { config } from "@/install-state";
-import { rawHtml } from "@/raw";
-import { batch, computed, effect, memo, onCleanup, signal, untrack } from "@/reactivity";
-import type { DebugSnapshot, DomBag, InstallOptions, RawHtml, RenderValue, Signal } from "@/types";
+import { $, createDomBag } from "./bag";
+import { component } from "./component";
+import { css } from "./css";
+import { debug, setDebug } from "./debug";
+import { classMap, ref, repeat, styleMap, when } from "./directives";
+import { html, mount, render } from "./dom";
+import { install as installGlobal, noConflict as restoreGlobals } from "./install";
+import { config } from "./install-state";
+import { rawHtml } from "./raw";
+import { batch, computed, effect, memo, onCleanup, signal, untrack } from "./reactivity";
+import type { DebugSnapshot, DomBag, InstallOptions, RawHtml, RenderValue, Signal } from "./types";
 
 /** Public FabricaDOM API shape. */
 export type FabricaApi = {
