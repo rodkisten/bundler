@@ -64,7 +64,7 @@ async function main(): Promise<void> {
     entryPoints,
     outdir: DIST_DIR,
     outbase: "src",
-    bundle: false,
+    bundle: true,
     format: "iife",
     platform: "browser",
     target: "es2022",
