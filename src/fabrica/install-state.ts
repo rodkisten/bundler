@@ -1,4 +1,4 @@
-import type { RuntimeConfig } from "@/types";
+import type { RuntimeConfig } from "./types";
 
 /** Mutable runtime config used by the bag and install layers. */
 export const config: RuntimeConfig = {
