@@ -227,7 +227,8 @@ function createIndexHtml(
   const moduleLinks = outputs
     .filter((output) => output.endsWith(".js"))
     .map((output) => {
-      const href = output /**output.startsWith(`${DIST_DIR}/`)
+       const href = output.replace(/^\/?dist\/?/, '');
+      /**output.startsWith(`${DIST_DIR}/`)
         ? output.slice(DIST_DIR.length + 1)
         : output;**/ 
 
@@ -238,7 +239,14 @@ function createIndexHtml(
   const exampleBlocks = examples
     .map(
       (example) => `
-        <article class="example-card">
+        <article class="example-card" data-package="${
+          example.source
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\.js$/i, '')
+            .replace(/[^a-zA-Z]/g, '')
+            .toLowerCase()
+        }">
           <div class="example-header">
             <h3>${escapeHtml(example.title)}</h3>
             <span>${escapeHtml(example.source)}</span>
@@ -350,19 +358,6 @@ function createIndexHtml(
         ${exampleBlocks || "<p>No TSDoc examples found.</p>"}
       </section>
     </main>
-
-    <script type="module">
-
-import { codeToHtml } from "https://esm.run/shiki@3.0.0";
-document.querySelectorAll("code").forEach(
-  (code) =>
-    (code.innerHTML = await codeToHtml(code.innerText, {
-      lang: "js",
-      theme: "rose-pine",
-    })),
-);
-
-  </script>
   </body>
 </html>`;
 }
