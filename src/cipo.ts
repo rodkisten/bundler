@@ -434,7 +434,7 @@
  * });
  *
  * ============================================================================
- */
+ *
  *
  * This file intentionally keeps the public API from the previous implementation:
  *
