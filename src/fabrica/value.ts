@@ -7,7 +7,7 @@ import {
   isRawHtml,
   isSignal,
   isStyleMapDirective,
-} from "@/guards";
+} from "./guards";
 
 /**
  * Reads signals and reactive expressions while leaving DOM-ish values intact.
