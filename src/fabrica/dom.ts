@@ -1,13 +1,13 @@
-import { PART_END, PART_START } from "@/constants";
-import { debugState } from "@/debug";
-import { clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "@/dom-cleanup";
-import { bindEvent } from "@/events";
-import { isClassMapDirective, isDirective, isDomBag, isDomElement, isDomNode, isRawHtml, isRefDirective, isSignal, isStyleMapDirective } from "@/guards";
-import { applyClassMap, applyStyleMap } from "@/maps";
-import { batch, effect, signal } from "@/reactivity";
-import { comparePathsReverse, getCompiledTemplate, resolvePath } from "@/template";
-import { hasReactiveValue, readValue } from "@/value";
-import type { Directive, DirectiveController, RenderValue, RepeatDirective, RepeatRecord, TemplatePart, WhenDirective } from "@/types";
+import { PART_END, PART_START } from "./constants";
+import { debugState } from "./debug";
+import { clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "./dom-cleanup";
+import { bindEvent } from "./events";
+import { isClassMapDirective, isDirective, isDomBag, isDomElement, isDomNode, isRawHtml, isRefDirective, isSignal, isStyleMapDirective } from "./guards";
+import { applyClassMap, applyStyleMap } from "./maps";
+import { batch, effect, signal } from "./reactivity";
+import { comparePathsReverse, getCompiledTemplate, resolvePath } from "./template";
+import { hasReactiveValue, readValue } from "./value";
+import type { Directive, DirectiveController, RenderValue, RepeatDirective, RepeatRecord, TemplatePart, WhenDirective } from "./types";
 
 /**
  * Creates DOM from a tagged template.
