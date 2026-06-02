@@ -1,5 +1,5 @@
-import { toKebabCase } from "@/css";
-import { readValue } from "@/value";
+import { toKebabCase } from "./css";
+import { readValue } from "./value";
 
 /** Previous map keys tracked by classMap/styleMap bindings. */
 type MapState = {
