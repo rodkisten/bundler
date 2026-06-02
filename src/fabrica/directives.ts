@@ -9,7 +9,7 @@ import type {
   Signal,
   StyleMapDirective,
   WhenDirective,
-} from "@/types";
+} from "./types";
 
 /**
  * Creates a conditional rendering directive.
