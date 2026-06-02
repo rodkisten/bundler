@@ -1,6 +1,6 @@
-import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "@/constants";
-import { debugState } from "@/debug";
-import type { CompiledTemplate, TemplatePart } from "@/types";
+import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
+import { debugState } from "./debug";
+import type { CompiledTemplate, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
