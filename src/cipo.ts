@@ -471,7 +471,620 @@
  * explicit to make extraction into modules easy later.
  * ============================================================================
  */
-
+/**
+ * Cipó runtime.
+ *
+ * @remarks
+ * Cipó is a browser-first atomic CSS runtime with a semantic CSS DSL.
+ * It keeps the original API stable while adding modern authoring features:
+ * atomic CSS, scoped selectors, theme tokens, CSS layers, inline CSS,
+ * REM conversion, color helpers, responsive blocks, dark mode, pseudo states,
+ * DOM factories, framework adapters, browser globals, and debug utilities.
+ *
+ * @example Basic atomic CSS
+ * ```ts
+ * const button = css`
+ *   color: white;
+ *   background: #111827;
+ *   padding: 12px 16px;
+ *   border-radius: 12px;
+ * `;
+ *
+ * String(button);
+ * // "cipo-a-xxxxx cipo-a-yyyyy cipo-a-zzzzz cipo-a-wwwww"
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   color: white;
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   background: #111827;
+ * }
+ *
+ * .cipo-a-zzzzz {
+ *   padding: 0.75rem 1rem;
+ * }
+ *
+ * .cipo-a-wwwww {
+ *   border-radius: 0.75rem;
+ * }
+ * ```
+ *
+ * @example Runtime configuration
+ * ```ts
+ * configure({
+ *   prefix: "rod",
+ *   debug: false,
+ *   important: true,
+ *   adapter: "solid",
+ *   darkSelector: ".dark",
+ *   themeRootSelector: ":root",
+ *   minify: false,
+ *   layers: true,
+ *   rem: true,
+ *   remBase: 16,
+ *   colorMode: "oklch",
+ *   breakpoints: {
+ *     md: "(min-width: 768px)",
+ *   },
+ * });
+ * ```
+ *
+ * Output CSS when `important` is enabled:
+ *
+ * ```css
+ * .rod-a-xxxxx {
+ *   color: white !important;
+ * }
+ * ```
+ *
+ * @example Theme tokens and shorthand variables
+ * ```ts
+ * theme({
+ *   colors: {
+ *     brand: "#22c55e",
+ *   },
+ *   spacing: "0.25rem",
+ *   radius: {
+ *     xl: "18px",
+ *   },
+ * });
+ *
+ * const card = css`
+ *   color: $theme.colors.brand;
+ *   padding: calc($spacing * 4);
+ *   border-radius: $radius-xl;
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * :root {
+ *   --cipo-colors-brand: #22c55e;
+ *   --cipo-spacing: 0.25rem;
+ *   --cipo-radius-xl: 18px;
+ * }
+ *
+ * .cipo-a-xxxxx {
+ *   color: var(--cipo-colors-brand);
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   padding: calc(var(--cipo-spacing) * 4);
+ * }
+ *
+ * .cipo-a-zzzzz {
+ *   border-radius: var(--cipo-radius-xl);
+ * }
+ * ```
+ *
+ * @example Global CSS
+ * ```ts
+ * injectGlobal`
+ *   *, *::before, *::after {
+ *     box-sizing: border-box;
+ *   }
+ *
+ *   body {
+ *     margin: 0;
+ *     background: $theme.colors.brand;
+ *   }
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * *, *::before, *::after {
+ *   box-sizing: border-box;
+ * }
+ *
+ * body {
+ *   margin: 0;
+ *   background: var(--cipo-colors-brand);
+ * }
+ * ```
+ *
+ * @example Global CSS with local important mode
+ * ```ts
+ * injectGlobal(
+ *   { important: true },
+ *   `
+ *     body {
+ *       margin: 0;
+ *       color: white;
+ *     }
+ *   `,
+ * );
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * body {
+ *   margin: 0 !important;
+ *   color: white !important;
+ * }
+ * ```
+ *
+ * @example Utility directive
+ * ```ts
+ * const card = css`
+ *   @with(
+ *     bg(#111827),
+ *     color(white),
+ *     px(16px),
+ *     py(12px),
+ *     rounded(18px),
+ *     shadow(0 24px 80px rgb(0 0 0 / 0.2))
+ *   );
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   background: #111827;
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   color: white;
+ * }
+ *
+ * .cipo-a-zzzzz {
+ *   padding-inline: 1rem;
+ * }
+ *
+ * .cipo-a-wwwww {
+ *   padding-block: 0.75rem;
+ * }
+ *
+ * .cipo-a-vvvvv {
+ *   border-radius: 1.125rem;
+ * }
+ *
+ * .cipo-a-uuuuu {
+ *   box-shadow: 0 24px 80px rgb(0 0 0 / 0.2);
+ * }
+ * ```
+ *
+ * @example Helper functions
+ * ```ts
+ * const fluid = css`
+ *   font-size: x:fluid(1.25rem, 3rem, 4vw);
+ *   gap: x:spacing(4);
+ *   x:size(48px);
+ *   background: x:alpha($theme.colors.brand / 18%);
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   font-size: clamp(1.25rem, 4vw, 3rem);
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   gap: calc(var(--cipo-spacing) * 4);
+ * }
+ *
+ * .cipo-a-zzzzz {
+ *   width: 3rem;
+ * }
+ *
+ * .cipo-a-wwwww {
+ *   height: 3rem;
+ * }
+ *
+ * .cipo-a-vvvvv {
+ *   background: color-mix(in oklab, var(--cipo-colors-brand) 18%, transparent);
+ * }
+ * ```
+ *
+ * @example Responsive block
+ * ```ts
+ * const panel = css`
+ *   width: 100%;
+ *
+ *   x:md {
+ *     width: 720px;
+ *   }
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   width: 100%;
+ * }
+ *
+ * @media (min-width: 768px) {
+ *   .cipo-a-yyyyy {
+ *     width: 45rem;
+ *   }
+ * }
+ * ```
+ *
+ * @example Inverted responsive block
+ * ```ts
+ * const mobileOnly = css`
+ *   display: block;
+ *
+ *   x:not(md) {
+ *     font-size: 14px;
+ *   }
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   display: block;
+ * }
+ *
+ * @media not all and (min-width: 768px) {
+ *   .cipo-a-yyyyy {
+ *     font-size: 0.875rem;
+ *   }
+ * }
+ * ```
+ *
+ * @example Dark mode block
+ * ```ts
+ * const surface = css`
+ *   background: white;
+ *   color: black;
+ *
+ *   x:dark {
+ *     background: #020617;
+ *     color: white;
+ *   }
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   background: white;
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   color: black;
+ * }
+ *
+ * [data-theme="dark"] .cipo-a-zzzzz {
+ *   background: #020617;
+ * }
+ *
+ * [data-theme="dark"] .cipo-a-wwwww {
+ *   color: white;
+ * }
+ * ```
+ *
+ * @example Pseudo block
+ * ```ts
+ * const link = css`
+ *   color: #38bdf8;
+ *
+ *   x:hover {
+ *     color: #7dd3fc;
+ *   }
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   color: #38bdf8;
+ * }
+ *
+ * .cipo-a-yyyyy:hover {
+ *   color: #7dd3fc;
+ * }
+ * ```
+ *
+ * @example Scoped selectors
+ * ```ts
+ * const list = css`
+ *   padding: 0;
+ *
+ *   li {
+ *     list-style: none;
+ *     padding: 8px;
+ *   }
+ *
+ *   &:hover {
+ *     opacity: 0.92;
+ *   }
+ * `;
+ * ```
+ *
+ * Output class:
+ *
+ * ```ts
+ * String(list);
+ * // "cipo-s-xxxxx cipo-a-yyyyy"
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-yyyyy {
+ *   padding: 0;
+ * }
+ *
+ * .cipo-s-xxxxx li {
+ *   list-style: none;
+ *   padding: 0.5rem;
+ * }
+ *
+ * .cipo-s-xxxxx:hover {
+ *   opacity: 0.92;
+ * }
+ * ```
+ *
+ * @example Inline CSS for style attributes
+ * ```ts
+ * const style = inline.css`
+ *   px: 2;
+ *   color: saturate($colors.primary, 100%);
+ *   bg: lighten($colors.brand, 50);
+ *   text(size: sm, lh: 2, $colors.red.500);
+ * `;
+ *
+ * String(style);
+ * ```
+ *
+ * Output inline CSS:
+ *
+ * ```css
+ * padding-inline: calc(var(--cipo-spacing) * 2);
+ * color: color-mix(in oklch, var(--cipo-colors-primary), currentColor 100%);
+ * background: oklch(from var(--cipo-colors-brand) calc(l + 0.5) c h);
+ * font-size: var(--cipo-text-sm);
+ * line-height: 2;
+ * color: var(--cipo-colors-red-500);
+ * ```
+ *
+ * @example Inline object DSL
+ * ```ts
+ * const style = inline.css({
+ *   px: 2,
+ *   py: "12px",
+ *   bg: "$theme.colors.brand",
+ *   text: {
+ *     size: "sm",
+ *     lh: 2,
+ *     color: "$theme.colors.red.500",
+ *     decoration: "underline",
+ *     shadow: "0 2px 4px rgb(0 0 0 / 0.2)",
+ *   },
+ * });
+ * ```
+ *
+ * Output inline CSS:
+ *
+ * ```css
+ * padding-inline: calc(var(--cipo-spacing) * 2);
+ * padding-block: 0.75rem;
+ * background: var(--cipo-colors-brand);
+ * font-size: var(--cipo-text-sm);
+ * line-height: 2;
+ * color: var(--cipo-colors-red-500);
+ * text-decoration-line: underline;
+ * text-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
+ * ```
+ *
+ * @example Text utility
+ * ```ts
+ * const title = css`
+ *   text(
+ *     size: lg,
+ *     lh: 1.2,
+ *     weight: 700,
+ *     align: center,
+ *     transform: uppercase,
+ *     decoration: underline,
+ *     shadow: 0 2px 8px rgb(0 0 0 / 0.2),
+ *     color: $theme.colors.brand
+ *   );
+ * `;
+ * ```
+ *
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx {
+ *   font-size: var(--cipo-text-lg);
+ * }
+ *
+ * .cipo-a-yyyyy {
+ *   line-height: 1.2;
+ * }
+ *
+ * .cipo-a-zzzzz {
+ *   font-weight: 700;
+ * }
+ *
+ * .cipo-a-wwwww {
+ *   text-align: center;
+ * }
+ *
+ * .cipo-a-vvvvv {
+ *   text-transform: uppercase;
+ * }
+ *
+ * .cipo-a-uuuuu {
+ *   text-decoration-line: underline;
+ * }
+ *
+ * .cipo-a-ttttt {
+ *   text-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+ * }
+ *
+ * .cipo-a-sssss {
+ *   color: var(--cipo-colors-brand);
+ * }
+ * ```
+ *
+ * @example DOM element API
+ * ```ts
+ * const element = document.createElement("div");
+ *
+ * const styled = cipo(element).css`
+ *   color: red;
+ *   padding: $spacing;
+ * `;
+ *
+ * styled.element === element;
+ * // true
+ *
+ * element.className.includes(styled.className);
+ * // true
+ * ```
+ *
+ * @example DOM tag factory API
+ * ```ts
+ * configure({ adapter: "dom" });
+ *
+ * const Card = cipo.div.css`
+ *   padding: 16px;
+ *   background: white;
+ * `;
+ *
+ * const element = Card({
+ *   class: "extra",
+ *   children: "Hello",
+ * });
+ * ```
+ *
+ * Output DOM:
+ *
+ * ```html
+ * <div class="cipo-a-xxxxx cipo-a-yyyyy extra">Hello</div>
+ * ```
+ *
+ * @example Framework adapter API
+ * ```ts
+ * configure({ adapter: "react" });
+ *
+ * const Button = cipo.button.css`
+ *   color: white;
+ *   background: black;
+ * `;
+ *
+ * Button({ children: "Save" });
+ * ```
+ *
+ * React/Preact style output:
+ *
+ * ```ts
+ * {
+ *   className: "cipo-a-xxxxx cipo-a-yyyyy",
+ *   children: "Save",
+ * }
+ * ```
+ *
+ * Solid style output:
+ *
+ * ```ts
+ * configure({ adapter: "solid" });
+ *
+ * {
+ *   class: "cipo-a-xxxxx cipo-a-yyyyy",
+ *   children: "Save",
+ * }
+ * ```
+ *
+ * @example Component wrapper API
+ * ```ts
+ * const StyledComponent = cipo(MyComponent).css`
+ *   color: red;
+ * `;
+ *
+ * const ReactOnly = cipo(MyComponent, { adapter: "react" }).css`
+ *   color: blue;
+ * `;
+ *
+ * const SolidOnly = cipo(MyComponent, { adapter: "solid" }).css`
+ *   color: green;
+ * `;
+ * ```
+ *
+ * @example Browser globals
+ * ```ts
+ * window.Cipo.css`
+ *   color: red;
+ * `;
+ *
+ * window.Cipo.cipo.div.css`
+ *   color: blue;
+ * `;
+ *
+ * window.Cipo.injectGlobal`
+ *   body {
+ *     margin: 0;
+ *   }
+ * `;
+ *
+ * window.RodK === window.Cipo;
+ * // true
+ * ```
+ *
+ * @example Debug utilities
+ * ```ts
+ * const card = css`
+ *   color: red;
+ * `;
+ *
+ * const firstClass = card.className.split(" ")[0];
+ *
+ * explain(firstClass);
+ * // {
+ * //   found: true,
+ * //   className: "cipo-a-xxxxx",
+ * //   atom: {
+ * //     property: "color",
+ * //     value: "red"
+ * //   },
+ * //   css: ".cipo-a-xxxxx { color: red; }"
+ * // }
+ *
+ * getCssText();
+ * reset();
+ * ```
+ */
 /* ============================================================================
  * Constants
  * ========================================================================== */
