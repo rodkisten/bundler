@@ -36,7 +36,7 @@ export default Fabrica;
 
 declare global {
   // eslint-disable-next-line no-var
-  var Fabrica: import("@/public-api").FabricaApi | undefined;
+  var Fabrica: import("./public-api").FabricaApi | undefined;
   // eslint-disable-next-line no-var
   var $: unknown;
   // eslint-disable-next-line no-var
