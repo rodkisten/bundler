@@ -241,11 +241,12 @@ function createIndexHtml(
       (example) => `
         <article class="example-card" data-package="${
           example.source
+            .split('/').pop()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
-            .replace(/\.js$/i, '')
+            .replace(/\.[^.]+$/, '')
             .replace(/[^a-zA-Z]/g, '')
-            .toLowerCase()
+            .toLowerCase();
         }">
           <div class="example-header">
             <h3>${escapeHtml(example.title)}</h3>
@@ -303,7 +304,7 @@ function createIndexHtml(
           #111113;
       }
 
-      [data-package="seiva"] {
+      [data-package="seivastate"] {
         --package-accent: #cc0000;
       }
 
