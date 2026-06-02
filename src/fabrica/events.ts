@@ -1,8 +1,8 @@
-import { debugState } from "@/debug";
-import { registerCleanup } from "@/dom-cleanup";
-import { isSignal } from "@/guards";
-import { effect } from "@/reactivity";
-import type { EventBindingConfig, RenderValue } from "@/types";
+import { debugState } from "./debug";
+import { registerCleanup } from "./dom-cleanup";
+import { isSignal } from "./guards";
+import { effect } from "./reactivity";
+import type { EventBindingConfig, RenderValue } from "./types";
 
 /** Documents that already have a delegated listener for each event. */
 const delegatedEvents = new WeakMap<Document, Set<string>>();
