@@ -1,4 +1,4 @@
-import type { DebugSnapshot } from "@/types";
+import type { DebugSnapshot } from "./types";
 
 /**
  * Mutable debug counters for the runtime.
