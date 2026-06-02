@@ -273,6 +273,10 @@ function createIndexHtml(
     <script>hljs.highlightAll();</script>
     
     <style>
+    :root {
+      --package-accent: #111113;
+      --pre-bg: color-mix(in srgb, var(--package-accent) 29%, black);
+    }
       body {
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
         margin: 0;
@@ -299,12 +303,16 @@ function createIndexHtml(
           #111113;
       }
 
+      [data-package="seiva"] {
+        --package-accent: #cc0000;
+      }
+
       .example-card {
         margin-top: 18px;
         border: 1px solid #27272a;
         border-radius: 18px;
         overflow: hidden;
-        background: #111113;
+        background: var(--package-accent);
       }
 
       .example-header {
@@ -329,7 +337,7 @@ function createIndexHtml(
         margin: 0;
         padding: 16px;
         overflow: auto;
-        background: #050506;
+        background: var(--pre-bg);
       }
 
       code {
