@@ -1,5 +1,5 @@
-import { applyClassMap, applyStyleMap } from "@/maps";
-import { readValue, stringifyValue } from "@/value";
+import { applyClassMap, applyStyleMap } from "./maps";
+import { readValue, stringifyValue } from "./value";
 
 /** Element event cache used by object props. */
 const elementEvents = new WeakMap<Element, Map<string, EventListener>>();
