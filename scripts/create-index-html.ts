@@ -96,7 +96,7 @@ code.hljs {
 }
 .hljs {
   color: #eff;
-  background: var(--package-accent);
+  background: var(--pre-bg);
 }
 .hljs ::selection,
 .hljs::selection {
