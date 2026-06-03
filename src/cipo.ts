@@ -1,485 +1,81 @@
 /**
- * ============================================================================
- * Cipó
- * ============================================================================
- *
- * Atomic CSS Runtime + CSS DSL + Theme Engine + Inline Styles
- *
- * ---------------------------------------------------------------------------
- * CORE
- * ---------------------------------------------------------------------------
- *
- * css`...`
- * injectGlobal`...`
- * theme({...})
- * configure({...})
- *
- * ---------------------------------------------------------------------------
- * ATOMIC CSS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   color: red;
- *   background: black;
- *   padding: 16px;
- * `
- *
- * ---------------------------------------------------------------------------
- * RESPONSIVE VALUES
- * ---------------------------------------------------------------------------
- *
- * css`
- *   width: x:sm(100%);
- *   width: x:md(768px);
- *   width: x:lg(1024px);
- * `
- *
- * css`
- *   font-size:
- *     x:sm(12px),
- *     x:md(14px),
- *     x:lg(16px);
- * `
- *
- * ---------------------------------------------------------------------------
- * RESPONSIVE BLOCKS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   x:sm {
- *     color: red;
- *   }
- *
- *   x:md {
- *     color: blue;
- *   }
- *
- *   x:lg {
- *     color: green;
- *   }
- * `
- *
- * ---------------------------------------------------------------------------
- * NEGATED BREAKPOINTS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   x:not(md) {
- *     display: none;
- *   }
- * `
- *
- * ---------------------------------------------------------------------------
- * DARK MODE
- * ---------------------------------------------------------------------------
- *
- * css`
- *   x:dark {
- *     color: white;
- *     bg: black;
- *   }
- * `
- *
- * ---------------------------------------------------------------------------
- * PSEUDOS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   x:hover {
- *     opacity: .8;
- *   }
- *
- *   x:focus {
- *     outline: none;
- *   }
- *
- *   x:active {}
- *   x:visited {}
- *   x:checked {}
- *   x:disabled {}
- *   x:focus-visible {}
- *   x:focus-within {}
- * `
- *
- * ---------------------------------------------------------------------------
- * SCOPED SELECTORS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   li {
- *     list-style: none;
- *   }
- *
- *   button {}
- *
- *   svg {}
- *
- *   &:hover {}
- *
- *   &::before {}
- *
- *   & > div {}
- *
- *   & + div {}
- * `
- *
- * ---------------------------------------------------------------------------
- * THEME TOKENS
- * ---------------------------------------------------------------------------
- *
- * theme({
- *   colors: {
- *     brand: "#3b82f6",
- *   },
- *   spacing: "0.25rem",
- * });
- *
- * css`
- *   color: $theme.colors.brand;
- *   gap: x:spacing(4);
- * `
- *
- * ---------------------------------------------------------------------------
- * UTILITIES
- * ---------------------------------------------------------------------------
- *
- * css`
- *   @with(
- *     hidden,
- *     block,
- *     flex,
- *     inline-flex,
- *     grid,
- *     center,
- *     items-center,
- *     justify-center
- *   );
- * `
- *
- * ---------------------------------------------------------------------------
- * SPACING
- * ---------------------------------------------------------------------------
- *
- * css`
- *   p(16px);
- *   px(16px);
- *   py(16px);
- *
- *   m(16px);
- *   mx(16px);
- *   my(16px);
- *
- *   pt(16px);
- *   pr(16px);
- *   pb(16px);
- *   pl(16px);
- *
- *   mt(16px);
- *   mr(16px);
- *   mb(16px);
- *   ml(16px);
- * `
- *
- * ---------------------------------------------------------------------------
- * SIZE
- * ---------------------------------------------------------------------------
- *
- * css`
- *   w(100%);
- *   h(50px);
- *
- *   size(48px);
- *
- *   x:size(64px);
- * `
- *
- * ---------------------------------------------------------------------------
- * BORDER
- * ---------------------------------------------------------------------------
- *
- * css`
- *   rounded(12px);
- *
- *   rounded(sm);
- *   rounded(md);
- *   rounded(lg);
- *   rounded(xl);
- *
- *   border(red);
- *   border(1px solid red);
- * `
- *
- * ---------------------------------------------------------------------------
- * COLORS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   bg(red);
- *   bg(#ff0000);
- *
- *   color(white);
- *
- *   color:
- *     x:alpha(red / 50%);
- * `
- *
- * ---------------------------------------------------------------------------
- * COLOR HELPERS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   color:
- *     x:alpha(red / 50%);
- *
- *   color:
- *     x:lighten(red, 20%);
- *
- *   color:
- *     x:darken(red, 20%);
- *
- *   color:
- *     x:saturate(red, 20%);
- *
- *   color:
- *     x:desaturate(red, 20%);
- *
- *   color:
- *     x:mix(red, blue, 50%);
- * `
- *
- * ---------------------------------------------------------------------------
- * TEXT
- * ---------------------------------------------------------------------------
- *
- * css`
- *   text(
- *     size: sm,
- *     lh: 2,
- *     color: red
- *   );
- * `
- *
- * css`
- *   text(
- *     size: lg,
- *     lh: 1.5,
- *     weight: 700,
- *     align: center,
- *     transform: uppercase,
- *     decoration: underline,
- *     shadow: 0 2px 4px rgb(0 0 0 / .2)
- *   );
- * `
- *
- * ---------------------------------------------------------------------------
- * GRADIENTS
- * ---------------------------------------------------------------------------
- *
- * css`
- *   bg(
- *     gradient(
- *       linear,
- *       red,
- *       blue
- *     )
- *   );
- * `
- *
- * css`
- *   bg(
- *     gradient(
- *       radial,
- *       white,
- *       black
- *     )
- *   );
- * `
- *
- * ---------------------------------------------------------------------------
- * FLUID VALUES
- * ---------------------------------------------------------------------------
- *
- * css`
- *   font-size:
- *     x:fluid(
- *       1rem,
- *       2rem,
- *       4vw
- *     );
- * `
- *
- * ---------------------------------------------------------------------------
- * REM AUTO CONVERSION
- * ---------------------------------------------------------------------------
- *
- * configure({
- *   rem: true,
- *   remBase: 16,
- * });
- *
- * 16px -> 1rem
- * 32px -> 2rem
- * 48px -> 3rem
- *
- * ---------------------------------------------------------------------------
- * INLINE STYLE DSL
- * ---------------------------------------------------------------------------
- *
- * element.style.css = css.inline`
- *   px: 2;
- *
- *   color:
- *     x:saturate(
- *       $theme.colors.primary,
- *       100%
- *     );
- *
- *   bg:
- *     x:lighten(
- *       $theme.colors.brand,
- *       20%
- *     );
- *
- *   text(
- *     size: sm,
- *     lh: 2,
- *     color: red
- *   );
- * `;
- *
- * ---------------------------------------------------------------------------
- * INLINE OBJECT DSL
- * ---------------------------------------------------------------------------
- *
- * css.inline({
- *   px: 2,
- *   color: "$theme.colors.primary",
- * });
- *
- * ---------------------------------------------------------------------------
- * CSS LAYERS
- * ---------------------------------------------------------------------------
- *
- * @layer reset
- * @layer tokens
- * @layer base
- * @layer components
- * @layer utilities
- * @layer overrides
- *
- * ---------------------------------------------------------------------------
- * GLOBAL CSS
- * ---------------------------------------------------------------------------
- *
- * injectGlobal`
- *   body {
- *     margin: 0;
- *   }
- * `
- *
- * ---------------------------------------------------------------------------
- * DOM API
- * ---------------------------------------------------------------------------
- *
- * cipo.div.css`...`
- *
- * cipo.button.css`...`
- *
- * cipo.section.css`...`
- *
- * ---------------------------------------------------------------------------
- * COMPONENT API
- * ---------------------------------------------------------------------------
- *
- * cipo(MyComponent).css`...`
- *
- * ---------------------------------------------------------------------------
- * INLINE STRING INTERPOLATION
- * ---------------------------------------------------------------------------
- *
- * const card = css`
- *   color: red;
- * `;
- *
- * html`
- *   <div class="${card}">
- * `
- *
- * String(card)
- *
- * `${card}`
- *
- * card.toString()
- *
- * ---------------------------------------------------------------------------
- * DEBUG
- * ---------------------------------------------------------------------------
- *
- * explain(className)
- *
- * getCssText()
- *
- * reset()
- *
- * ---------------------------------------------------------------------------
- * OUTPUT MODES
- * ---------------------------------------------------------------------------
- *
- * configure({
- *   pretty: true,
- * });
- *
- * configure({
- *   minify: true,
- * });
- *
- * ============================================================================
- *
- *
- * This file intentionally keeps the public API from the previous implementation:
- *
- * - configure()
- * - css``
- * - html``
- * - theme()
- * - injectGlobal``
- * - explain()
- * - getCssText()
- * - reset()
- * - cipo(element).css``
- * - cipo.div.css``
- * - cipo(Component).css``
- * - browser globals: window.Cipo and window.RodK
- *
- * And adds the new features discussed for 1.0.0:
- *
- * - setup(), as an ergonomic alias for configure().
- * - Pretty CSS output by default, with minify: true opt-in.
- * - Cascade layers by default.
- * - REM conversion by default, configurable with rem.enabled/baseFontSize.
- * - Color helper output mode configuration.
- * - inline.css`` for style="..." output with the same compiler features.
- * - Data-driven property aliases inspired by Tailwind coverage, without adopting
- *   Tailwind class-authoring as the public API.
- * - text(...) helper with size, line-height, color, decoration, shadow, tracking,
- *   weight, align, transform, wrap, underline and gradient fill support.
- * - CSS helpers: spacing(), fluid(), alpha(), lighten(), darken(), saturate(),
- *   gradient(), rem(), size(). The x: prefix remains supported.
- * - Shadow/local style injection through injectStyle().
- *
- * The code is a single-file runtime on purpose. Sections are kept large and
- * explicit to make extraction into modules easy later.
- * ============================================================================
- */
-/**
  * Cipó runtime.
  *
  * @remarks
- * Cipó is a browser-first atomic CSS runtime with a semantic CSS DSL.
- * It keeps the original API stable while adding modern authoring features:
- * atomic CSS, scoped selectors, theme tokens, CSS layers, inline CSS,
- * REM conversion, color helpers, responsive blocks, dark mode, pseudo states,
- * DOM factories, framework adapters, browser globals, and debug utilities.
+ * Cipó is a browser-first atomic CSS runtime with a semantic CSS DSL. This file
+ * keeps the previous public API intact and layers the new 1.0 language on top:
+ * `css`, `inline.css`, `theme`, `configure`, `setup`, `injectGlobal`,
+ * `injectStyle`, `cipo.div.css`, component wrappers, browser globals, aliases,
+ * helpers, runtime JIT caching, cascade layers, REM conversion and token lookup.
+ *
+ * The main authoring style is CSS-like:
+ *
+ * ```ts
+ * const card = css`
+ *   cardSurface;
+ *   interactive;
+ *
+ *   px: 4;
+ *   py: 3;
+ *   gap: 2;
+ *
+ *   bg: $panel;
+ *   color: $ink;
+ *   rounded: $xl;
+ *   shadow: $glow;
+ *
+ *   text(size: lg, weight: 800, lh: 1.1, color: $ink);
+ *
+ *   x:hover {
+ *     bg: alpha($brand / 14%);
+ *   }
+ * `;
+ * ```
+ *
+ * @example Configure everything in one call
+ * ```ts
+ * configure({
+ *   prefix: "rod",
+ *   debug: true,
+ *   important: false,
+ *   adapter: "dom",
+ *   minify: false,
+ *   layers: true,
+ *   rem: { enabled: true, baseFontSize: 16 },
+ *   colorMode: "oklch",
+ *   darkSelector: ".dark",
+ *   themeRootSelector: ":root",
+ *   theme: {
+ *     colors: {
+ *       brand: "#f97316",
+ *       panel: "#0f172a",
+ *       ink: "#f8fafc",
+ *     },
+ *     spacing: "0.25rem",
+ *     radius: { xl: "24px" },
+ *     shadow: { glow: "0 24px 80px rgb(0 0 0 / .24)" },
+ *     text: { lg: "1.25rem" },
+ *   },
+ *   aliases: {
+ *     cardSurface: `
+ *       bg: alpha($panel / 86%);
+ *       border: 1px solid alpha($ink / 12%);
+ *       backdrop-filter: blur(16px);
+ *     `,
+ *     interactive: `
+ *       cursor: pointer;
+ *       user-select: none;
+ *       transition: transform 160ms ease, opacity 160ms ease;
+ *       x:active { transform: scale(.98); }
+ *     `,
+ *   },
+ *   helpers: {
+ *     glow(args, ctx) {
+ *       return `0 0 0 1px ${args || "alpha($brand / 30%)"}`;
+ *     },
+ *   },
+ * });
+ * ```
  *
  * @example Basic atomic CSS
  * ```ts
@@ -494,70 +90,43 @@
  * // "cipo-a-xxxxx cipo-a-yyyyy cipo-a-zzzzz cipo-a-wwwww"
  * ```
  *
- * Output CSS:
+ * Output CSS when `minify` is false:
  *
  * ```css
- * .cipo-a-xxxxx {
- *   color: white;
- * }
+ * @layer cipo.atomic {
+ *   .cipo-a-xxxxx {
+ *     color: white;
+ *   }
  *
- * .cipo-a-yyyyy {
- *   background: #111827;
- * }
+ *   .cipo-a-yyyyy {
+ *     background: #111827;
+ *   }
  *
- * .cipo-a-zzzzz {
- *   padding: 0.75rem 1rem;
- * }
+ *   .cipo-a-zzzzz {
+ *     padding: 0.75rem 1rem;
+ *   }
  *
- * .cipo-a-wwwww {
- *   border-radius: 0.75rem;
+ *   .cipo-a-wwwww {
+ *     border-radius: 0.75rem;
+ *   }
  * }
  * ```
  *
- * @example Runtime configuration
+ * @example Theme tokens and inferred dollar variables
  * ```ts
  * configure({
- *   prefix: "rod",
- *   debug: false,
- *   important: true,
- *   adapter: "solid",
- *   darkSelector: ".dark",
- *   themeRootSelector: ":root",
- *   minify: false,
- *   layers: true,
- *   rem: true,
- *   remBase: 16,
- *   colorMode: "oklch",
- *   breakpoints: {
- *     md: "(min-width: 768px)",
- *   },
- * });
- * ```
- *
- * Output CSS when `important` is enabled:
- *
- * ```css
- * .rod-a-xxxxx {
- *   color: white !important;
- * }
- * ```
- *
- * @example Theme tokens and shorthand variables
- * ```ts
- * theme({
- *   colors: {
- *     brand: "#22c55e",
- *   },
- *   spacing: "0.25rem",
- *   radius: {
- *     xl: "18px",
+ *   theme: {
+ *     colors: { brand: "#22c55e", ink: "#f8fafc" },
+ *     radius: { xl: "18px" },
+ *     spacing: "0.25rem",
  *   },
  * });
  *
  * const card = css`
- *   color: $theme.colors.brand;
- *   padding: calc($spacing * 4);
- *   border-radius: $radius-xl;
+ *   bg: $brand;
+ *   color: $ink;
+ *   rounded: $xl;
+ *   gap: spacing(4);
  * `;
  * ```
  *
@@ -566,149 +135,72 @@
  * ```css
  * :root {
  *   --cipo-colors-brand: #22c55e;
+ *   --cipo-colors-ink: #f8fafc;
+ *   --cipo-radius-xl: 1.125rem;
  *   --cipo-spacing: 0.25rem;
- *   --cipo-radius-xl: 18px;
  * }
  *
- * .cipo-a-xxxxx {
- *   color: var(--cipo-colors-brand);
- * }
- *
- * .cipo-a-yyyyy {
- *   padding: calc(var(--cipo-spacing) * 4);
- * }
- *
- * .cipo-a-zzzzz {
- *   border-radius: var(--cipo-radius-xl);
- * }
+ * .cipo-a-xxxxx { background: var(--cipo-colors-brand); }
+ * .cipo-a-yyyyy { color: var(--cipo-colors-ink); }
+ * .cipo-a-zzzzz { border-radius: var(--cipo-radius-xl); }
+ * .cipo-a-wwwww { gap: calc(var(--cipo-spacing, 0.25rem) * 4); }
  * ```
  *
- * @example Global CSS
+ * @example Explicit token namespaces
  * ```ts
- * injectGlobal`
- *   *, *::before, *::after {
- *     box-sizing: border-box;
- *   }
+ * css`
+ *   bg: $colors.brand;
+ *   rounded: $radius.xl;
+ *   shadow: $shadow.glow;
+ * `;
+ * ```
  *
- *   body {
- *     margin: 0;
- *     background: $theme.colors.brand;
- *   }
+ * @example Property aliases, no `@with` needed
+ * ```ts
+ * const box = css`
+ *   flex;
+ *   center;
+ *   px: 4;
+ *   py: 3;
+ *   m: fluid(1rem, 2rem, 4vw);
+ *   bg: alpha($brand / 18%);
+ *   rounded: $xl;
+ *   shadow: $glow;
  * `;
  * ```
  *
  * Output CSS:
  *
  * ```css
- * *, *::before, *::after {
- *   box-sizing: border-box;
- * }
- *
- * body {
- *   margin: 0;
- *   background: var(--cipo-colors-brand);
- * }
+ * .cipo-a-xxxxx { display: flex; }
+ * .cipo-a-yyyyy { align-items: center; }
+ * .cipo-a-zzzzz { justify-content: center; }
+ * .cipo-a-aaaaa { padding-inline: calc(var(--cipo-spacing, 0.25rem) * 4); }
+ * .cipo-a-bbbbb { padding-block: calc(var(--cipo-spacing, 0.25rem) * 3); }
+ * .cipo-a-ccccc { margin: clamp(1rem, 4vw, 2rem); }
+ * .cipo-a-ddddd { background: color-mix(in oklch, var(--cipo-colors-brand) 18%, transparent); }
  * ```
  *
- * @example Global CSS with local important mode
+ * @example Legacy `@with` compatibility
  * ```ts
- * injectGlobal(
- *   { important: true },
- *   `
- *     body {
- *       margin: 0;
- *       color: white;
- *     }
- *   `,
- * );
- * ```
- *
- * Output CSS:
- *
- * ```css
- * body {
- *   margin: 0 !important;
- *   color: white !important;
- * }
- * ```
- *
- * @example Utility directive
- * ```ts
- * const card = css`
- *   @with(
- *     bg(#111827),
- *     color(white),
- *     px(16px),
- *     py(12px),
- *     rounded(18px),
- *     shadow(0 24px 80px rgb(0 0 0 / 0.2))
- *   );
+ * const legacy = css`
+ *   @with(bg($brand), color($ink), px(4), py(2), rounded($xl));
  * `;
  * ```
  *
- * Output CSS:
+ * `@with` remains supported, but the recommended 1.0 syntax is:
  *
- * ```css
- * .cipo-a-xxxxx {
- *   background: #111827;
- * }
- *
- * .cipo-a-yyyyy {
- *   color: white;
- * }
- *
- * .cipo-a-zzzzz {
- *   padding-inline: 1rem;
- * }
- *
- * .cipo-a-wwwww {
- *   padding-block: 0.75rem;
- * }
- *
- * .cipo-a-vvvvv {
- *   border-radius: 1.125rem;
- * }
- *
- * .cipo-a-uuuuu {
- *   box-shadow: 0 24px 80px rgb(0 0 0 / 0.2);
- * }
- * ```
- *
- * @example Helper functions
  * ```ts
- * const fluid = css`
- *   font-size: x:fluid(1.25rem, 3rem, 4vw);
- *   gap: x:spacing(4);
- *   x:size(48px);
- *   background: x:alpha($theme.colors.brand / 18%);
+ * const modern = css`
+ *   bg: $brand;
+ *   color: $ink;
+ *   px: 4;
+ *   py: 2;
+ *   rounded: $xl;
  * `;
  * ```
  *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   font-size: clamp(1.25rem, 4vw, 3rem);
- * }
- *
- * .cipo-a-yyyyy {
- *   gap: calc(var(--cipo-spacing) * 4);
- * }
- *
- * .cipo-a-zzzzz {
- *   width: 3rem;
- * }
- *
- * .cipo-a-wwwww {
- *   height: 3rem;
- * }
- *
- * .cipo-a-vvvvv {
- *   background: color-mix(in oklab, var(--cipo-colors-brand) 18%, transparent);
- * }
- * ```
- *
- * @example Responsive block
+ * @example Responsive, dark mode, pseudo and context variants
  * ```ts
  * const panel = css`
  *   width: 100%;
@@ -716,261 +208,100 @@
  *   x:md {
  *     width: 720px;
  *   }
- * `;
- * ```
- *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   width: 100%;
- * }
- *
- * @media (min-width: 768px) {
- *   .cipo-a-yyyyy {
- *     width: 45rem;
- *   }
- * }
- * ```
- *
- * @example Inverted responsive block
- * ```ts
- * const mobileOnly = css`
- *   display: block;
  *
  *   x:not(md) {
  *     font-size: 14px;
  *   }
- * `;
- * ```
- *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   display: block;
- * }
- *
- * @media not all and (min-width: 768px) {
- *   .cipo-a-yyyyy {
- *     font-size: 0.875rem;
- *   }
- * }
- * ```
- *
- * @example Dark mode block
- * ```ts
- * const surface = css`
- *   background: white;
- *   color: black;
  *
  *   x:dark {
- *     background: #020617;
+ *     bg: #020617;
  *     color: white;
  *   }
- * `;
- * ```
  *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   background: white;
- * }
- *
- * .cipo-a-yyyyy {
- *   color: black;
- * }
- *
- * [data-theme="dark"] .cipo-a-zzzzz {
- *   background: #020617;
- * }
- *
- * [data-theme="dark"] .cipo-a-wwwww {
- *   color: white;
- * }
- * ```
- *
- * @example Pseudo block
- * ```ts
- * const link = css`
- *   color: #38bdf8;
- *
- *   x:hover {
- *     color: #7dd3fc;
+ *   x:md:hover {
+ *     transform: translateY(-2px);
  *   }
  * `;
- * ```
- *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   color: #38bdf8;
- * }
- *
- * .cipo-a-yyyyy:hover {
- *   color: #7dd3fc;
- * }
  * ```
  *
  * @example Scoped selectors
  * ```ts
  * const list = css`
- *   padding: 0;
+ *   p: 0;
  *
  *   li {
  *     list-style: none;
- *     padding: 8px;
+ *     py: 2;
  *   }
  *
  *   &:hover {
- *     opacity: 0.92;
+ *     opacity: .92;
  *   }
  * `;
- * ```
- *
- * Output class:
- *
- * ```ts
- * String(list);
- * // "cipo-s-xxxxx cipo-a-yyyyy"
  * ```
  *
  * Output CSS:
  *
  * ```css
- * .cipo-a-yyyyy {
- *   padding: 0;
- * }
+ * .cipo-a-yyyyy { padding: 0; }
+ * .cipo-s-xxxxx li { list-style: none; padding-block: .5rem; }
+ * .cipo-s-xxxxx:hover { opacity: .92; }
+ * ```
  *
- * .cipo-s-xxxxx li {
- *   list-style: none;
- *   padding: 0.5rem;
- * }
+ * @example Text helper
+ * ```ts
+ * const title = css`
+ *   text(size: lg, lh: 1.2, weight: 800, align: center, decoration: underline, shadow: $glow, color: $brand);
+ * `;
+ * ```
  *
- * .cipo-s-xxxxx:hover {
- *   opacity: 0.92;
- * }
+ * Output CSS:
+ *
+ * ```css
+ * .cipo-a-xxxxx { font-size: var(--cipo-text-lg); }
+ * .cipo-a-yyyyy { line-height: 1.2; }
+ * .cipo-a-zzzzz { font-weight: 800; }
+ * .cipo-a-aaaaa { text-align: center; }
+ * .cipo-a-bbbbb { text-decoration-line: underline; }
+ * .cipo-a-ccccc { text-shadow: var(--cipo-shadow-glow); }
+ * .cipo-a-ddddd { color: var(--cipo-colors-brand); }
  * ```
  *
  * @example Inline CSS for style attributes
  * ```ts
  * const style = inline.css`
  *   px: 2;
- *   color: saturate($colors.primary, 100%);
- *   bg: lighten($colors.brand, 50);
- *   text(size: sm, lh: 2, $colors.red.500);
+ *   color: saturate($primary, 100%);
+ *   bg: lighten($brand, 20%);
+ *   text(size: sm, lh: 2, $red-500, underline);
  * `;
  *
  * String(style);
+ * // "padding-inline: calc(var(--cipo-spacing, 0.25rem) * 2); color: ...;"
  * ```
  *
- * Output inline CSS:
- *
- * ```css
- * padding-inline: calc(var(--cipo-spacing) * 2);
- * color: color-mix(in oklch, var(--cipo-colors-primary), currentColor 100%);
- * background: oklch(from var(--cipo-colors-brand) calc(l + 0.5) c h);
- * font-size: var(--cipo-text-sm);
- * line-height: 2;
- * color: var(--cipo-colors-red-500);
- * ```
- *
- * @example Inline object DSL
+ * @example Register helpers and aliases
  * ```ts
- * const style = inline.css({
- *   px: 2,
- *   py: "12px",
- *   bg: "$theme.colors.brand",
- *   text: {
- *     size: "sm",
- *     lh: 2,
- *     color: "$theme.colors.red.500",
- *     decoration: "underline",
- *     shadow: "0 2px 4px rgb(0 0 0 / 0.2)",
- *   },
- * });
- * ```
+ * registerHelper("ring", (args) => `0 0 0 ${args || "2px"} alpha($brand / 42%)`);
  *
- * Output inline CSS:
+ * registerAlias("glass", `
+ *   bg: alpha($panel / 74%);
+ *   border: 1px solid alpha($ink / 14%);
+ *   backdrop-filter: blur(20px);
+ * `);
  *
- * ```css
- * padding-inline: calc(var(--cipo-spacing) * 2);
- * padding-block: 0.75rem;
- * background: var(--cipo-colors-brand);
- * font-size: var(--cipo-text-sm);
- * line-height: 2;
- * color: var(--cipo-colors-red-500);
- * text-decoration-line: underline;
- * text-shadow: 0 2px 4px rgb(0 0 0 / 0.2);
- * ```
- *
- * @example Text utility
- * ```ts
- * const title = css`
- *   text(
- *     size: lg,
- *     lh: 1.2,
- *     weight: 700,
- *     align: center,
- *     transform: uppercase,
- *     decoration: underline,
- *     shadow: 0 2px 8px rgb(0 0 0 / 0.2),
- *     color: $theme.colors.brand
- *   );
+ * const card = css`
+ *   glass;
+ *   box-shadow: ring(2px);
  * `;
  * ```
  *
- * Output CSS:
- *
- * ```css
- * .cipo-a-xxxxx {
- *   font-size: var(--cipo-text-lg);
- * }
- *
- * .cipo-a-yyyyy {
- *   line-height: 1.2;
- * }
- *
- * .cipo-a-zzzzz {
- *   font-weight: 700;
- * }
- *
- * .cipo-a-wwwww {
- *   text-align: center;
- * }
- *
- * .cipo-a-vvvvv {
- *   text-transform: uppercase;
- * }
- *
- * .cipo-a-uuuuu {
- *   text-decoration-line: underline;
- * }
- *
- * .cipo-a-ttttt {
- *   text-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
- * }
- *
- * .cipo-a-sssss {
- *   color: var(--cipo-colors-brand);
- * }
- * ```
- *
- * @example DOM element API
+ * @example DOM API
  * ```ts
  * const element = document.createElement("div");
- *
- * const styled = cipo(element).css`
- *   color: red;
- *   padding: $spacing;
- * `;
+ * const styled = cipo(element).css`color: red; px: 4;`;
  *
  * styled.element === element;
- * // true
- *
- * element.className.includes(styled.className);
  * // true
  * ```
  *
@@ -979,112 +310,59 @@
  * configure({ adapter: "dom" });
  *
  * const Card = cipo.div.css`
- *   padding: 16px;
- *   background: white;
+ *   px: 4;
+ *   py: 3;
+ *   bg: white;
  * `;
  *
- * const element = Card({
- *   class: "extra",
- *   children: "Hello",
- * });
+ * const element = Card({ class: "extra", children: "Hello" });
  * ```
  *
- * Output DOM:
- *
- * ```html
- * <div class="cipo-a-xxxxx cipo-a-yyyyy extra">Hello</div>
- * ```
- *
- * @example Framework adapter API
+ * @example React, Preact and Solid component wrappers
  * ```ts
  * configure({ adapter: "react" });
+ * const ReactButton = cipo.button.css`bg: black; color: white;`;
+ * // passes className
  *
- * const Button = cipo.button.css`
- *   color: white;
- *   background: black;
- * `;
- *
- * Button({ children: "Save" });
- * ```
- *
- * React/Preact style output:
- *
- * ```ts
- * {
- *   className: "cipo-a-xxxxx cipo-a-yyyyy",
- *   children: "Save",
- * }
- * ```
- *
- * Solid style output:
- *
- * ```ts
  * configure({ adapter: "solid" });
- *
- * {
- *   class: "cipo-a-xxxxx cipo-a-yyyyy",
- *   children: "Save",
- * }
+ * const SolidButton = cipo.button.css`bg: black; color: white;`;
+ * // passes class
  * ```
  *
- * @example Component wrapper API
+ * @example Global and local style injection
  * ```ts
- * const StyledComponent = cipo(MyComponent).css`
- *   color: red;
+ * injectGlobal`
+ *   body {
+ *     margin: 0;
+ *     bg: $panel;
+ *   }
  * `;
  *
- * const ReactOnly = cipo(MyComponent, { adapter: "react" }).css`
- *   color: blue;
- * `;
+ * const shadow = host.attachShadow({ mode: "open" });
+ * injectStyle(shadow, css`button { color: $brand; }`);
+ * ```
  *
- * const SolidOnly = cipo(MyComponent, { adapter: "solid" }).css`
- *   color: green;
- * `;
+ * @example JIT cache configuration
+ * ```ts
+ * configure({
+ *   jit: {
+ *     enabled: true,
+ *     cache: true,
+ *     maxEntries: 2000,
+ *     debug: true,
+ *   },
+ * });
  * ```
  *
  * @example Browser globals
  * ```ts
- * window.Cipo.css`
- *   color: red;
- * `;
- *
- * window.Cipo.cipo.div.css`
- *   color: blue;
- * `;
- *
- * window.Cipo.injectGlobal`
- *   body {
- *     margin: 0;
- *   }
- * `;
- *
+ * window.Cipo.css`color: red;`;
+ * window.Cipo.cipo.div.css`color: blue;`;
  * window.RodK === window.Cipo;
  * // true
  * ```
- *
- * @example Debug utilities
- * ```ts
- * const card = css`
- *   color: red;
- * `;
- *
- * const firstClass = card.className.split(" ")[0];
- *
- * explain(firstClass);
- * // {
- * //   found: true,
- * //   className: "cipo-a-xxxxx",
- * //   atom: {
- * //     property: "color",
- * //     value: "red"
- * //   },
- * //   css: ".cipo-a-xxxxx { color: red; }"
- * // }
- *
- * getCssText();
- * reset();
- * ```
  */
+
 /* ============================================================================
  * Constants
  * ========================================================================== */
@@ -1127,7 +405,8 @@ export type CipoHtmlTagName = (typeof HTML_TAGS)[number];
 export type CipoAnyRecord = Record<string, unknown>;
 export type CipoColorMode = 'oklch' | 'oklab' | 'hsl' | 'rgba' | 'preserve';
 export type CipoLayerName = 'reset' | 'tokens' | 'base' | 'atomic' | 'scoped' | 'global' | 'inline';
-
+export type CipoHelperResolver = (args: string, context: CipoHelperContext) => string;
+export type CipoAliasValue = string | CipoStyleObject | ((context: CipoAliasContext) => string | CipoStyleObject);
 export type CipoComponent<Props extends CipoAnyRecord = CipoAnyRecord> = (props: Props) => unknown;
 export type CipoTarget = Element | string | CipoComponent | ((...args: never[]) => unknown);
 export type CipoCssInterpolation = CipoPrimitive | CipoCssArtifact | CipoInlineCssArtifact | CipoStyleObject;
@@ -1159,6 +438,13 @@ export interface CipoOutputConfig {
   readonly pretty?: boolean;
 }
 
+export interface CipoJitConfig {
+  readonly enabled?: boolean;
+  readonly cache?: boolean;
+  readonly maxEntries?: number;
+  readonly debug?: boolean;
+}
+
 export interface CipoRuntimeConfig {
   readonly prefix?: string;
   readonly debug?: boolean;
@@ -1175,6 +461,10 @@ export interface CipoRuntimeConfig {
   readonly colorMode?: CipoColorMode;
   readonly color?: CipoColorConfig;
   readonly output?: CipoOutputConfig;
+  readonly theme?: CipoThemeDefinition;
+  readonly aliases?: Record<string, CipoAliasValue>;
+  readonly helpers?: Record<string, CipoHelperResolver>;
+  readonly jit?: boolean | CipoJitConfig;
 }
 
 export interface CipoTargetOptions {
@@ -1200,6 +490,18 @@ export interface CipoWarning {
 
 export interface CipoThemeDefinition {
   readonly [key: string]: string | number | CipoThemeDefinition;
+}
+
+export interface CipoHelperContext {
+  readonly name: string;
+  readonly prefix: string;
+  readonly colorMode: CipoColorMode;
+  readonly remBase: number;
+}
+
+export interface CipoAliasContext {
+  readonly name: string;
+  readonly prefix: string;
 }
 
 export interface CipoAtomicRule {
@@ -1256,6 +558,7 @@ export interface CipoDebugArtifact {
   readonly scopedRules: readonly CipoScopedRule[];
   readonly ast: readonly CipoAstNode[];
   readonly warnings: readonly CipoWarning[];
+  readonly cacheHit: boolean;
 }
 
 export interface CipoExplainResult {
@@ -1292,6 +595,8 @@ export interface CipoCallable {
   inline: typeof inline;
   injectGlobal: typeof injectGlobal;
   injectStyle: typeof injectStyle;
+  registerHelper: typeof registerHelper;
+  registerAlias: typeof registerAlias;
   explain: typeof explain;
   getCssText: typeof getCssText;
   reset: typeof reset;
@@ -1309,6 +614,8 @@ export interface CipoBrowserGlobal {
   readonly html: typeof html;
   readonly injectGlobal: typeof injectGlobal;
   readonly injectStyle: typeof injectStyle;
+  readonly registerHelper: typeof registerHelper;
+  readonly registerAlias: typeof registerAlias;
   readonly explain: typeof explain;
   readonly getCssText: typeof getCssText;
   readonly reset: typeof reset;
@@ -1353,14 +660,23 @@ interface CipoRuntimeState {
     layers: boolean;
     rem: Required<CipoRemConfig>;
     colorMode: CipoColorMode;
+    jit: Required<CipoJitConfig>;
   };
   sheet: CSSStyleSheet | null;
   insertedCss: Set<string>;
   atomicCache: Map<string, CipoAtomicRule>;
   debugAtoms: Map<string, CipoAtomicRule>;
+  sourceCache: Map<string, CipoCssArtifact>;
+  inlineCache: Map<string, CipoInlineCssArtifact>;
+  helperRegistry: Map<string, CipoHelperResolver>;
+  aliasRegistry: Map<string, CipoAliasValue>;
   themeKeys: Set<string>;
+  tokenAliases: Map<string, string>;
+  ambiguousTokens: Map<string, string[]>;
   warningSink: CipoWarning[];
   layerHeaderInserted: boolean;
+  themeVersion: number;
+  configVersion: number;
 }
 
 declare global {
@@ -1449,14 +765,28 @@ const runtime: CipoRuntimeState = {
       baseFontSize: DEFAULT_BASE_FONT_SIZE,
     },
     colorMode: 'oklch',
+    jit: {
+      enabled: true,
+      cache: true,
+      maxEntries: 2000,
+      debug: false,
+    },
   },
   sheet: null,
   insertedCss: new Set<string>(),
   atomicCache: new Map<string, CipoAtomicRule>(),
   debugAtoms: new Map<string, CipoAtomicRule>(),
+  sourceCache: new Map<string, CipoCssArtifact>(),
+  inlineCache: new Map<string, CipoInlineCssArtifact>(),
+  helperRegistry: new Map<string, CipoHelperResolver>(),
+  aliasRegistry: new Map<string, CipoAliasValue>(),
   themeKeys: new Set<string>(),
+  tokenAliases: new Map<string, string>(),
+  ambiguousTokens: new Map<string, string[]>(),
   warningSink: [],
   layerHeaderInserted: false,
+  themeVersion: 0,
+  configVersion: 0,
 };
 
 /* ============================================================================
@@ -1521,9 +851,40 @@ const PROPERTY_ALIASES: Record<string, PropertyAliasDefinition> = {
   left: { property: 'left', scale: 'spacing' },
 };
 
+const BUILTIN_ALIAS_MAP: Record<string, string> = {
+  hidden: 'display:none;',
+  block: 'display:block;',
+  flex: 'display:flex;',
+  'inline-flex': 'display:inline-flex;',
+  grid: 'display:grid;',
+  center: 'display:flex;align-items:center;justify-content:center;',
+  'items-center': 'align-items:center;',
+  'justify-center': 'justify-content:center;',
+  'sr-only': 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;',
+};
+
 const TEXT_SIZE_TOKENS = new Set(['xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl']);
 const RADIUS_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', 'full']);
-const SHADOW_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'inner']);
+const SHADOW_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'inner', 'glow']);
+
+/* ============================================================================
+ * Built-in Helper Registration
+ * ========================================================================== */
+
+registerHelper('spacing', args => resolveSpacingFunction(args));
+registerHelper('fluid', args => resolveFluidFunction(args));
+registerHelper('rem', args => pxToRem(args.trim()));
+registerHelper('alpha', (args, context) => resolveAlphaFunction(args, context));
+registerHelper('lighten', args => resolveColorAdjustFunction('lighten', args));
+registerHelper('darken', args => resolveColorAdjustFunction('darken', args));
+registerHelper('saturate', args => resolveColorAdjustFunction('saturate', args));
+registerHelper('desaturate', args => resolveColorAdjustFunction('desaturate', args));
+registerHelper('mix', args => resolveMixFunction(args));
+registerHelper('gradient', args => resolveGradientFunction(args));
+registerHelper('size', args => {
+  const value = normalizeDeclarationValue('width', args.trim());
+  return 'width:' + value + ';height:' + value + ';';
+});
 
 /* ============================================================================
  * Public API
@@ -1536,13 +897,18 @@ const SHADOW_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'inn
  * @returns Nothing.
  *
  * @example
- * configure({ prefix: 'rod', important: true, adapter: 'solid' })
+ * configure({ prefix: 'rod', important: true, adapter: 'solid' });
  *
  * @example
- * configure({ minify: true, rem: { enabled: true, baseFontSize: 16 } })
+ * configure({
+ *   theme: { colors: { brand: '#f97316' } },
+ *   aliases: { glass: 'bg: alpha($brand / 70%); backdrop-filter: blur(16px);' },
+ *   helpers: { glow: args => `0 0 0 ${args || '2px'} alpha($brand / 32%)` },
+ * });
  */
 export function configure(config: CipoRuntimeConfig): void {
   const remConfig = normalizeRemConfig(config.rem, config.baseFontSize);
+  const jitConfig = normalizeJitConfig(config.jit);
 
   runtime.config = {
     prefix: config.prefix ?? runtime.config.prefix,
@@ -1560,7 +926,26 @@ export function configure(config: CipoRuntimeConfig): void {
     layers: config.layers ?? config.output?.layers ?? runtime.config.layers,
     rem: remConfig ?? runtime.config.rem,
     colorMode: config.colorMode ?? config.color?.mode ?? runtime.config.colorMode,
+    jit: jitConfig ?? runtime.config.jit,
   };
+
+  runtime.configVersion += 1;
+
+  if (config.helpers) {
+    for (const [name, resolver] of Object.entries(config.helpers)) {
+      registerHelper(name, resolver);
+    }
+  }
+
+  if (config.aliases) {
+    for (const [name, value] of Object.entries(config.aliases)) {
+      registerAlias(name, value);
+    }
+  }
+
+  if (config.theme) {
+    theme(config.theme);
+  }
 }
 
 /**
@@ -1571,10 +956,55 @@ export function configure(config: CipoRuntimeConfig): void {
  * @returns Nothing.
  *
  * @example
- * setup({ minify: true, colorMode: 'hsl' })
+ * setup({ minify: true, colorMode: 'hsl' });
  */
 export function setup(config: CipoRuntimeConfig): void {
   configure(config);
+}
+
+/**
+ * Registers a value helper. Helpers can be called from values with or without
+ * the legacy `x:` prefix.
+ *
+ * @param name Helper name.
+ * @param resolver Helper resolver.
+ * @returns Nothing.
+ *
+ * @example
+ * registerHelper('ring', (args) => `0 0 0 ${args || '2px'} alpha($brand / 40%)`);
+ *
+ * css`
+ *   box-shadow: ring(2px);
+ * `;
+ */
+export function registerHelper(name: string, resolver: CipoHelperResolver): void {
+  runtime.helperRegistry.set(name, resolver);
+  runtime.configVersion += 1;
+}
+
+/**
+ * Registers a standalone alias. Aliases expand from bare identifiers inside
+ * `css```, preserving the old utility speed without `@with`.
+ *
+ * @param name Alias name.
+ * @param value Alias CSS, style object or resolver.
+ * @returns Nothing.
+ *
+ * @example
+ * registerAlias('glass', `
+ *   bg: alpha($panel / 72%);
+ *   border: 1px solid alpha($ink / 14%);
+ *   backdrop-filter: blur(16px);
+ * `);
+ *
+ * css`
+ *   glass;
+ *   rounded: $xl;
+ * `;
+ */
+export function registerAlias(name: string, value: CipoAliasValue): void {
+  runtime.aliasRegistry.set(name, value);
+  runtime.configVersion += 1;
 }
 
 /**
@@ -1584,21 +1014,41 @@ export function setup(config: CipoRuntimeConfig): void {
  * @returns Nothing.
  *
  * @example
- * theme({ colors: { brand: '#22c55e' }, spacing: '0.25rem' })
+ * theme({ colors: { brand: '#22c55e' }, spacing: '0.25rem' });
  */
 export function theme(tokens: CipoThemeDefinition): void {
   const pairs = flattenTheme(tokens);
   let declarations = EMPTY_STRING;
+  const leafAliases = new Map<string, string[]>();
 
   for (let index = 0; index < pairs.length; index += 1) {
-    const pair = pairs[index];
-    const name = pair[0];
-    const value = normalizeDeclarationValue('theme-token', String(pair[1]));
+    const [name, rawValue] = pairs[index];
+    const value = normalizeDeclarationValue('theme-token', String(rawValue));
+    const variableName = '--' + runtime.config.prefix + '-' + name;
+    const leaf = name.slice(name.lastIndexOf('-') + 1);
 
     runtime.themeKeys.add(name);
-    declarations += createDeclaration('--' + runtime.config.prefix + '-' + name, value);
+    declarations += createDeclaration(variableName, value);
+
+    const explicitDollarName = '$' + name.replaceAll('-', '.');
+    runtime.tokenAliases.set(explicitDollarName, 'var(' + variableName + ')');
+
+    const existingLeaves = leafAliases.get(leaf) ?? [];
+    existingLeaves.push(name);
+    leafAliases.set(leaf, existingLeaves);
   }
 
+  for (const [leaf, names] of leafAliases.entries()) {
+    if (names.length === 1) {
+      runtime.tokenAliases.set('$' + leaf, 'var(--' + runtime.config.prefix + '-' + names[0] + ')');
+      runtime.ambiguousTokens.delete('$' + leaf);
+      continue;
+    }
+
+    runtime.ambiguousTokens.set('$' + leaf, names);
+  }
+
+  runtime.themeVersion += 1;
   insertCss(wrapLayer('tokens', runtime.config.themeRootSelector + '{' + declarations + '}'));
 }
 
@@ -1609,9 +1059,6 @@ export function theme(tokens: CipoThemeDefinition): void {
  * @param strings Template strings.
  * @param values Interpolated values.
  * @returns CSS artifact whose string value is the generated class list.
- *
- * @example
- * const card = css`px: 4; bg: $theme.colors.brand;`
  */
 export function css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
   return createCssArtifact(strings, values);
@@ -1653,25 +1100,10 @@ export const inline = {
    * @returns Inline CSS artifact.
    *
    * @example
-   * const style = inline.css`px: 2; color: saturate($colors.primary, 100%);`
+   * const style = inline.css`px: 2; color: saturate($primary, 100%);`;
    */
   css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoInlineCssArtifact {
-    const warnings: CipoWarning[] = [];
-    const rawCss = buildCss(strings, values);
-    const transformedCss = transformCss(rawCss, warnings);
-    const ast = parseStylesheet(transformedCss, warnings);
-    const declarations = collectInlineDeclarations(ast, warnings);
-    const cssText = formatInlineDeclarations(declarations);
-
-    return {
-      kind: 'cipo.inline-css',
-      rawCss,
-      transformedCss,
-      cssText,
-      toString: () => cssText,
-      [Symbol.toPrimitive]: () => cssText,
-      [Symbol.toStringTag]: 'CipoInlineCssArtifact',
-    };
+    return createInlineCssArtifact(strings, values);
   },
 };
 
@@ -1805,9 +1237,15 @@ export function reset(): void {
   runtime.insertedCss.clear();
   runtime.atomicCache.clear();
   runtime.debugAtoms.clear();
+  runtime.sourceCache.clear();
+  runtime.inlineCache.clear();
   runtime.themeKeys.clear();
+  runtime.tokenAliases.clear();
+  runtime.ambiguousTokens.clear();
   runtime.warningSink = [];
   runtime.layerHeaderInserted = false;
+  runtime.themeVersion = 0;
+  runtime.configVersion += 1;
 
   if (hasDocument()) {
     document.getElementById(STYLE_ELEMENT_ID)?.remove();
@@ -1828,6 +1266,8 @@ export function createBrowserGlobal(): CipoBrowserGlobal {
     html,
     injectGlobal,
     injectStyle,
+    registerHelper,
+    registerAlias,
     explain,
     getCssText,
     reset,
@@ -1863,6 +1303,8 @@ function createCipoCallable(): CipoCallable {
   base.inline = inline;
   base.injectGlobal = injectGlobal;
   base.injectStyle = injectStyle;
+  base.registerHelper = registerHelper;
+  base.registerAlias = registerAlias;
   base.explain = explain;
   base.getCssText = getCssText;
   base.reset = reset;
@@ -2119,12 +1561,27 @@ function resolveAdapter(adapter?: CipoAdapterName | CipoAdapter): CipoAdapter {
 }
 
 /* ============================================================================
- * CSS Artifact Build
+ * CSS Artifact Build + JIT
  * ========================================================================== */
 
 function createCssArtifact(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[]): CipoCssArtifact {
-  const warnings: CipoWarning[] = [];
   const rawCss = buildCss(strings, values);
+  const cacheKey = createSourceCacheKey('css', rawCss);
+
+  if (runtime.config.jit.enabled && runtime.config.jit.cache) {
+    const cached = runtime.sourceCache.get(cacheKey);
+
+    if (cached) {
+      if (runtime.config.jit.debug) {
+        console.debug('[Cipó:jit] css cache hit', cacheKey);
+      }
+
+      insertCss(cached.compiledCss);
+      return cached;
+    }
+  }
+
+  const warnings: CipoWarning[] = [];
   const transformedCss = transformCss(rawCss, warnings);
   const ast = parseStylesheet(transformedCss, warnings);
   const scopeClassName = runtime.config.prefix + '-s-' + hashString(transformedCss);
@@ -2137,9 +1594,7 @@ function createCssArtifact(strings: TemplateStringsArray, values: readonly CipoC
   const compiledCss = compileCss(atoms, scopedRules);
   const artifactId = runtime.config.prefix + '-artifact-' + hashString(rawCss);
 
-  insertCss(compiledCss);
-
-  return {
+  const artifact: CipoCssArtifact = {
     kind: 'cipo.css',
     className,
     scopeClassName,
@@ -2148,11 +1603,84 @@ function createCssArtifact(strings: TemplateStringsArray, values: readonly CipoC
     rawCss,
     transformedCss,
     compiledCss,
-    debug: { id: artifactId, atoms, scopedRules, ast, warnings },
+    debug: { id: artifactId, atoms, scopedRules, ast, warnings, cacheHit: false },
     toString: () => className,
     [Symbol.toPrimitive]: () => className,
     [Symbol.toStringTag]: 'CipoCssArtifact',
   };
+
+  setBoundedCache(runtime.sourceCache, cacheKey, artifact, runtime.config.jit.maxEntries);
+  insertCss(compiledCss);
+
+  return artifact;
+}
+
+function createInlineCssArtifact(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[]): CipoInlineCssArtifact {
+  const rawCss = buildCss(strings, values);
+  const cacheKey = createSourceCacheKey('inline', rawCss);
+
+  if (runtime.config.jit.enabled && runtime.config.jit.cache) {
+    const cached = runtime.inlineCache.get(cacheKey);
+
+    if (cached) {
+      if (runtime.config.jit.debug) {
+        console.debug('[Cipó:jit] inline cache hit', cacheKey);
+      }
+
+      return cached;
+    }
+  }
+
+  const warnings: CipoWarning[] = [];
+  const transformedCss = transformCss(rawCss, warnings);
+  const ast = parseStylesheet(transformedCss, warnings);
+  const declarations = collectInlineDeclarations(ast, warnings);
+  const cssText = formatInlineDeclarations(declarations);
+
+  const artifact: CipoInlineCssArtifact = {
+    kind: 'cipo.inline-css',
+    rawCss,
+    transformedCss,
+    cssText,
+    toString: () => cssText,
+    [Symbol.toPrimitive]: () => cssText,
+    [Symbol.toStringTag]: 'CipoInlineCssArtifact',
+  };
+
+  setBoundedCache(runtime.inlineCache, cacheKey, artifact, runtime.config.jit.maxEntries);
+
+  return artifact;
+}
+
+function createSourceCacheKey(kind: string, rawCss: string): string {
+  return [
+    kind,
+    runtime.config.prefix,
+    runtime.config.important ? 'important' : 'normal',
+    runtime.config.minify ? 'min' : 'pretty',
+    runtime.config.layers ? 'layers' : 'nolayers',
+    runtime.config.rem.enabled ? 'rem' + runtime.config.rem.baseFontSize : 'px',
+    runtime.config.colorMode,
+    runtime.themeVersion,
+    runtime.configVersion,
+    normalizeCss(rawCss),
+  ].join('|');
+}
+
+function setBoundedCache<Value>(cache: Map<string, Value>, key: string, value: Value, maxEntries: number): void {
+  if (maxEntries <= 0) {
+    return;
+  }
+
+  if (cache.size >= maxEntries) {
+    const first = cache.keys().next();
+
+    if (!first.done) {
+      cache.delete(first.value);
+    }
+  }
+
+  cache.set(key, value);
 }
 
 /* ============================================================================
@@ -2194,54 +1722,124 @@ function buildCss(strings: TemplateStringsArray, values: readonly CipoCssInterpo
 
 function transformCss(input: string, warnings: CipoWarning[]): string {
   const withoutComments = stripComments(input);
-  const withTokens = replaceThemeTokens(withoutComments);
+  const withLegacyWith = replaceWithDirectives(withoutComments, warnings);
+  const withTokens = replaceThemeTokens(withLegacyWith, warnings);
   const withFunctions = replaceFunctionCalls(withTokens, warnings);
-  const withDirectives = replaceWithDirectives(withFunctions, warnings);
 
-  return withDirectives;
+  return withFunctions;
 }
 
 function stripComments(input: string): string {
   return input.replace(/\/\*[\s\S]*?\*\//g, EMPTY_STRING).replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-function replaceThemeTokens(input: string): string {
-  return input
-    .replace(/\$theme\.([a-zA-Z0-9._-]+)/g, (_match, tokenPath: string) => 'var(--' + runtime.config.prefix + '-' + tokenPath.replaceAll('.', '-') + ')')
-    .replace(/\$([a-zA-Z][\w-]*(?:-[\w]+)*)/g, (match, tokenName: string) => {
-      if (runtime.themeKeys.has(tokenName) || hasCssVariable(tokenName)) {
-        return 'var(--' + runtime.config.prefix + '-' + tokenName + ')';
-      }
+function replaceThemeTokens(input: string, warnings: CipoWarning[]): string {
+  return input.replace(/\$([a-zA-Z][\w.-]*)/g, (match, rawName: string) => {
+    const normalizedName = rawName.replaceAll('.', '-');
+    const explicitKey = '$' + rawName;
+    const dashedExplicitKey = '$' + normalizedName;
 
+    if (runtime.tokenAliases.has(explicitKey)) {
+      return runtime.tokenAliases.get(explicitKey) ?? match;
+    }
+
+    if (runtime.tokenAliases.has(dashedExplicitKey)) {
+      return runtime.tokenAliases.get(dashedExplicitKey) ?? match;
+    }
+
+    if (runtime.ambiguousTokens.has('$' + rawName)) {
+      warn(warnings, 'ambiguous-token', 'Ambiguous token "$' + rawName + '". Use an explicit namespace.', runtime.ambiguousTokens.get('$' + rawName));
       return match;
-    })
-    .replace(/\$colors\.([a-zA-Z0-9._-]+)/g, (_match, tokenPath: string) => 'var(--' + runtime.config.prefix + '-colors-' + tokenPath.replaceAll('.', '-') + ')');
+    }
+
+    if (runtime.themeKeys.has(normalizedName) || hasCssVariable(normalizedName)) {
+      return 'var(--' + runtime.config.prefix + '-' + normalizedName + ')';
+    }
+
+    if (rawName.startsWith('colors.')) {
+      return 'var(--' + runtime.config.prefix + '-colors-' + rawName.slice('colors.'.length).replaceAll('.', '-') + ')';
+    }
+
+    return match;
+  });
 }
 
 function replaceFunctionCalls(input: string, warnings: CipoWarning[]): string {
-  return input.replace(/(?:x:)?([a-zA-Z][\w-]*)\(([\s\S]*?)\)/g, (match, name: string, rawArgs: string) => {
-    switch (name) {
-      case 'spacing':
-        return resolveSpacingFunction(rawArgs);
-      case 'fluid':
-        return resolveFluidFunction(rawArgs);
-      case 'size':
-        return 'width:' + normalizeDeclarationValue('width', rawArgs.trim()) + ';height:' + normalizeDeclarationValue('height', rawArgs.trim()) + ';';
-      case 'alpha':
-        return resolveAlphaFunction(rawArgs, warnings);
-      case 'lighten':
-      case 'darken':
-      case 'saturate':
-        return resolveColorAdjustFunction(name, rawArgs);
-      case 'gradient':
-        return resolveGradientFunction(rawArgs);
-      case 'rem':
-        return pxToRem(rawArgs.trim());
-      default:
-        return match;
+  return scanAndReplaceFunctions(input, (name, args, original) => {
+    const helperName = name.startsWith('x:') ? name.slice(2) : name;
+    const resolver = runtime.helperRegistry.get(helperName);
+
+    if (!resolver) {
+      return original;
     }
+
+    const context: CipoHelperContext = {
+      name: helperName,
+      prefix: runtime.config.prefix,
+      colorMode: runtime.config.colorMode,
+      remBase: runtime.config.rem.baseFontSize,
+    };
+
+    const result = resolver(args, context);
+
+    return replaceFunctionCalls(result, warnings);
   });
 }
+
+function replaceWithDirectives(input: string, warnings: CipoWarning[]): string {
+  return scanAndReplaceAtFunction(input, 'with', rawArgs => expandLegacyWith(rawArgs, warnings));
+}
+
+function expandLegacyWith(rawArgs: string, warnings: CipoWarning[]): string {
+  const utilities = splitTopLevel(rawArgs, ',');
+  let output = EMPTY_STRING;
+
+  for (let index = 0; index < utilities.length; index += 1) {
+    output += expandLegacyUtility(utilities[index].trim(), warnings);
+  }
+
+  return output;
+}
+
+function expandLegacyUtility(rawUtility: string, warnings: CipoWarning[]): string {
+  if (!rawUtility) {
+    return EMPTY_STRING;
+  }
+
+  if (BUILTIN_ALIAS_MAP[rawUtility]) {
+    return BUILTIN_ALIAS_MAP[rawUtility];
+  }
+
+  if (runtime.aliasRegistry.has(rawUtility)) {
+    return stringifyAliasValue(rawUtility, warnings);
+  }
+
+  const call = parseFunctionCall(rawUtility);
+
+  if (!call) {
+    warn(warnings, 'unknown-utility', 'Unknown @with utility "' + rawUtility + '".', rawUtility);
+    return EMPTY_STRING;
+  }
+
+  if (call.name === 'text') {
+    return expandTextUtility(call.args.join(','), warnings);
+  }
+
+  const alias = PROPERTY_ALIASES[call.name];
+
+  if (alias) {
+    const value = call.args.join(',').trim();
+    return createDeclaration(alias.property, normalizeDeclarationValue(alias.property, value, alias.scale));
+  }
+
+  warn(warnings, 'unknown-utility', 'Unknown @with utility "' + call.name + '".', rawUtility);
+
+  return EMPTY_STRING;
+}
+
+/* ============================================================================
+ * Helpers
+ * ========================================================================== */
 
 function resolveSpacingFunction(rawValue: string): string {
   return 'calc(var(--' + runtime.config.prefix + '-spacing, ' + DEFAULT_SPACING_VALUE + ') * ' + rawValue.trim() + ')';
@@ -2256,44 +1854,56 @@ function resolveFluidFunction(rawArgs: string): string {
   return 'clamp(' + min + ', ' + preferred + ', ' + max + ')';
 }
 
-function resolveAlphaFunction(rawArgs: string, warnings: CipoWarning[]): string {
+function resolveAlphaFunction(rawArgs: string, context: CipoHelperContext): string {
   const parts = splitTopLevel(rawArgs, '/');
+  const color = parts[0]?.trim() || 'currentColor';
+  const amount = parts[1]?.trim() || '50%';
 
-  if (parts.length !== 2) {
-    warn(warnings, 'invalid-alpha-function', 'alpha() expects `color / amount`.', rawArgs);
-    return rawArgs;
-  }
-
-  const color = parts[0].trim();
-  const amount = parts[1].trim();
-  const space = runtime.config.colorMode === 'oklab' ? 'oklab' : 'oklch';
-
-  if (runtime.config.colorMode === 'rgba') {
+  if (context.colorMode === 'rgba') {
     return 'color-mix(in srgb, ' + color + ' ' + amount + ', transparent)';
   }
 
-  if (runtime.config.colorMode === 'hsl') {
+  if (context.colorMode === 'hsl') {
     return 'color-mix(in hsl, ' + color + ' ' + amount + ', transparent)';
   }
 
-  return 'color-mix(in ' + space + ', ' + color + ' ' + amount + ', transparent)';
+  if (context.colorMode === 'oklab') {
+    return 'color-mix(in oklab, ' + color + ' ' + amount + ', transparent)';
+  }
+
+  return 'color-mix(in oklch, ' + color + ' ' + amount + ', transparent)';
 }
 
 function resolveColorAdjustFunction(name: string, rawArgs: string): string {
   const parts = splitTopLevel(rawArgs, ',');
   const color = parts[0]?.trim() || 'currentColor';
   const amount = parts[1]?.trim() || '10%';
-  const signedAmount = name === 'darken' ? '-' + amount.replace(/^-/, '') : amount;
-
-  if (name === 'saturate') {
-    return 'oklch(from ' + color + ' l calc(c + ' + amount + ') h)';
-  }
+  const numericAmount = amount.endsWith('%') ? String(Number(amount.slice(0, -1)) / 100) : amount;
+  const signedAmount = name === 'darken' ? '-' + numericAmount.replace(/^-/, '') : numericAmount;
 
   if (runtime.config.colorMode === 'preserve') {
     return color;
   }
 
+  if (name === 'saturate') {
+    return 'oklch(from ' + color + ' l calc(c + ' + numericAmount + ') h)';
+  }
+
+  if (name === 'desaturate') {
+    return 'oklch(from ' + color + ' l calc(c - ' + numericAmount + ') h)';
+  }
+
   return 'oklch(from ' + color + ' calc(l + ' + signedAmount + ') c h)';
+}
+
+function resolveMixFunction(rawArgs: string): string {
+  const parts = splitTopLevel(rawArgs, ',');
+  const left = parts[0]?.trim() || 'currentColor';
+  const right = parts[1]?.trim() || 'transparent';
+  const amount = parts[2]?.trim() || '50%';
+  const mode = runtime.config.colorMode === 'rgba' ? 'srgb' : runtime.config.colorMode === 'preserve' ? 'oklch' : runtime.config.colorMode;
+
+  return 'color-mix(in ' + mode + ', ' + left + ' ' + amount + ', ' + right + ')';
 }
 
 function resolveGradientFunction(rawArgs: string): string {
@@ -2311,74 +1921,9 @@ function resolveGradientFunction(rawArgs: string): string {
   return 'linear-gradient(' + parts.slice(1).join(', ') + ')';
 }
 
-function replaceWithDirectives(input: string, warnings: CipoWarning[]): string {
-  return input.replace(/@with\(([\s\S]*?)\);?/g, (_match, rawArgs: string) => expandWithUtilities(rawArgs, warnings));
-}
-
 /* ============================================================================
- * Utilities Directive and Text Helper
+ * Text Helper
  * ========================================================================== */
-
-function expandWithUtilities(rawArgs: string, warnings: CipoWarning[]): string {
-  const utilities = splitTopLevel(rawArgs, ',');
-  let output = EMPTY_STRING;
-
-  for (let index = 0; index < utilities.length; index += 1) {
-    output += expandUtility(utilities[index].trim(), warnings);
-  }
-
-  return output;
-}
-
-function expandUtility(rawUtility: string, warnings: CipoWarning[]): string {
-  if (!rawUtility) {
-    return EMPTY_STRING;
-  }
-
-  const call = parseFunctionCall(rawUtility);
-
-  if (!call) {
-    switch (rawUtility) {
-      case 'hidden':
-        return 'display:none;';
-      case 'block':
-        return 'display:block;';
-      case 'flex':
-        return 'display:flex;';
-      case 'inline-flex':
-        return 'display:inline-flex;';
-      case 'grid':
-        return 'display:grid;';
-      case 'center':
-        return 'display:flex;align-items:center;justify-content:center;';
-      case 'items-center':
-        return 'align-items:center;';
-      case 'justify-center':
-        return 'justify-content:center;';
-      case 'sr-only':
-        return 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
-      default:
-        warn(warnings, 'unknown-utility', 'Unknown @with utility "' + rawUtility + '".', rawUtility);
-        return EMPTY_STRING;
-    }
-  }
-
-  const value = call.args.join(',').trim();
-
-  if (call.name === 'text') {
-    return expandTextUtility(value, warnings);
-  }
-
-  const alias = PROPERTY_ALIASES[call.name];
-
-  if (alias) {
-    return createDeclaration(alias.property, normalizeDeclarationValue(alias.property, value, alias.scale));
-  }
-
-  warn(warnings, 'unknown-utility', 'Unknown @with utility "' + call.name + '".', rawUtility);
-
-  return EMPTY_STRING;
-}
 
 function expandTextUtility(value: string, warnings: CipoWarning[]): string {
   const args = splitTopLevel(value, ',');
@@ -2414,10 +1959,7 @@ function expandTextUtility(value: string, warnings: CipoWarning[]): string {
     }
 
     if (arg.startsWith('gradient(')) {
-      output += createDeclaration('background-image', resolveGradientFunction(arg.slice('gradient('.length, -1)));
-      output += createDeclaration('-webkit-background-clip', 'text');
-      output += createDeclaration('background-clip', 'text');
-      output += createDeclaration('color', 'transparent');
+      output += createTextFillDeclarations(resolveGradientFunction(arg.slice('gradient('.length, -1)));
     }
   }
 
@@ -2463,10 +2005,7 @@ function expandTextUtility(value: string, warnings: CipoWarning[]): string {
 
   if (typed.fill) {
     const fill = typed.fill.startsWith('gradient(') ? resolveGradientFunction(typed.fill.slice('gradient('.length, -1)) : typed.fill;
-    output += createDeclaration('background-image', fill);
-    output += createDeclaration('-webkit-background-clip', 'text');
-    output += createDeclaration('background-clip', 'text');
-    output += createDeclaration('color', 'transparent');
+    output += createTextFillDeclarations(fill);
   }
 
   if (!output) {
@@ -2474,6 +2013,13 @@ function expandTextUtility(value: string, warnings: CipoWarning[]): string {
   }
 
   return output;
+}
+
+function createTextFillDeclarations(fill: string): string {
+  return createDeclaration('background-image', fill)
+    + createDeclaration('-webkit-background-clip', 'text')
+    + createDeclaration('background-clip', 'text')
+    + createDeclaration('color', 'transparent');
 }
 
 /* ============================================================================
@@ -2521,12 +2067,12 @@ function parseBlockBody(input: string, warnings: CipoWarning[]): readonly CipoAs
     index = endIndex + 1;
   }
 
-  appendDeclarationsAndDirectives(nodes, buffer, warnings);
+  appendStatements(nodes, buffer, warnings);
 
   return nodes;
 }
 
-function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: string, warnings: CipoWarning[]): void {
+function appendStatements(nodes: CipoAstNode[], input: string, warnings: CipoWarning[]): void {
   const chunks = splitTopLevel(input, ';');
 
   for (let index = 0; index < chunks.length; index += 1) {
@@ -2546,10 +2092,10 @@ function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: string, wa
       continue;
     }
 
-    const functionDeclaration = parseDeclarationFunction(source);
+    const expandedStatement = expandStatement(source, warnings);
 
-    if (functionDeclaration) {
-      nodes.push(...parseStylesheet(functionDeclaration, warnings));
+    if (expandedStatement) {
+      appendStatements(nodes, expandedStatement, warnings);
       continue;
     }
 
@@ -2570,7 +2116,15 @@ function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: string, wa
   }
 }
 
-function parseDeclarationFunction(source: string): string | null {
+function expandStatement(source: string, warnings: CipoWarning[]): string | null {
+  if (BUILTIN_ALIAS_MAP[source]) {
+    return BUILTIN_ALIAS_MAP[source];
+  }
+
+  if (runtime.aliasRegistry.has(source)) {
+    return stringifyAliasValue(source, warnings);
+  }
+
   const call = parseFunctionCall(source);
 
   if (!call) {
@@ -2578,30 +2132,57 @@ function parseDeclarationFunction(source: string): string | null {
   }
 
   if (call.name === 'text') {
-    return expandTextUtility(call.args.join(','), []);
+    return expandTextUtility(call.args.join(','), warnings);
+  }
+
+  const alias = PROPERTY_ALIASES[call.name];
+
+  if (alias) {
+    return createDeclaration(alias.property, normalizeDeclarationValue(alias.property, call.args.join(',').trim(), alias.scale));
   }
 
   return null;
 }
 
+function stringifyAliasValue(name: string, warnings: CipoWarning[]): string {
+  const value = runtime.aliasRegistry.get(name);
+  const context: CipoAliasContext = { name, prefix: runtime.config.prefix };
+
+  if (typeof value === 'function') {
+    const next = value(context);
+    return typeof next === 'string' ? next : styleObjectToCss(next);
+  }
+
+  if (isPlainObject(value)) {
+    return styleObjectToCss(value);
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  warn(warnings, 'invalid-alias', 'Alias "' + name + '" is invalid.', value);
+  return EMPTY_STRING;
+}
+
 function parseDeclarationsAndDirectives(input: string, warnings: CipoWarning[]): readonly CipoAstNode[] {
   const nodes: CipoAstNode[] = [];
-  appendDeclarationsAndDirectives(nodes, input, warnings);
+  appendStatements(nodes, input, warnings);
   return nodes;
 }
 
 function parseDirective(source: string, warnings: CipoWarning[]): CipoDirectiveNode | null {
-  const match = source.match(/^@([a-zA-Z][\w-]*)\(([\s\S]*)\)$/);
+  const parsed = parseAtFunctionCall(source);
 
-  if (!match) {
+  if (!parsed) {
     warn(warnings, 'invalid-directive', 'Invalid directive "' + source + '".', source);
     return null;
   }
 
   return {
     type: 'directive',
-    name: match[1],
-    args: splitTopLevel(match[2], ','),
+    name: parsed.name,
+    args: splitTopLevel(parsed.args, ','),
     source,
   };
 }
@@ -2667,7 +2248,7 @@ function collectDirective(
     return;
   }
 
-  const expanded = expandWithUtilities(directive.args.join(','), warnings);
+  const expanded = expandLegacyWith(directive.args.join(','), warnings);
   const nestedAst = parseDeclarationsAndDirectives(expanded, warnings);
 
   collectRules(nestedAst, context, atoms, [], warnings, scopeClassName);
@@ -2761,35 +2342,25 @@ function normalizeDeclarationValue(property: string, rawValue: string, scale: Al
     return value;
   }
 
-  if (value.includes('var(') || value.includes('calc(') || value.includes('clamp(') || value.includes('color-mix(') || value.includes('gradient(')) {
-    return normalizePxValues(value);
+  const withHelpers = replaceFunctionCalls(value, []);
+
+  if (scale === 'spacing' && isPlainNumber(withHelpers)) {
+    return resolveSpacingFunction(withHelpers);
   }
 
-  if (value.startsWith('$') || value.startsWith('#') || value.startsWith('rgb') || value.startsWith('hsl') || value.startsWith('oklch') || value.startsWith('oklab')) {
-    return normalizePxValues(value);
+  if (scale === 'radius' && RADIUS_TOKENS.has(withHelpers)) {
+    return 'var(--' + runtime.config.prefix + '-radius-' + withHelpers + ')';
   }
 
-  if (value.startsWith('lighten(') || value.startsWith('darken(') || value.startsWith('saturate(') || value.startsWith('alpha(') || value.startsWith('fluid(') || value.startsWith('spacing(') || value.startsWith('rem(')) {
-    return normalizePxValues(replaceFunctionCalls(value, []));
+  if (scale === 'shadow' && SHADOW_TOKENS.has(withHelpers)) {
+    return 'var(--' + runtime.config.prefix + '-shadow-' + withHelpers + ')';
   }
 
-  if (scale === 'spacing' && isPlainNumber(value)) {
-    return resolveSpacingFunction(value);
+  if (scale === 'text' && TEXT_SIZE_TOKENS.has(withHelpers)) {
+    return 'var(--' + runtime.config.prefix + '-text-' + withHelpers + ')';
   }
 
-  if (scale === 'radius' && RADIUS_TOKENS.has(value)) {
-    return 'var(--' + runtime.config.prefix + '-radius-' + value + ')';
-  }
-
-  if (scale === 'shadow' && SHADOW_TOKENS.has(value)) {
-    return 'var(--' + runtime.config.prefix + '-shadow-' + value + ')';
-  }
-
-  if (scale === 'text' && TEXT_SIZE_TOKENS.has(value)) {
-    return 'var(--' + runtime.config.prefix + '-text-' + value + ')';
-  }
-
-  return normalizePxValues(value);
+  return normalizePxValues(withHelpers);
 }
 
 function normalizePxValues(value: string): string {
@@ -2848,23 +2419,15 @@ function expandResponsiveDeclaration(declaration: CipoDeclarationNode): Array<{ 
 
   for (let index = 0; index < parts.length; index += 1) {
     const trimmed = parts[index].trim();
-    const match = trimmed.match(/^x:([a-zA-Z][\w-]*)\(([\s\S]*)\)$/);
+    const parsed = parseFunctionCall(trimmed);
 
-    if (!match) {
-      result.push({ breakpoint: 'base', value: trimmed });
-      continue;
-    }
-
-    const breakpoint = match[1];
-    const value = match[2].trim();
-
-    if (!(breakpoint in runtime.config.breakpoints)) {
+    if (!parsed || !(parsed.name in runtime.config.breakpoints)) {
       result.push({ breakpoint: 'base', value: trimmed });
       continue;
     }
 
     hasResponsive = true;
-    result.push({ breakpoint, value });
+    result.push({ breakpoint: parsed.name, value: parsed.args.join(',').trim() });
   }
 
   return hasResponsive ? result : null;
@@ -2905,19 +2468,22 @@ function createAtomicRule(declaration: CipoDeclarationNode, context: CipoRuleCon
 }
 
 function compileCss(atoms: readonly CipoAtomicRule[], scopedRules: readonly CipoScopedRule[]): string {
-  const chunks: string[] = [];
+  const atomicChunks: string[] = [];
+  const scopedChunks: string[] = [];
 
   for (let index = 0; index < atoms.length; index += 1) {
-    chunks.push(compileAtomicRule(atoms[index]));
+    atomicChunks.push(compileAtomicRule(atoms[index]));
   }
 
   for (let index = 0; index < scopedRules.length; index += 1) {
-    chunks.push(compileScopedRule(scopedRules[index]));
+    scopedChunks.push(compileScopedRule(scopedRules[index]));
   }
 
-  const atomicCss = chunks.filter(Boolean).join('\n');
+  const atomicCss = atomicChunks.filter(Boolean).join('\n');
+  const scopedCss = scopedChunks.filter(Boolean).join('\n');
+  const output = [wrapLayer('atomic', atomicCss), wrapLayer('scoped', scopedCss)].filter(Boolean).join('\n');
 
-  return formatCss(wrapLayer('atomic', atomicCss));
+  return formatCss(output);
 }
 
 function compileAtomicRule(atom: CipoAtomicRule): string {
@@ -2987,7 +2553,7 @@ function collectInlineDeclarations(ast: readonly CipoAstNode[], warnings: CipoWa
     }
 
     if (node.type === 'directive' && node.name === 'with') {
-      output.push(...collectInlineDeclarations(parseDeclarationsAndDirectives(expandWithUtilities(node.args.join(','), warnings), warnings), warnings));
+      output.push(...collectInlineDeclarations(parseDeclarationsAndDirectives(expandLegacyWith(node.args.join(','), warnings), warnings), warnings));
     }
   }
 
@@ -3135,30 +2701,43 @@ function prettyCss(cssText: string): string {
   let output = EMPTY_STRING;
   let depth = 0;
   let token = EMPTY_STRING;
+  let quote: '"' | "'" | null = null;
 
   for (let index = 0; index < cssText.length; index += 1) {
     const char = cssText[index];
 
+    if (quote) {
+      token += char;
+      if (char === quote && cssText[index - 1] !== '\\') quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      token += char;
+      continue;
+    }
+
     if (char === '{') {
-      output += token.trim() + ' {\n';
+      output += indent(depth) + token.trim() + ' {\n';
       depth += 1;
-      token = indent(depth);
+      token = EMPTY_STRING;
       continue;
     }
 
     if (char === '}') {
       if (token.trim()) {
-        output += token.trim() + '\n';
+        output += indent(depth) + token.trim() + '\n';
       }
       depth = Math.max(0, depth - 1);
       output += indent(depth) + '}\n';
-      token = indent(depth);
+      token = EMPTY_STRING;
       continue;
     }
 
     if (char === ';') {
-      output += token.trim() + ';\n';
-      token = indent(depth);
+      output += indent(depth) + token.trim() + ';\n';
+      token = EMPTY_STRING;
       continue;
     }
 
@@ -3166,7 +2745,7 @@ function prettyCss(cssText: string): string {
   }
 
   if (token.trim()) {
-    output += token.trim();
+    output += indent(depth) + token.trim();
   }
 
   return output.trim();
@@ -3178,6 +2757,142 @@ function indent(depth: number): string {
 
 function createDeclaration(property: string, value: string): string {
   return property + ':' + value + ';';
+}
+
+/* ============================================================================
+ * Scanner Helpers
+ * ========================================================================== */
+
+function scanAndReplaceFunctions(input: string, replacer: (name: string, args: string, original: string) => string): string {
+  let output = EMPTY_STRING;
+  let index = 0;
+
+  while (index < input.length) {
+    const start = findNextFunctionStart(input, index);
+
+    if (!start) {
+      output += input.slice(index);
+      break;
+    }
+
+    output += input.slice(index, start.nameStart);
+
+    const endIndex = findMatchingParen(input, start.openIndex);
+
+    if (endIndex < 0) {
+      output += input.slice(start.nameStart);
+      break;
+    }
+
+    const original = input.slice(start.nameStart, endIndex + 1);
+    const args = input.slice(start.openIndex + 1, endIndex);
+    output += replacer(start.name, args, original);
+    index = endIndex + 1;
+  }
+
+  return output;
+}
+
+function scanAndReplaceAtFunction(input: string, name: string, replacer: (args: string) => string): string {
+  let output = EMPTY_STRING;
+  let index = 0;
+  const needle = '@' + name + '(';
+
+  while (index < input.length) {
+    const start = input.indexOf(needle, index);
+
+    if (start < 0) {
+      output += input.slice(index);
+      break;
+    }
+
+    output += input.slice(index, start);
+
+    const openIndex = start + needle.length - 1;
+    const endIndex = findMatchingParen(input, openIndex);
+
+    if (endIndex < 0) {
+      output += input.slice(start);
+      break;
+    }
+
+    output += replacer(input.slice(openIndex + 1, endIndex));
+
+    let nextIndex = endIndex + 1;
+    if (input[nextIndex] === ';') {
+      nextIndex += 1;
+    }
+
+    index = nextIndex;
+  }
+
+  return output;
+}
+
+function findNextFunctionStart(input: string, fromIndex: number): { readonly name: string; readonly nameStart: number; readonly openIndex: number } | null {
+  let quote: '"' | "'" | null = null;
+
+  for (let index = fromIndex; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char !== '(') {
+      continue;
+    }
+
+    let cursor = index - 1;
+    while (cursor >= fromIndex && /[\w:-]/.test(input[cursor])) {
+      cursor -= 1;
+    }
+
+    const nameStart = cursor + 1;
+    const name = input.slice(nameStart, index);
+
+    if (!name || /^[0-9]/.test(name)) {
+      continue;
+    }
+
+    return { name, nameStart, openIndex: index };
+  }
+
+  return null;
+}
+
+function findMatchingParen(input: string, openIndex: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+
+  for (let index = openIndex; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === '(') depth += 1;
+    else if (char === ')') depth -= 1;
+
+    if (depth === 0) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 /* ============================================================================
@@ -3199,6 +2914,23 @@ function normalizeRemConfig(rem: boolean | CipoRemConfig | undefined, baseFontSi
   };
 }
 
+function normalizeJitConfig(jit: boolean | CipoJitConfig | undefined): Required<CipoJitConfig> | null {
+  if (jit === undefined) {
+    return null;
+  }
+
+  if (typeof jit === 'boolean') {
+    return { ...runtime.config.jit, enabled: jit };
+  }
+
+  return {
+    enabled: jit.enabled ?? runtime.config.jit.enabled,
+    cache: jit.cache ?? runtime.config.jit.cache,
+    maxEntries: jit.maxEntries ?? runtime.config.jit.maxEntries,
+    debug: jit.debug ?? runtime.config.jit.debug,
+  };
+}
+
 function flattenTheme(tokens: CipoThemeDefinition, path: readonly string[] = []): Array<readonly [string, string | number]> {
   const output: Array<readonly [string, string | number]> = [];
   const entries = Object.entries(tokens);
@@ -3208,8 +2940,7 @@ function flattenTheme(tokens: CipoThemeDefinition, path: readonly string[] = [])
     const nextPath = path.length === 0 ? [key] : [...path, key];
 
     if (isPlainObject(value)) {
-      const child = flattenTheme(value as CipoThemeDefinition, nextPath);
-      output.push(...child);
+      output.push(...flattenTheme(value as CipoThemeDefinition, nextPath));
       continue;
     }
 
@@ -3253,10 +2984,38 @@ function parseFunctionCall(input: string): null | { readonly name: string; reado
     return null;
   }
 
+  const endIndex = findMatchingParen(input, openIndex);
+
+  if (endIndex !== closeIndex) {
+    return null;
+  }
+
   return {
     name: input.slice(0, openIndex).trim(),
     args: splitTopLevel(input.slice(openIndex + 1, closeIndex), ','),
   };
+}
+
+function parseAtFunctionCall(input: string): null | { readonly name: string; readonly args: string } {
+  if (!input.startsWith('@')) {
+    return null;
+  }
+
+  const openIndex = input.indexOf('(');
+  const closeIndex = input.lastIndexOf(')');
+
+  if (openIndex < 0 || closeIndex <= openIndex) {
+    return null;
+  }
+
+  const name = input.slice(1, openIndex).trim();
+  const endIndex = findMatchingParen(input, openIndex);
+
+  if (!name || endIndex !== closeIndex) {
+    return null;
+  }
+
+  return { name, args: input.slice(openIndex + 1, closeIndex) };
 }
 
 function parseTypedArguments(input: string): Record<string, string> {
@@ -3520,7 +3279,15 @@ function isPlainNumber(value: string): boolean {
 }
 
 function isColorLike(value: string): boolean {
-  return value.startsWith('$colors.') || value.startsWith('$theme.colors.') || value.startsWith('#') || value.startsWith('rgb') || value.startsWith('hsl') || value.startsWith('oklch') || value.startsWith('oklab') || value === 'transparent' || value === 'currentColor';
+  return value.startsWith('$')
+    || value.startsWith('var(')
+    || value.startsWith('#')
+    || value.startsWith('rgb')
+    || value.startsWith('hsl')
+    || value.startsWith('oklch')
+    || value.startsWith('oklab')
+    || value === 'transparent'
+    || value === 'currentColor';
 }
 
 /* ============================================================================
