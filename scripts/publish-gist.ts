@@ -1,125 +1,52 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import process from "node:process";
-
 import { DIST_DIR, readEnv } from "./config";
 
-const githubToken = process.env.GIST_TOKEN ?? process.env.GITHUB_TOKEN;
-const gistId = process.env.GIST_ID;
-const description = readEnv(
-  "GIST_DESCRIPTION",
-  "Browser bundle generated from a private TypeScript repository",
-);
+type GistFile = { content: string };
 
-/**
- * Publishes every generated distribution file to a GitHub Gist.
- *
- * @returns A promise that resolves when the gist API call succeeds.
- *
- * @example
- * ```ts
- * await main();
- * // The configured gist contains every generated dist file.
- * ```
- */
-async function main(): Promise<void> {
-  if (!githubToken) {
-    throw new Error("Missing GIST_TOKEN or GITHUB_TOKEN.");
-  }
+export async function main(): Promise<void> {
+  const token = readEnv("GIST_TOKEN", "");
+  const gistId = readEnv("GIST_ID", "");
+  const description = readEnv("GIST_DESCRIPTION", "Rod browser tool builds");
+
+  if (!token) throw new Error("GIST_TOKEN is required to publish a public gist.");
 
   const files = await collectDistFiles();
-
-  const endpoint = gistId
-    ? `https://api.github.com/gists/${gistId}`
-    : "https://api.github.com/gists";
-
-  const method = gistId ? "PATCH" : "POST";
-
-  const response = await fetch(endpoint, {
-    method,
+  const response = await fetch(gistId ? `https://api.github.com/gists/${gistId}` : "https://api.github.com/gists", {
+    method: gistId ? "PATCH" : "POST",
     headers: {
+      Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${githubToken}`,
       "Content-Type": "application/json",
-      "X-GitHub-Api-Version": "2022-11-28",
     },
-    body: JSON.stringify({
-      description,
-      public: false,
-      files,
-    }),
+    body: JSON.stringify({ public: true, description, files }),
   });
-
-  const payload = (await response.json()) as {
-    html_url?: string;
-    message?: string;
-  };
 
   if (!response.ok) {
-    throw new Error(
-      `GitHub Gist publish failed: ${payload.message ?? response.statusText}`,
-    );
+    throw new Error(`Gist publish failed: ${response.status} ${await response.text()}`);
   }
 
-  console.log(`✅ Gist published: ${payload.html_url ?? "unknown URL"}`);
+  console.log(`Published ${Object.keys(files).length} files to gist.`);
 }
 
-/**
- * Collects every file from the dist directory and converts it into the Gist files payload.
- *
- * @returns A GitHub Gist files object keyed by relative file name.
- *
- * @example
- * ```ts
- * const files = await collectDistFiles();
- * // { "bundle.esm.js": { content: "..." } }
- * ```
- */
-async function collectDistFiles(): Promise<Record<string, { content: string }>> {
-  const files: Record<string, { content: string }> = {};
-
+export async function collectDistFiles(): Promise<Record<string, GistFile>> {
+  const files: Record<string, GistFile> = {};
   await walkDist(DIST_DIR, async (absolutePath) => {
     const relativePath = path.relative(DIST_DIR, absolutePath).replaceAll(path.sep, "/");
-
-    files[relativePath] = {
-      content: await fs.readFile(absolutePath, "utf8"),
-    };
+    files[relativePath] = { content: await fs.readFile(absolutePath, "utf8") };
   });
-
   return files;
 }
 
-/**
- * Walks through the dist directory recursively.
- *
- * @param directory - Directory to inspect.
- * @param onFile - Callback called for every file found.
- * @returns A promise that resolves after all files are visited.
- *
- * @example
- * ```ts
- * await walkDist("dist", async file => {
- *   console.log(file);
- * });
- * ```
- */
-async function walkDist(
-  directory: string,
-  onFile: (absolutePath: string) => Promise<void>,
-): Promise<void> {
-  const entries = await fs.readdir(directory, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
+async function walkDist(directory: string, onFile: (absolutePath: string) => Promise<void>): Promise<void> {
+  const dirents = await fs.readdir(directory, { withFileTypes: true });
+  for (const dirent of dirents) {
+    const absolutePath = path.join(directory, dirent.name);
+    if (dirent.isDirectory()) {
       await walkDist(absolutePath, onFile);
       continue;
     }
-
-    if (entry.isFile()) {
-      await onFile(absolutePath);
-    }
+    if (dirent.isFile()) await onFile(absolutePath);
   }
 }
 

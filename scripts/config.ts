@@ -1,47 +1,47 @@
 import path from "node:path";
-import process from "node:process";
 
-export const DIST_DIR = path.resolve("dist");
-export const DEFAULT_ENTRYPOINT = "src/index.ts";
-export const DEFAULT_GLOBAL_NAME = "RodK";
+export const ROOT_DIR = process.cwd();
+export const SRC_DIR = path.join(ROOT_DIR, "src");
+export const DIST_DIR = path.join(ROOT_DIR, "dist");
+export const DEFAULT_GLOBAL_NAMESPACE = "Rod";
+export const ENTRY_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"]);
 
-/**
- * Reads an environment variable with a safe default.
- *
- * @param name - Environment variable name.
- * @param fallback - Value used when the variable is empty.
- * @returns The configured value.
- *
- * @example
- * ```ts
- * readEnv("BUILD_ENTRYPOINT", "src/index.ts");
- * // "src/index.ts"
- * ```
- */
+export type BuildMode = "development" | "production";
+
+export type RootEntry = {
+  name: string;
+  fileName: string;
+  absolutePath: string;
+  relativePath: string;
+  globalName: string;
+  tool: ToolMetadata;
+};
+
+export type ToolMetadata = {
+  name: string;
+  globalName: string;
+  description: string;
+  packageName: string;
+  tags: string[];
+  entry: string;
+};
+
 export function readEnv(name: string, fallback: string): string {
-  const value = process.env[name]?.trim();
-  return value && value.length > 0 ? value : fallback;
+  const value = process.env[name];
+  return value && value.trim().length > 0 ? value.trim() : fallback;
 }
 
-/**
- * Reads a boolean-like environment variable.
- *
- * @param name - Environment variable name.
- * @param fallback - Value used when the variable is not set.
- * @returns A normalized boolean value.
- *
- * @example
- * ```ts
- * readBooleanEnv("MINIFY", true);
- * // true
- * ```
- */
 export function readBooleanEnv(name: string, fallback: boolean): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
+  const value = process.env[name];
+  if (!value) return fallback;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
 
-  if (!value) {
-    return fallback;
-  }
-
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+export function toPascalCase(value: string): string {
+  return value
+    .replace(/\.[^.]+$/, "")
+    .split(/[^a-zA-Z0-9]+/g)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join("");
 }

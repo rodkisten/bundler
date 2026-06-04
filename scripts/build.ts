@@ -1,202 +1,90 @@
 import fs from "node:fs/promises";
-import { glob } from "node:fs/promises";
 import path from "node:path";
-import { build } from "esbuild";
+import { build, type BuildOptions } from "esbuild";
+import { createIndexHtml } from "./create-index-html";
+import { DIST_DIR, readBooleanEnv, readEnv, type RootEntry } from "./config";
+import { discoverRootEntries } from "./discover-entries";
 
-import {
-  DEFAULT_ENTRYPOINT,
-  DEFAULT_GLOBAL_NAME,
-  DIST_DIR,
-  readBooleanEnv,
-  readEnv,
-} from "./config";
-import { createIndexHtml, type DocsExample } from "./create-index-html";
+const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
+const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
 
-const entrypoint = readEnv("BUILD_ENTRYPOINT", DEFAULT_ENTRYPOINT);
-const globalName = readEnv("BUILD_GLOBAL_NAME", DEFAULT_GLOBAL_NAME);
-const minify = readBooleanEnv("BUILD_MINIFY", true);
-
-/**
- * Builds browser bundles, individual modules, docs examples, and landing page.
- *
- * @returns A promise that resolves after the build finishes.
- *
- * @example
- * ```ts
- * await main();
- * // dist/index.html is created with extracted TSDoc examples.
- * ```
- */
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   await fs.rm(DIST_DIR, { recursive: true, force: true });
   await fs.mkdir(DIST_DIR, { recursive: true });
 
-  await build({
-    entryPoints: [entrypoint],
-    outfile: path.join(DIST_DIR, "bundle.esm.js"),
-    bundle: true,
-    format: "esm",
-    platform: "browser",
-    target: "es2022",
-    sourcemap: true,
-    minify,
-    legalComments: "none",
-    logLevel: "info",
-  });
-
-  await build({
-    entryPoints: [entrypoint],
-    outfile: path.join(DIST_DIR, "bundle.iife.js"),
-    bundle: true,
-    format: "iife",
-    globalName,
-    platform: "browser",
-    target: "es2022",
-    sourcemap: true,
-    minify,
-    legalComments: "none",
-    logLevel: "info",
-  });
-
-  const entryPoints = await collectModuleEntryPoints();
-
-  const result = await build({
-    entryPoints,
-    outdir: DIST_DIR,
-    outbase: "src",
-    bundle: true,
-    format: "iife",
-    platform: "browser",
-    target: "es2022",
-    sourcemap: true,
-    minify: false,
-    legalComments: "none",
-    metafile: true,
-    write: true,
-    logLevel: "info",
-  });
-
-  const outputs = Object.keys(result.metafile.outputs);
-  const examples = await extractDocsExamples("src");
-
-  await fs.writeFile(
-    path.join(DIST_DIR, "metafile-outputs.json"),
-    JSON.stringify(outputs, null, 2),
-    "utf8",
-  );
-
-  await fs.writeFile(
-    path.join(DIST_DIR, "docs-examples.json"),
-    JSON.stringify(examples, null, 2),
-    "utf8",
-  );
-
-  await fs.writeFile(
-    path.join(DIST_DIR, "release-assets.txt"),
-    outputs.join("\n"),
-    "utf8",
-  );
-
-  await fs.writeFile(
-    path.join(DIST_DIR, "index.html"),
-    createIndexHtml(globalName, outputs, examples),
-    "utf8",
-  );
-
-  console.log(`✅ Built private TypeScript entrypoint: ${entrypoint}`);
-  console.log(`📚 Extracted docs examples: ${examples.length}`);
-}
-
-/**
- * Collects every TypeScript source file except root src/index.ts.
- *
- * @returns Source files that should be emitted as individual modules.
- *
- * @example
- * ```ts
- * const files = await collectModuleEntryPoints();
- * // ["src/cell.ts", "src/world.ts"]
- * ```
- */
-async function collectModuleEntryPoints(): Promise<string[]> {
-  const files: string[] = [];
-
-  for await (const file of glob("src/*.ts")) {
-    if (file === "src/index.ts") {
-      continue;
-    }
-
-    files.push(file);
+  const entries = await discoverRootEntries();
+  if (entries.length === 0) {
+    throw new Error("No root entrypoints found in src/. Add src/fabrica.ts, src/cipo.ts, src/seiva-state.ts, or src/index.ts.");
   }
 
-  return files;
-}
-
-/**
- * Extracts fenced TSDoc @example blocks from TypeScript source files.
- *
- * @param rootDirectory - Source directory to scan.
- * @returns Extracted examples ready for docs rendering.
- *
- * @example
- * ```ts
- * const examples = await extractDocsExamples("src");
- * console.log(examples[0]?.title);
- * ```
- */
-async function extractDocsExamples(rootDirectory: string): Promise<DocsExample[]> {
-  const examples: DocsExample[] = [];
-
-  for await (const file of glob(`${rootDirectory}/**/*.ts`)) {
-    const source = await fs.readFile(file, "utf8");
-    const comments = source.match(/\/\*\*[\s\S]*?\*\//g) ?? [];
-
-    for (const comment of comments) {
-      examples.push(...extractExamplesFromComment(comment, file));
-    }
+  const outputs: string[] = [];
+  for (const entry of entries) {
+    outputs.push(...(await buildEntry(entry)));
   }
 
-  return examples;
+  const manifest = createManifest(entries, outputs);
+  await fs.writeFile(path.join(DIST_DIR, "manifest.json"), JSON.stringify(manifest, null, 2));
+  await fs.writeFile(path.join(DIST_DIR, "index.html"), createIndexHtml({ entries, outputs, namespace: GLOBAL_NAMESPACE }));
 }
 
-/**
- * Extracts all @example fenced code blocks from one TSDoc comment.
- *
- * @param comment - Full TSDoc comment.
- * @param sourceFile - File where the comment was found.
- * @returns Parsed examples from that comment.
- *
- * @example
- * ```ts
- * const examples = extractExamplesFromComment(comment, "src/index.ts");
- * ```
- */
-function extractExamplesFromComment(
-  comment: string,
-  sourceFile: string,
-): DocsExample[] {
-  const cleaned = comment
-    .replace(/^\/\*\*/, "")
-    .replace(/\*\/$/, "")
-    .split("\n")
-    .map((line) => line.replace(/^\s*\*\s?/, ""))
-    .join("\n");
+async function buildEntry(entry: RootEntry): Promise<string[]> {
+  const banner = createBanner(entry);
+  const baseOptions: BuildOptions = {
+    entryPoints: [entry.absolutePath],
+    bundle: true,
+    platform: "browser",
+    target: ["es2022"],
+    jsx: "automatic",
+    legalComments: "inline",
+    sourcemap: true,
+    charset: "utf8",
+    logLevel: "info",
+    metafile: SHOULD_WRITE_META,
+    banner: { js: banner },
+    define: {
+      "process.env.NODE_ENV": JSON.stringify("production"),
+    },
+  };
 
-  const examples: DocsExample[] = [];
-  const examplePattern = /@example\s*([^\n]*)\n+```(\w+)?\n([\s\S]*?)```/g;
+  const normalIife = path.join(DIST_DIR, `${entry.name}.iife.js`);
+  const minIife = path.join(DIST_DIR, `${entry.name}.iife.min.js`);
+  const normalEsm = path.join(DIST_DIR, `${entry.name}.esm.js`);
+  const minEsm = path.join(DIST_DIR, `${entry.name}.esm.min.js`);
 
-  for (const match of cleaned.matchAll(examplePattern)) {
-    const [, rawTitle, rawLanguage, rawCode] = match;
+  const results = await Promise.all([
+    build({ ...baseOptions, format: "iife", globalName: entry.globalName, outfile: normalIife, minify: false }),
+    build({ ...baseOptions, format: "iife", globalName: entry.globalName, outfile: minIife, minify: true }),
+    build({ ...baseOptions, format: "esm", outfile: normalEsm, minify: false }),
+    build({ ...baseOptions, format: "esm", outfile: minEsm, minify: true }),
+  ]);
 
-    examples.push({
-      title: rawTitle?.trim() || "Example",
-      language: rawLanguage?.trim() || "ts",
-      code: rawCode?.trimEnd() ?? "",
-      source: sourceFile,
-    });
+  if (SHOULD_WRITE_META) {
+    await Promise.all(
+      results.map((result, index) => fs.writeFile(path.join(DIST_DIR, `${entry.name}.${index}.meta.json`), JSON.stringify(result.metafile, null, 2))),
+    );
   }
 
-  return examples;
+  return [normalIife, minIife, normalEsm, minEsm].map((file) => path.relative(DIST_DIR, file));
+}
+
+function createBanner(entry: RootEntry): string {
+  const description = entry.tool.description.replace(/\*\//g, "*");
+  return `/**\n * @tool ${entry.tool.name}\n * @global ${entry.globalName}\n * @entry ${entry.relativePath}\n * @description ${description}\n * @generated by Rod root IIFE build system\n */`;
+}
+
+function createManifest(entries: RootEntry[], outputs: string[]): unknown {
+  return {
+    generatedAt: new Date().toISOString(),
+    namespace: GLOBAL_NAMESPACE,
+    entries: entries.map((entry) => ({
+      name: entry.name,
+      globalName: entry.globalName,
+      entry: entry.relativePath,
+      description: entry.tool.description,
+      tags: entry.tool.tags,
+      files: outputs.filter((output) => output.startsWith(`${entry.name}.`)),
+    })),
+  };
 }
 
 await main();
