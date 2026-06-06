@@ -1,3 +1,10 @@
+/**
+ * @tool Cipó
+ * @global Cipo
+ * @package cipo
+ * @tags css jit atomic userscripts
+ * @description Browser-first atomic CSS runtime and semantic CSS DSL bundled as a standalone browser global.
+ */
 import { STYLE_ELEMENT_ID } from './constants'
 import { createCipoCallable } from './adapters'
 import { installBuiltInAliases } from './aliases'
