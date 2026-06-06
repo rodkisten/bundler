@@ -1,6 +1,6 @@
 import { HTML_TAGS } from './constants'
 import type { CipoAdapter, CipoAdapterName, CipoComponent, CipoCssInterpolation, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from './types'
-import { css } from './css'
+import { assertAtomicCssArtifact, css } from './css'
 import { inline } from './inline'
 import { runtime } from './runtime'
 import { isPlainObject } from './utils'
@@ -82,7 +82,7 @@ function cipoCore(target: CipoTarget): CipoStyledBuilder {
 function createDomElementBuilder<ElementType extends Element>(element: ElementType): CipoStyledBuilder<CipoDomStyledResult<ElementType>> {
   return {
     css(strings, ...values) {
-      const artifact = css(strings, ...values)
+      const artifact = assertAtomicCssArtifact(css(strings, ...values))
       applyClassNameToElement(element, artifact.className)
       return { element, artifact, className: artifact.className }
     },
@@ -92,7 +92,7 @@ function createDomElementBuilder<ElementType extends Element>(element: ElementTy
 function createComponentBuilder<Props extends CipoRecord>(component: CipoComponent<Props>): CipoStyledBuilder<CipoComponent<Props>> {
   return {
     css(strings, ...values) {
-      const artifact = css(strings, ...values)
+      const artifact = assertAtomicCssArtifact(css(strings, ...values))
       const adapter = resolveAdapter()
       return (adapter.wrapComponent?.(component, artifact.className) ?? createGenericWrappedComponent(component, artifact.className, adapter.classProp)) as CipoComponent<Props>
     },
@@ -102,7 +102,7 @@ function createComponentBuilder<Props extends CipoRecord>(component: CipoCompone
 function createStyledTagFactory(tag: string, defaultProps?: CipoRecord): CipoStyledTagFactory {
   return {
     css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]) {
-      const artifact = css(strings, ...values)
+      const artifact = assertAtomicCssArtifact(css(strings, ...values))
       const adapter = resolveAdapter()
 
       return function CipoStyledTag(props: CipoRecord = {}) {

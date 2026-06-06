@@ -9,7 +9,7 @@ import { STYLE_ELEMENT_ID } from './constants'
 import { createCipoCallable } from './adapters'
 import { installBuiltInAliases } from './aliases'
 import { configure, setup } from './config'
-import { css } from './css'
+import { assertAtomicCssArtifact, css, isAtomicCssArtifact, isStylesheetArtifact } from './css'
 import { explain, inspect } from './debug'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
@@ -22,7 +22,7 @@ import { installBuiltInHelpers } from './helpers'
 export * from './types'
 export { configure, setup } from './config'
 export { theme } from './theme'
-export { css } from './css'
+export { assertAtomicCssArtifact, css, isAtomicCssArtifact, isStylesheetArtifact } from './css'
 export { inline } from './inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
@@ -82,6 +82,9 @@ export const cipo = createCipoCallable()
 
 Object.assign(cipo, {
   css,
+  assertAtomicCssArtifact,
+  isAtomicCssArtifact,
+  isStylesheetArtifact,
   html,
   inline,
   theme,
@@ -111,6 +114,9 @@ export function createBrowserGlobal() {
   return {
     cipo,
     css,
+    assertAtomicCssArtifact,
+    isAtomicCssArtifact,
+    isStylesheetArtifact,
     html,
     inline,
     theme,

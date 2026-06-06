@@ -71,7 +71,7 @@ export interface CipoStyleObject {
   readonly [property: string]: string | number | CipoStyleObject | null | undefined
 }
 
-export type CipoCssInterpolation = CipoPrimitive | CipoCssArtifact | CipoInlineCssArtifact | CipoStyleObject
+export type CipoCssInterpolation = CipoPrimitive | CipoCssArtifact | CipoStylesheetArtifact | CipoInlineCssArtifact | CipoStyleObject
 
 export interface CipoDeclarationNode {
   readonly type: 'declaration'
@@ -145,6 +145,53 @@ export interface CipoCssArtifact {
   [Symbol.toPrimitive](): string
   readonly [Symbol.toStringTag]: string
 }
+
+
+/**
+ * Full stylesheet artifact returned when css`` receives top-level stylesheet
+ * selectors such as `.card { ... }`, `#app { ... }`, `:root { ... }`, or
+ * stylesheet at-rules.
+ *
+ * @remarks
+ * Unlike `CipoCssArtifact`, this artifact does not represent a class list. Its
+ * string value is the transformed stylesheet text, which makes it useful for
+ * `injectGlobal()`, `injectStyle()` and `<style>` tags.
+ *
+ * @example
+ * ```ts
+ * const sheet = css`
+ *   .card { px: 4; }
+ * `
+ *
+ * String(sheet)
+ * // '.card { padding-inline: ... }'
+ * ```
+ */
+export interface CipoStylesheetArtifact {
+  readonly kind: 'cipo.stylesheet'
+  readonly rawCss: string
+  readonly transformedCss: string
+  readonly cssText: string
+  readonly debug: {
+    readonly id: string
+    readonly ast: readonly CipoAstNode[]
+    readonly warnings: readonly CipoWarning[]
+    readonly mode: 'stylesheet'
+  }
+  toString(): string
+  [Symbol.toPrimitive](): string
+  readonly [Symbol.toStringTag]: string
+}
+
+/**
+ * Polymorphic result returned by css``.
+ *
+ * @remarks
+ * Component/declaration mode returns `CipoCssArtifact`. Stylesheet mode returns
+ * `CipoStylesheetArtifact`. Callers that need a class list should narrow with
+ * `isAtomicCssArtifact()` from `css.ts` or use `assertAtomicCssArtifact()`.
+ */
+export type CipoCssResult = CipoCssArtifact | CipoStylesheetArtifact
 
 export interface CipoInlineCssArtifact {
   readonly kind: 'cipo.inline-css'
@@ -243,7 +290,7 @@ export interface RuntimeState {
   sheet: CSSStyleSheet | null
   insertedCss: Set<string>
   atomicCache: Map<string, CipoAtomicRule>
-  artifactCache: Map<string, CipoCssArtifact>
+  artifactCache: Map<string, CipoCssResult>
   inlineCache: Map<string, CipoInlineCssArtifact>
   debugAtoms: Map<string, CipoAtomicRule>
   themeKeys: Set<string>

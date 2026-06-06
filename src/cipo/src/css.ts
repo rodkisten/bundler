@@ -1,5 +1,5 @@
 import { runtime, evictIfNeeded } from './runtime'
-import type { CipoAstNode, CipoBlockNode, CipoCssArtifact, CipoCssInterpolation, CipoDeclarationNode, CipoWarning } from './types'
+import type { CipoAstNode, CipoBlockNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDeclarationNode, CipoStylesheetArtifact, CipoWarning } from './types'
 import { buildCss, transformCss } from './transform'
 import { parseStylesheet } from './parser'
 import { collectRules, compileCss, joinClassNames } from './compiler'
@@ -9,84 +9,6 @@ import { hashString } from './utils'
 /***************************************************************************************************
  * Public Types
  **************************************************************************************************/
-
-/**
- * Represents a full stylesheet compiled by the polymorphic `css`` ` function.
- *
- * @remarks
- * This artifact is returned when Cipó detects that the template is a complete
- * stylesheet, for example `.card { ... }`, `#app { ... }`, `@media { ... }`,
- * `@keyframes { ... }`, or `:root { ... }`.
- *
- * The important detail is that `toString()` returns the compiled stylesheet
- * text, not a class list. This keeps interpolation ergonomic while still
- * exposing metadata for debugging.
- *
- * @example
- * ```ts
- * const sheet = css`
- *   .card {
- *     px: 4;
- *     bg: $panel;
- *   }
- * `
- *
- * String(sheet)
- * // ".card { padding-inline: ... }"
- * ```
- */
-export interface CipoStylesheetArtifact {
-  readonly kind: 'cipo.stylesheet'
-  readonly rawCss: string
-  readonly transformedCss: string
-  readonly cssText: string
-  readonly debug: {
-    readonly id: string
-    readonly ast: readonly CipoAstNode[]
-    readonly warnings: readonly CipoWarning[]
-    readonly mode: 'stylesheet'
-  }
-  toString(): string
-  [Symbol.toPrimitive](): string
-  readonly [Symbol.toStringTag]: string
-}
-
-/**
- * Polymorphic result for the public `css`` ` function.
- *
- * @remarks
- * - Declaration/component mode returns `CipoCssArtifact`.
- * - Full stylesheet mode returns `CipoStylesheetArtifact`.
- *
- * @example Component/atomic mode
- * ```ts
- * const card = css`
- *   px: 4;
- *   bg: $panel;
- *
- *   &:hover {
- *     bg: alpha($brand / 12%);
- *   }
- * `
- *
- * String(card)
- * // "cipo-s-abc cipo-a-def ..."
- * ```
- *
- * @example Stylesheet mode
- * ```ts
- * const sheet = css`
- *   .card {
- *     px: 4;
- *     bg: $panel;
- *   }
- * `
- *
- * String(sheet)
- * // ".card { padding-inline: ... }"
- * ```
- */
-export type CipoCssResult = CipoCssArtifact | CipoStylesheetArtifact
 
 /***************************************************************************************************
  * Public API
@@ -239,6 +161,52 @@ export function createArtifactCacheKey(rawCss: string): string {
   ].join('|')
 }
 
+
+/**
+ * Checks whether a css`` result is an atomic/class-list artifact.
+ *
+ * @param artifact - Polymorphic css result.
+ * @returns Whether the artifact can be used as a class list.
+ *
+ * @example
+ * ```ts
+ * const result = css`px: 4;`
+ * if (isAtomicCssArtifact(result)) {
+ *   result.className
+ * }
+ * ```
+ */
+export function isAtomicCssArtifact(artifact: CipoCssResult): artifact is CipoCssArtifact {
+  return artifact.kind === 'cipo.css'
+}
+
+/**
+ * Asserts that a polymorphic css`` result is safe for styled/component APIs.
+ *
+ * @remarks
+ * Styled APIs require a class-list artifact. Passing a full stylesheet such as
+ * `.card { ... }` would not produce a className, so this function throws a clear
+ * runtime error instead of failing with `undefined` later.
+ *
+ * @param artifact - Polymorphic css result.
+ * @returns Atomic CSS artifact.
+ */
+export function assertAtomicCssArtifact(artifact: CipoCssResult): CipoCssArtifact {
+  if (isAtomicCssArtifact(artifact)) return artifact
+
+  throw new TypeError('Cipó styled APIs require declaration/component CSS. Full stylesheets return CSS text and cannot be used as className artifacts.')
+}
+
+/**
+ * Checks whether a css`` result is a stylesheet artifact.
+ *
+ * @param artifact - Polymorphic css result.
+ * @returns Whether the artifact stringifies to stylesheet text.
+ */
+export function isStylesheetArtifact(artifact: CipoCssResult): artifact is CipoStylesheetArtifact {
+  return artifact.kind === 'cipo.stylesheet'
+}
+
 /***************************************************************************************************
  * Artifact Creation
  **************************************************************************************************/
@@ -258,8 +226,9 @@ function createAtomicArtifact(
   ast: readonly CipoAstNode[],
   warnings: readonly CipoWarning[],
 ): CipoCssArtifact {
+  const mutableWarnings = [...warnings]
   const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
-  const { atoms, scopedRules } = collectRules(ast, scopeClassName, warnings)
+  const { atoms, scopedRules } = collectRules(ast, scopeClassName, mutableWarnings)
   const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
   const compiledCss = compileCss(atoms, scopedRules)
   const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
