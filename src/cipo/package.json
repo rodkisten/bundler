@@ -1,0 +1,19 @@
+{
+  "name": "@rodkisten/cipo-next",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cipó semantic CSS runtime with atomic CSS, inline CSS, helpers, aliases, themes, recipes and JIT cache.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
