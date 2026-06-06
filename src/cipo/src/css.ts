@@ -1,24 +1,139 @@
 import { runtime, evictIfNeeded } from './runtime'
-import type { CipoCssArtifact, CipoCssInterpolation, CipoWarning } from './types'
+import type { CipoAstNode, CipoBlockNode, CipoCssArtifact, CipoCssInterpolation, CipoDeclarationNode, CipoWarning } from './types'
 import { buildCss, transformCss } from './transform'
 import { parseStylesheet } from './parser'
 import { collectRules, compileCss, joinClassNames } from './compiler'
 import { insertCss } from './injection'
 import { hashString } from './utils'
 
+/***************************************************************************************************
+ * Public Types
+ **************************************************************************************************/
+
 /**
- * Main CSS tagged template that compiles semantic Cipó CSS into atomic classes.
+ * Represents a full stylesheet compiled by the polymorphic `css`` ` function.
  *
  * @remarks
- * This function keeps the old `css`` ` API intact while supporting the new
- * grammar: property aliases (`px: 4`), standalone aliases (`glass;`), `$token`
- * inference, helper functions (`alpha`, `gradient`, `fluid`) and runtime JIT.
+ * This artifact is returned when Cipó detects that the template is a complete
+ * stylesheet, for example `.card { ... }`, `#app { ... }`, `@media { ... }`,
+ * `@keyframes { ... }`, or `:root { ... }`.
+ *
+ * The important detail is that `toString()` returns the compiled stylesheet
+ * text, not a class list. This keeps interpolation ergonomic while still
+ * exposing metadata for debugging.
+ *
+ * @example
+ * ```ts
+ * const sheet = css`
+ *   .card {
+ *     px: 4;
+ *     bg: $panel;
+ *   }
+ * `
+ *
+ * String(sheet)
+ * // ".card { padding-inline: ... }"
+ * ```
+ */
+export interface CipoStylesheetArtifact {
+  readonly kind: 'cipo.stylesheet'
+  readonly rawCss: string
+  readonly transformedCss: string
+  readonly cssText: string
+  readonly debug: {
+    readonly id: string
+    readonly ast: readonly CipoAstNode[]
+    readonly warnings: readonly CipoWarning[]
+    readonly mode: 'stylesheet'
+  }
+  toString(): string
+  [Symbol.toPrimitive](): string
+  readonly [Symbol.toStringTag]: string
+}
+
+/**
+ * Polymorphic result for the public `css`` ` function.
+ *
+ * @remarks
+ * - Declaration/component mode returns `CipoCssArtifact`.
+ * - Full stylesheet mode returns `CipoStylesheetArtifact`.
+ *
+ * @example Component/atomic mode
+ * ```ts
+ * const card = css`
+ *   px: 4;
+ *   bg: $panel;
+ *
+ *   &:hover {
+ *     bg: alpha($brand / 12%);
+ *   }
+ * `
+ *
+ * String(card)
+ * // "cipo-s-abc cipo-a-def ..."
+ * ```
+ *
+ * @example Stylesheet mode
+ * ```ts
+ * const sheet = css`
+ *   .card {
+ *     px: 4;
+ *     bg: $panel;
+ *   }
+ * `
+ *
+ * String(sheet)
+ * // ".card { padding-inline: ... }"
+ * ```
+ */
+export type CipoCssResult = CipoCssArtifact | CipoStylesheetArtifact
+
+/***************************************************************************************************
+ * Public API
+ **************************************************************************************************/
+
+/**
+ * Main polymorphic CSS tagged template.
+ *
+ * @remarks
+ * This function keeps the old `css`` ` API intact while adding a stylesheet
+ * mode.
+ *
+ * The detection is intentionally conservative:
+ *
+ * - If the template has top-level declarations, standalone aliases, or
+ *   component-scoped selectors, Cipó keeps the old atomic/component behavior.
+ * - If the template is made only of full top-level selectors or stylesheet
+ *   at-rules, Cipó returns a stylesheet artifact whose string value is the
+ *   transformed stylesheet text.
+ *
+ * This means nested selectors still work in component mode:
+ *
+ * ```ts
+ * const card = css`
+ *   px: 4;
+ *
+ *   .title {
+ *     color: $brand;
+ *   }
+ * `
+ * ```
+ *
+ * And full stylesheets work when the root is a stylesheet:
+ *
+ * ```ts
+ * const sheet = css`
+ *   .title {
+ *     color: $brand;
+ *   }
+ * `
+ * ```
  *
  * @param strings - Template strings.
  * @param values - Template interpolations.
- * @returns CSS artifact whose string value is its class list.
+ * @returns Either an atomic CSS artifact or a stylesheet artifact.
  *
- * @example
+ * @example Atomic/component mode
  * ```ts
  * const card = css`
  *   glass;
@@ -33,34 +148,123 @@ import { hashString } from './utils'
  * `
  *
  * String(card)
- * // 'cipo-s-abc cipo-a-def cipo-a-ghi ...'
+ * // "cipo-s-abc cipo-a-def cipo-a-ghi ..."
  * ```
  *
- * Output CSS:
- * ```css
- * @layer cipo.atomic {
- *   .cipo-a-def {
- *     padding-inline: calc(var(--cipo-spacing, 0.25rem) * 4);
+ * @example Stylesheet mode
+ * ```ts
+ * const sheet = css`
+ *   .card {
+ *     px: 4;
+ *     bg: $panel;
+ *
+ *     &:hover {
+ *       bg: alpha($brand / 18%);
+ *     }
  *   }
- * }
+ * `
+ *
+ * String(sheet)
+ * // ".card { padding-inline: ... } .card:hover { background: ... }"
+ * ```
+ *
+ * @example Explicit global stylesheet
+ * ```ts
+ * const sheet = css`
+ *   :root {
+ *     --app-radius: 16px;
+ *   }
+ *
+ *   body {
+ *     margin: 0;
+ *   }
+ * `
+ *
+ * String(sheet)
+ * // ":root { --app-radius: 1rem; } body { margin: 0; }"
  * ```
  */
-export function css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
+export function css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssResult {
   const rawCss = buildCss(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss)
-  const cached = runtime.config.jit.enabled && runtime.config.jit.cache ? runtime.artifactCache.get(cacheKey) : undefined
+  const cached = getCachedArtifact(cacheKey)
+
   if (cached) return cached
 
   const warnings: CipoWarning[] = []
   const transformedCss = transformCss(rawCss, warnings)
   const ast = parseStylesheet(transformedCss, warnings)
+
+  if (shouldCompileAsStylesheet(rawCss, transformedCss, ast)) {
+    const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings)
+
+    setCachedArtifact(cacheKey, artifact)
+
+    return artifact
+  }
+
+  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings)
+
+  insertCss(artifact.compiledCss)
+  setCachedArtifact(cacheKey, artifact)
+
+  return artifact
+}
+
+/**
+ * Creates the JIT cache key for a CSS artifact.
+ *
+ * @remarks
+ * The key includes config/theme versions and output settings because the same
+ * source can compile differently after theme, prefix, important or minify
+ * changes.
+ *
+ * @param rawCss - Raw source.
+ * @returns Stable cache key.
+ *
+ * @example
+ * ```ts
+ * createArtifactCacheKey('px: 4;')
+ * // "12|3|cipo||pretty|px: 4;"
+ * ```
+ */
+export function createArtifactCacheKey(rawCss: string): string {
+  return [
+    runtime.configVersion,
+    runtime.themeVersion,
+    runtime.config.prefix,
+    runtime.config.important ? 'important' : '',
+    runtime.config.minify ? 'min' : 'pretty',
+    rawCss,
+  ].join('|')
+}
+
+/***************************************************************************************************
+ * Artifact Creation
+ **************************************************************************************************/
+
+/**
+ * Creates the legacy atomic/component artifact.
+ *
+ * @param rawCss - Raw source.
+ * @param transformedCss - Transformed source.
+ * @param ast - Parsed AST.
+ * @param warnings - Compilation warnings.
+ * @returns Atomic CSS artifact.
+ */
+function createAtomicArtifact(
+  rawCss: string,
+  transformedCss: string,
+  ast: readonly CipoAstNode[],
+  warnings: readonly CipoWarning[],
+): CipoCssArtifact {
   const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
   const { atoms, scopedRules } = collectRules(ast, scopeClassName, warnings)
   const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
   const compiledCss = compileCss(atoms, scopedRules)
   const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
 
-  const artifact: CipoCssArtifact = {
+  return {
     kind: 'cipo.css',
     className,
     scopeClassName,
@@ -74,23 +278,571 @@ export function css(strings: TemplateStringsArray, ...values: readonly CipoCssIn
     [Symbol.toPrimitive]: () => className,
     [Symbol.toStringTag]: 'CipoCssArtifact',
   }
-
-  insertCss(compiledCss)
-
-  if (runtime.config.jit.enabled && runtime.config.jit.cache) {
-    runtime.artifactCache.set(cacheKey, artifact)
-    evictIfNeeded(runtime.artifactCache as Map<string, unknown>)
-  }
-
-  return artifact
 }
 
 /**
- * Creates the JIT cache key for a CSS artifact.
+ * Creates the new full stylesheet artifact.
+ *
+ * @remarks
+ * Full stylesheet artifacts are not injected automatically by `css`` `.
+ * They are string-first so they can be passed to `injectGlobal`,
+ * `injectStyle`, a `<style>` tag, or another runtime.
  *
  * @param rawCss - Raw source.
- * @returns Stable cache key.
+ * @param transformedCss - Transformed source.
+ * @param ast - Parsed AST.
+ * @param warnings - Compilation warnings.
+ * @returns Stylesheet artifact.
  */
-export function createArtifactCacheKey(rawCss: string): string {
-  return [runtime.configVersion, runtime.themeVersion, runtime.config.prefix, runtime.config.important ? 'important' : '', runtime.config.minify ? 'min' : 'pretty', rawCss].join('|')
+function createStylesheetArtifact(
+  rawCss: string,
+  transformedCss: string,
+  ast: readonly CipoAstNode[],
+  warnings: readonly CipoWarning[],
+): CipoStylesheetArtifact {
+  const cssText = compileStylesheetText(ast)
+  const artifactId = `${runtime.config.prefix}-stylesheet-${hashString(rawCss)}`
+
+  return {
+    kind: 'cipo.stylesheet',
+    rawCss,
+    transformedCss,
+    cssText,
+    debug: {
+      id: artifactId,
+      ast,
+      warnings,
+      mode: 'stylesheet',
+    },
+    toString: () => cssText,
+    [Symbol.toPrimitive]: () => cssText,
+    [Symbol.toStringTag]: 'CipoStylesheetArtifact',
+  }
+}
+
+/***************************************************************************************************
+ * Stylesheet Detection
+ **************************************************************************************************/
+
+/**
+ * Decides whether the source should compile as a full stylesheet.
+ *
+ * @remarks
+ * The rule is intentionally simple and safe:
+ *
+ * - Top-level declarations or standalone aliases mean component/atomic mode.
+ * - A source made only of top-level stylesheet blocks means stylesheet mode.
+ * - `x:hover`, `x:md`, `x:dark`, `x:not(md)` and `&:hover` stay in component
+ *   mode because they depend on generated classes/scope.
+ *
+ * This avoids breaking the old API while allowing:
+ *
+ * ```ts
+ * css`
+ *   .class {}
+ *   #id {}
+ * `
+ * ```
+ *
+ * to behave like a stylesheet.
+ *
+ * @param rawCss - Raw source before transforms.
+ * @param transformedCss - Source after transforms.
+ * @param ast - Parsed AST.
+ * @returns Whether stylesheet mode should be used.
+ */
+function shouldCompileAsStylesheet(
+  rawCss: string,
+  transformedCss: string,
+  ast: readonly CipoAstNode[],
+): boolean {
+  const source = transformedCss.trim()
+
+  if (!source) return false
+
+  if (hasTopLevelLooseStatements(rawCss)) return false
+
+  if (ast.length === 0) return false
+
+  for (const node of ast) {
+    if (node.type !== 'block') return false
+    if (!isStylesheetRootBlock(node)) return false
+  }
+
+  return true
+}
+
+/**
+ * Checks whether the original template has top-level loose statements.
+ *
+ * @remarks
+ * A "loose statement" is anything outside top-level blocks:
+ *
+ * - `px: 4;`
+ * - `glass;`
+ * - `color: red;`
+ * - `@with(...)`
+ *
+ * If these are present, we keep legacy component/atomic mode even if there are
+ * nested selectors later.
+ *
+ * @param input - Raw CSS.
+ * @returns Whether a top-level loose statement exists.
+ */
+function hasTopLevelLooseStatements(input: string): boolean {
+  let buffer = ''
+  let depth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+
+    if (quote) {
+      buffer += char
+
+      if (char === quote && input[index - 1] !== '\\') {
+        quote = null
+      }
+
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      buffer += char
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0 && buffer.trim()) {
+        buffer = ''
+      }
+
+      depth += 1
+      continue
+    }
+
+    if (char === '}') {
+      depth = Math.max(0, depth - 1)
+
+      if (depth === 0) {
+        buffer = ''
+      }
+
+      continue
+    }
+
+    if (depth === 0) {
+      buffer += char
+
+      if (char === ';' && buffer.trim()) {
+        return true
+      }
+    }
+  }
+
+  return buffer.trim().length > 0
+}
+
+/**
+ * Detects full stylesheet root blocks.
+ *
+ * @param node - Block node.
+ * @returns Whether the block is a stylesheet root.
+ */
+function isStylesheetRootBlock(node: CipoBlockNode): boolean {
+  const name = node.name.trim()
+
+  if (!name) return false
+
+  if (name.startsWith('x:')) return false
+  if (name.startsWith('&')) return false
+
+  if (isStylesheetAtRule(name)) return true
+  if (isRootSelector(name)) return true
+
+  return false
+}
+
+/**
+ * Detects stylesheet at-rules.
+ *
+ * @param name - Block name.
+ * @returns Whether the block name is a stylesheet at-rule.
+ */
+function isStylesheetAtRule(name: string): boolean {
+  return /^@(media|supports|container|layer|scope|keyframes|font-face|property|page|starting-style)\b/.test(name)
+}
+
+/**
+ * Detects selectors that make sense as global/full stylesheet roots.
+ *
+ * @param name - Block name.
+ * @returns Whether the block name looks like a selector.
+ */
+function isRootSelector(name: string): boolean {
+  if (name.startsWith('.') || name.startsWith('#') || name.startsWith(':') || name.startsWith('[') || name.startsWith('*')) {
+    return true
+  }
+
+  if (name.includes(',') || name.includes('>') || name.includes('+') || name.includes('~') || name.includes(' ')) {
+    return true
+  }
+
+  return /^[a-z][a-z0-9-]*$/i.test(name)
+}
+
+/***************************************************************************************************
+ * Stylesheet Compiler
+ **************************************************************************************************/
+
+/**
+ * Compiles a parsed full stylesheet AST into CSS text.
+ *
+ * @remarks
+ * This compiler preserves selectors and supports CSS nesting using `&`.
+ * It also keeps at-rules as stylesheet constructs instead of turning their
+ * declarations into atomic classes.
+ *
+ * @param ast - Parsed AST.
+ * @returns Stylesheet text.
+ */
+function compileStylesheetText(ast: readonly CipoAstNode[]): string {
+  const cssText = ast.map(node => compileStylesheetNode(node, [])).filter(Boolean).join('\n')
+
+  return formatStylesheetText(cssText)
+}
+
+/**
+ * Compiles one stylesheet node.
+ *
+ * @param node - AST node.
+ * @param parentSelectors - Current selector chain.
+ * @returns CSS text.
+ */
+function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly string[]): string {
+  if (node.type === 'declaration') {
+    return parentSelectors.length > 0 ? compileStylesheetRule(parentSelectors, [node]) : compileDeclaration(node)
+  }
+
+  if (node.type === 'directive') {
+    return ''
+  }
+
+  return compileStylesheetBlock(node, parentSelectors)
+}
+
+/**
+ * Compiles one stylesheet block.
+ *
+ * @param block - Block node.
+ * @param parentSelectors - Parent selectors.
+ * @returns CSS text.
+ */
+function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[]): string {
+  const name = block.name.trim()
+
+  if (isStylesheetAtRule(name)) {
+    return compileStylesheetAtRule(block, parentSelectors)
+  }
+
+  const selectors = resolveNestedSelectors(parentSelectors, splitSelectorList(name))
+  const declarations = block.body.filter(isDeclarationNode)
+  const nested = block.body.filter(isBlockNode)
+
+  const chunks: string[] = []
+
+  if (declarations.length > 0) {
+    chunks.push(compileStylesheetRule(selectors, declarations))
+  }
+
+  for (const child of nested) {
+    chunks.push(compileStylesheetBlock(child, selectors))
+  }
+
+  return chunks.filter(Boolean).join('\n')
+}
+
+/**
+ * Compiles an at-rule.
+ *
+ * @remarks
+ * At-rules can contain nested selectors. For example:
+ *
+ * ```css
+ * @media (min-width: 768px) {
+ *   .card {
+ *     px: 6;
+ *   }
+ * }
+ * ```
+ *
+ * @param block - At-rule block.
+ * @param parentSelectors - Parent selectors.
+ * @returns CSS text.
+ */
+function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly string[]): string {
+  const body = block.body.map(node => compileStylesheetNode(node, parentSelectors)).filter(Boolean).join('\n')
+
+  if (!body) return ''
+
+  return `${block.name.trim()}{${body}}`
+}
+
+/**
+ * Compiles selector declarations.
+ *
+ * @param selectors - Resolved selector list.
+ * @param declarations - Declaration nodes.
+ * @returns CSS rule.
+ */
+function compileStylesheetRule(
+  selectors: readonly string[],
+  declarations: readonly CipoDeclarationNode[],
+): string {
+  const body = declarations.map(compileDeclaration).join('')
+
+  return `${selectors.join(',')}{${body}}`
+}
+
+/**
+ * Compiles one declaration.
+ *
+ * @param declaration - Declaration node.
+ * @returns CSS declaration text.
+ */
+function compileDeclaration(declaration: CipoDeclarationNode): string {
+  return `${declaration.property}:${declaration.value};`
+}
+
+/**
+ * Resolves nested CSS selectors.
+ *
+ * @param parents - Parent selector list.
+ * @param children - Child selector list.
+ * @returns Resolved selectors.
+ */
+function resolveNestedSelectors(
+  parents: readonly string[],
+  children: readonly string[],
+): readonly string[] {
+  if (parents.length === 0) return children
+
+  const output: string[] = []
+
+  for (const parent of parents) {
+    for (const child of children) {
+      if (child.includes('&')) {
+        output.push(child.replaceAll('&', parent))
+      } else {
+        output.push(`${parent} ${child}`)
+      }
+    }
+  }
+
+  return output
+}
+
+/**
+ * Splits a selector list by top-level commas.
+ *
+ * @param selector - Selector list.
+ * @returns Individual selectors.
+ */
+function splitSelectorList(selector: string): readonly string[] {
+  const output: string[] = []
+  let buffer = ''
+  let depth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = 0; index < selector.length; index += 1) {
+    const char = selector[index]
+
+    if (quote) {
+      buffer += char
+
+      if (char === quote && selector[index - 1] !== '\\') {
+        quote = null
+      }
+
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      buffer += char
+      continue
+    }
+
+    if (char === '(' || char === '[') {
+      depth += 1
+    } else if (char === ')' || char === ']') {
+      depth -= 1
+    }
+
+    if (char === ',' && depth === 0) {
+      if (buffer.trim()) output.push(buffer.trim())
+      buffer = ''
+      continue
+    }
+
+    buffer += char
+  }
+
+  if (buffer.trim()) output.push(buffer.trim())
+
+  return output
+}
+
+/**
+ * Formats stylesheet text using the runtime output mode.
+ *
+ * @param cssText - Raw CSS text.
+ * @returns Formatted CSS text.
+ */
+function formatStylesheetText(cssText: string): string {
+  if (runtime.config.minify) {
+    return minifyStylesheetText(cssText)
+  }
+
+  return prettyStylesheetText(cssText)
+}
+
+/**
+ * Minifies stylesheet text enough for runtime output.
+ *
+ * @param cssText - CSS text.
+ * @returns Minified CSS.
+ */
+function minifyStylesheetText(cssText: string): string {
+  return cssText.replace(/\s+/g, ' ').replace(/\s*([{}:;,>+~])\s*/g, '$1').trim()
+}
+
+/**
+ * Pretty-prints stylesheet text.
+ *
+ * @param cssText - CSS text.
+ * @returns Pretty CSS.
+ */
+function prettyStylesheetText(cssText: string): string {
+  let output = ''
+  let token = ''
+  let depth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = 0; index < cssText.length; index += 1) {
+    const char = cssText[index]
+
+    if (quote) {
+      token += char
+
+      if (char === quote && cssText[index - 1] !== '\\') {
+        quote = null
+      }
+
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      token += char
+      continue
+    }
+
+    if (char === '{') {
+      output += `${indent(depth)}${token.trim()} {\n`
+      token = ''
+      depth += 1
+      continue
+    }
+
+    if (char === '}') {
+      if (token.trim()) {
+        output += `${indent(depth)}${token.trim()}\n`
+        token = ''
+      }
+
+      depth = Math.max(0, depth - 1)
+      output += `${indent(depth)}}\n`
+      continue
+    }
+
+    if (char === ';') {
+      output += `${indent(depth)}${token.trim()};\n`
+      token = ''
+      continue
+    }
+
+    token += char
+  }
+
+  if (token.trim()) {
+    output += `${indent(depth)}${token.trim()}`
+  }
+
+  return output.trim()
+}
+
+/**
+ * Creates indentation for pretty CSS output.
+ *
+ * @param depth - Nesting depth.
+ * @returns Spaces.
+ */
+function indent(depth: number): string {
+  return '  '.repeat(depth)
+}
+
+/***************************************************************************************************
+ * Cache Helpers
+ **************************************************************************************************/
+
+/**
+ * Reads a cached CSS result.
+ *
+ * @param cacheKey - Cache key.
+ * @returns Cached artifact or undefined.
+ */
+function getCachedArtifact(cacheKey: string): CipoCssResult | undefined {
+  if (!runtime.config.jit.enabled || !runtime.config.jit.cache) return undefined
+
+  return runtime.artifactCache.get(cacheKey) as CipoCssResult | undefined
+}
+
+/**
+ * Stores a CSS result in the JIT cache.
+ *
+ * @param cacheKey - Cache key.
+ * @param artifact - Artifact to cache.
+ * @returns Nothing.
+ */
+function setCachedArtifact(cacheKey: string, artifact: CipoCssResult): void {
+  if (!runtime.config.jit.enabled || !runtime.config.jit.cache) return
+
+  runtime.artifactCache.set(cacheKey, artifact)
+  evictIfNeeded(runtime.artifactCache as Map<string, unknown>)
+}
+
+/***************************************************************************************************
+ * Type Guards
+ **************************************************************************************************/
+
+/**
+ * Checks if a node is a declaration node.
+ *
+ * @param node - AST node.
+ * @returns Whether it is a declaration.
+ */
+function isDeclarationNode(node: CipoAstNode): node is CipoDeclarationNode {
+  return node.type === 'declaration'
+}
+
+/**
+ * Checks if a node is a block node.
+ *
+ * @param node - AST node.
+ * @returns Whether it is a block.
+ */
+function isBlockNode(node: CipoAstNode): node is CipoBlockNode {
+  return node.type === 'block'
 }
