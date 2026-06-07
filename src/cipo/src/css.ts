@@ -461,6 +461,32 @@ function isRootSelector(name: string): boolean {
   return /^[a-z][a-z0-9-]*$/i.test(name)
 }
 
+
+/**
+ * Detects pseudo names supported by stylesheet runtime context blocks.
+ *
+ * @param name - Pseudo shorthand without colon.
+ * @returns Whether the pseudo is known.
+ */
+function isStylesheetPseudoName(name: string): boolean {
+  return [
+    'hover',
+    'focus',
+    'active',
+    'disabled',
+    'checked',
+    'focus-visible',
+    'focus-within',
+    'visited',
+    'first-child',
+    'last-child',
+    'before',
+    'after',
+    'target',
+    'open',
+  ].includes(name)
+}
+
 /***************************************************************************************************
  * Stylesheet Compiler
  **************************************************************************************************/
@@ -515,6 +541,10 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
     return compileStylesheetAtRule(block, parentSelectors)
   }
 
+  if (name.startsWith('x:')) {
+    return compileStylesheetRuntimeBlock(block, parentSelectors)
+  }
+
   const selectors = resolveNestedSelectors(parentSelectors, splitSelectorList(name))
   const declarations = block.body.filter(isDeclarationNode)
   const nested = block.body.filter(isBlockNode)
@@ -530,6 +560,90 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
   }
 
   return chunks.filter(Boolean).join('\n')
+}
+
+
+/**
+ * Compiles Cipó runtime context blocks inside full stylesheets.
+ *
+ * @remarks
+ * This lets stylesheet mode support the same runtime contexts as atomic mode:
+ *
+ * ```css
+ * body {
+ *   color: $brand
+ *
+ *   x:md {
+ *     px: 6
+ *   }
+ *
+ *   x:hover {
+ *     color: $ink
+ *   }
+ * }
+ * ```
+ *
+ * Output shape:
+ *
+ * ```css
+ * body { color: var(--...); }
+ * @media (min-width: 768px) { body { padding-inline: ...; } }
+ * body:hover { color: var(--...); }
+ * ```
+ *
+ * @param block - Runtime context block.
+ * @param parentSelectors - Current selector chain.
+ * @returns CSS text.
+ */
+function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: readonly string[]): string {
+  if (parentSelectors.length === 0) return ''
+
+  let selectors = [...parentSelectors]
+  const wrappers: string[] = []
+  const name = block.name.trim()
+
+  if (name.startsWith('x:not(')) {
+    const breakpoint = name.replace(/^x:not\(/, '').replace(/\)$/, '').trim()
+    const query = runtime.config.breakpoints[breakpoint]
+    if (query) wrappers.push(`@media not all and ${query}`)
+  } else {
+    const contextParts = name.slice(2).split(':').map(part => part.trim()).filter(Boolean)
+
+    for (const part of contextParts) {
+      if (part in runtime.config.breakpoints) {
+        const query = runtime.config.breakpoints[part]
+        if (query) wrappers.push(`@media ${query}`)
+        continue
+      }
+
+      if (part === 'dark') {
+        selectors = selectors.map(selector => `${runtime.config.darkSelector} ${selector}`)
+        continue
+      }
+
+      if (part === 'motion-safe') {
+        wrappers.push('@media (prefers-reduced-motion: no-preference)')
+        continue
+      }
+
+      if (part === 'motion-reduce') {
+        wrappers.push('@media (prefers-reduced-motion: reduce)')
+        continue
+      }
+
+      if (isStylesheetPseudoName(part)) {
+        selectors = selectors.map(selector => `${selector}:${part}`)
+      }
+    }
+  }
+
+  let body = block.body.map(node => compileStylesheetNode(node, selectors)).filter(Boolean).join('\n')
+
+  for (let index = wrappers.length - 1; index >= 0; index -= 1) {
+    body = `${wrappers[index]}{${body}}`
+  }
+
+  return body
 }
 
 /**

@@ -1,6 +1,8 @@
 import { HASH_MASK, HASH_SEED } from './constants'
 import type { CipoWarning, RuntimeState } from './types'
 
+const emittedWarningKeys = new Set<string>()
+
 /**
  * Creates a stable, tiny hash used in generated class names and JIT cache keys.
  *
@@ -84,12 +86,24 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  */
 export function warn(runtime: RuntimeState, target: CipoWarning[], code: string, message: string, context?: unknown): void {
   const warning: CipoWarning = context === undefined ? { code, message } : { code, message, context }
-  target.push(warning)
-  runtime.warningSink.push(warning)
-  runtime.config.onWarning?.(warning)
+  const key = `${code}|${message}|${String(context ?? '')}`
 
-  if (runtime.config.debug) {
-    console.warn(`[Cipó:${code}] ${message}`, context ?? '')
+  /**
+   * Warnings used to be emitted repeatedly for every failed parser pass. On
+   * mobile Safari that turns a recoverable parser issue into a page freeze. The
+   * sink still receives the first occurrence for debugging, but duplicate console
+   * spam is suppressed.
+   */
+  if (!emittedWarningKeys.has(key)) {
+    target.push(warning)
+    runtime.warningSink.push(warning)
+    runtime.config.onWarning?.(warning)
+
+    if (runtime.config.debug) {
+      console.warn(`[Cipó:${code}] ${message}`, context ?? '')
+    }
+
+    emittedWarningKeys.add(key)
   }
 }
 
@@ -221,12 +235,16 @@ export function findMatchingBrace(input: string, startIndex: number): number {
  * ```
  */
 export function parseFunctionCall(input: string): null | { readonly name: string; readonly args: readonly string[] } {
-  const openIndex = input.indexOf('(')
-  if (openIndex <= 0 || !input.endsWith(')')) return null
+  const trimmed = input.trim()
+  const openIndex = trimmed.indexOf('(')
+  if (openIndex <= 0 || !trimmed.endsWith(')')) return null
+
+  const name = trimmed.slice(0, openIndex).trim()
+  if (!/^[a-zA-Z_][\w-]*$/.test(name)) return null
 
   return {
-    name: input.slice(0, openIndex).trim(),
-    args: splitTopLevel(input.slice(openIndex + 1, -1), ','),
+    name,
+    args: splitTopLevel(trimmed.slice(openIndex + 1, -1), ','),
   }
 }
 
