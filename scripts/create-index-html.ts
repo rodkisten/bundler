@@ -136,7 +136,11 @@ h1 { margin: 0; max-width: 840px; font-family: "Playfair Display", serif; font-s
 .card { border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(180deg, var(--panel), rgb(255 255 255 / .035)); padding: 22px; box-shadow: 0 24px 80px rgb(0 0 0 / .28); backdrop-filter: blur(18px); }
 .card-top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .tool-name { margin: 0; font-weight: 900; font-size: 22px; }
-code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
+code, pre { 
+  font-family: "JetBrains Mono", ui-monospace, monospace; 
+  white-space: pre-wrap; 
+  word-break: break-word;
+}
 .card-top code { color: var(--blue); border: 1px solid var(--line); padding: 8px 10px; border-radius: 14px; background: rgb(0 0 0 / .28); }
 .description { color: var(--muted); line-height: 1.6; }
 .tags, .links { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
