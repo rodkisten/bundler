@@ -1,13 +1,15 @@
 import type { RootEntry } from "./config";
+import type { SourceExample } from "./example-extractor";
 
 export type LandingInput = {
   entries: RootEntry[];
   outputs: string[];
   namespace: string;
+  examples?: Record<string, SourceExample[]>;
 };
 
 export function createIndexHtml(input: LandingInput): string {
-  const cards = input.entries.map((entry) => createToolCard(entry, input.outputs)).join("\n");
+  const cards = input.entries.map((entry) => createToolCard(entry, input.outputs, input.examples?.[entry.name] || [])).join("\n");
   const toolCount = input.entries.length;
 
   return `<!doctype html>
@@ -50,7 +52,7 @@ function createHead(): string {
   <style>${createStyles()}</style>`;
 }
 
-function createToolCard(entry: RootEntry, outputs: string[]): string {
+function createToolCard(entry: RootEntry, outputs: string[], examples: SourceExample[]): string {
   const files = outputs.filter((output) => output.startsWith(`${entry.name}.`));
   const links = files
     .filter((file) => file.endsWith(".js"))
@@ -59,6 +61,7 @@ function createToolCard(entry: RootEntry, outputs: string[]): string {
   const requireLine = `// @require https://OWNER.github.io/REPO/${entry.name}.iife.js\nconst ${entry.globalName} = window.${entry.globalName};`;
   const importLine = `import * as ${entry.globalName} from "https://OWNER.github.io/REPO/${entry.name}.esm.js";`;
   const tags = entry.tool.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("");
+  const exampleBlocks = examples.slice(0, 12).map(createExampleBlock).join("");
 
   return `      <article class="card">
         <div class="card-top">
@@ -72,7 +75,16 @@ function createToolCard(entry: RootEntry, outputs: string[]): string {
           <pre><code class="language-js">${escapeHtml(requireLine)}</code></pre>
           <pre><code class="language-js">${escapeHtml(importLine)}</code></pre>
         </div>
+        ${exampleBlocks ? `<details class="examples" open><summary>Examples from every source file</summary>${exampleBlocks}</details>` : ""}
       </article>`;
+}
+
+
+function createExampleBlock(example: SourceExample): string {
+  return `<section class="example-block">
+    <header><strong>${escapeHtml(example.title)}</strong><span>${escapeHtml(example.file)}</span></header>
+    <pre><code class="language-ts">${escapeHtml(example.code)}</code></pre>
+  </section>`;
 }
 
 function createStyles(): string {
@@ -138,16 +150,23 @@ h1 { margin: 0; max-width: 840px; font-family: "Playfair Display", serif; font-s
 .tool-name { margin: 0; font-weight: 900; font-size: 22px; }
 code, pre { 
   font-family: "JetBrains Mono", ui-monospace, monospace; 
-  white-space: pre-wrap; 
-  word-break: break-word;
+  white-space: pre; 
+  word-break: normal;
 }
 .card-top code { color: var(--blue); border: 1px solid var(--line); padding: 8px 10px; border-radius: 14px; background: rgb(0 0 0 / .28); }
 .description { color: var(--muted); line-height: 1.6; }
 .tags, .links { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
 .tags span { font-size: 12px; padding: 7px 10px; }
 .links a { color: white; text-decoration: none; border: 1px solid var(--line); border-radius: 13px; padding: 8px 10px; background: linear-gradient(135deg, rgb(255 122 24 / .18), rgb(83 216 255 / .12)); }
-pre { margin: 12px 0 0; border-radius: 20px; overflow: auto; border: 1px solid rgb(255 255 255 / .09); background: #070710 !important; }
-pre code { font-size: 12px; }
+pre { margin: 12px 0 0; border-radius: 20px; overflow: auto; max-width: 100%; border: 1px solid rgb(255 255 255 / .09); background: #070710 !important; }
+pre code { display: block; min-width: 0; max-width: 100%; font-size: 12px; white-space: pre; overflow-wrap: normal; word-break: normal; }
+.code-stack, .examples, .example-block { min-width: 0; }
+.examples { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.examples summary { cursor: pointer; color: var(--green); font-weight: 900; }
+.example-block { margin-top: 12px; }
+.example-block header { display: flex; gap: 8px; justify-content: space-between; align-items: baseline; color: var(--muted); font-size: 12px; }
+.example-block header strong { color: var(--text); }
+.example-block header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(4rem, -2rem, 0) scale(1.14); } }
 @media (max-width: 720px) { .shell { width: min(100% - 20px, 1180px); padding: 24px 0; } .hero { padding: 28px; border-radius: 30px; } .grid { grid-template-columns: 1fr; } }`;
 }
