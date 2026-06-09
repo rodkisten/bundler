@@ -43,7 +43,157 @@ ${cards}
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-  <script>window.hljs && window.hljs.highlightAll();</script>
+<script>
+  (() => {
+    if (!window.hljs) return;
+
+    const COMMENT = hljs.COMMENT("/\\*", "\\*/");
+    const LINE_COMMENT = hljs.COMMENT("//", "$");
+
+    const STRINGS = [
+      hljs.QUOTE_STRING_MODE,
+      hljs.APOS_STRING_MODE,
+      hljs.BACKSLASH_ESCAPE,
+      {
+        scope: "string",
+        begin: "\`",
+        end: "\`",
+        contains: [
+          hljs.BACKSLASH_ESCAPE,
+          {
+            scope: "subst",
+            begin: "\\$\\{",
+            end: "\\}",
+            keywords: {
+              keyword:
+                "const let var return if else for while do switch case break continue function async await import export from type interface class extends new",
+            },
+          },
+        ],
+      },
+    ];
+
+    function createRodDslLanguage(name, extraKeywords = "") {
+      return {
+        name,
+        aliases: [name.toLowerCase()],
+        case_insensitive: false,
+        keywords: {
+          keyword:
+            "const let var return if else for while do switch case break continue function async await import export from type interface class extends new " +
+            extraKeywords,
+          built_in:
+            "html css signal effect computed memo batch untrack component when repeat ref classMap styleMap rawHtml render mount createFabricaApi createDomBag configure theme injectGlobal keyframes",
+          literal: "true false null undefined",
+        },
+        contains: [
+          COMMENT,
+          LINE_COMMENT,
+          {
+            scope: "title.function",
+            begin:
+              "\\b(html|css|signal|effect|computed|memo|batch|component|when|repeat|ref|classMap|styleMap|rawHtml|render|mount|configure|theme|injectGlobal|keyframes)\\b",
+          },
+          {
+            scope: "attr",
+            begin: "\\b[A-Za-z_$][\\w$]*(?=\\s*:)",
+          },
+          {
+            scope: "selector-class",
+            begin: "\\.[A-Za-z_-][\\w-]*",
+          },
+          {
+            scope: "selector-id",
+            begin: "#[A-Za-z_-][\\w-]*",
+          },
+          {
+            scope: "variable",
+            begin: "\\$[A-Za-z_][\\w-]*",
+          },
+          {
+            scope: "number",
+            begin: "\\b\\d+(\\.\\d+)?(px|rem|em|vh|vw|vmin|vmax|ms|s|%)?\\b",
+          },
+          ...STRINGS,
+        ],
+      };
+    }
+
+    hljs.registerLanguage("fabrica", () =>
+      createRodDslLanguage(
+        "Fabrica",
+        "html css signal effect computed memo batch component when repeat ref classMap styleMap rawHtml render mount",
+      ),
+    );
+
+    hljs.registerLanguage("cipo", () =>
+      createRodDslLanguage(
+        "Cipo",
+        "css configure theme injectGlobal keyframes adapter aliases tokens responsive hover focus dark light",
+      ),
+    );
+
+    hljs.registerLanguage("curupira", () =>
+      createRodDslLanguage(
+        "Curupira",
+        "pipe flow compose map filter reduce group unique compact flatten object array string set",
+      ),
+    );
+
+    hljs.configure({
+      ignoreUnescapedHTML: true,
+      languages: [
+        "typescript",
+        "javascript",
+        "css",
+        "html",
+        "json",
+        "fabrica",
+        "cipo",
+        "curupira",
+      ],
+    });
+
+    document.querySelectorAll("code").forEach((node) => {
+      const text = node.textContent || "";
+
+      if (/\b(html|css|signal|effect|component|repeat|classMap|styleMap)\b/.test(text)) {
+        node.classList.add("language-fabrica");
+      }
+
+      if (/\b(configure|injectGlobal|theme|keyframes)\b|css\`/.test(text)) {
+        node.classList.add("language-cipo");
+      }
+    });
+
+    hljs.highlightAll();
+  })();
+</script>
+
+<style>
+  .hljs-title.function,
+  .hljs-built_in {
+    color: #7dd3fc;
+    font-weight: 800;
+  }
+
+  .hljs-selector-class,
+  .hljs-selector-id {
+    color: #97f7c2;
+  }
+
+  .hljs-attr {
+    color: #f6c177;
+  }
+
+  .hljs-variable {
+    color: #ff8bd4;
+  }
+
+  .hljs-number {
+    color: #c4b5fd;
+  }
+</style>
 </body>
 </html>`;
 }
