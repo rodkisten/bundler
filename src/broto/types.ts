@@ -11,6 +11,31 @@
 /** Runs when an effect, resource or owner is disposed. */
 export type Cleanup = () => void;
 
+/** Owner options used by createRoot/createOwner. */
+export type OwnerOptions = {
+  id?: string;
+  name?: string;
+  parent?: Owner | null;
+};
+
+/** Context token used by Broto owner trees. */
+export type ContextToken<Value> = {
+  readonly id: symbol;
+  readonly description: string;
+  readonly defaultValue?: Value;
+};
+
+/** Lifecycle owner used for effects, resources and UI component boundaries. */
+export type Owner = {
+  id: string;
+  name?: string;
+  parent: Owner | null;
+  children: Set<Owner>;
+  cleanups: Cleanup[];
+  context: Map<ContextToken<unknown>, unknown>;
+  disposed: boolean;
+};
+
 /** Registers a cleanup callback in the currently running effect. */
 export type CleanupRegistrar = (cleanup: Cleanup) => void;
 
@@ -25,6 +50,9 @@ export type SignalOptions<Value> = {
 
 /** Reactive scheduler mode used by the fine-grained effect queue. */
 export type SchedulerMode = "microtask" | "raf" | "idle" | "sync";
+
+/** Priority used by scheduleTask(). */
+export type SchedulerPriority = "user-blocking" | "normal" | "background";
 
 /** Writable fine-grained signal. */
 export type Signal<Value> = (() => Value) & {
@@ -44,11 +72,13 @@ export type EffectRunner = (() => void) & {
   cleanups: Cleanup[];
   disposed: boolean;
   sync: boolean;
+  owner: Owner;
 };
 
 /** Effect options. */
 export type EffectOptions = {
   sync?: boolean;
+  name?: string;
 };
 
 /** Snapshot of Broto runtime counters. */
@@ -68,11 +98,16 @@ export type ResourceState<Value, ErrorValue = unknown> = {
   loading: boolean;
   value: Value | undefined;
   error: ErrorValue | undefined;
+  stale?: boolean;
 };
+
+/** Async resource controls. */
+export type ResourceLoader<Value> = (signal: AbortSignal) => Promise<Value>;
 
 /** Async resource controls. */
 export type Resource<Value, ErrorValue = unknown> = Signal<ResourceState<Value, ErrorValue>> & {
   reload(): Promise<Value | undefined>;
+  abort(reason?: unknown): void;
 };
 
 /** Small graph edge used by debugging/devtools. */

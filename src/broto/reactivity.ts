@@ -1,5 +1,6 @@
 import { brotoDebugState } from "./debug";
-import type { Cleanup, CleanupRegistrar, EffectOptions, EffectRunner, Signal, SignalOptions, SchedulerMode } from "./types";
+import { cleanupOwner, createOwner, getOwner, onOwnerCleanup, runWithOwner } from "./owner";
+import type { Cleanup, CleanupRegistrar, EffectOptions, EffectRunner, SchedulerPriority, Signal, SignalOptions, SchedulerMode } from "./types";
 
 /** Queued async effects waiting for the next scheduler flush. */
 const effectQueue = new Set<EffectRunner>();
@@ -12,6 +13,15 @@ let flushQueued = false;
 let batchDepth = 0;
 let schedulerMode: SchedulerMode = "microtask";
 let maxFlushIterations = DEFAULT_MAX_FLUSH_ITERATIONS;
+
+/** Priority queues used by scheduleTask(). */
+const taskQueues = {
+  "user-blocking": new Set<() => void>(),
+  normal: new Set<() => void>(),
+  background: new Set<() => void>(),
+} satisfies Record<SchedulerPriority, Set<() => void>>;
+
+let taskFlushQueued = false;
 
 /**
  * Configures the global reactive scheduler.
@@ -134,11 +144,16 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
  * ```
  */
 export function onCleanup(cleanup: Cleanup): void {
-  if (!activeEffect || typeof cleanup !== "function") {
+  if (typeof cleanup !== "function") {
     return;
   }
 
-  activeEffect.cleanups.push(cleanup);
+  if (activeEffect) {
+    activeEffect.cleanups.push(cleanup);
+    return;
+  }
+
+  onOwnerCleanup(cleanup);
 }
 
 /**
@@ -157,8 +172,11 @@ export function onCleanup(cleanup: Cleanup): void {
  * ```
  */
 export function effect(callback: (cleanup: CleanupRegistrar) => void, options: EffectOptions = {}): Cleanup {
+  const parentOwner = getOwner();
+  const owner = createOwner({ parent: parentOwner, name: options.name ?? "effect" });
+
   const runner = function runEffect(): void {
-    if (runner.disposed) {
+    if (runner.disposed || owner.disposed) {
       return;
     }
 
@@ -168,7 +186,7 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
     activeEffect = runner;
 
     try {
-      callback(onCleanup);
+      runWithOwner(owner, () => callback(onCleanup));
     } finally {
       activeEffect = previousEffect;
     }
@@ -178,14 +196,27 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
   runner.cleanups = [];
   runner.disposed = false;
   runner.sync = Boolean(options.sync);
+  runner.owner = owner;
 
   brotoDebugState.effects += 1;
   runner();
 
-  return () => {
+  const dispose = (): void => {
+    if (runner.disposed) {
+      return;
+    }
+
     runner.disposed = true;
     cleanupEffect(runner);
+    owner.parent?.children.delete(owner);
+    owner.disposed = true;
   };
+
+  if (parentOwner) {
+    runWithOwner(parentOwner, () => onOwnerCleanup(dispose));
+  }
+
+  return dispose;
 }
 
 /**
@@ -278,6 +309,50 @@ export function batch<Value>(callback: () => Value): Value {
 }
 
 /**
+ * Runs all pending reactive work synchronously.
+ *
+ * @returns void.
+ *
+ * @example
+ * ```ts
+ * count.set(1);
+ * flushSync();
+ * ```
+ */
+export function flushSync(): void {
+  if (effectQueue.size > 0) {
+    flushEffects();
+  }
+
+  if (hasPendingTasks()) {
+    flushTasks();
+  }
+}
+
+/**
+ * Schedules non-reactive work on Broto's cooperative task queue.
+ *
+ * @param task - Task callback.
+ * @param priority - Task priority.
+ * @returns Cleanup that cancels the task before it runs.
+ *
+ * @example
+ * ```ts
+ * const cancel = scheduleTask(() => expensiveMeasure(), "background");
+ * cancel();
+ * ```
+ */
+export function scheduleTask(task: () => void, priority: SchedulerPriority = "normal"): Cleanup {
+  const queue = taskQueues[priority] ?? taskQueues.normal;
+  queue.add(task);
+  queueTaskFlush();
+
+  return () => {
+    queue.delete(task);
+  };
+}
+
+/**
  * Resolves a value as a signal/function/plain value.
  *
  * @param value - Input value.
@@ -312,9 +387,11 @@ export function hasReactiveValue(value: unknown): boolean {
  * @returns void.
  */
 function cleanupEffect(runner: EffectRunner): void {
+  cleanupOwner(runner.owner);
+
   const cleanups = runner.cleanups;
 
-  for (let index = 0; index < cleanups.length; index += 1) {
+  for (let index = cleanups.length - 1; index >= 0; index -= 1) {
     cleanups[index]?.();
   }
 
@@ -401,6 +478,51 @@ function flushEffects(): void {
 
   if (effectQueue.size > 0 && batchDepth === 0) {
     queueFlush();
+  }
+}
+
+
+function hasPendingTasks(): boolean {
+  return taskQueues["user-blocking"].size > 0 || taskQueues.normal.size > 0 || taskQueues.background.size > 0;
+}
+
+function queueTaskFlush(): void {
+  if (taskFlushQueued) {
+    return;
+  }
+
+  taskFlushQueued = true;
+
+  if (schedulerMode === "raf") {
+    requestAnimationFrame(flushTasks);
+    return;
+  }
+
+  if (schedulerMode === "idle" && "requestIdleCallback" in globalThis) {
+    (globalThis as typeof globalThis & { requestIdleCallback(callback: () => void): number }).requestIdleCallback(flushTasks);
+    return;
+  }
+
+  queueMicrotask(flushTasks);
+}
+
+function flushTasks(): void {
+  taskFlushQueued = false;
+
+  const ordered: SchedulerPriority[] = ["user-blocking", "normal", "background"];
+
+  for (let index = 0; index < ordered.length; index += 1) {
+    const queue = taskQueues[ordered[index]];
+    const tasks = Array.from(queue);
+    queue.clear();
+
+    for (let taskIndex = 0; taskIndex < tasks.length; taskIndex += 1) {
+      tasks[taskIndex]?.();
+    }
+  }
+
+  if (hasPendingTasks()) {
+    queueTaskFlush();
   }
 }
 
