@@ -15,7 +15,7 @@ export async function main(): Promise<void> {
 
   const entries = await discoverRootEntries();
   if (entries.length === 0) {
-    throw new Error("No root entrypoints found in src/. Add src/fabrica.ts, src/cipo.ts, src/seiva-state.ts, or src/index.ts.");
+    throw new Error("No root entrypoints found in src/. Add src/broto.ts, src/fabrica.ts, src/fabrica-elements.ts, src/cipo.ts, or src/index.ts.");
   }
 
   const outputs: string[] = [];

@@ -7,6 +7,10 @@ export type SourceExample = {
   file: string;
   comment: string;
   code: string;
+  groupId: string;
+  groupComment: string;
+  groupTitle: string;
+  isFirstInGroup: boolean;
 };
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"]);
@@ -14,6 +18,25 @@ const TSDOC_BLOCK_RE = /\/\*\*([\s\S]*?)\*\//g;
 const EXAMPLE_TAG_RE = /(?:^|\n)\s*\*?\s*@example\b([\s\S]*?)(?=\n\s*\*\s*@[a-zA-Z][\w-]*\b|\n\s*\*\/|$)/g;
 const REMARKS_TAG_RE = /(?:^|\n)\s*\*?\s*@remarks\b([\s\S]*?)(?=\n\s*\*\s*@[a-zA-Z][\w-]*\b|\n\s*\*\/|$)/;
 
+/**
+ * Collects source examples grouped by root entry.
+ *
+ * @remarks
+ * A single TSDoc block can contain multiple `@example` tags. The extractor
+ * keeps the shared summary/remarks text only once per group through
+ * `isFirstInGroup`, `groupComment` and `groupId`, so the generated landing page
+ * does not repeat the same prose above every example card.
+ *
+ * @param entries - Root entries discovered by the builder.
+ * @returns Examples keyed by root entry name.
+ *
+ * @example Multiple examples under one comment
+ * ```ts
+ * const examples = await collectExamplesByEntry(entries);
+ * console.log(examples.cipo[0]?.isFirstInGroup);
+ * // true
+ * ```
+ */
 export async function collectExamplesByEntry(entries: readonly RootEntry[]): Promise<Record<string, SourceExample[]>> {
   const files = await collectSourceFiles(SRC_DIR);
   const output: Record<string, SourceExample[]> = {};
@@ -32,7 +55,7 @@ export async function collectExamplesByEntry(entries: readonly RootEntry[]): Pro
     }
 
     output[owner.name] ??= [];
-    output[owner.name].push(...examples);
+    output[owner.name]!.push(...examples);
   }
 
   return output;
@@ -70,13 +93,17 @@ function findOwningEntry(file: string, entries: readonly RootEntry[]): RootEntry
 function extractExamples(source: string, file: string): SourceExample[] {
   const examples: SourceExample[] = [];
   let blockMatch: RegExpExecArray | null;
+  let groupIndex = 0;
 
   while ((blockMatch = TSDOC_BLOCK_RE.exec(source))) {
     const block = blockMatch[1] ?? "";
     const summary = cleanCommentText(extractSummary(block));
     const remarks = cleanCommentText(block.match(REMARKS_TAG_RE)?.[1] ?? "");
     const blockComment = joinParagraphs(summary, remarks);
+    const groupTitle = extractGroupTitle(blockComment) || "Examples";
+    const groupId = `${file}:${groupIndex}`;
     let exampleMatch: RegExpExecArray | null;
+    let exampleIndex = 0;
 
     EXAMPLE_TAG_RE.lastIndex = 0;
     while ((exampleMatch = EXAMPLE_TAG_RE.exec(block))) {
@@ -90,10 +117,17 @@ function extractExamples(source: string, file: string): SourceExample[] {
       examples.push({
         title: parsed.title,
         file,
-        comment: joinParagraphs(blockComment, parsed.comment),
+        comment: parsed.comment,
         code: parsed.code,
+        groupId,
+        groupComment: blockComment,
+        groupTitle,
+        isFirstInGroup: exampleIndex === 0,
       });
+      exampleIndex += 1;
     }
+
+    groupIndex += 1;
   }
 
   return examples;
@@ -112,6 +146,14 @@ function parseExample(rawExample: string): { title: string; comment: string; cod
 function extractSummary(block: string): string {
   const firstTagIndex = block.search(/\n\s*\*\s*@[a-zA-Z][\w-]*\b/);
   return firstTagIndex >= 0 ? block.slice(0, firstTagIndex) : block;
+}
+
+function extractGroupTitle(prose: string): string {
+  return prose
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.replace(/[:.]$/, "") ?? "";
 }
 
 function extractExampleTitle(prose: string): string {
