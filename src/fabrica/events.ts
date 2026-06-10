@@ -1,7 +1,7 @@
 import { debugState } from "./debug";
 import { registerCleanup } from "./dom-cleanup";
 import { isSignal } from "./guards";
-import { effect } from "./reactivity";
+import { effect } from "../broto/reactivity";
 import type { EventBindingConfig, RenderValue } from "./types";
 
 /** Roots that already have a delegated listener for each event. */

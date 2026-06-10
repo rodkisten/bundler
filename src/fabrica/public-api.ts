@@ -8,8 +8,7 @@ import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
 import { config } from "./install-state";
 import { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
-import { batch, computed, configureScheduler, effect, memo, onCleanup, signal, untrack } from "./reactivity";
-import type { DebugSnapshot, DomBag, InstallOptions, RawHtml, RenderValue, Signal } from "./types";
+import type { DebugSnapshot, DomBag, InstallOptions, RawHtml, RenderValue } from "./types";
 
 /** Public FabricaDOM API shape. */
 export type FabricaApi = {
@@ -17,14 +16,6 @@ export type FabricaApi = {
   render: typeof render;
   mount: typeof mount;
   component: typeof component;
-  signal: typeof signal;
-  effect: typeof effect;
-  onCleanup: typeof onCleanup;
-  computed: typeof computed;
-  memo: typeof memo;
-  untrack: typeof untrack;
-  batch: typeof batch;
-  configureScheduler: typeof configureScheduler;
   when: typeof when;
   repeat: typeof repeat;
   virtualRepeat: typeof virtualRepeat;
@@ -61,12 +52,6 @@ export function createFabricaApi(): FabricaApi {
     sanitizedHtml,
     trustedHtml,
     unsafeHtml,
-    signal,
-    effect,
-    computed,
-    memo,
-    batch,
-    untrack,
     component,
     when,
     repeat,
@@ -82,14 +67,6 @@ export function createFabricaApi(): FabricaApi {
     render,
     mount,
     component,
-    signal,
-    effect,
-    onCleanup,
-    computed,
-    memo,
-    untrack,
-    batch,
-    configureScheduler,
     when,
     repeat,
     virtualRepeat,
@@ -115,4 +92,4 @@ export function createFabricaApi(): FabricaApi {
 }
 
 /** Convenience public aliases used in examples. */
-export type { DomBag, InstallOptions, RawHtml, RenderValue, Signal };
+export type { DomBag, InstallOptions, RawHtml, RenderValue };

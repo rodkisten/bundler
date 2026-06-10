@@ -4,7 +4,7 @@ import { clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup
 import { bindEvent } from "./events";
 import { isClassMapDirective, isDirective, isDomBag, isDomElement, isDomNode, isRawHtml, isRefDirective, isSignal, isStyleMapDirective } from "./guards";
 import { applyClassMap, applyStyleMap } from "./maps";
-import { batch, effect, signal } from "./reactivity";
+import { batch, effect, signal } from "../broto/reactivity";
 import { comparePathsReverse, getCompiledTemplate, resolvePath } from "./template";
 import { hasReactiveValue, readValue } from "./value";
 import type { Directive, DirectiveController, RenderValue, RepeatDirective, RepeatRecord, TemplatePart, VirtualRepeatDirective, WhenDirective } from "./types";

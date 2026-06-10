@@ -1,3 +1,6 @@
+import type { Cleanup, CleanupRegistrar, ReactiveExpression, Signal } from "../broto/types";
+export type { Cleanup, CleanupRegistrar, ReactiveExpression, Signal } from "../broto/types";
+
 /**
  * Shared public and internal types used by FabricaDOM.
  *
@@ -8,15 +11,7 @@
  * job instead of becoming a kitchen drawer.
  */
 
-/** Runs when a reactive effect, DOM range, component, or mounted view is disposed. */
-export type Cleanup = () => void;
-
-/** Registers a cleanup callback in the currently running effect. */
-export type CleanupRegistrar = (cleanup: Cleanup) => void;
-
-/** A lazily evaluated value that may read signals. */
-export type ReactiveExpression<Value> = () => Value;
-
+/** Values accepted by the DOM renderer use Broto reactive primitives when needed. */
 /** Values accepted by the DOM renderer. */
 export type RenderValue =
   | string
@@ -33,39 +28,6 @@ export type RenderValue =
   | Directive
   | RawHtml
   | DomBag;
-
-/** Writable fine-grained signal. */
-export type SignalOptions<Value> = {
-  /** Custom equality check. Pass false to always notify subscribers. */
-  equals?: false | ((previousValue: Value, nextValue: Value) => boolean);
-};
-
-/** Reactive scheduler mode used by the fine-grained effect queue. */
-export type SchedulerMode = "microtask" | "raf" | "idle";
-
-export type Signal<Value> = (() => Value) & {
-  /** Stores a new value and notifies subscribers when it changed. */
-  set(nextValue: Value): void;
-  /** Updates the value from the current value. */
-  update(updater: (currentValue: Value) => Value): void;
-  /** Reads the value without tracking the current effect. */
-  peek(): Value;
-  /** Subscribes an effect runner directly. Mostly used internally. */
-  subscribe(listener: EffectRunner): Cleanup;
-};
-
-/** Internal tracked effect runner. */
-export type EffectRunner = (() => void) & {
-  deps: Array<Set<EffectRunner>>;
-  cleanups: Cleanup[];
-  disposed: boolean;
-  sync: boolean;
-};
-
-/** Effect options. */
-export type EffectOptions = {
-  sync?: boolean;
-};
 
 /** Runtime debug counters. */
 export type DebugSnapshot = {
@@ -164,12 +126,19 @@ export type MapDirective = ClassMapDirective | StyleMapDirective;
 
 /** Component context. */
 export type ComponentContext = {
-  signal: typeof import("./reactivity").signal;
-  effect: typeof import("./reactivity").effect;
-  computed: typeof import("./reactivity").computed;
-  memo: typeof import("./reactivity").memo;
-  batch: typeof import("./reactivity").batch;
-  untrack: typeof import("./reactivity").untrack;
+  /**
+   * Creates local reactive state for components.
+   *
+   * @remarks
+   * This is provided by Broto, not by Fábrica itself. Fábrica only passes it
+   * through the component context for UI ergonomics.
+   */
+  signal: typeof import("../broto/reactivity").signal;
+  effect: typeof import("../broto/reactivity").effect;
+  computed: typeof import("../broto/reactivity").computed;
+  memo: typeof import("../broto/reactivity").memo;
+  batch: typeof import("../broto/reactivity").batch;
+  untrack: typeof import("../broto/reactivity").untrack;
   onMount(callback: () => void | Cleanup): void;
   onDispose(callback: Cleanup): void;
   ref(callback: (node: Element) => void | Cleanup): RefDirective;

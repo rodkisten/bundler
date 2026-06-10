@@ -11,9 +11,6 @@ export type {
   RawHtml,
   RenderValue,
   RepeatContext,
-  Signal,
-  SignalOptions,
-  SchedulerMode,
   VirtualRepeatOptions,
 } from "./types";
 
@@ -25,7 +22,6 @@ export { classMap, ref, repeat, styleMap, virtualRepeat, when } from "./directiv
 export { html, mount, render } from "./dom";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
-export { batch, computed, configureScheduler, effect, memo, onCleanup, signal, untrack } from "./reactivity";
 
 import { createFabricaApi } from "./public-api";
 

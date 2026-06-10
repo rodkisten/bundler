@@ -2,7 +2,7 @@ import { debugState } from "./debug";
 import { registerCleanup } from "./dom-cleanup";
 import { appendValue } from "./dom";
 import { ref } from "./directives";
-import { batch, computed, effect, memo, signal, untrack } from "./reactivity";
+import { batch, computed, effect, memo, signal, untrack } from "../broto/reactivity";
 import type { Cleanup, Component, ComponentContext, RenderValue } from "./types";
 
 let componentId = 0;
