@@ -101,3 +101,90 @@ function appendClassValues(output: string[], values: readonly ElementsClassValue
     }
   }
 }
+
+/**
+ * Alias for mergeClassNames(), matching the short name used by many UI libs.
+ *
+ * @param values - Class values.
+ * @returns Merged class string.
+ *
+ * @example
+ * ```ts
+ * cx('btn', active && 'active', ['rounded'])
+ * // 'btn active rounded'
+ * ```
+ */
+export const cx = mergeClassNames
+
+/**
+ * Creates a mutable object ref.
+ *
+ * @returns Ref object.
+ *
+ * @example
+ * ```ts
+ * const input = createRef<HTMLInputElement>();
+ * input.current?.focus();
+ * ```
+ */
+export function createRef<Value = Element>(): { current: Value | null } {
+  return { current: null }
+}
+
+/**
+ * Composes multiple object/callback refs into one callback.
+ *
+ * @param refs - Ref values.
+ * @returns Callback ref.
+ *
+ * @example
+ * ```ts
+ * const ref = composeRefs(localRef, props.ref);
+ * ```
+ */
+export function composeRefs<Value = Element>(...refs: readonly unknown[]): (value: Value | null) => void {
+  return (value: Value | null): void => {
+    for (let index = 0; index < refs.length; index += 1) {
+      const ref = refs[index]
+
+      if (!ref) continue
+
+      if (typeof ref === 'function') {
+        ;(ref as (value: Value | null) => void)(value)
+        continue
+      }
+
+      if (isPlainObject(ref) && 'current' in ref) {
+        ;(ref as { current: Value | null }).current = value
+      }
+    }
+  }
+}
+
+/**
+ * Normalizes children into a flat array without boolean/null placeholders.
+ *
+ * @param children - Children value.
+ * @returns Flat child list.
+ *
+ * @example
+ * ```ts
+ * childrenToArray(['a', null, ['b']])
+ * // ['a', 'b']
+ * ```
+ */
+export function childrenToArray(children: unknown): unknown[] {
+  const output: unknown[] = []
+  appendChildrenValue(output, children)
+  return output
+}
+
+function appendChildrenValue(output: unknown[], value: unknown): void {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) appendChildrenValue(output, value[index])
+    return
+  }
+
+  if (value === null || value === undefined || value === false || value === true) return
+  output.push(value)
+}

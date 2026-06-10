@@ -32,6 +32,15 @@ export type ElementsClassValue = string | number | boolean | null | undefined | 
 /** Values accepted as children by the DOM adapter. */
 export type ElementsChild = string | number | boolean | null | undefined | Node | DocumentFragment | readonly ElementsChild[]
 
+/** Mutable object ref shared by DOM factories and components. */
+export type ElementsRef<Value = Element> = { current: Value | null }
+
+/** Callback ref that can optionally return cleanup. */
+export type ElementsRefCallback<Value = Element> = (value: Value | null) => void | (() => void)
+
+/** Any supported ref shape. */
+export type ElementsRefValue<Value = Element> = ElementsRef<Value> | ElementsRefCallback<Value> | null | undefined
+
 /** Style artifact-like value. Used structurally to avoid importing Cipó. */
 export interface ElementsStyleArtifact {
   readonly className: string

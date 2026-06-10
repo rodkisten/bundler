@@ -92,3 +92,19 @@ Button({ children: 'Save' })
 - It does not import Cipó or Fábrica.
 - It keeps userscript output predictable and small.
 - It exists to prevent duplicate prop/class/event/children logic across packages.
+
+## Composition helpers
+
+Fabrica Elements now includes small composition helpers shared by Cipo and Fabrica.
+
+```ts
+import { cx, createRef, composeRefs, childrenToArray } from './fabrica-elements'
+
+const className = cx('button', active && 'active', ['rounded'])
+const localRef = createRef<HTMLButtonElement>()
+const ref = composeRefs(localRef, props.ref)
+const children = childrenToArray(props.children)
+```
+
+These helpers keep element/component utilities out of both the CSS runtime and the
+HTML renderer.
