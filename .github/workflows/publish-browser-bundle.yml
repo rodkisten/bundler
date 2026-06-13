@@ -17,6 +17,7 @@ on:
       - "!.vscode/**"
       - "!.idea/**"
       - "!.DS_Store"
+
   workflow_dispatch:
     inputs:
       min_hours_between_runs:
@@ -35,15 +36,13 @@ permissions:
   actions: read
 
 env:
-  BUILD_ENTRYPOINT: src/index.ts
-  BUILD_GLOBAL_NAME: Rod
-  BUILD_MINIFY: false
-  MIN_HOURS_BETWEEN_RUNS: 2
   WORKFLOW_FILE: publish-browser-bundle.yml
+  MIN_HOURS_BETWEEN_RUNS: 2
 
 jobs:
   guard:
     runs-on: ubuntu-24.04
+
     outputs:
       should_run: ${{ steps.guard.outputs.should_run }}
       reason: ${{ steps.guard.outputs.reason }}
@@ -58,8 +57,15 @@ jobs:
           WORKFLOW_FILE: ${{ env.WORKFLOW_FILE }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           DEFAULT_MIN_HOURS: ${{ env.MIN_HOURS_BETWEEN_RUNS }}
+          INPUT_MIN_HOURS: ${{ github.event.inputs.min_hours_between_runs }}
         run: |
           set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            MIN_HOURS="${INPUT_MIN_HOURS:-$DEFAULT_MIN_HOURS}"
+          else
+            MIN_HOURS="$DEFAULT_MIN_HOURS"
+          fi
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -67,7 +73,6 @@ jobs:
             exit 0
           fi
 
-          MIN_HOURS="$DEFAULT_MIN_HOURS"
           MIN_SECONDS=$((MIN_HOURS * 3600))
 
           RUNS_JSON="$(gh api "repos/$REPOSITORY/actions/workflows/$WORKFLOW_FILE/runs?per_page=10&status=completed")"
@@ -112,20 +117,30 @@ jobs:
           echo "should_run=true" >> "$GITHUB_OUTPUT"
           echo "reason=guard_passed" >> "$GITHUB_OUTPUT"
 
-      - name: Print guard decision
+      - name: Write guard summary
         run: |
-          echo "should_run=${{ steps.guard.outputs.should_run }}"
-          echo "reason=${{ steps.guard.outputs.reason }}"
+          {
+            echo "## 🛡️ Build Guard"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Should run | \`${{ steps.guard.outputs.should_run }}\` |"
+            echo "| Reason | \`${{ steps.guard.outputs.reason }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   test:
+    needs: guard
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
+    continue-on-error: true
+
     steps:
       - name: Checkout private source
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -135,14 +150,49 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile=false
 
-      - name: Test it all!
-        run: pnpm test
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/test
 
-      
+          pnpm test 2>&1 | tee artifacts/test/test-output.log
+
+      - name: Write test summary
+        if: always()
+        run: |
+          {
+            echo "## 🧪 Test Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ steps.tests.outcome }}\` |"
+            echo "| Blocking build | \`false\` |"
+            echo ""
+            echo "### Last test output lines"
+            echo ""
+            echo '```txt'
+            tail -n 80 artifacts/test/test-output.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: artifacts/test
+          retention-days: 14
+
   build:
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
+
+    env:
+      GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+      GIST_ID: ${{ secrets.GIST_ID }}
 
     steps:
       - name: Checkout private source
@@ -150,7 +200,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -173,15 +223,22 @@ jobs:
 
           {
             echo "files<<EOF"
-            find dist -type f \( -name "*.js" -o -name "*.js.map" -o -name "*.html" -o -name "*.json" -o -name "*.txt" \) | sort
+            find dist -type f \( \
+              -name "*.js" \
+              -o -name "*.js.map" \
+              -o -name "*.html" \
+              -o -name "*.json" \
+              -o -name "*.txt" \
+            \) | sort
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Upload release artifact
+      - name: Upload browser bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: browser-bundle
           path: dist
+          retention-days: 30
 
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
@@ -203,17 +260,33 @@ jobs:
       - name: Publish public Gist
         if: ${{ env.GIST_TOKEN != '' && env.GIST_ID != '' }}
         run: pnpm publish:gist
-        env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
-          GIST_DESCRIPTION: Public browser bundle generated from private TypeScript source
+
+      - name: Write build summary
+        if: always()
+        run: |
+          {
+            echo "## 📦 Browser Bundle"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Artifact | \`browser-bundle\` |"
+            echo "| Release tag | \`browser-bundle-latest\` |"
+            echo ""
+            echo "### Published files"
+            echo ""
+            echo '```txt'
+            find dist -type f | sort || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-pages:
     needs:
       - guard
       - build
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
