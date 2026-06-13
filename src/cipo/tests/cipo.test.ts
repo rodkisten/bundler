@@ -51,4 +51,62 @@ describe('Cipó next', () => {
     expect(button.compiledCss).toContain(':hover')
     expect(button.compiledCss).toContain('@media')
   })
+
+  it('handles comments, dollar aliases, raw property escape and helpers without semicolons', () => {
+    const button = css`
+      px: 4
+      py: 2
+      bg: $brand
+      color: saturate($brand, 20%)
+      /* bg: alpha($brand / 14%) */
+      #box-shadow: outlineGlow($brand)
+      $glassCard
+      bleed: -4
+
+      /*
+      x:focus-visible {
+        box-shadow: outlineGlow($brand)
+      }
+
+      x:hover {
+        bg: alpha($brand / 72%)
+      }
+      */
+    `
+
+    expect(isAtomicCssArtifact(button)).toBe(true)
+    if (!isAtomicCssArtifact(button)) throw new Error('Expected atomic artifact')
+    expect(button.compiledCss).toContain('padding-inline')
+    expect(button.compiledCss).toContain('padding-block')
+    expect(button.compiledCss).toContain('background')
+    expect(button.compiledCss).toContain('color-mix')
+    expect(button.compiledCss).toContain('box-shadow')
+    expect(button.compiledCss).toContain('margin')
+  })
+
+  it('supports active x blocks and alpha helpers without browser-freezing recursion', () => {
+    const button = css`
+      px: 4
+      x:focus-visible {
+        box-shadow: outlineGlow($brand)
+      }
+      x:hover {
+        bg: alpha($brand / 72%)
+      }
+      x:md {
+        px: 6
+      }
+      x:not(md) {
+        width: 100%
+      }
+    `
+
+    expect(isAtomicCssArtifact(button)).toBe(true)
+    if (!isAtomicCssArtifact(button)) throw new Error('Expected atomic artifact')
+    expect(button.compiledCss).toContain(':focus-visible')
+    expect(button.compiledCss).toContain(':hover')
+    expect(button.compiledCss).toContain('@media')
+    expect(button.compiledCss).toContain('not all and')
+  })
+
 })
