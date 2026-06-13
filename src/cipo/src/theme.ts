@@ -152,6 +152,110 @@ export function toCssVar(tokenPath: string): string {
   return `var(--${runtime.config.prefix}-${normalized})`
 }
 
+
+/**
+ * Resolves a theme reference with property/scale awareness.
+ *
+ * @remarks
+ * `$token` is intentionally ergonomic. When the same short token exists in
+ * multiple namespaces, Cipó can still infer the intended namespace from the CSS
+ * property being compiled. For example, `$panel` resolves to
+ * `--cipo-colors-panel` inside `background` and to `--cipo-shadow-panel` inside
+ * `box-shadow`.
+ *
+ * This is intentionally a single-pass scanner, not a regex cascade, so helper
+ * heavy values such as `alpha($panel / 72%)` stay cheap on mobile browsers.
+ *
+ * @param input - CSS value or source text.
+ * @param property - Final CSS property.
+ * @param scale - Alias scale hint.
+ * @returns Text with resolvable theme references converted to CSS variables.
+ *
+ * @example
+ * ```ts
+ * resolveThemeReferencesForValue('$panel', 'background', 'color')
+ * // 'var(--cipo-colors-panel)'
+ * ```
+ */
+export function resolveThemeReferencesForValue(input: string, property = '', scale = 'none'): string {
+  let output = ''
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+
+    if (char !== '$') {
+      output += char
+      continue
+    }
+
+    const next = input[index + 1] ?? ''
+    if (!/[a-zA-Z_]/.test(next)) {
+      output += char
+      continue
+    }
+
+    let end = index + 1
+    while (end < input.length && /[a-zA-Z0-9_.-]/.test(input[end] ?? '')) end += 1
+
+    const token = input.slice(index + 1, end)
+    const resolved = resolveTokenPath(token, property, scale)
+    output += resolved ? toCssVar(resolved) : `$${token}`
+    index = end - 1
+  }
+
+  return output
+}
+
+/**
+ * Resolves a token name into a full theme path.
+ *
+ * @param token - Token without `$`.
+ * @param property - CSS property.
+ * @param scale - Alias scale.
+ * @returns Theme path or empty string.
+ */
+export function resolveTokenPath(token: string, property = '', scale = 'none'): string {
+  if (!token) return ''
+
+  if (token === 'spacing') return 'spacing'
+
+  const dotted = token.indexOf('.') >= 0
+  if (dotted) return token.replaceAll('.', '-')
+
+  if (runtime.themeKeys.has(token)) return token
+
+  const namespace = inferThemeNamespace(property, scale)
+  if (namespace) {
+    const namespaced = `${namespace}-${token}`
+    if (runtime.themeKeys.has(namespaced)) return namespaced
+  }
+
+  const short = runtime.shortThemeTokens.get(token)
+  return short ?? ''
+}
+
+/**
+ * Infers the theme namespace that best matches a CSS property.
+ *
+ * @param property - CSS property.
+ * @param scale - Alias scale.
+ * @returns Namespace or empty string.
+ */
+export function inferThemeNamespace(property: string, scale = 'none'): string {
+  if (scale === 'color') return 'colors'
+  if (scale === 'radius') return 'radius'
+  if (scale === 'shadow') return 'shadow'
+  if (scale === 'text') return 'text'
+
+  const normalized = property.toLowerCase()
+  if (normalized === 'background' || normalized === 'background-color' || normalized === 'color' || normalized === 'fill' || normalized === 'stroke' || normalized === 'caret-color' || normalized === 'accent-color' || normalized.endsWith('color')) return 'colors'
+  if (normalized === 'box-shadow' || normalized === 'text-shadow' || normalized === 'filter' || normalized === 'backdrop-filter') return 'shadow'
+  if (normalized === 'border-radius') return 'radius'
+  if (normalized === 'font-size') return 'text'
+
+  return ''
+}
+
 function isThemeBranch(value: CipoThemeValue): value is CipoTheme {
   return isPlainObject(value)
 }

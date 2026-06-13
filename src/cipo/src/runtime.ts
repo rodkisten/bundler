@@ -60,6 +60,7 @@ export const runtime: RuntimeState = {
   propertyAliasRegistry: new Map(),
   variantRegistry: new Map(),
   warningSink: [],
+  generatedCssText: '',
   layerHeaderInserted: false,
   themeVersion: 0,
   configVersion: 0,

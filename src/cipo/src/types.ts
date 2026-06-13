@@ -301,6 +301,7 @@ export interface RuntimeState {
   propertyAliasRegistry: Map<string, PropertyAliasDefinition>
   variantRegistry: Map<string, readonly string[]>
   warningSink: CipoWarning[]
+  generatedCssText: string
   layerHeaderInserted: boolean
   themeVersion: number
   configVersion: number

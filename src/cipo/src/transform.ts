@@ -78,7 +78,124 @@ export function transformCss(input: string, warnings: CipoWarning[]): string {
  * @returns CSS without comments.
  */
 export function stripComments(input: string): string {
-  return input.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  let output = ''
+  let quote: '"' | "'" | null = null
+  let lineStart = true
+  let lineOnlyWhitespace = true
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+    const next = input[index + 1] ?? ''
+
+    if (quote) {
+      output += char
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      if (char === '\n' || char === '\r') {
+        lineStart = true
+        lineOnlyWhitespace = true
+      }
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      lineStart = false
+      lineOnlyWhitespace = false
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      index = skipBlockComment(input, index + 2)
+      continue
+    }
+
+    if (char === '*' && next === '/') {
+      index += 1
+      continue
+    }
+
+    if (char === '/' && next === '/' && input[index - 1] !== ':') {
+      index = skipLineComment(input, index + 2)
+      output += '\n'
+      lineStart = true
+      lineOnlyWhitespace = true
+      continue
+    }
+
+    if (char === '#' && isHashComment(input, index, lineOnlyWhitespace)) {
+      index = skipLineComment(input, index + 1)
+      output += '\n'
+      lineStart = true
+      lineOnlyWhitespace = true
+      continue
+    }
+
+    output += char
+
+    if (char === '\n' || char === '\r') {
+      lineStart = true
+      lineOnlyWhitespace = true
+      continue
+    }
+
+    lineStart = false
+    if (!/\s/.test(char)) lineOnlyWhitespace = false
+  }
+
+  return output
+}
+
+/**
+ * Skips a block comment and tolerates missing closers.
+ *
+ * @param input - Source text.
+ * @param start - First index after `/*`.
+ * @returns Index of the closing slash or the last source index.
+ */
+function skipBlockComment(input: string, start: number): number {
+  for (let index = start; index < input.length - 1; index += 1) {
+    if (input[index] === '*' && input[index + 1] === '/') return index + 1
+  }
+
+  return input.length - 1
+}
+
+/**
+ * Skips until a line break.
+ *
+ * @param input - Source text.
+ * @param start - First index after comment marker.
+ * @returns Index of the line break or last source index.
+ */
+function skipLineComment(input: string, start: number): number {
+  for (let index = start; index < input.length; index += 1) {
+    if (input[index] === '\n' || input[index] === '\r') return index
+  }
+
+  return input.length - 1
+}
+
+/**
+ * Detects `#` comments while preserving raw-property escapes and hex colors.
+ *
+ * @param input - Source text.
+ * @param index - Hash index.
+ * @param lineOnlyWhitespace - Whether only whitespace appeared on this line.
+ * @returns Whether the hash starts a comment.
+ */
+function isHashComment(input: string, index: number, lineOnlyWhitespace: boolean): boolean {
+  const next = input[index + 1] ?? ''
+
+  if (lineOnlyWhitespace) {
+    let cursor = index + 1
+    while (cursor < input.length && /[a-zA-Z-]/.test(input[cursor] ?? '')) cursor += 1
+    while (cursor < input.length && /\s/.test(input[cursor] ?? '') && input[cursor] !== '\n' && input[cursor] !== '\r') cursor += 1
+    if (input[cursor] === ':') return false
+  }
+
+  if (/[0-9a-fA-F]/.test(next)) return false
+  return true
 }
 
 /**

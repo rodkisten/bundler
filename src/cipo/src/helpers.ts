@@ -79,7 +79,7 @@ function fluidHelper(args: string, context: CipoHelperContext): string {
 
 function alphaHelper(args: string, context: CipoHelperContext): string {
   const parts = splitTopLevel(args, '/')
-  const color = context.resolveValue(parts[0]?.trim() || 'currentColor')
+  const color = context.resolveValue(parts[0]?.trim() || 'currentColor', 'color')
   const amount = parts[1]?.trim() || '50%'
   const mode = runtime.config.colorMode
   const space = mode === 'rgba' ? 'srgb' : mode === 'hsl' ? 'hsl' : mode === 'oklab' ? 'oklab' : 'oklch'
@@ -89,8 +89,8 @@ function alphaHelper(args: string, context: CipoHelperContext): string {
 
 function mixHelper(args: string, context: CipoHelperContext): string {
   const parts = splitTopLevel(args, ',')
-  const colorA = context.resolveValue(parts[0]?.trim() || 'currentColor')
-  const colorB = context.resolveValue(parts[1]?.trim() || 'transparent')
+  const colorA = context.resolveValue(parts[0]?.trim() || 'currentColor', 'color')
+  const colorB = context.resolveValue(parts[1]?.trim() || 'transparent', 'color')
   const amount = parts[2]?.trim() || '50%'
   const space = runtime.config.colorMode === 'hsl' ? 'hsl' : runtime.config.colorMode === 'rgba' ? 'srgb' : runtime.config.colorMode
   return `color-mix(in ${space === 'preserve' ? 'oklch' : space}, ${colorA} ${amount}, ${colorB})`
@@ -99,7 +99,7 @@ function mixHelper(args: string, context: CipoHelperContext): string {
 function adjustLightnessHelper(kind: 'lighten' | 'darken') {
   return (args: string, context: CipoHelperContext): string => {
     const parts = splitTopLevel(args, ',')
-    const color = context.resolveValue(parts[0]?.trim() || 'currentColor')
+    const color = context.resolveValue(parts[0]?.trim() || 'currentColor', 'color')
     const amount = parts[1]?.trim() || '10%'
     const signed = kind === 'darken' ? `-${amount.replace(/^-/, '')}` : amount
     if (runtime.config.colorMode === 'preserve') return color
@@ -109,24 +109,40 @@ function adjustLightnessHelper(kind: 'lighten' | 'darken') {
 
 function saturateHelper(args: string, context: CipoHelperContext): string {
   const parts = splitTopLevel(args, ',')
-  const color = context.resolveValue(parts[0]?.trim() || 'currentColor')
+  const color = context.resolveValue(parts[0]?.trim() || 'currentColor', 'color')
   const amount = parts[1]?.trim() || '10%'
   return `oklch(from ${color} l calc(c + ${amount}) h)`
 }
 
 function desaturateHelper(args: string, context: CipoHelperContext): string {
   const parts = splitTopLevel(args, ',')
-  const color = context.resolveValue(parts[0]?.trim() || 'currentColor')
+  const color = context.resolveValue(parts[0]?.trim() || 'currentColor', 'color')
   const amount = parts[1]?.trim() || '10%'
   return `oklch(from ${color} l calc(c - ${amount}) h)`
 }
 
 function gradientHelper(args: string, context: CipoHelperContext): string {
-  const parts = splitTopLevel(args, ',').map(part => context.resolveValue(part.trim())).filter(Boolean)
-  const type = parts.shift() || 'linear'
-  if (type === 'radial') return `radial-gradient(${parts.join(', ')})`
-  if (type === 'conic') return `conic-gradient(${parts.join(', ')})`
-  return `linear-gradient(${parts.join(', ')})`
+  const rawParts = splitTopLevel(args, ',')
+  let type = 'linear'
+  let startIndex = 0
+  if (rawParts.length > 0) {
+    const first = (rawParts[0] ?? '').trim()
+    if (first === 'linear' || first === 'radial' || first === 'conic') {
+      type = first
+      startIndex = 1
+    }
+  }
+
+  let body = ''
+  for (let index = startIndex; index < rawParts.length; index += 1) {
+    const value = context.resolveValue((rawParts[index] ?? '').trim(), 'color')
+    if (!value) continue
+    body += body ? `, ${value}` : value
+  }
+
+  if (type === 'radial') return `radial-gradient(${body})`
+  if (type === 'conic') return `conic-gradient(${body})`
+  return `linear-gradient(${body})`
 }
 
 function tokenHelper(namespace: string) {

@@ -1,6 +1,6 @@
 import { runtime } from './runtime'
 import type { AliasScale, CipoDeclarationNode, CipoHelperContext } from './types'
-import { resolveThemeReferences } from './theme'
+import { resolveThemeReferencesForValue } from './theme'
 import { createDeclaration, findTopLevelColon, isPlainNumber, parseFunctionCall, splitTopLevel } from './utils'
 import { normalizePxValues } from './helpers'
 
@@ -87,7 +87,7 @@ export function normalizePropertyDeclaration(rawProperty: string, rawValue: stri
  * @returns Normalized CSS value.
  */
 export function normalizeValue(property: string, rawValue: string, scale: AliasScale = 'none'): string {
-  const resolved = resolveHelpers(resolveThemeReferences(rawValue.trim()))
+  const resolved = resolveHelpers(resolveThemeReferencesForValue(rawValue.trim(), property, scale))
 
   if (scale === 'spacing' && isPlainNumber(resolved)) return `calc(var(--${runtime.config.prefix}-spacing, 0.25rem) * ${resolved})`
   if (scale === 'radius' && RADIUS_TOKENS.has(resolved)) return `var(--${runtime.config.prefix}-radius-${resolved})`

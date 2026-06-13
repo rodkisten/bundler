@@ -74,6 +74,7 @@ export function reset(): void {
   runtime.inlineCache.clear()
   runtime.debugAtoms.clear()
   runtime.warningSink = []
+  runtime.generatedCssText = ''
   runtime.layerHeaderInserted = false
   if (typeof document !== 'undefined') document.getElementById(STYLE_ELEMENT_ID)?.remove()
 }
