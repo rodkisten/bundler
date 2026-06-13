@@ -408,7 +408,7 @@ function bindComponentPart(
   value: RenderValue | undefined,
   values: readonly RenderValue[],
   part?: Extract<TemplatePart, { type: "component" }>,
-  dynamicPropParts: readonly Array<{ name: string; index: number }> = [],
+  dynamicPropParts: Array<{ name: string; index: number }> = [],
 ): void {
   if (!(node instanceof HTMLTemplateElement)) {
     return;
@@ -487,7 +487,7 @@ function createMissingComponentFallback(name: string): HTMLElement {
 }
 
 function readDynamicComponentProps(
-  propParts: readonly Array<{ name: string; index: number }>,
+  propParts: Array<{ name: string; index: number }>,
   values: readonly RenderValue[],
 ): Record<string, unknown> {
   const props: Record<string, unknown> = {};
