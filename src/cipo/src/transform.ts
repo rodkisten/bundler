@@ -110,8 +110,10 @@ export function expandStandaloneAliases(input: string, warnings: CipoWarning[]):
     const raw = statement.text
     const trimmed = raw.trim()
 
-    if (trimmed && isStandaloneAliasName(trimmed) && runtime.aliasRegistry.has(trimmed)) {
-      output += preserveLeadingWhitespace(raw) + stringifyAlias(trimmed, warnings)
+    const aliasName = getStandaloneAliasName(trimmed)
+
+    if (aliasName && runtime.aliasRegistry.has(aliasName)) {
+      output += preserveLeadingWhitespace(raw) + stringifyAlias(aliasName, warnings)
       if (!output.endsWith('\n')) output += '\n'
     } else {
       output += raw
@@ -212,8 +214,20 @@ function readTopLevelStatement(input: string, startIndex: number): { readonly te
  * @returns Whether it is alias-like.
  */
 function isStandaloneAliasName(source: string): boolean {
-  const normalized = source.endsWith(';') ? source.slice(0, -1).trim() : source
-  return /^[a-zA-Z_][\w-]*$/.test(normalized)
+  return getStandaloneAliasName(source) !== ''
+}
+
+/**
+ * Reads a standalone alias name. `$alias` is accepted because `$` already means
+ * "resolve from Cipó registries/theme" in user-facing CSS.
+ *
+ * @param source - Trimmed statement.
+ * @returns Alias name without `$`, or empty string.
+ */
+function getStandaloneAliasName(source: string): string {
+  let normalized = source.endsWith(';') ? source.slice(0, -1).trim() : source.trim()
+  if (normalized[0] === '$') normalized = normalized.slice(1)
+  return /^[a-zA-Z_][\w-]*$/.test(normalized) ? normalized : ''
 }
 
 /**
@@ -234,18 +248,25 @@ function preserveLeadingWhitespace(input: string): string {
  * @returns CSS declarations.
  */
 function expandWithArguments(args: string, warnings: CipoWarning[]): string {
-  return splitTopLevel(args, ',').map(source => {
-    const trimmed = source.trim()
-    if (!trimmed) return ''
+  const parts = splitTopLevel(args, ',')
+  let output = ''
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const trimmed = (parts[index] ?? '').trim()
+    if (!trimmed) continue
+
+    const aliasName = getStandaloneAliasName(trimmed)
     const call = parseFunctionCall(trimmed)
 
     if (!call) {
-      if (runtime.aliasRegistry.has(trimmed)) return stringifyAlias(trimmed, warnings)
-      return `${trimmed};`
+      output += aliasName && runtime.aliasRegistry.has(aliasName) ? stringifyAlias(aliasName, warnings) : `${trimmed};`
+      continue
     }
 
-    return `${call.name}:${call.args.join(',')};`
-  }).join('')
+    output += `${call.name}:${call.args.join(',')};`
+  }
+
+  return output
 }
 
 /**
@@ -301,9 +322,10 @@ function expandAliasesInString(input: string, warnings: CipoWarning[], stack: Se
     const statement = readTopLevelStatement(input, index)
     const raw = statement.text
     const trimmed = raw.trim().replace(/;$/, '').trim()
+    const aliasName = getStandaloneAliasName(trimmed)
 
-    if (trimmed && isStandaloneAliasName(trimmed) && runtime.aliasRegistry.has(trimmed)) {
-      output += preserveLeadingWhitespace(raw) + stringifyAliasWithStack(trimmed, warnings, stack)
+    if (aliasName && runtime.aliasRegistry.has(aliasName)) {
+      output += preserveLeadingWhitespace(raw) + stringifyAliasWithStack(aliasName, warnings, stack)
       if (!output.endsWith('\n')) output += '\n'
     } else {
       output += raw
