@@ -75,3 +75,16 @@
 
 - Existing APIs remain available: `signal`, `effect`, `computed`, `resource`, `component`, `html`, `render`, `mount`, `ref`, `repeat`, `virtualRepeat`, `cipo`, and `css`.
 - Existing component factories still work. The new context/lifecycle fields are additive.
+
+## Unreleased - Fabrica UI runtime polish
+
+### Added
+
+- Added `Fabrica.jsx.html` as the preferred micro-JSX template entrypoint for editor syntax highlighting. `Fabrica.html.jsx` remains supported.
+- Added `component(name, factory)` for minifier-safe components while keeping `component(factory)` fully compatible.
+
+### Fixed
+
+- Dynamic props on component tags now preserve the raw value instead of being converted into HTML attributes. This enables patterns such as `jsx.html`\`<TabButton plugin=${item} />\`` where `plugin` can be a signal, object, function, node or any render-time value.
+- Fixed escaped whitespace in the micro-JSX component-tag compiler.
+- Fixed duplicate property binding state declaration in the DOM renderer.

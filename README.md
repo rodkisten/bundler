@@ -167,3 +167,19 @@ Output after success:
 ```html
 Rod
 ```
+
+## Fabrica micro-JSX, preferred syntax
+
+Use `Fabrica.jsx.html` for component templates. It keeps the runtime browser-native and usually gives better syntax highlighting than `html.jsx`.
+
+```ts
+const Panel = Fabrica.component("Panel", function Panel(props) {
+  return Fabrica.html`<section>${props.children}</section>`;
+});
+
+Fabrica.render(document.body, Fabrica.jsx.html`
+  <Panel>Inspector</Panel>
+`);
+```
+
+`Fabrica.html.jsx` still works. Dynamic props on component tags are passed as raw values, so objects, signals and functions are not stringified.
