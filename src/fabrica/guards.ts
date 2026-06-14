@@ -172,15 +172,43 @@ export function isTemplateStringsArray(value: unknown): value is TemplateStrings
 /**
  * Checks whether a value is a Fabrica Elements/Cipó payload.
  *
+ * @remarks
+ * Cipó component payloads and Fabrica component payloads do not always expose
+ * the same shape. Some payloads expose a `tag`, while component payloads may
+ * only expose component metadata plus props/children.
+ *
+ * We intentionally detect this structurally instead of relying on instanceof
+ * checks so this keeps working across iframes, userscripts, isolated worlds,
+ * and mixed bundles.
+ *
  * @param value - Unknown value.
- * @returns Whether the value can be materialized as a DOM element.
+ * @returns Whether the value can be materialized as a DOM element or component.
  */
-export function isRenderablePayload(value: unknown): value is RenderablePayload {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      typeof (value as RenderablePayload).tag === "string" &&
-      ((value as RenderablePayload).props == null || typeof (value as RenderablePayload).props === "object"),
+export function isRenderablePayload(
+  value: unknown,
+): value is RenderablePayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const payload = value as Partial<RenderablePayload>;
+
+  const hasTag =
+    "tag" in payload && typeof payload.tag === "string";
+
+  const hasComponent =
+    "component" in payload &&
+    typeof payload.component === "function";
+
+  const hasRenderableShape = hasTag || hasComponent;
+
+  if (!hasRenderableShape) {
+    return false;
+  }
+
+  return (
+    payload.props == null ||
+    typeof payload.props === "object"
   );
 }
 
