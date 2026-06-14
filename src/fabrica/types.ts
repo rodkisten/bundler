@@ -190,6 +190,21 @@ export type ComponentPayload = {
   readonly props?: ComponentProps | null;
 };
 
+
+/** CSS/class artifact emitted by companion libraries such as Cipó. */
+export type CssLikeArtifact = {
+  readonly cssText?: string;
+  readonly compiledCss?: string;
+  readonly className?: string;
+  readonly classes?: string;
+  readonly value?: string;
+  readonly kind?: string;
+  toString?: () => string;
+};
+
+/** Plain render payload emitted by adapter-style component factories. */
+export type RenderablePayload = ElementPayload | ComponentPayload;
+
 /** Template part compiled from an HTML template. */
 export type TemplatePart =
   | {
