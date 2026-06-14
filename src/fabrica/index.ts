@@ -17,8 +17,7 @@ export type {
 
 export { $ } from "./bag";
 export { css } from "./css";
-export { component } from "./component";
-export { clearComponents, isRegisteredComponentName, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component-registry";
+export { clearComponents, component, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component";
 export { boundary } from "./boundary";
 export { createFabricaContext, provide, useContext } from "./context";
 export { debug, setDebug } from "./debug";

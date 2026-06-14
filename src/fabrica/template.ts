@@ -1,18 +1,63 @@
 import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
 import { debugState } from "./debug";
-import { isComponent } from "./guards";
 import type { CompiledTemplate, RenderValue, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
-
 const JSX_COMPONENT_NAME = "[A-Z][A-Za-z0-9_$.-]*";
 
+/**
+ * Gets a compiled template from cache or compiles a new one.
+ *
+ * @remarks
+ * The compiler understands normal child/attribute markers and Fabrica component
+ * tags. Component tags are authored as real template syntax:
+ *
+ * ```ts
+ * html`
+ *   <${Button} tone="primary">
+ *     Save
+ *   </${Button}>
+ * `
+ * ```
+ *
+ * Internally, the opening component interpolation becomes a hidden
+ * `<template data-fabrica-component="...">` node. At runtime that node is
+ * replaced with the component output and its children are passed as
+ * `props.children`.
+ *
+ * @param strings - Template strings.
+ * @param values - Runtime values. Only used to detect component tag positions.
+ * @returns Compiled template and static part metadata.
+ *
+ * @example Input
+ * ```ts
+ * html`<${Button} tone="primary">Save</${Button}>`
+ * ```
+ *
+ * @example Generated shape
+ * ```html
+ * <template data-fabrica-component="0" tone="primary">Save</template>
+ * ```
+ */
 export function getCompiledTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
   return getCompiledTemplateWithMode(strings, values, false);
 }
 
+/**
+ * Gets a compiled micro-JSX template from cache or compiles a new one.
+ *
+ * @remarks
+ * Micro-JSX supports registered uppercase component tags such as `<Panel />`
+ * while leaving HTML comments alone. Commented components therefore behave like
+ * React comments: `<!-- <Panel /> -->` remains a browser comment and does not
+ * mount the component.
+ *
+ * @param strings - Template strings.
+ * @param values - Runtime values.
+ * @returns Compiled template and static part metadata.
+ */
 export function getCompiledJsxTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
   return getCompiledTemplateWithMode(strings, values, true);
 }
@@ -27,7 +72,6 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
 
   const template = document.createElement("template");
   template.innerHTML = buildTemplateSource(strings, values, { jsx });
-  removeUserAuthoredComments(template.content);
 
   const parts = compileParts(template.content);
   const compiled: CompiledTemplate = { template, parts };
@@ -44,13 +88,10 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
  *
  * @param strings - Static template chunks.
  * @param values - Runtime values.
+ * @param options - Compiler mode options.
  * @returns HTML source with markers.
  */
-export function buildTemplateSource(
-  strings: TemplateStringsArray,
-  values: readonly RenderValue[] = [],
-  options: { jsx?: boolean } = {},
-): string {
+export function buildTemplateSource(strings: TemplateStringsArray, values: readonly RenderValue[] = [], options: { jsx?: boolean } = {}): string {
   let source = "";
   let skipNextPrefix = "";
 
@@ -69,14 +110,13 @@ export function buildTemplateSource(
     }
 
     const value = values[index];
-    const canBeComponent = isComponent(value) || typeof value === "function";
 
-    if (canBeComponent && chunk.endsWith("<")) {
+    if (isComponentTagValue(value) && chunk.endsWith("<")) {
       const nextChunk = strings[index + 1] ?? "";
       const selfClose = nextChunk.match(/^\s*\/\s*>/);
 
       if (selfClose) {
-        source += `template data-fabrica-component="${index}"></template`;
+        source += `template data-fabrica-component="${index}"></template>`;
         skipNextPrefix = selfClose[0];
         continue;
       }
@@ -85,7 +125,7 @@ export function buildTemplateSource(
       continue;
     }
 
-    if (canBeComponent && chunk.endsWith("</")) {
+    if (isComponentTagValue(value) && chunk.endsWith("</")) {
       source += "template";
       continue;
     }
@@ -95,29 +135,72 @@ export function buildTemplateSource(
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
-  const uncommented = stripReactStyleComments(stripHtmlComments(source));
-
-  return options.jsx ? transformMicroJsxChunk(uncommented) : uncommented;
+  return options.jsx ? transformMicroJsxChunk(source) : source;
 }
 
-function transformMicroJsxChunk(chunk: string): string {
+function isComponentTagValue(value: unknown): boolean {
+  return typeof value === "function";
+}
+
+/**
+ * Rewrites uppercase micro-JSX component tags to component placeholders.
+ *
+ * @remarks
+ * HTML comments are preserved before rewriting, so commented component tags do
+ * not become live placeholders. This keeps `jsx.html` aligned with the React
+ * mental model where commented component markup is inert.
+ *
+ * @param chunk - Source HTML.
+ * @returns Source with component placeholders.
+ */
+export function transformMicroJsxChunk(chunk: string): string {
   if (!chunk || (chunk.indexOf("<") === -1 && chunk.indexOf("</") === -1)) {
     return chunk;
   }
 
-  let output = rewriteExplicitComponentTags(chunk);
+  return transformOutsideHtmlComments(chunk, (source) => {
+    let output = rewriteExplicitComponentTags(source);
 
-  output = output.replace(
-    new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "g"),
-    (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}></template>`,
-  );
+    output = output.replace(
+      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "g"),
+      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}></template>`,
+    );
 
-  output = output.replace(
-    new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "g"),
-    (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}>`,
-  );
+    output = output.replace(
+      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "g"),
+      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}>`,
+    );
 
-  output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "g"), "</template>");
+    output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "g"), "</template>");
+
+    return output;
+  });
+}
+
+function transformOutsideHtmlComments(source: string, transform: (chunk: string) => string): string {
+  let output = "";
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const commentStart = source.indexOf("<!--", cursor);
+
+    if (commentStart === -1) {
+      output += transform(source.slice(cursor));
+      break;
+    }
+
+    output += transform(source.slice(cursor, commentStart));
+
+    const commentEnd = source.indexOf("-->", commentStart + 4);
+
+    if (commentEnd === -1) {
+      output += source.slice(commentStart);
+      break;
+    }
+
+    output += source.slice(commentStart, commentEnd + 3);
+    cursor = commentEnd + 3;
+  }
 
   return output;
 }
@@ -127,32 +210,6 @@ function rewriteExplicitComponentTags(chunk: string): string {
     .replace(/<f-component\b([^<>]*?)\/\s*>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}></template>`)
     .replace(/<f-component\b([^<>]*?)>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}>`)
     .replace(/<\/f-component\s*>/g, "</template>");
-}
-
-function stripHtmlComments(source: string): string {
-  return source.replace(/<!--(?!fabrica:text:)[\s\S]*?-->/g, "");
-}
-
-function stripReactStyleComments(source: string): string {
-  return source.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
-}
-
-function removeUserAuthoredComments(root: DocumentFragment): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
-  const comments: Comment[] = [];
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Comment;
-    const value = node.nodeValue ?? "";
-
-    if (!value.startsWith(TEXT_MARKER_PREFIX)) {
-      comments.push(node);
-    }
-  }
-
-  for (let index = 0; index < comments.length; index += 1) {
-    comments[index].remove();
-  }
 }
 
 function escapeComponentName(name: string): string {
@@ -185,6 +242,12 @@ export function compileParts(root: DocumentFragment): TemplatePart[] {
   return parts;
 }
 
+/**
+ * Compiles child comment markers.
+ *
+ * @param root - Template root.
+ * @param parts - Parts accumulator.
+ */
 function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
 
@@ -200,6 +263,12 @@ function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void 
   }
 }
 
+/**
+ * Compiles attribute markers.
+ *
+ * @param root - Template root.
+ * @param parts - Parts accumulator.
+ */
 function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
 
@@ -226,13 +295,19 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
   }
 }
 
+/**
+ * Compiles component placeholders created by component-tag syntax.
+ *
+ * @param root - Template root.
+ * @param parts - Parts accumulator.
+ */
 function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): void {
   const templates = Array.from(
     root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]"),
   );
 
   for (let index = 0; index < templates.length; index += 1) {
-    const element = templates[index] as HTMLTemplateElement;
+    const element = templates[index];
     const rawIndex = element.getAttribute("data-fabrica-component");
     const rawName = element.getAttribute("data-fabrica-component-name") || element.getAttribute("name") || "";
     const componentIndex = rawIndex == null ? -1 : Number(rawIndex);
@@ -241,10 +316,21 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
       continue;
     }
 
-    parts.push({ type: "component", index: componentIndex, path: getNodePath(root, element), name: rawName || undefined });
+    parts.push({
+      type: "component",
+      index: componentIndex,
+      path: getNodePath(root, element),
+      name: rawName || undefined,
+    });
   }
 }
 
+/**
+ * Reads a marker index from an attribute value.
+ *
+ * @param value - Attribute value.
+ * @returns Marker index or -1.
+ */
 function getAttributeMarkerIndex(value: string): number {
   const start = value.indexOf(ATTR_MARKER_PREFIX);
 
@@ -255,6 +341,13 @@ function getAttributeMarkerIndex(value: string): number {
   return Number(value.slice(start + ATTR_MARKER_PREFIX.length).split(ATTR_MARKER_SUFFIX)[0]);
 }
 
+/**
+ * Builds a stable child-index path to a node.
+ *
+ * @param root - Root node.
+ * @param node - Target node.
+ * @returns Path indexes.
+ */
 export function getNodePath(root: Node, node: Node): number[] {
   const path: number[] = [];
   let current: Node | null = node;
@@ -274,6 +367,13 @@ export function getNodePath(root: Node, node: Node): number[] {
   return path;
 }
 
+/**
+ * Resolves a previously compiled node path inside a cloned fragment.
+ *
+ * @param root - Cloned root.
+ * @param path - Child-index path.
+ * @returns Resolved node or null.
+ */
 export function resolvePath(root: Node, path: readonly number[]): Node | null {
   let current: Node | null = root;
 
@@ -294,6 +394,13 @@ export function resolvePath(root: Node, path: readonly number[]): Node | null {
   return current;
 }
 
+/**
+ * Sorts paths from deepest/right-most to shallowest/left-most.
+ *
+ * @param left - Left path.
+ * @param right - Right path.
+ * @returns Sort order.
+ */
 export function comparePathsReverse(left: readonly number[], right: readonly number[]): number {
   const maxLength = Math.max(left.length, right.length);
 
@@ -311,7 +418,7 @@ export function comparePathsReverse(left: readonly number[], right: readonly num
 
 function indexOfChild(parentNode: Node, child: Node): number {
   let index = 0;
-  let current: ChildNode | null = parentNode.firstChild;
+  let current = parentNode.firstChild;
 
   while (current && current !== child) {
     index += 1;

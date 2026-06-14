@@ -5,10 +5,10 @@ import { debugState } from "./debug";
 import { registerCleanup } from "./dom-cleanup";
 import { appendValue } from "./dom";
 import { ref } from "./directives";
-import { registerComponent } from "./component-registry";
-import type { Cleanup, Component, ComponentContext, ComponentRenderRequest, RenderValue } from "./types";
+import type { Cleanup, Component, ComponentContext, ComponentProps, ComponentRenderRequest, RenderValue } from "./types";
 
 let componentId = 0;
+const componentRegistry = new Map<string, Component<ComponentProps>>();
 
 /**
  * Creates a reusable UI component with a Broto ownership boundary.
@@ -26,6 +26,7 @@ let componentId = 0;
  * - pass `children` from direct calls or component-tag composition
  * - isolate errors for `boundary()`
  * - keep DOM persistent and update only fine-grained bindings
+ * - register named components so `jsx.html` can resolve `<Panel />` syntax
  *
  * @param factory - Component factory.
  * @returns Branded component function.
@@ -67,10 +68,25 @@ let componentId = 0;
  * });
  * ```
  */
-export function component<Props extends object = Record<string, never>>(
+export function component<Props extends object = ComponentProps>(
   factory: (props: Props & { children?: RenderValue | readonly RenderValue[] }, context: ComponentContext) => RenderValue,
+): Component<Props>;
+export function component<Props extends object = ComponentProps>(
+  name: string,
+  factory: (props: Props & { children?: RenderValue | readonly RenderValue[] }, context: ComponentContext) => RenderValue,
+): Component<Props>;
+export function component<Props extends object = ComponentProps>(
+  nameOrFactory: string | ((props: Props & { children?: RenderValue | readonly RenderValue[] }, context: ComponentContext) => RenderValue),
+  maybeFactory?: (props: Props & { children?: RenderValue | readonly RenderValue[] }, context: ComponentContext) => RenderValue,
 ): Component<Props> {
-  const displayName = factory.name || "AnonymousComponent";
+  const explicitName = typeof nameOrFactory === "string" ? nameOrFactory.trim() : "";
+  const factory = typeof nameOrFactory === "function" ? nameOrFactory : maybeFactory;
+
+  if (typeof factory !== "function") {
+    throw new TypeError("[Fabrica] component() expects a factory function.");
+  }
+
+  const displayName = explicitName || factory.name || "AnonymousComponent";
 
   const renderComponent = ((props?: Props & { children?: RenderValue | readonly RenderValue[] }): ComponentRenderRequest<Props> => ({
     __kind: "componentRender",
@@ -88,6 +104,77 @@ export function component<Props extends object = Record<string, never>>(
   }
 
   return renderComponent;
+}
+
+/**
+ * Registers a component name for `jsx.html` uppercase component tags.
+ *
+ * @remarks
+ * Local JavaScript variable names do not exist at runtime inside template
+ * strings, so named micro-JSX tags such as `<Panel />` resolve through this
+ * registry. `component(function Panel(){})` registers automatically. Plain
+ * functions from adapters can also be registered explicitly when needed.
+ *
+ * @param name - Uppercase component name used in `jsx.html`.
+ * @param componentValue - Fabrica component or component-like function.
+ * @returns The same component value for fluent exports.
+ */
+export function registerComponent<Props extends object = ComponentProps>(name: string, componentValue: Component<Props>): Component<Props>;
+export function registerComponent<Props extends ComponentProps = ComponentProps>(
+  name: string,
+  componentValue: (props?: Props & { children?: RenderValue | readonly RenderValue[] }) => unknown,
+): (props?: Props & { children?: RenderValue | readonly RenderValue[] }) => unknown;
+export function registerComponent(name: string, componentValue: unknown): unknown {
+  const normalized = normalizeComponentName(name);
+
+  if (!normalized) {
+    throw new Error("[Fabrica] registerComponent() needs a non-empty name.");
+  }
+
+  if (typeof componentValue !== "function") {
+    throw new TypeError("[Fabrica] registerComponent() expects a function component.");
+  }
+
+  componentRegistry.set(normalized, componentValue as Component<ComponentProps>);
+  return componentValue;
+}
+
+/**
+ * Removes a component from the `jsx.html` component registry.
+ *
+ * @param name - Component name.
+ * @returns Whether a component was removed.
+ */
+export function unregisterComponent(name: string): boolean {
+  return componentRegistry.delete(normalizeComponentName(name));
+}
+
+/**
+ * Resolves a component registered for `jsx.html` tags.
+ *
+ * @param name - Component name.
+ * @returns Registered component or undefined.
+ */
+export function resolveComponent(name: string): Component<ComponentProps> | undefined {
+  return componentRegistry.get(normalizeComponentName(name));
+}
+
+/**
+ * Returns a copy of registered components for debugging and docs.
+ *
+ * @returns Component registry snapshot.
+ */
+export function listComponents(): Map<string, Component<ComponentProps>> {
+  return new Map(componentRegistry);
+}
+
+/** Clears all named components from the micro-JSX registry. */
+export function clearComponents(): void {
+  componentRegistry.clear();
+}
+
+function normalizeComponentName(name: string): string {
+  return String(name || "").trim();
 }
 
 /**

@@ -1,19 +1,62 @@
 import { PART_END, PART_START } from "./constants";
 import { debugState } from "./debug";
-import { clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "./dom-cleanup";
+import {
+  clearRange,
+  disposeRange,
+  disposeTree,
+  moveRangeBefore,
+  registerCleanup,
+  removeRange,
+} from "./dom-cleanup";
 import { bindEvent } from "./events";
-import { isClassMapDirective, isComponent, isComponentRenderRequest, isCssClassArtifact, isCssTextArtifact, isDirective, isDomBag, isDomElement, isDomNode, isRawHtml, isRefDirective, isRenderablePayload, isSignal, isStyleMapDirective } from "./guards";
+import {
+  isClassMapDirective,
+  isComponentRenderRequest,
+  isDirective,
+  isDomBag,
+  isDomElement,
+  isDomNode,
+  isRawHtml,
+  isRefDirective,
+  isSignal,
+  isStyleMapDirective,
+} from "./guards";
 import { applyClassMap, applyStyleMap } from "./maps";
 import { batch, effect, signal } from "../broto/reactivity";
-import { createOwner, disposeOwner, getOwner, runWithOwner } from "../broto/owner";
-import { comparePathsReverse, compileParts, getCompiledJsxTemplate, getCompiledTemplate, resolvePath } from "./template";
+import {
+  createOwner,
+  disposeOwner,
+  getOwner,
+  runWithOwner,
+} from "../broto/owner";
+import {
+  comparePathsReverse,
+  compileParts,
+  getCompiledJsxTemplate,
+  getCompiledTemplate,
+  resolvePath,
+} from "./template";
 import { hasReactiveValue, readValue } from "./value";
-import { materializeComponent } from "./component";
-import { resolveComponent } from "./component-registry";
-import type { ComponentRenderRequest, Directive, DirectiveController, RenderValue, RepeatDirective, RepeatRecord, TemplatePart, VirtualRepeatDirective, WhenDirective } from "./types";
+import { materializeComponent, resolveComponent } from "./component";
+import type {
+  ComponentPayload,
+  ComponentRenderRequest,
+  Directive,
+  ElementPayload,
+  DirectiveController,
+  RenderValue,
+  RepeatDirective,
+  RepeatRecord,
+  TemplatePart,
+  VirtualRepeatDirective,
+  WhenDirective,
+} from "./types";
 
 /** Persistent root render parts keyed by container. */
-const renderStates = new WeakMap<Node, { part: ReturnType<typeof createChildPart>; dispose: () => void }>();
+const renderStates = new WeakMap<
+  Node,
+  { part: ReturnType<typeof createChildPart>; dispose: () => void }
+>();
 
 /**
  * Creates DOM from a tagged template.
@@ -27,29 +70,48 @@ const renderStates = new WeakMap<Node, { part: ReturnType<typeof createChildPart
  * const view = html`<strong>${name}</strong>`;
  * ```
  */
-export function html(strings: TemplateStringsArray, ...values: RenderValue[]): DocumentFragment {
+export function html(
+  strings: TemplateStringsArray,
+  ...values: RenderValue[]
+): DocumentFragment {
   const compiled = getCompiledTemplate(strings, values);
-  const fragment = compiled.template.content.cloneNode(true) as DocumentFragment;
+  const fragment = compiled.template.content.cloneNode(
+    true,
+  ) as DocumentFragment;
 
   applyParts(fragment, compiled.parts, values);
 
   return fragment;
 }
 
-/** Creates DOM from Fabrica micro-JSX syntax. */
-(html as typeof html & { jsx: typeof html }).jsx = function jsxTemplate(
+/**
+ * Creates DOM from Fabrica micro-JSX syntax.
+ *
+ * @remarks
+ * `jsx.html` is the preferred entrypoint because many editors highlight that
+ * shape better than `html.jsx`. The compatibility alias remains attached to
+ * `html.jsx`. Uppercase component tags are resolved from the component registry
+ * and HTML comments stay inert, so `<!-- <Panel /> -->` does not mount `Panel`.
+ *
+ * @param strings - Template strings.
+ * @param values - Dynamic values.
+ * @returns Rendered document fragment.
+ */
+(html as typeof html & { jsx: typeof html }).jsx = function jsxHtml(
   strings: TemplateStringsArray,
   ...values: RenderValue[]
 ): DocumentFragment {
   const compiled = getCompiledJsxTemplate(strings, values);
-  const fragment = compiled.template.content.cloneNode(true) as DocumentFragment;
+  const fragment = compiled.template.content.cloneNode(
+    true,
+  ) as DocumentFragment;
 
   applyParts(fragment, compiled.parts, values);
 
   return fragment;
 };
 
-/** JSX-friendly namespace: `jsx.html` keeps editor highlighting pleasant. */
+/** JSX-friendly namespace for `jsx.html` authoring. */
 export const jsx = Object.freeze({
   html: (html as typeof html & { jsx: typeof html }).jsx,
 });
@@ -67,7 +129,10 @@ export const jsx = Object.freeze({
  * dispose();
  * ```
  */
-export function render(container: Element | DocumentFragment | ShadowRoot, value: RenderValue): () => void {
+export function render(
+  container: Element | DocumentFragment | ShadowRoot,
+  value: RenderValue,
+): () => void {
   let state = renderStates.get(container);
 
   if (!state) {
@@ -122,19 +187,40 @@ export function mount(container: Node, value: RenderValue): () => void {
  * @param value - Render value.
  * @param beforeNode - Optional insertion reference.
  */
-export function appendValue(parentNode: Node | null, value: RenderValue, beforeNode: Node | null = null): void {
+export function appendValue(
+  parentNode: Node | null,
+  value: RenderValue,
+  beforeNode: Node | null = null,
+): void {
   if (!parentNode) {
     return;
   }
 
   const resolvedValue = readValue(value) as RenderValue;
 
-  if (resolvedValue == null || resolvedValue === false || resolvedValue === true) {
+  if (
+    resolvedValue == null ||
+    resolvedValue === false ||
+    resolvedValue === true
+  ) {
     return;
   }
 
   if (isComponentRenderRequest(resolvedValue)) {
-    parentNode.insertBefore(materializeComponent(resolvedValue as ComponentRenderRequest), beforeNode);
+    parentNode.insertBefore(
+      materializeComponent(resolvedValue as ComponentRenderRequest),
+      beforeNode,
+    );
+    return;
+  }
+
+  if (isElementPayload(resolvedValue)) {
+    appendValue(parentNode, materializeElementPayload(resolvedValue), beforeNode);
+    return;
+  }
+
+  if (isComponentPayload(resolvedValue)) {
+    appendValue(parentNode, materializeComponentPayload(resolvedValue) as RenderValue, beforeNode);
     return;
   }
 
@@ -163,17 +249,15 @@ export function appendValue(parentNode: Node | null, value: RenderValue, beforeN
     return;
   }
 
-  if (isRenderablePayload(resolvedValue)) {
-    parentNode.insertBefore(materializeRenderablePayload(resolvedValue), beforeNode);
-    return;
-  }
-
   if (isDomNode(resolvedValue)) {
     parentNode.insertBefore(resolvedValue, beforeNode);
     return;
   }
 
-  parentNode.insertBefore(document.createTextNode(stringifyRenderableValue(resolvedValue)), beforeNode);
+  parentNode.insertBefore(
+    document.createTextNode(String(resolvedValue)),
+    beforeNode,
+  );
 }
 
 /**
@@ -183,7 +267,11 @@ export function appendValue(parentNode: Node | null, value: RenderValue, beforeN
  * @param parts - Compiled parts.
  * @param values - Runtime values.
  */
-function applyParts(fragment: DocumentFragment, parts: readonly TemplatePart[], values: readonly RenderValue[]): void {
+function applyParts(
+  fragment: DocumentFragment,
+  parts: readonly TemplatePart[],
+  values: readonly RenderValue[],
+): void {
   const resolvedParts: Array<{ part: TemplatePart; node: Node }> = [];
   const componentPathSet = new Set<string>();
   const componentPropParts = new Map<string, Array<{ name: string; index: number }>>();
@@ -191,7 +279,11 @@ function applyParts(fragment: DocumentFragment, parts: readonly TemplatePart[], 
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index];
 
-    if (part?.type === "component") {
+    if (!part) {
+      continue;
+    }
+
+    if (part.type === "component") {
       componentPathSet.add(part.path.join("."));
     }
   }
@@ -221,7 +313,9 @@ function applyParts(fragment: DocumentFragment, parts: readonly TemplatePart[], 
     resolvedParts.push({ part, node });
   }
 
-  resolvedParts.sort((left, right) => comparePathsReverse(left.part.path, right.part.path));
+  resolvedParts.sort((left, right) =>
+    comparePathsReverse(left.part.path, right.part.path),
+  );
 
   for (let index = 0; index < resolvedParts.length; index += 1) {
     const resolved = resolvedParts[index];
@@ -233,7 +327,11 @@ function applyParts(fragment: DocumentFragment, parts: readonly TemplatePart[], 
     if (resolved.part.type === "child") {
       bindChildPart(resolved.node, values[resolved.part.index]);
     } else if (resolved.part.type === "attribute") {
-      bindAttributePart(resolved.node, resolved.part.name, values[resolved.part.index]);
+      bindAttributePart(
+        resolved.node,
+        resolved.part.name,
+        values[resolved.part.index],
+      );
     } else {
       const key = resolved.part.path.join(".");
       bindComponentPart(
@@ -260,9 +358,14 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
   registerCleanup(part.start, () => disposeOwner(owner));
 
   if (hasReactiveValue(value)) {
-    const dispose = runWithOwner(owner, () => effect(() => {
-      part.set(readValue(value) as RenderValue);
-    }, { name: "fabrica.childBinding" }));
+    const dispose = runWithOwner(owner, () =>
+      effect(
+        () => {
+          part.set(readValue(value) as RenderValue);
+        },
+        { name: "fabrica.childBinding" },
+      ),
+    );
 
     registerCleanup(part.start, dispose);
     return;
@@ -271,6 +374,125 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
   runWithOwner(owner, () => part.set(value));
 }
 
+
+function isElementPayload(value: unknown): value is ElementPayload {
+  return Boolean(value && typeof value === "object" && typeof (value as ElementPayload).tag === "string");
+}
+
+function isComponentPayload(value: unknown): value is ComponentPayload {
+  return Boolean(value && typeof value === "object" && "component" in (value as Record<string, unknown>));
+}
+
+function materializeElementPayload(payload: ElementPayload): Element {
+  const element = document.createElement(payload.tag);
+  applyPayloadProps(element, payload.props || {});
+  return element;
+}
+
+function materializeComponentPayload(payload: ComponentPayload): unknown {
+  const componentValue = payload.component;
+
+  if (typeof componentValue === "function") {
+    return callComponentLike(componentValue, payload.props || {});
+  }
+
+  return null;
+}
+
+function applyPayloadProps(element: Element, props: Record<string, unknown>): void {
+  for (const key in props) {
+    const propValue = props[key];
+
+    if (key === "children") {
+      appendValue(element, propValue as RenderValue);
+      continue;
+    }
+
+    if (key === "class" || key === "className") {
+      const className = stringifyAttributeValue("class", propValue);
+      if (className) element.setAttribute("class", className);
+      else element.removeAttribute("class");
+      continue;
+    }
+
+    if (key === "style") {
+      const styleText = stringifyAttributeValue("style", propValue);
+      if (styleText) element.setAttribute("style", styleText);
+      else element.removeAttribute("style");
+      continue;
+    }
+
+    if (key === "ref") {
+      applyPayloadRef(element, propValue);
+      continue;
+    }
+
+    if (key === "on" && propValue && typeof propValue === "object") {
+      const events = propValue as Record<string, unknown>;
+      for (const eventName in events) {
+        const listener = events[eventName];
+        if (typeof listener === "function") element.addEventListener(eventName, listener as EventListener);
+      }
+      continue;
+    }
+
+    if (key.startsWith("on") && typeof propValue === "function") {
+      element.addEventListener(key.slice(2).toLowerCase(), propValue as EventListener);
+      continue;
+    }
+
+    if (propValue == null || propValue === false) {
+      element.removeAttribute(key);
+      continue;
+    }
+
+    if (propValue === true) {
+      element.setAttribute(key, "");
+      continue;
+    }
+
+    if (!key.startsWith("data-") && !key.startsWith("aria-") && key in element) {
+      try {
+        (element as unknown as Record<string, unknown>)[key] = propValue;
+        continue;
+      } catch {}
+    }
+
+    element.setAttribute(key, stringifyAttributeValue(key, propValue));
+  }
+}
+
+function applyPayloadRef(element: Element, value: unknown): void {
+  if (typeof value === "function") {
+    const cleanup = (value as (node: Element) => void | (() => void))(element);
+    if (typeof cleanup === "function") registerCleanup(element, cleanup);
+    return;
+  }
+
+  if (value && typeof value === "object" && "current" in (value as Record<string, unknown>)) {
+    (value as { current: Element | null }).current = element;
+  }
+}
+
+function stringifyAttributeValue(name: string, value: unknown): string {
+  if (value == null || value === false) return "";
+
+  if (name === "style" && value && typeof value === "object") {
+    const styleLike = value as { cssText?: unknown; compiledCss?: unknown; value?: unknown };
+    if (typeof styleLike.cssText === "string") return styleLike.cssText;
+    if (typeof styleLike.compiledCss === "string") return styleLike.compiledCss;
+    if (typeof styleLike.value === "string") return styleLike.value;
+  }
+
+  if ((name === "class" || name === "className") && value && typeof value === "object") {
+    const classLike = value as { className?: unknown; classes?: unknown; value?: unknown };
+    if (typeof classLike.className === "string") return classLike.className;
+    if (typeof classLike.classes === "string") return classLike.classes;
+    if (typeof classLike.value === "string") return classLike.value;
+  }
+
+  return String(value);
+}
 
 /**
  * Binds a component placeholder created by `<${Component}>...</${Component}>`.
@@ -291,16 +513,9 @@ function bindComponentPart(
   }
 
   const componentName = part?.name || readComponentName(node);
-  const componentValue =
-    typeof value === "function"
-      ? value
-      : componentName
-        ? resolveComponent(componentName)
-        : undefined;
+  const componentValue = typeof value === "function" ? value : componentName ? resolveComponent(componentName) : undefined;
+  const marker = document.createComment(componentName ? `fabrica:component-tag:${componentName}` : "fabrica:component-tag");
 
-  const marker = document.createComment(
-    componentName ? `fabrica:component-tag:${componentName}` : "fabrica:component-tag",
-  );
   node.parentNode?.insertBefore(marker, node);
   node.remove();
 
@@ -320,15 +535,20 @@ function bindComponentPart(
 
   applyParts(children, childParts, values);
 
-  const componentProps = {
+  const output = callComponentLike(componentValue, {
     ...props,
     children,
-  };
-  const output = isComponent(componentValue)
-    ? componentValue(componentProps as never)
-    : (componentValue as (props: Record<string, unknown>) => RenderValue)(componentProps);
+  });
 
   childPart.set(output as RenderValue);
+}
+
+function callComponentLike(componentValue: unknown, props: Record<string, unknown>): unknown {
+  if (typeof componentValue !== "function") {
+    return null;
+  }
+
+  return (componentValue as (nextProps?: Record<string, unknown>) => unknown)(props);
 }
 
 function readComponentName(template: HTMLTemplateElement): string {
@@ -389,7 +609,9 @@ function normalizeComponentPropName(name: string): string {
  * @param template - Component placeholder template.
  * @returns Props object.
  */
-function readStaticComponentProps(template: HTMLTemplateElement): Record<string, unknown> {
+function readStaticComponentProps(
+  template: HTMLTemplateElement,
+): Record<string, unknown> {
   const props: Record<string, unknown> = {};
 
   for (let index = 0; index < template.attributes.length; index += 1) {
@@ -417,7 +639,11 @@ function readStaticComponentProps(template: HTMLTemplateElement): Record<string,
  * @param marker - Template marker node.
  * @returns Child part controller.
  */
-function createChildPart(marker: Node): { start: Comment; end: Comment; set(value: RenderValue | undefined): void } {
+function createChildPart(marker: Node): {
+  start: Comment;
+  end: Comment;
+  set(value: RenderValue | undefined): void;
+} {
   const start = document.createComment(PART_START);
   const end = document.createComment(PART_END);
   const parentNode = marker.parentNode;
@@ -443,10 +669,17 @@ function createChildPart(marker: Node): { start: Comment; end: Comment; set(valu
       const resolvedValue = readValue(value) as RenderValue;
 
       if (isDirective(resolvedValue)) {
-        if (!directiveController || directiveController.kind !== resolvedValue.kind) {
+        if (
+          !directiveController ||
+          directiveController.kind !== resolvedValue.kind
+        ) {
           directiveController?.dispose();
           clearRange(start, end);
-          directiveController = createDirectiveController(start, end, resolvedValue);
+          directiveController = createDirectiveController(
+            start,
+            end,
+            resolvedValue,
+          );
           currentType = `directive:${resolvedValue.kind}`;
           currentText = "";
           textNode = null;
@@ -462,7 +695,11 @@ function createChildPart(marker: Node): { start: Comment; end: Comment; set(valu
         directiveController = null;
       }
 
-      if (resolvedValue == null || resolvedValue === false || resolvedValue === true) {
+      if (
+        resolvedValue == null ||
+        resolvedValue === false ||
+        resolvedValue === true
+      ) {
         if (currentType !== "empty") {
           clearRange(start, end);
           currentType = "empty";
@@ -504,17 +741,6 @@ function createChildPart(marker: Node): { start: Comment; end: Comment; set(valu
         return;
       }
 
-      if (isRenderablePayload(resolvedValue)) {
-        clearRange(start, end);
-        const element = materializeRenderablePayload(resolvedValue);
-        appendValue(end.parentNode, element, end);
-        currentType = "payload";
-        currentText = "";
-        textNode = null;
-        currentNode = element;
-        return;
-      }
-
       if (isDomNode(resolvedValue)) {
         if (currentType === "node" && currentNode === resolvedValue) {
           return;
@@ -529,7 +755,7 @@ function createChildPart(marker: Node): { start: Comment; end: Comment; set(valu
         return;
       }
 
-      const nextText = stringifyRenderableValue(resolvedValue);
+      const nextText = String(resolvedValue);
 
       if (currentType === "text" && textNode) {
         if (currentText !== nextText) {
@@ -557,7 +783,11 @@ function createChildPart(marker: Node): { start: Comment; end: Comment; set(valu
  * @param rawName - Raw attribute name.
  * @param value - Runtime value.
  */
-function bindAttributePart(node: Node, rawName: string, value: RenderValue | undefined): void {
+function bindAttributePart(
+  node: Node,
+  rawName: string,
+  value: RenderValue | undefined,
+): void {
   if (!isDomElement(node)) {
     return;
   }
@@ -595,9 +825,16 @@ function bindAttributePart(node: Node, rawName: string, value: RenderValue | und
   bindPlainAttributePart(node, rawName, value);
 }
 
-function bindPlainAttributePart(element: Element, name: string, value: RenderValue | undefined): void {
+function bindPlainAttributePart(
+  element: Element,
+  name: string,
+  value: RenderValue | undefined,
+): void {
   let previous: unknown = Symbol("initial");
-  let mapState: ReturnType<typeof applyClassMap> | ReturnType<typeof applyStyleMap> | null = null;
+  let mapState:
+    | ReturnType<typeof applyClassMap>
+    | ReturnType<typeof applyStyleMap>
+    | null = null;
 
   const update = (): void => {
     const next = readValue(value);
@@ -612,21 +849,6 @@ function bindPlainAttributePart(element: Element, name: string, value: RenderVal
       return;
     }
 
-    if (isCssClassArtifact(next) && (name === "class" || name === "className")) {
-      element.setAttribute("class", next.className);
-      previous = next.className;
-      return;
-    }
-
-    if (isCssTextArtifact(next) && name === "style") {
-      const cssText = readCssText(next);
-      if (!Object.is(previous, cssText)) {
-        (element as HTMLElement).style.cssText = cssText;
-        previous = cssText;
-      }
-      return;
-    }
-
     if (Object.is(previous, next)) {
       return;
     }
@@ -638,7 +860,7 @@ function bindPlainAttributePart(element: Element, name: string, value: RenderVal
       return;
     }
 
-    element.setAttribute(name, stringifyRenderableValue(next));
+    element.setAttribute(name, stringifyAttributeValue(name, next));
   };
 
   const dispose = hasReactiveValue(value) ? effect(update) : (update(), null);
@@ -648,7 +870,11 @@ function bindPlainAttributePart(element: Element, name: string, value: RenderVal
   }
 }
 
-function bindPropertyPart(element: Element, name: string, value: RenderValue | undefined): void {
+function bindPropertyPart(
+  element: Element,
+  name: string,
+  value: RenderValue | undefined,
+): void {
   let previous: unknown = Symbol("initial");
 
   const update = (): void => {
@@ -669,7 +895,11 @@ function bindPropertyPart(element: Element, name: string, value: RenderValue | u
   }
 }
 
-function bindBooleanAttributePart(element: Element, name: string, value: RenderValue | undefined): void {
+function bindBooleanAttributePart(
+  element: Element,
+  name: string,
+  value: RenderValue | undefined,
+): void {
   let previous: boolean | null = null;
 
   const update = (): void => {
@@ -695,7 +925,11 @@ function bindBooleanAttributePart(element: Element, name: string, value: RenderV
   }
 }
 
-function bindConditionalClassPart(element: Element, className: string, value: RenderValue | undefined): void {
+function bindConditionalClassPart(
+  element: Element,
+  className: string,
+  value: RenderValue | undefined,
+): void {
   let previous: boolean | null = null;
 
   const update = (): void => {
@@ -716,176 +950,11 @@ function bindConditionalClassPart(element: Element, className: string, value: Re
   }
 }
 
-function materializeRenderablePayload(payload: { tag: string; props?: Record<string, unknown> | null }): Element {
-  const element = document.createElement(payload.tag);
-  applyRenderableProps(element, payload.props || {});
-  return element;
-}
-
-function applyRenderableProps(element: Element, props: Record<string, unknown>): void {
-  for (const key in props) {
-    const value = readValue(props[key] as RenderValue) as unknown;
-
-    if (value == null || value === false) {
-      continue;
-    }
-
-    if (key === "children") {
-      appendValue(element, value as RenderValue);
-      continue;
-    }
-
-    if (key === "text" || key === "textContent") {
-      element.textContent = stringifyRenderableValue(value);
-      continue;
-    }
-
-    if (key === "html" || key === "innerHTML" || key === "unsafeHTML") {
-      element.innerHTML = stringifyRenderableValue(value);
-      continue;
-    }
-
-    if (key === "class" || key === "className") {
-      element.setAttribute("class", stringifyClassValue(value));
-      continue;
-    }
-
-    if (key === "style") {
-      applyStyleValue(element, value);
-      continue;
-    }
-
-    if (key === "attrs" && value && typeof value === "object") {
-      applyRenderableProps(element, value as Record<string, unknown>);
-      continue;
-    }
-
-    if (key === "dataset" && value && typeof value === "object" && element instanceof HTMLElement) {
-      for (const dataKey in value as Record<string, unknown>) {
-        const dataValue = readValue((value as Record<string, unknown>)[dataKey] as RenderValue);
-        if (dataValue == null) delete element.dataset[dataKey];
-        else element.dataset[dataKey] = stringifyRenderableValue(dataValue);
-      }
-      continue;
-    }
-
-    if (key === "ref") {
-      if (typeof value === "function") {
-        const cleanup = (value as (node: Element) => void | (() => void))(element);
-        if (typeof cleanup === "function") registerCleanup(element, cleanup);
-      } else if (value && typeof value === "object" && "current" in value) {
-        (value as { current: Element | null }).current = element;
-      }
-      continue;
-    }
-
-    if (key === "on" && value && typeof value === "object") {
-      for (const eventName in value as Record<string, unknown>) {
-        const listener = (value as Record<string, unknown>)[eventName];
-        if (typeof listener === "function") element.addEventListener(eventName, listener as EventListener);
-      }
-      continue;
-    }
-
-    if (key.startsWith("on") && typeof value === "function") {
-      element.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
-      continue;
-    }
-
-    setPropertyOrAttribute(element, key, value);
-  }
-}
-
-function setPropertyOrAttribute(element: Element, name: string, value: unknown): void {
-  if (value == null || value === false) {
-    element.removeAttribute(name);
-    if (name in element && typeof (element as unknown as Record<string, unknown>)[name] === "boolean") {
-      (element as unknown as Record<string, unknown>)[name] = false;
-    }
-    return;
-  }
-
-  if (value === true) {
-    element.setAttribute(name, "");
-    if (name in element && typeof (element as unknown as Record<string, unknown>)[name] === "boolean") {
-      (element as unknown as Record<string, unknown>)[name] = true;
-    }
-    return;
-  }
-
-  if (!name.startsWith("data-") && !name.startsWith("aria-") && name in element) {
-    try {
-      (element as unknown as Record<string, unknown>)[name] = value;
-      return;
-    } catch {
-      element.setAttribute(name, stringifyRenderableValue(value));
-      return;
-    }
-  }
-
-  element.setAttribute(name, stringifyRenderableValue(value));
-}
-
-function applyStyleValue(element: Element, value: unknown): void {
-  if (isCssTextArtifact(value)) {
-    (element as HTMLElement).style.cssText = readCssText(value);
-    return;
-  }
-
-  if (typeof value === "string") {
-    element.setAttribute("style", value);
-    return;
-  }
-
-  if (!value || typeof value !== "object") {
-    return;
-  }
-
-  const style = (element as HTMLElement).style;
-
-  for (const key in value as Record<string, unknown>) {
-    const item = readValue((value as Record<string, unknown>)[key] as RenderValue);
-
-    if (item == null || item === false) {
-      style.removeProperty(toKebabCase(key));
-      continue;
-    }
-
-    style.setProperty(key.startsWith("--") ? key : toKebabCase(key), stringifyRenderableValue(item));
-  }
-}
-
-function stringifyClassValue(value: unknown): string {
-  if (isCssClassArtifact(value)) return value.className;
-  if (Array.isArray(value)) return value.map(stringifyClassValue).filter(Boolean).join(" ");
-
-  if (value && typeof value === "object") {
-    return Object.keys(value as Record<string, unknown>)
-      .filter((key) => Boolean((value as Record<string, unknown>)[key]))
-      .join(" ");
-  }
-
-  return stringifyRenderableValue(value);
-}
-
-function stringifyRenderableValue(value: unknown): string {
-  if (isCssClassArtifact(value)) return value.className;
-  if (isCssTextArtifact(value)) return readCssText(value);
-  return String(value ?? "");
-}
-
-function readCssText(value: unknown): string {
-  if (!value || typeof value !== "object") return "";
-  const artifact = value as { cssText?: string; compiledCss?: string; toString?: () => string };
-  return artifact.cssText || artifact.compiledCss || (typeof artifact.toString === "function" ? artifact.toString() : "");
-}
-
-function toKebabCase(value: string): string {
-  if (value.startsWith("--")) return value;
-  return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-}
-
-function createDirectiveController(start: Comment, end: Comment, directive: Directive): DirectiveController {
+function createDirectiveController(
+  start: Comment,
+  end: Comment,
+  directive: Directive,
+): DirectiveController {
   if (directive.kind === "when") {
     return createWhenController(start, end);
   }
@@ -907,7 +976,10 @@ function createDirectiveController(start: Comment, end: Comment, directive: Dire
   };
 }
 
-function createWhenController(start: Comment, end: Comment): DirectiveController {
+function createWhenController(
+  start: Comment,
+  end: Comment,
+): DirectiveController {
   let currentDirective: WhenDirective | null = null;
   let disposeEffect: (() => void) | null = null;
   let previousBranch = "";
@@ -936,7 +1008,9 @@ function createWhenController(start: Comment, end: Comment): DirectiveController
         previousBranch = branch;
         clearRange(start, end);
 
-        const factory = condition ? currentDirective.truthy : currentDirective.falsy;
+        const factory = condition
+          ? currentDirective.truthy
+          : currentDirective.falsy;
 
         if (factory) {
           appendValue(end.parentNode, factory(), end);
@@ -953,7 +1027,10 @@ function createWhenController(start: Comment, end: Comment): DirectiveController
   };
 }
 
-function createRepeatController(start: Comment, end: Comment): DirectiveController {
+function createRepeatController(
+  start: Comment,
+  end: Comment,
+): DirectiveController {
   const records = new Map<PropertyKey, RepeatRecord>();
   let currentDirective: RepeatDirective<unknown, PropertyKey> | null = null;
   let disposeItems: (() => void) | null = null;
@@ -996,7 +1073,9 @@ function createRepeatController(start: Comment, end: Comment): DirectiveControll
         return;
       }
 
-      disposeItems = hasReactiveValue(currentDirective.items) ? effect(updateList) : (updateList(), null);
+      disposeItems = hasReactiveValue(currentDirective.items)
+        ? effect(updateList)
+        : (updateList(), null);
 
       if (disposeItems) {
         registerCleanup(start, disposeItems);
@@ -1016,9 +1095,13 @@ function createRepeatController(start: Comment, end: Comment): DirectiveControll
   };
 }
 
-function createVirtualRepeatController(start: Comment, end: Comment): DirectiveController {
+function createVirtualRepeatController(
+  start: Comment,
+  end: Comment,
+): DirectiveController {
   const records = new Map<PropertyKey, RepeatRecord>();
-  let currentDirective: VirtualRepeatDirective<unknown, PropertyKey> | null = null;
+  let currentDirective: VirtualRepeatDirective<unknown, PropertyKey> | null =
+    null;
   let disposeItems: (() => void) | null = null;
   let scroller: HTMLDivElement | null = null;
   let topSpacer: HTMLDivElement | null = null;
@@ -1039,7 +1122,10 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
     contentEnd = document.createComment("fabrica:virtual:end");
 
     scroller.style.overflow = "auto";
-    scroller.style.maxHeight = typeof currentDirective.height === "number" ? `${currentDirective.height}px` : String(currentDirective.height);
+    scroller.style.maxHeight =
+      typeof currentDirective.height === "number"
+        ? `${currentDirective.height}px`
+        : String(currentDirective.height);
     scroller.style.contain = "content";
     topSpacer.style.pointerEvents = "none";
     bottomSpacer.style.pointerEvents = "none";
@@ -1047,16 +1133,20 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
     scroller.append(topSpacer, contentStart, contentEnd, bottomSpacer);
     end.parentNode.insertBefore(scroller, end);
 
-    scroller.addEventListener("scroll", () => {
-      if (scrollFrame) {
-        return;
-      }
+    scroller.addEventListener(
+      "scroll",
+      () => {
+        if (scrollFrame) {
+          return;
+        }
 
-      scrollFrame = requestAnimationFrame(() => {
-        scrollFrame = 0;
-        updateWindow();
-      });
-    }, { passive: true });
+        scrollFrame = requestAnimationFrame(() => {
+          scrollFrame = 0;
+          updateWindow();
+        });
+      },
+      { passive: true },
+    );
   };
 
   const updateWindow = (): void => {
@@ -1066,18 +1156,31 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
 
     ensureNodes();
 
-    if (!scroller || !topSpacer || !contentStart || !contentEnd || !bottomSpacer) {
+    if (
+      !scroller ||
+      !topSpacer ||
+      !contentStart ||
+      !contentEnd ||
+      !bottomSpacer
+    ) {
       return;
     }
 
     const resolvedItems = readValue(currentDirective.items);
     const items = Array.isArray(resolvedItems) ? resolvedItems : [];
     const itemHeight = Math.max(1, currentDirective.itemHeight);
-    const viewportHeight = scroller.clientHeight || (typeof currentDirective.height === "number" ? currentDirective.height : itemHeight * 12);
+    const viewportHeight =
+      scroller.clientHeight ||
+      (typeof currentDirective.height === "number"
+        ? currentDirective.height
+        : itemHeight * 12);
     const firstVisible = Math.floor(scroller.scrollTop / itemHeight);
     const visibleCount = Math.ceil(viewportHeight / itemHeight);
     const from = Math.max(0, firstVisible - currentDirective.overscan);
-    const to = Math.min(items.length, firstVisible + visibleCount + currentDirective.overscan);
+    const to = Math.min(
+      items.length,
+      firstVisible + visibleCount + currentDirective.overscan,
+    );
     const visibleItems = items.slice(from, to);
 
     debugState.virtualWindows += 1;
@@ -1088,7 +1191,8 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
       __kind: "directive",
       kind: "repeat",
       items: visibleItems,
-      key: (item, visibleIndex) => currentDirective?.key(item, from + visibleIndex) ?? visibleIndex,
+      key: (item, visibleIndex) =>
+        currentDirective?.key(item, from + visibleIndex) ?? visibleIndex,
       render: currentDirective.render,
       empty: currentDirective.empty,
     };
@@ -1099,7 +1203,10 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
   return {
     kind: "virtualRepeat",
     update(nextDirective: Directive): void {
-      currentDirective = nextDirective as VirtualRepeatDirective<unknown, PropertyKey>;
+      currentDirective = nextDirective as VirtualRepeatDirective<
+        unknown,
+        PropertyKey
+      >;
       ensureNodes();
 
       if (disposeItems) {
@@ -1107,7 +1214,9 @@ function createVirtualRepeatController(start: Comment, end: Comment): DirectiveC
         return;
       }
 
-      disposeItems = hasReactiveValue(currentDirective.items) ? effect(updateWindow) : (updateWindow(), null);
+      disposeItems = hasReactiveValue(currentDirective.items)
+        ? effect(updateWindow)
+        : (updateWindow(), null);
 
       if (disposeItems) {
         registerCleanup(start, disposeItems);
@@ -1196,11 +1305,19 @@ function createRepeatRecord(
   item: unknown,
   index: number,
   key: PropertyKey,
-  renderItem: (context: { item: ReturnType<typeof signal<unknown>>; index: ReturnType<typeof signal<number>>; key: ReturnType<typeof signal<PropertyKey>> }) => RenderValue,
+  renderItem: (context: {
+    item: ReturnType<typeof signal<unknown>>;
+    index: ReturnType<typeof signal<number>>;
+    key: ReturnType<typeof signal<PropertyKey>>;
+  }) => RenderValue,
 ): RepeatRecord {
   const start = document.createComment("fabrica:item:start");
   const end = document.createComment("fabrica:item:end");
-  const context = { item: signal(item), index: signal(index), key: signal(key) };
+  const context = {
+    item: signal(item),
+    index: signal(index),
+    key: signal(key),
+  };
   const fragment = document.createDocumentFragment();
 
   fragment.append(start);

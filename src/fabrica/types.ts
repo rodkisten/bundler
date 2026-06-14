@@ -28,26 +28,10 @@ export type RenderValue =
   | Directive
   | RawHtml
   | DomBag
+  | ElementPayload
+  | ComponentPayload
   | Component
-  | ComponentRenderRequest
-  | RenderablePayload
-  | CssLikeArtifact;
-
-
-/** Payload shape returned by Fabrica Elements/Cipó adapters in non-DOM modes. */
-export type RenderablePayload = {
-  readonly tag: string;
-  readonly props?: Record<string, unknown> | null;
-};
-
-/** Structural style artifact shape produced by Cipó. */
-export type CssLikeArtifact = {
-  readonly kind?: string;
-  readonly className?: string;
-  readonly cssText?: string;
-  readonly compiledCss?: string;
-  toString?: () => string;
-};
+  | ComponentRenderRequest;
 
 /** Runtime debug counters. */
 export type DebugSnapshot = {
@@ -174,21 +158,36 @@ export type BoundaryOptions = {
   onError?: (error: unknown) => void;
 };
 
-/** Reusable component function. */
+/** Reusable component children. */
 export type ComponentChildren = RenderValue | readonly RenderValue[];
 
+/** Component props accepted by open component surfaces. */
+export type ComponentProps = Record<string, unknown>;
+
 /** A deferred component invocation used by component tags and direct composition. */
-export type ComponentRenderRequest<Props extends object = Record<string, never>> = {
+export type ComponentRenderRequest<Props extends object = ComponentProps> = {
   readonly __kind: "componentRender";
   readonly component: Component<Props>;
   readonly props: Props & { children?: ComponentChildren };
 };
 
 /** Reusable component function. */
-export type Component<Props extends object = Record<string, never>> = ((props?: Props & { children?: ComponentChildren }) => ComponentRenderRequest<Props>) & {
+export type Component<Props extends object = ComponentProps> = ((props?: Props & { children?: ComponentChildren }) => ComponentRenderRequest<Props>) & {
   readonly __kind: "component";
   readonly displayName?: string;
   readonly factory?: (props: Props & { children?: ComponentChildren }, context: ComponentContext) => RenderValue;
+};
+
+/** Plain element payload emitted by framework adapters such as Cipó payload mode. */
+export type ElementPayload = {
+  readonly tag: string;
+  readonly props?: ComponentProps | null;
+};
+
+/** Plain component payload emitted by framework adapters. */
+export type ComponentPayload = {
+  readonly component: unknown;
+  readonly props?: ComponentProps | null;
 };
 
 /** Template part compiled from an HTML template. */
@@ -271,15 +270,21 @@ export type DomBag = ((props?: Record<string, unknown>) => DomBag) & {
 /** CSS input accepted by css helpers. */
 export type CssInput = TemplateStringsArray | string | Record<string, unknown>;
 
+
+/** Mutable runtime config used by install and DOM bag helpers. */
+export type RuntimeConfig = {
+  exposeDollar: boolean;
+  exposeDollarEl: boolean;
+  dollarAlias: string;
+  forceAlias: boolean;
+  createWhenSelectorMisses: boolean;
+};
+
 /** Global installation options. */
 export type InstallOptions = {
   exposeDollar?: boolean;
   exposeDollarEl?: boolean;
   dollarAlias?: string;
   forceAlias?: boolean;
-};
-
-/** Mutable runtime config. */
-export type RuntimeConfig = Required<InstallOptions> & {
-  createWhenSelectorMisses: boolean;
+  createWhenSelectorMisses?: boolean;
 };

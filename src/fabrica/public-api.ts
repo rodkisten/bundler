@@ -1,5 +1,5 @@
 import { $, createDomBag } from "./bag";
-import { component } from "./component";
+import { clearComponents, component, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component";
 import { boundary } from "./boundary";
 import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
@@ -10,22 +10,20 @@ import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
 import { config } from "./install-state";
 import { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
-import { clearComponents, isRegisteredComponentName, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component-registry";
 import type { DebugSnapshot, DomBag, InstallOptions, RawHtml, RenderValue } from "./types";
 
 /** Public FabricaDOM API shape. */
 export type FabricaApi = {
-  html: typeof html & { jsx: typeof html; raw(value: string): RawHtml; sanitized(value: string): RawHtml; trusted(value: string): RawHtml; unsafe(value: string): RawHtml };
-  jsx: typeof jsx;
+  html: typeof html & { raw(value: string): RawHtml; sanitized(value: string): RawHtml; trusted(value: string): RawHtml; unsafe(value: string): RawHtml };
   render: typeof render;
   mount: typeof mount;
+  jsx: typeof jsx;
   component: typeof component;
   registerComponent: typeof registerComponent;
   unregisterComponent: typeof unregisterComponent;
   resolveComponent: typeof resolveComponent;
   listComponents: typeof listComponents;
   clearComponents: typeof clearComponents;
-  isRegisteredComponentName: typeof isRegisteredComponentName;
   boundary: typeof boundary;
   createContext: typeof createFabricaContext;
   provide: typeof provide;
@@ -72,7 +70,6 @@ export function createFabricaApi(): FabricaApi {
     resolveComponent,
     listComponents,
     clearComponents,
-    isRegisteredComponentName,
     boundary,
     createContext: createFabricaContext,
     provide,
@@ -88,16 +85,15 @@ export function createFabricaApi(): FabricaApi {
 
   const api = {
     html: htmlWithRaw,
-    jsx,
     render,
     mount,
+    jsx,
     component,
     registerComponent,
     unregisterComponent,
     resolveComponent,
     listComponents,
     clearComponents,
-    isRegisteredComponentName,
     boundary,
     createContext: createFabricaContext,
     provide,
