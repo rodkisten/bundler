@@ -297,6 +297,7 @@ export interface RuntimeState {
   shortThemeTokens: Map<string, string>
   ambiguousThemeTokens: Map<string, readonly string[]>
   helperRegistry: Map<string, CipoHelper>
+  nativeFunctionRegistry: Set<string>
   aliasRegistry: Map<string, CipoAliasValue>
   propertyAliasRegistry: Map<string, PropertyAliasDefinition>
   variantRegistry: Map<string, readonly string[]>

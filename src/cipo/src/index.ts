@@ -14,7 +14,7 @@ import { explain, inspect } from './debug'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { injectGlobal } from './global'
-import { registerAlias, registerHelper, registerProperty, registerVariant, recipe } from './plugins'
+import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 import { runtime } from './runtime'
 import { theme } from './theme'
 import { installBuiltInHelpers } from './helpers'
@@ -26,7 +26,7 @@ export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheet
 export { inline } from './inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
-export { registerAlias, registerHelper, registerProperty, registerVariant, recipe } from './plugins'
+export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 export { explain, inspect } from './debug'
 
 /**
@@ -101,6 +101,7 @@ Object.assign(cipo, {
   reset,
   registerAlias,
   registerHelper,
+  registerNativeFunction,
   registerProperty,
   registerVariant,
   recipe,
@@ -135,6 +136,7 @@ export function createBrowserGlobal() {
     reset,
     registerAlias,
     registerHelper,
+    registerNativeFunction,
     registerProperty,
     registerVariant,
     recipe,

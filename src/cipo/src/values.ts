@@ -272,6 +272,21 @@ export function parseGeneratedDeclarations(cssText: string): CipoDeclarationNode
   return output
 }
 
+/**
+ * Checks whether a function name belongs to CSS itself rather than Cipó.
+ *
+ * @remarks
+ * The function name is normalized to lowercase so authoring can use either
+ * `rotateX(...)` or `rotatex(...)`. Cipó helpers remain case-sensitive by
+ * design, but platform CSS functions are case-insensitive in practice.
+ *
+ * @param name - Function name without parentheses.
+ * @returns Whether the name is registered as native CSS.
+ */
+export function isNativeCssFunction(name: string): boolean {
+  return runtime.nativeFunctionRegistry.has(String(name || '').trim().toLowerCase())
+}
+
 function findHelperStart(input: string, fromIndex: number): number {
   for (let index = fromIndex; index < input.length; index += 1) {
     const char = input[index]
@@ -279,7 +294,8 @@ function findHelperStart(input: string, fromIndex: number): number {
     if (char === 'x' && input[index + 1] === ':' && isIdentifierStart(input[index + 2] ?? '')) {
       const nameStart = index + 2
       const nameEnd = readIdentifierEnd(input, nameStart)
-      if (input[nameEnd] === '(' && runtime.helperRegistry.has(input.slice(nameStart, nameEnd))) return index
+      const name = input.slice(nameStart, nameEnd)
+      if (input[nameEnd] === '(' && runtime.helperRegistry.has(name) && !isNativeCssFunction(name)) return index
       index = nameEnd
       continue
     }
@@ -288,7 +304,8 @@ function findHelperStart(input: string, fromIndex: number): number {
     if (index > 0 && isIdentifierPart(input[index - 1] ?? '')) continue
 
     const nameEnd = readIdentifierEnd(input, index)
-    if (input[nameEnd] === '(' && runtime.helperRegistry.has(input.slice(index, nameEnd))) return index
+    const name = input.slice(index, nameEnd)
+    if (input[nameEnd] === '(' && runtime.helperRegistry.has(name) && !isNativeCssFunction(name)) return index
     index = nameEnd
   }
 

@@ -1,8 +1,56 @@
 import { DEFAULT_SPACING_VALUE } from './constants'
-import { registerHelper } from './plugins'
+import { registerHelper, registerNativeFunction } from './plugins'
 import { runtime } from './runtime'
 import type { CipoHelperContext } from './types'
 import { splitTopLevel } from './utils'
+
+
+/**
+ * Installs CSS-native function names that Cipó should preserve instead of
+ * resolving as custom helpers.
+ *
+ * @remarks
+ * CSS keeps gaining functions. Treating every `name(...)` as a possible Cipó
+ * helper creates warning storms and invalid CSS for values such as
+ * `max(0.5rem, env(safe-area-inset-right))`. This list is intentionally broad
+ * and cheap: membership is a plain Set lookup and unknown names still pass
+ * through unless they are used as top-level declaration helpers.
+ *
+ * @returns Nothing.
+ *
+ * @example
+ * ```ts
+ * sheet.css`
+ *   .panel {
+ *     right: max(0.5rem, env(safe-area-inset-right))
+ *     color: light-dark(#111, #fff)
+ *   }
+ * `
+ * ```
+ */
+export function installNativeCssFunctions(): void {
+  const names = [
+    'abs', 'acos', 'asin', 'atan', 'atan2', 'attr', 'blur', 'brightness',
+    'calc', 'circle', 'clamp', 'color', 'color-mix', 'conic-gradient',
+    'contrast', 'cos', 'counter', 'counters', 'cross-fade', 'cubic-bezier',
+    'device-cmyk', 'drop-shadow', 'element', 'ellipse', 'env', 'exp', 'fit-content',
+    'grayscale', 'hsl', 'hsla', 'hue-rotate', 'hypot', 'hwb', 'image',
+    'image-set', 'inset', 'invert', 'lab', 'lch', 'light-dark', 'linear',
+    'linear-gradient', 'log', 'matrix', 'matrix3d', 'max', 'min', 'minmax',
+    'mod', 'oklab', 'oklch', 'opacity', 'paint', 'path', 'perspective',
+    'polygon', 'pow', 'radial-gradient', 'ray', 'rem', 'repeat', 'repeating-conic-gradient',
+    'repeating-linear-gradient', 'repeating-radial-gradient', 'rgb', 'rgba',
+    'rotate', 'rotate3d', 'rotatex', 'rotatey', 'rotatez', 'round', 'saturate',
+    'scale', 'scale3d', 'scalex', 'scaley', 'scalez', 'sepia', 'sign', 'sin',
+    'skew', 'skewx', 'skewy', 'sqrt', 'steps', 'tan', 'translate', 'translate3d',
+    'translatex', 'translatey', 'translatez', 'url', 'var', 'symbols', 'leader',
+    'anchor', 'anchor-size', 'scroll', 'view', 'toggle', 'selector', 'format',
+  ]
+
+  for (let index = 0; index < names.length; index += 1) {
+    registerNativeFunction(names[index] || '')
+  }
+}
 
 /**
  * Installs built-in value helpers.
@@ -21,6 +69,7 @@ import { splitTopLevel } from './utils'
  * ```
  */
 export function installBuiltInHelpers(): void {
+  installNativeCssFunctions()
   registerHelper('spacing', args => `calc(var(--${runtime.config.prefix}-spacing, ${DEFAULT_SPACING_VALUE}) * ${args.trim()})`)
   registerHelper('rem', args => pxToRem(args.trim()))
   registerHelper('fluid', fluidHelper)

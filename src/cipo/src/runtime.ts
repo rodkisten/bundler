@@ -56,6 +56,7 @@ export const runtime: RuntimeState = {
   shortThemeTokens: new Map(),
   ambiguousThemeTokens: new Map(),
   helperRegistry: new Map(),
+  nativeFunctionRegistry: new Set(),
   aliasRegistry: new Map(),
   propertyAliasRegistry: new Map(),
   variantRegistry: new Map(),

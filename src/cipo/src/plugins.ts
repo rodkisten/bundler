@@ -32,6 +32,36 @@ export function registerHelper(name: string, helper: CipoHelper): void {
   runtime.inlineCache.clear()
 }
 
+
+/**
+ * Registers a CSS-native function name that Cipó must preserve as-is.
+ *
+ * @remarks
+ * Cipó helpers and CSS functions share the same visual shape: `name(...)`.
+ * This registry lets the parser distinguish platform CSS functions such as
+ * `max()`, `env()`, `light-dark()`, `linear-gradient()` and future browser
+ * functions from user helpers such as `outlineGlow()`. Native functions are
+ * never treated as declaration helpers and never generate warnings.
+ *
+ * @param name - CSS function name, without parentheses.
+ * @returns Nothing.
+ *
+ * @example
+ * ```ts
+ * registerNativeFunction('anchor-size')
+ * sheet.css`
+ *   .popover {
+ *     width: anchor-size(width)
+ *   }
+ * `
+ * ```
+ */
+export function registerNativeFunction(name: string): void {
+  const value = String(name || '').trim().toLowerCase()
+  if (!value) return
+  runtime.nativeFunctionRegistry.add(value)
+}
+
 /**
  * Registers a standalone identifier alias.
  *

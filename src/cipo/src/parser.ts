@@ -1,6 +1,6 @@
 import type { CipoAstNode, CipoDeclarationNode, CipoWarning } from './types'
 import { findMatchingBrace, findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from './utils'
-import { normalizePropertyDeclaration } from './values'
+import { isNativeCssFunction, normalizePropertyDeclaration } from './values'
 import { runtime } from './runtime'
 
 /**
@@ -169,6 +169,11 @@ export function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: str
 
     const colonIndex = findTopLevelColon(source)
     if (colonIndex <= 0) {
+      const nativeCall = parseFunctionCall(source)
+      if (nativeCall && isNativeCssFunction(nativeCall.name)) {
+        continue
+      }
+
       warn(runtime, warnings, 'invalid-declaration', `Invalid declaration "${source}".`, source)
       continue
     }
@@ -230,7 +235,7 @@ export function tokenizeDeclarations(input: string): string[] {
       if (isCompleteDeclarationToken(buffer)) {
         pushToken(output, buffer)
         buffer = ''
-      } else {
+      } else if (buffer.trim()) {
         buffer += ' '
       }
       continue
@@ -284,6 +289,10 @@ export function parseDeclarationFunction(source: string, warnings: CipoWarning[]
 
   if (call.name === 'text') {
     return normalizePropertyDeclaration('text', call.args.join(','))
+  }
+
+  if (isNativeCssFunction(call.name)) {
+    return []
   }
 
   warn(runtime, warnings, 'unknown-function-declaration', `Unknown declaration helper "${call.name}(...)".`, source)
@@ -396,6 +405,7 @@ function isCompleteDeclarationToken(value: string): boolean {
   if (!token) return false
   if (token.endsWith(',') || token.endsWith(':')) return false
   if (findTopLevelColon(token) > 0) return true
-  if (parseFunctionCall(token)) return true
+  const call = parseFunctionCall(token)
+  if (call) return !isNativeCssFunction(call.name)
   return /^[a-zA-Z_][\w-]*$/.test(token)
 }
