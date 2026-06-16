@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { atomic, css, getCssText, inline, isAtomicCssArtifact, isStylesheetArtifact, registerAlias, registerHelper, registerProperty, reset, setup, sheet } from '../src/index'
+import { atomic, css, getCssText, inline, isAtomicCssArtifact, isStylesheetArtifact, registerAlias, registerHelper, registerNativeFunction, registerProperty, reset, setup, sheet } from '../src/index'
 
 describe('Cipó next', () => {
   beforeEach(() => {
@@ -234,6 +234,67 @@ describe('Cipó next', () => {
     expect(button.compiledCss).toContain('@media')
     expect(button.compiledCss.includes('/*')).toBe(false)
     expect(button.compiledCss.includes('# inline')).toBe(false)
+  })
+
+
+  it('preserves modern native CSS functions and multiline values without warning storms', () => {
+    const warnings: string[] = []
+    setup({
+      prefix: 'modern',
+      minify: true,
+      debug: false,
+      onWarning(warning) {
+        warnings.push(warning.code)
+      },
+      theme: {
+        colors: { brand: '#22c55e', ink: '#f8fafc', panel: '#020617' },
+        spacing: '0.25rem',
+      },
+    })
+
+    const styleText = sheet.css`
+      .panel {
+        right: max(0.5rem, env(safe-area-inset-right))
+        bottom:
+          max(1.125rem, env(safe-area-inset-bottom))
+        left:
+          max(0.5rem, env(safe-area-inset-left))
+        width: min(100%, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right)))
+        background: linear-gradient(180deg, color-mix(in oklch, $panel 88%, transparent), light-dark(#fff, #000))
+        color: oklch(from $brand l c h)
+        filter: blur(2px) saturate(140%) drop-shadow(0 12px 24px rgb(0 0 0 / .3))
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr))
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%)
+      }
+    `
+
+    expect(String(styleText)).toContain('right:max(0.5rem,env(safe-area-inset-right))')
+    expect(String(styleText)).toContain('bottom:max(1.125rem,env(safe-area-inset-bottom))')
+    expect(String(styleText)).toContain('left:max(0.5rem,env(safe-area-inset-left))')
+    expect(String(styleText)).toContain('width:min(100%,calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right)))')
+    expect(String(styleText)).toContain('linear-gradient')
+    expect(String(styleText)).toContain('light-dark')
+    expect(String(styleText)).toContain('oklch(from var(--modern-colors-brand) l c h)')
+    expect(String(styleText)).toContain('repeat(auto-fit,minmax(min(100%,12rem),1fr))')
+    expect(warnings.includes('unknown-function-declaration')).toBe(false)
+    expect(warnings.includes('invalid-declaration')).toBe(false)
+  })
+
+  it('lets users register future native CSS functions without treating them as helpers', () => {
+    const warnings: string[] = []
+    setup({ prefix: 'future', minify: true, debug: false, onWarning: warning => warnings.push(warning.code) })
+    registerNativeFunction('future-size')
+
+    const styleText = sheet.css`
+      .box {
+        width:
+          future-size(width)
+      }
+    `
+
+    expect(String(styleText)).toContain('width:future-size(width)')
+    expect(warnings.includes('unknown-function-declaration')).toBe(false)
+    expect(warnings.includes('invalid-declaration')).toBe(false)
   })
 
 })
