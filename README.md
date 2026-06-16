@@ -1,4 +1,6 @@
 # Rod Browser Toolbox
+[see online](https://rodkisten.github.io/bundler)
+
 [![📦 Publish browser bundle](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml/badge.svg)](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml)
 
 Browser-first build system for the Rod ecosystem. The project emits one browser global per root entrypoint, plus ESM/IIFE builds, extracted examples, and a generated landing page.
