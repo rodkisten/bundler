@@ -298,14 +298,38 @@ export function parseDeclarationFunction(source: string, warnings: CipoWarning[]
  */
 function splitBufferBeforeBlock(buffer: string): { readonly before: string; readonly blockName: string } {
   const trimmedEnd = buffer.replace(/\s+$/g, '')
+  const splitIndex = findDeclarationBlockBoundary(trimmedEnd)
+
+  if (splitIndex >= 0) {
+    return {
+      before: trimmedEnd.slice(0, splitIndex),
+      blockName: trimmedEnd.slice(splitIndex).trim(),
+    }
+  }
+
+  return { before: '', blockName: trimmedEnd.trim() }
+}
+
+/**
+ * Finds the boundary between semicolon-free declarations and the following block name.
+ *
+ * @remarks
+ * Selector lists are allowed to span lines in `sheet.css`, so a newline before
+ * `{` is not automatically a declaration separator. Cipó only splits when the
+ * prefix before the candidate block actually contains declaration-like tokens.
+ *
+ * @param input - Buffer immediately before `{`.
+ * @returns Index where the block name starts, or -1 when the whole buffer is the block name.
+ */
+function findDeclarationBlockBoundary(input: string): number {
   let depth = 0
   let quote: '"' | "'" | null = null
 
-  for (let index = trimmedEnd.length - 1; index >= 0; index -= 1) {
-    const char = trimmedEnd[index]
+  for (let index = input.length - 1; index >= 0; index -= 1) {
+    const char = input[index]
 
     if (quote) {
-      if (char === quote && trimmedEnd[index - 1] !== '\\') quote = null
+      if (char === quote && input[index - 1] !== '\\') quote = null
       continue
     }
 
@@ -318,14 +342,35 @@ function splitBufferBeforeBlock(buffer: string): { readonly before: string; read
     else if (char === '(' || char === '[') depth = Math.max(0, depth - 1)
 
     if (depth === 0 && (char === ';' || char === '\n' || char === '\r')) {
-      return {
-        before: trimmedEnd.slice(0, index),
-        blockName: trimmedEnd.slice(index + 1).trim(),
-      }
+      const before = input.slice(0, index).trim()
+      const after = input.slice(index + 1).trim()
+
+      if (!after) return -1
+      if (before && containsDeclarationLikeStatement(before)) return index + 1
     }
   }
 
-  return { before: '', blockName: trimmedEnd.trim() }
+  return -1
+}
+
+/**
+ * Checks whether a text chunk contains declaration-like statements.
+ *
+ * @param input - Candidate declaration chunk.
+ * @returns Whether at least one parsed token is declaration-like.
+ */
+function containsDeclarationLikeStatement(input: string): boolean {
+  const tokens = tokenizeDeclarations(input)
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (!token) continue
+    if (findTopLevelColon(token) > 0) return true
+    if (parseFunctionCall(token)) return true
+    if (/^\$?[a-zA-Z_][\w-]*$/.test(token.trim())) return true
+  }
+
+  return false
 }
 
 /**

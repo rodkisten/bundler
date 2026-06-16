@@ -130,15 +130,38 @@ export function flattenTheme(tokens: CipoTheme, path: readonly string[] = []): A
  * ```
  */
 export function resolveThemeReferences(input: string): string {
-  return input
-    .replace(/\$theme\.([a-zA-Z0-9._-]+)/g, (_match, tokenPath: string) => toCssVar(tokenPath))
-    .replace(/\$([a-zA-Z][\w-]*)\.([a-zA-Z0-9._-]+)/g, (_match, namespace: string, path: string) => toCssVar(`${namespace}.${path}`))
-    .replace(/\$([a-zA-Z][\w-]*)/g, (match, shortName: string) => {
-      const explicit = runtime.themeKeys.has(shortName) ? shortName : runtime.shortThemeTokens.get(shortName)
-      if (explicit) return toCssVar(explicit)
-      if (shortName === 'spacing') return `var(--${runtime.config.prefix}-spacing, ${DEFAULT_SPACING_VALUE})`
-      return match
-    })
+  let output = ''
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+
+    if (char !== '$') {
+      output += char
+      continue
+    }
+
+    if (input[index + 1] === '$') {
+      output += '$$'
+      index += 1
+      continue
+    }
+
+    const next = input[index + 1] ?? ''
+    if (!/[a-zA-Z_]/.test(next)) {
+      output += char
+      continue
+    }
+
+    let end = index + 1
+    while (end < input.length && /[a-zA-Z0-9_.-]/.test(input[end] ?? '')) end += 1
+
+    const token = input.slice(index + 1, end)
+    const resolved = token.startsWith('theme.') ? token.slice('theme.'.length).replaceAll('.', '-') : resolveTokenPath(token)
+    output += resolved ? toCssVar(resolved) : `$${token}`
+    index = end - 1
+  }
+
+  return output
 }
 
 /**

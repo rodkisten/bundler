@@ -2,6 +2,7 @@ import { runtime, evictIfNeeded } from './runtime'
 import type { CipoCssInterpolation, CipoInlineCssArtifact, CipoStyleObject, CipoWarning } from './types'
 import { buildCss, transformCss } from './transform'
 import { parseStylesheet } from './parser'
+import { addImportant } from './compiler'
 import { createDeclaration } from './utils'
 import { formatInlineCss } from './format'
 import { styleObjectToCss } from './style-object'
@@ -38,34 +39,53 @@ export const inline = {
    * inline.css({ px: 2, bg: '$brand' })
    * ```
    */
-  css(first: TemplateStringsArray | CipoStyleObject, ...values: readonly CipoCssInterpolation[]): CipoInlineCssArtifact {
-    const rawCss = Array.isArray(first) ? buildCss(first as TemplateStringsArray, values) : styleObjectToCss(first as CipoStyleObject)
-    const cacheKey = [runtime.configVersion, runtime.themeVersion, rawCss, 'inline'].join('|')
-    const cached = runtime.config.jit.enabled && runtime.config.jit.cache ? runtime.inlineCache.get(cacheKey) : undefined
-    if (cached) return cached
+  css: Object.assign(
+    function inlineCss(first: TemplateStringsArray | CipoStyleObject, ...values: readonly CipoCssInterpolation[]): CipoInlineCssArtifact {
+      return compileInlineCss(first, values, false)
+    },
+    {
+      withImportant(first: TemplateStringsArray | CipoStyleObject, ...values: readonly CipoCssInterpolation[]): CipoInlineCssArtifact {
+        return compileInlineCss(first, values, true)
+      },
+    },
+  ),
+}
 
-    const warnings: CipoWarning[] = []
-    const transformedCss = transformCss(rawCss, warnings)
-    const ast = parseStylesheet(transformedCss, warnings)
-    const cssText = formatInlineCss(collectInlineCss(ast))
+/**
+ * Compiles inline CSS with optional forced !important values.
+ *
+ * @param first - Template strings or style object.
+ * @param values - Template values.
+ * @param important - Whether to force one !important per declaration.
+ * @returns Inline CSS artifact.
+ */
+function compileInlineCss(first: TemplateStringsArray | CipoStyleObject, values: readonly CipoCssInterpolation[], important: boolean): CipoInlineCssArtifact {
+  const rawCss = Array.isArray(first) ? buildCss(first as TemplateStringsArray, values) : styleObjectToCss(first as CipoStyleObject)
+  const cacheKey = [runtime.configVersion, runtime.themeVersion, rawCss, important ? 'inline-important' : 'inline'].join('|')
+  const cached = runtime.config.jit.enabled && runtime.config.jit.cache ? runtime.inlineCache.get(cacheKey) : undefined
+  if (cached) return cached
 
-    const artifact: CipoInlineCssArtifact = {
-      kind: 'cipo.inline-css',
-      rawCss,
-      transformedCss,
-      cssText,
-      toString: () => cssText,
-      [Symbol.toPrimitive]: () => cssText,
-      [Symbol.toStringTag]: 'CipoInlineCssArtifact',
-    }
+  const warnings: CipoWarning[] = []
+  const transformedCss = transformCss(rawCss, warnings)
+  const ast = parseStylesheet(transformedCss, warnings)
+  const cssText = formatInlineCss(collectInlineCss(ast, important))
 
-    if (runtime.config.jit.enabled && runtime.config.jit.cache) {
-      runtime.inlineCache.set(cacheKey, artifact)
-      evictIfNeeded(runtime.inlineCache as Map<string, unknown>)
-    }
+  const artifact: CipoInlineCssArtifact = {
+    kind: 'cipo.inline-css',
+    rawCss,
+    transformedCss,
+    cssText,
+    toString: () => cssText,
+    [Symbol.toPrimitive]: () => cssText,
+    [Symbol.toStringTag]: 'CipoInlineCssArtifact',
+  }
 
-    return artifact
-  },
+  if (runtime.config.jit.enabled && runtime.config.jit.cache) {
+    runtime.inlineCache.set(cacheKey, artifact)
+    evictIfNeeded(runtime.inlineCache as Map<string, unknown>)
+  }
+
+  return artifact
 }
 
 /**
@@ -74,11 +94,11 @@ export const inline = {
  * @param ast - Parsed AST.
  * @returns CSS declaration list.
  */
-export function collectInlineCss(ast: readonly import('./types').CipoAstNode[]): string {
+export function collectInlineCss(ast: readonly import('./types').CipoAstNode[], forceImportant = false): string {
   let output = ''
 
   for (const node of ast) {
-    if (node.type === 'declaration') output += createDeclaration(node.property, node.value)
+    if (node.type === 'declaration') output += createDeclaration(node.property, forceImportant || runtime.config.important ? addImportant(node.value) : node.value)
   }
 
   return output

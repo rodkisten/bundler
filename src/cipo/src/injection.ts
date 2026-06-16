@@ -1,7 +1,7 @@
 import { STYLE_ELEMENT_ID } from './constants'
 import { formatCss, getLayerDeclaration } from './format'
 import { runtime } from './runtime'
-import type { CipoCssArtifact, CipoInjectStyleOptions, CipoInlineCssArtifact } from './types'
+import type { CipoCssArtifact, CipoInjectStyleOptions, CipoInlineCssArtifact, CipoStylesheetArtifact } from './types'
 import { hashString, normalizeCss } from './utils'
 
 /**
@@ -74,14 +74,14 @@ export function insertCss(cssText: string): void {
  * injectStyle(shadow, cardStyles)
  * ```
  */
-export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoCssArtifact | CipoInlineCssArtifact | readonly (CipoCssArtifact | CipoInlineCssArtifact)[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
+export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact | readonly (CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact)[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
   const list = Array.isArray(styles) ? styles : [styles]
   let cssText = ''
 
   for (let index = 0; index < list.length; index += 1) {
     const style = list[index]
     cssText += index > 0 ? '\n' : ''
-    cssText += style.kind === 'cipo.inline-css' ? style.cssText : style.compiledCss
+    cssText += style.kind === 'cipo.inline-css' || style.kind === 'cipo.stylesheet' ? style.cssText : style.compiledCss
   }
 
   const key = `cipo-style-${hashString(cssText)}`
@@ -126,7 +126,11 @@ export function getCssText(): string {
  */
 export function ensureStyleElement(): HTMLStyleElement {
   const existing = document.getElementById(STYLE_ELEMENT_ID)
-  if (existing instanceof HTMLStyleElement) return existing
+  if (existing instanceof HTMLStyleElement) {
+    if (existing.parentNode && existing.nextSibling) existing.parentNode.appendChild(existing)
+    return existing
+  }
+
   const element = document.createElement('style')
   element.id = STYLE_ELEMENT_ID
   element.dataset.cipo = 'runtime'

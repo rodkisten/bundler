@@ -60,11 +60,17 @@ export function normalizePropertyDeclaration(rawProperty: string, rawValue: stri
     propertyKey = propertyKey.slice(1).trim()
   }
 
+  if (propertyKey.startsWith('$$')) {
+    const customProperty = `--${runtime.config.prefix}-${propertyKey.slice(2).trim().replace(/[._]+/g, '-')}`
+    return [{ type: 'declaration', property: customProperty, value: normalizeValue('theme-token', rawValue), source: `${rawProperty}:${rawValue}` }]
+  }
+
   if (propertyKey === 'text') {
     return parseGeneratedDeclarations(expandText(rawValue))
   }
 
-  const alias = forceRawProperty ? undefined : runtime.propertyAliasRegistry.get(propertyKey)
+  const lookupKey = runtime.propertyAliasRegistry.has(propertyKey) ? propertyKey : propertyKey.toLowerCase()
+  const alias = forceRawProperty ? undefined : runtime.propertyAliasRegistry.get(lookupKey)
   const property = alias?.property ?? propertyKey
   const scale = alias?.scale ?? 'none'
   const value = normalizeValue(property, rawValue, scale)

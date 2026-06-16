@@ -185,17 +185,22 @@ function skipLineComment(input: string, start: number): number {
  * @returns Whether the hash starts a comment.
  */
 function isHashComment(input: string, index: number, lineOnlyWhitespace: boolean): boolean {
+  const previous = input[index - 1] ?? ''
   const next = input[index + 1] ?? ''
 
   if (lineOnlyWhitespace) {
+    if (next === ' ' || next === '\t' || next === '') return true
+
     let cursor = index + 1
-    while (cursor < input.length && /[a-zA-Z-]/.test(input[cursor] ?? '')) cursor += 1
+    while (cursor < input.length && /[a-zA-Z0-9_-]/.test(input[cursor] ?? '')) cursor += 1
     while (cursor < input.length && /\s/.test(input[cursor] ?? '') && input[cursor] !== '\n' && input[cursor] !== '\r') cursor += 1
+
     if (input[cursor] === ':') return false
+    if (input[cursor] === '{' || input[cursor] === ',' || input[cursor] === '>' || input[cursor] === '+' || input[cursor] === '~') return false
   }
 
   if (/[0-9a-fA-F]/.test(next)) return false
-  return true
+  return previous === ' ' || previous === '\t' || lineOnlyWhitespace
 }
 
 /**

@@ -2,7 +2,7 @@ import { runtime, evictIfNeeded } from './runtime'
 import type { CipoAstNode, CipoBlockNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDeclarationNode, CipoStylesheetArtifact, CipoWarning } from './types'
 import { buildCss, transformCss } from './transform'
 import { parseStylesheet } from './parser'
-import { collectRules, compileCss, joinClassNames } from './compiler'
+import { addImportant, collectRules, compileCss, joinClassNames } from './compiler'
 import { insertCss } from './injection'
 import { hashString } from './utils'
 
@@ -107,8 +107,103 @@ import { hashString } from './utils'
  * ```
  */
 export function css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssResult {
+  return compilePolymorphicCss(strings, values, false)
+}
+
+Object.assign(css, {
+  withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssResult {
+    return compilePolymorphicCss(strings, values, true)
+  },
+})
+
+/**
+ * Explicit atomic CSS namespace.
+ *
+ * @remarks
+ * `atomic.css``...`` ` always returns a class-list artifact and injects generated
+ * atomic rules. It skips stylesheet detection for maximum runtime predictability.
+ *
+ * @example
+ * ```ts
+ * const card = atomic.css`
+ *   px: 4
+ *   bg: $brand
+ * `
+ * String(card)
+ * // "cipo-a-..."
+ * ```
+ */
+export const atomic = {
+  css: Object.assign(
+    function atomicCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
+      return compileAtomicCss(strings, values, false)
+    },
+    {
+      withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
+        return compileAtomicCss(strings, values, true)
+      },
+    },
+  ),
+}
+
+/**
+ * Explicit stylesheet namespace.
+ *
+ * @remarks
+ * `sheet.css``...`` ` compiles a complete stylesheet and returns CSS text. It
+ * preserves selectors, supports nesting, expands aliases/helpers/tokens and does
+ * not atomize declarations.
+ *
+ * @example
+ * ```ts
+ * const styleText = sheet.css`
+ *   :root { $$panel: rgb(0 0 0 / .8) }
+ *   .card { $glassCard; x:hover { bg: alpha($brand / 20%) } }
+ * `
+ * String(styleText)
+ * // complete transformed CSS
+ * ```
+ */
+export const sheet = {
+  css: Object.assign(
+    function sheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+      return compileSheetCss(strings, values, false)
+    },
+    {
+      withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+        return compileSheetCss(strings, values, true)
+      },
+      insertInto(target: HTMLElement | ShadowRoot | Document) {
+        return Object.assign(
+          function sheetCssInto(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+            const artifact = compileSheetCss(strings, values, false)
+            injectSheetInto(target, artifact.cssText)
+            return artifact
+          },
+          {
+            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+              const artifact = compileSheetCss(strings, values, true)
+              injectSheetInto(target, artifact.cssText)
+              return artifact
+            },
+          },
+        )
+      },
+    },
+  ),
+}
+
+/**
+ * Compiles the legacy polymorphic css`` API.
+ *
+ * @param strings - Template strings.
+ * @param values - Template values.
+ * @param important - Whether to force a single !important on every declaration.
+ * @returns CSS result.
+ */
+function compilePolymorphicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssResult {
   const rawCss = buildCss(strings, values)
-  const cacheKey = createArtifactCacheKey(rawCss)
+  const cacheKey = createArtifactCacheKey(rawCss, important ? 'important' : 'auto')
   const cached = getCachedArtifact(cacheKey)
 
   if (cached) return cached
@@ -118,18 +213,63 @@ export function css(strings: TemplateStringsArray, ...values: readonly CipoCssIn
   const ast = parseStylesheet(transformedCss, warnings)
 
   if (shouldCompileAsStylesheet(rawCss, transformedCss, ast)) {
-    const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings)
-
+    const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
     setCachedArtifact(cacheKey, artifact)
-
     return artifact
   }
 
-  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings)
+  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
+  insertCss(artifact.compiledCss)
+  setCachedArtifact(cacheKey, artifact)
+  return artifact
+}
+
+/**
+ * Compiles explicit atomic CSS.
+ *
+ * @param strings - Template strings.
+ * @param values - Template values.
+ * @param important - Whether to force important declarations.
+ * @returns Atomic artifact.
+ */
+function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
+  const rawCss = buildCss(strings, values)
+  const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
+  const cached = getCachedArtifact(cacheKey)
+
+  if (cached && isAtomicCssArtifact(cached)) return cached
+
+  const warnings: CipoWarning[] = []
+  const transformedCss = transformCss(rawCss, warnings)
+  const ast = parseStylesheet(transformedCss, warnings)
+  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
 
   insertCss(artifact.compiledCss)
   setCachedArtifact(cacheKey, artifact)
+  return artifact
+}
 
+/**
+ * Compiles explicit full stylesheet CSS.
+ *
+ * @param strings - Template strings.
+ * @param values - Template values.
+ * @param important - Whether to force important declarations.
+ * @returns Stylesheet artifact.
+ */
+function compileSheetCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
+  const rawCss = buildCss(strings, values)
+  const cacheKey = createArtifactCacheKey(rawCss, important ? 'sheet-important' : 'sheet')
+  const cached = getCachedArtifact(cacheKey)
+
+  if (cached && isStylesheetArtifact(cached)) return cached
+
+  const warnings: CipoWarning[] = []
+  const transformedCss = transformCss(rawCss, warnings)
+  const ast = parseStylesheet(transformedCss, warnings)
+  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
+
+  setCachedArtifact(cacheKey, artifact)
   return artifact
 }
 
@@ -150,13 +290,14 @@ export function css(strings: TemplateStringsArray, ...values: readonly CipoCssIn
  * // "12|3|cipo||pretty|px: 4;"
  * ```
  */
-export function createArtifactCacheKey(rawCss: string): string {
+export function createArtifactCacheKey(rawCss: string, mode = ''): string {
   return [
     runtime.configVersion,
     runtime.themeVersion,
     runtime.config.prefix,
     runtime.config.important ? 'important' : '',
     runtime.config.minify ? 'min' : 'pretty',
+    mode,
     rawCss,
   ].join('|')
 }
@@ -225,12 +366,16 @@ function createAtomicArtifact(
   transformedCss: string,
   ast: readonly CipoAstNode[],
   warnings: readonly CipoWarning[],
+  forceImportant = false,
 ): CipoCssArtifact {
   const mutableWarnings = [...warnings]
   const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
+  const previousImportant = runtime.config.important
+  runtime.config.important = previousImportant || forceImportant
   const { atoms, scopedRules } = collectRules(ast, scopeClassName, mutableWarnings)
   const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
   const compiledCss = compileCss(atoms, scopedRules)
+  runtime.config.important = previousImportant
   const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
 
   return {
@@ -268,8 +413,9 @@ function createStylesheetArtifact(
   transformedCss: string,
   ast: readonly CipoAstNode[],
   warnings: readonly CipoWarning[],
+  forceImportant = false,
 ): CipoStylesheetArtifact {
-  const cssText = compileStylesheetText(ast)
+  const cssText = compileStylesheetText(ast, forceImportant)
   const artifactId = `${runtime.config.prefix}-stylesheet-${hashString(rawCss)}`
 
   return {
@@ -502,8 +648,14 @@ function isStylesheetPseudoName(name: string): boolean {
  * @param ast - Parsed AST.
  * @returns Stylesheet text.
  */
-function compileStylesheetText(ast: readonly CipoAstNode[]): string {
-  const cssText = ast.map(node => compileStylesheetNode(node, [])).filter(Boolean).join('\n')
+function compileStylesheetText(ast: readonly CipoAstNode[], forceImportant = false): string {
+  let cssText = ''
+
+  for (let index = 0; index < ast.length; index += 1) {
+    const chunk = compileStylesheetNode(ast[index], [], forceImportant)
+    if (!chunk) continue
+    cssText += cssText ? `\n${chunk}` : chunk
+  }
 
   return formatStylesheetText(cssText)
 }
@@ -515,16 +667,16 @@ function compileStylesheetText(ast: readonly CipoAstNode[]): string {
  * @param parentSelectors - Current selector chain.
  * @returns CSS text.
  */
-function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly string[]): string {
+function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   if (node.type === 'declaration') {
-    return parentSelectors.length > 0 ? compileStylesheetRule(parentSelectors, [node]) : compileDeclaration(node)
+    return parentSelectors.length > 0 ? compileStylesheetRule(parentSelectors, [node], forceImportant) : compileDeclaration(node, forceImportant)
   }
 
   if (node.type === 'directive') {
     return ''
   }
 
-  return compileStylesheetBlock(node, parentSelectors)
+  return compileStylesheetBlock(node, parentSelectors, forceImportant)
 }
 
 /**
@@ -534,32 +686,46 @@ function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly stri
  * @param parentSelectors - Parent selectors.
  * @returns CSS text.
  */
-function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[]): string {
+function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   const name = block.name.trim()
 
   if (isStylesheetAtRule(name)) {
-    return compileStylesheetAtRule(block, parentSelectors)
+    return compileStylesheetAtRule(block, parentSelectors, forceImportant)
   }
 
   if (name.startsWith('x:')) {
-    return compileStylesheetRuntimeBlock(block, parentSelectors)
+    return compileStylesheetRuntimeBlock(block, parentSelectors, forceImportant)
   }
 
   const selectors = resolveNestedSelectors(parentSelectors, splitSelectorList(name))
-  const declarations = block.body.filter(isDeclarationNode)
-  const nested = block.body.filter(isBlockNode)
+  const declarations: CipoDeclarationNode[] = []
+  let output = ''
 
-  const chunks: string[] = []
+  for (let index = 0; index < block.body.length; index += 1) {
+    const child = block.body[index]
+    if (child.type === 'declaration') {
+      declarations.push(child)
+      continue
+    }
+
+    if (child.type === 'block') {
+      if (declarations.length > 0) {
+        const rule = compileStylesheetRule(selectors, declarations, forceImportant)
+        output += output ? `\n${rule}` : rule
+        declarations.length = 0
+      }
+
+      const nested = compileStylesheetBlock(child, selectors, forceImportant)
+      if (nested) output += output ? `\n${nested}` : nested
+    }
+  }
 
   if (declarations.length > 0) {
-    chunks.push(compileStylesheetRule(selectors, declarations))
+    const rule = compileStylesheetRule(selectors, declarations, forceImportant)
+    output += output ? `\n${rule}` : rule
   }
 
-  for (const child of nested) {
-    chunks.push(compileStylesheetBlock(child, selectors))
-  }
-
-  return chunks.filter(Boolean).join('\n')
+  return output
 }
 
 
@@ -595,10 +761,10 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
  * @param parentSelectors - Current selector chain.
  * @returns CSS text.
  */
-function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: readonly string[]): string {
+function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   if (parentSelectors.length === 0) return ''
 
-  let selectors = [...parentSelectors]
+  let selectors = copyStrings(parentSelectors)
   const wrappers: string[] = []
   const name = block.name.trim()
 
@@ -607,7 +773,7 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
     const query = runtime.config.breakpoints[breakpoint]
     if (query) wrappers.push(`@media not all and ${query}`)
   } else {
-    const contextParts = name.slice(2).split(':').map(part => part.trim()).filter(Boolean)
+    const contextParts = splitRuntimeContextParts(name.slice(2))
 
     for (const part of contextParts) {
       if (part in runtime.config.breakpoints) {
@@ -617,7 +783,7 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
       }
 
       if (part === 'dark') {
-        selectors = selectors.map(selector => `${runtime.config.darkSelector} ${selector}`)
+        selectors = prefixSelectors(runtime.config.darkSelector, selectors)
         continue
       }
 
@@ -632,12 +798,16 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
       }
 
       if (isStylesheetPseudoName(part)) {
-        selectors = selectors.map(selector => `${selector}:${part}`)
+        selectors = appendPseudoToSelectors(selectors, part)
       }
     }
   }
 
-  let body = block.body.map(node => compileStylesheetNode(node, selectors)).filter(Boolean).join('\n')
+  let body = ''
+  for (let index = 0; index < block.body.length; index += 1) {
+    const chunk = compileStylesheetNode(block.body[index], selectors, forceImportant)
+    if (chunk) body += body ? `\n${chunk}` : chunk
+  }
 
   for (let index = wrappers.length - 1; index >= 0; index -= 1) {
     body = `${wrappers[index]}{${body}}`
@@ -664,8 +834,12 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
  * @param parentSelectors - Parent selectors.
  * @returns CSS text.
  */
-function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly string[]): string {
-  const body = block.body.map(node => compileStylesheetNode(node, parentSelectors)).filter(Boolean).join('\n')
+function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
+  let body = ''
+  for (let index = 0; index < block.body.length; index += 1) {
+    const chunk = compileStylesheetNode(block.body[index], parentSelectors, forceImportant)
+    if (chunk) body += body ? `\n${chunk}` : chunk
+  }
 
   if (!body) return ''
 
@@ -682,10 +856,14 @@ function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly
 function compileStylesheetRule(
   selectors: readonly string[],
   declarations: readonly CipoDeclarationNode[],
+  forceImportant: boolean,
 ): string {
-  const body = declarations.map(compileDeclaration).join('')
+  let body = ''
+  for (let index = 0; index < declarations.length; index += 1) {
+    body += compileDeclaration(declarations[index], forceImportant)
+  }
 
-  return `${selectors.join(',')}{${body}}`
+  return `${joinSelectors(selectors)}{${body}}`
 }
 
 /**
@@ -694,8 +872,9 @@ function compileStylesheetRule(
  * @param declaration - Declaration node.
  * @returns CSS declaration text.
  */
-function compileDeclaration(declaration: CipoDeclarationNode): string {
-  return `${declaration.property}:${declaration.value};`
+function compileDeclaration(declaration: CipoDeclarationNode, forceImportant: boolean): string {
+  const important = runtime.config.important || forceImportant
+  return `${declaration.property}:${important ? addImportant(declaration.value) : declaration.value};`
 }
 
 /**
@@ -874,6 +1053,91 @@ function prettyStylesheetText(cssText: string): string {
  */
 function indent(depth: number): string {
   return '  '.repeat(depth)
+}
+
+
+/**
+ * Injects a stylesheet artifact into a target and keeps it as the last style node.
+ *
+ * @param target - DOM target.
+ * @param cssText - CSS text.
+ * @returns Created style element.
+ */
+function injectSheetInto(target: HTMLElement | ShadowRoot | Document, cssText: string): HTMLStyleElement {
+  const parent = target instanceof Document ? target.head : target
+  const element = document.createElement('style')
+  element.dataset.cipoSheet = 'true'
+  element.textContent = cssText
+  parent.append(element)
+  return element
+}
+
+/**
+ * Copies selector arrays without spreading on hot paths.
+ *
+ * @param input - Selector list.
+ * @returns Mutable copy.
+ */
+function copyStrings(input: readonly string[]): string[] {
+  const output = new Array<string>(input.length)
+  for (let index = 0; index < input.length; index += 1) output[index] = input[index]
+  return output
+}
+
+/**
+ * Splits x: runtime context names without allocation-heavy chains.
+ *
+ * @param input - Runtime context text.
+ * @returns Context parts.
+ */
+function splitRuntimeContextParts(input: string): string[] {
+  const output: string[] = []
+  let start = 0
+  for (let index = 0; index <= input.length; index += 1) {
+    if (index < input.length && input[index] !== ':') continue
+    const part = input.slice(start, index).trim()
+    if (part) output.push(part)
+    start = index + 1
+  }
+  return output
+}
+
+/**
+ * Prefixes selectors for dark mode.
+ *
+ * @param prefix - Parent selector prefix.
+ * @param selectors - Selector list.
+ * @returns New selector list.
+ */
+function prefixSelectors(prefix: string, selectors: readonly string[]): string[] {
+  const output = new Array<string>(selectors.length)
+  for (let index = 0; index < selectors.length; index += 1) output[index] = `${prefix} ${selectors[index]}`
+  return output
+}
+
+/**
+ * Appends a pseudo selector to each selector.
+ *
+ * @param selectors - Selector list.
+ * @param pseudo - Pseudo name without colon.
+ * @returns New selector list.
+ */
+function appendPseudoToSelectors(selectors: readonly string[], pseudo: string): string[] {
+  const output = new Array<string>(selectors.length)
+  for (let index = 0; index < selectors.length; index += 1) output[index] = `${selectors[index]}:${pseudo}`
+  return output
+}
+
+/**
+ * Joins selectors with commas.
+ *
+ * @param selectors - Selector list.
+ * @returns Selector text.
+ */
+function joinSelectors(selectors: readonly string[]): string {
+  let output = ''
+  for (let index = 0; index < selectors.length; index += 1) output += output ? `,${selectors[index]}` : selectors[index]
+  return output
 }
 
 /***************************************************************************************************
