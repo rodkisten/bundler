@@ -14,6 +14,9 @@
 
 ### Added
 
+- Added Cipó native CSS function registry and `registerNativeFunction()` so platform functions like `max()`, `env()`, `light-dark()`, gradients, filters, transforms, shape functions and future browser functions are preserved instead of being treated as custom helpers.
+- Added Cipó tests covering modern CSS functions, nested native functions, multiline declaration values, theme token resolution inside native functions and future native function registration.
+
 - Added Fabrica `html.jsx` micro-JSX syntax for uppercase registered components without Babel or a virtual DOM.
 - Added Fabrica component registry APIs and explicit `<f-component name="...">` fallback composition.
 - Added missing component fallback UI so unresolved micro-JSX tags fail visibly and safely.
@@ -26,6 +29,9 @@
 - The generated landing page now extracts `@example` blocks from every source file under each tool package, not just root entry files.
 
 ### Changed
+
+- Cipó declaration parsing now keeps multiline property values together, preventing warning storms and invalid CSS when authoring safe-area styles such as `right: max(0.5rem, env(...))`.
+- Cipó helper resolution now only executes registered custom helpers and explicitly skips registered native CSS functions, keeping the hot path linear and avoiding recursive parsing traps.
 
 - `render()` now keeps a persistent root part per container and reconciles future renders instead of always calling `replaceChildren()`.
 - Delegated events now use the element root and `event.composedPath()` so Shadow DOM delegation behaves correctly.

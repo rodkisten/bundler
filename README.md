@@ -82,6 +82,57 @@ The builder extracts `@example` blocks from TSDoc. When a single TSDoc comment h
 
 `dist/index.html` uses a responsive forest/mata visual theme with layered gradients, noise, glass panels, modern CSS filters and mobile-safe layouts.
 
+
+## Cipó native CSS functions and stylesheet authoring
+
+Cipó now separates platform CSS functions from custom helpers. Native CSS such as
+`max()`, `min()`, `clamp()`, `calc()`, `env()`, `var()`, `light-dark()`,
+`color-mix()`, `oklch()`, gradients, filters, transforms, shapes and grid helpers
+passes through untouched while Cipó-only helpers such as `alpha()` and
+`outlineGlow()` are resolved by the helper registry.
+
+Input:
+
+```ts
+const styleText = Cipo.sheet.css`
+  .panel {
+    right: max(0.5rem, env(safe-area-inset-right))
+    bottom:
+      max(1.125rem, env(safe-area-inset-bottom))
+    background: linear-gradient(180deg, color-mix(in oklch, $panel 88%, transparent), light-dark(#fff, #000))
+    color: oklch(from $brand l c h)
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr))
+  }
+`;
+```
+
+Output:
+
+```css
+.panel {
+  right: max(0.5rem, env(safe-area-inset-right));
+  bottom: max(1.125rem, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, color-mix(in oklch, var(--cipo-colors-panel) 88%, transparent), light-dark(#fff, #000));
+  color: oklch(from var(--cipo-colors-brand) l c h);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+```
+
+Future browser functions can be registered without creating custom helpers:
+
+```ts
+Cipo.registerNativeFunction('anchor-size');
+
+Cipo.sheet.css`
+  .popover {
+    width: anchor-size(width)
+  }
+`;
+```
+
+The declaration tokenizer also supports multi-line values where the property and
+value are split across lines, which is useful for mobile-first safe-area CSS.
+
 ## Fábrica component runtime upgrade
 
 Fábrica now supports deep component composition and ownership-aware rendering.
