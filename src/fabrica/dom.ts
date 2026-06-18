@@ -741,6 +741,21 @@ function createChildPart(marker: Node): {
         return;
       }
 
+      if (
+        isComponentRenderRequest(resolvedValue) ||
+        isElementPayload(resolvedValue) ||
+        isComponentPayload(resolvedValue) ||
+        isDomBag(resolvedValue)
+      ) {
+        clearRange(start, end);
+        appendValue(end.parentNode, resolvedValue, end);
+        currentType = "renderable";
+        currentText = "";
+        textNode = null;
+        currentNode = null;
+        return;
+      }
+
       if (isDomNode(resolvedValue)) {
         if (currentType === "node" && currentNode === resolvedValue) {
           return;

@@ -125,7 +125,7 @@ function createEventHandler(
  * @returns void.
  */
 function bindDelegatedEvent(element: Element, eventConfig: EventBindingConfig, value: RenderValue): void {
-  let previousHandler: ((event: Event) => void) | null = null;
+  let previousHandler: (((event: Event) => void) & { original?: unknown }) | null = null;
   const target = element as Element & {
     __fabricaDelegatedHandlers?: Record<string, (event: Event) => void>;
   };
@@ -133,23 +133,28 @@ function bindDelegatedEvent(element: Element, eventConfig: EventBindingConfig, v
   const update = (): void => {
     const handler = isSignal(value) ? value() : value;
 
+    if (previousHandler) {
+      element.removeEventListener(eventConfig.name, previousHandler, eventConfig.options);
+      previousHandler = null;
+    }
+
     if (typeof handler !== "function") {
       if (target.__fabricaDelegatedHandlers) {
         delete target.__fabricaDelegatedHandlers[eventConfig.name];
       }
-      previousHandler = null;
       return;
     }
 
     const wrapped = createEventHandler(element, handler as (event: Event) => void, eventConfig);
 
-    if (previousHandler && (previousHandler as typeof previousHandler & { original?: unknown }).original === handler) {
-      return;
-    }
-
     target.__fabricaDelegatedHandlers ??= {};
     target.__fabricaDelegatedHandlers[eventConfig.name] = wrapped;
     previousHandler = wrapped;
+
+    // Keep document/shadow-root delegation for cross-root dispatch, but also
+    // bind on the owner element so children bubble correctly in jsdom and in
+    // isolated userscript worlds where composedPath can be incomplete.
+    element.addEventListener(eventConfig.name, wrapped, eventConfig.options);
     ensureDelegatedEvent(getDelegationRoot(element), eventConfig.name);
   };
 
@@ -160,6 +165,10 @@ function bindDelegatedEvent(element: Element, eventConfig: EventBindingConfig, v
   }
 
   registerCleanup(element, () => {
+    if (previousHandler) {
+      element.removeEventListener(eventConfig.name, previousHandler, eventConfig.options);
+    }
+
     if (target.__fabricaDelegatedHandlers) {
       delete target.__fabricaDelegatedHandlers[eventConfig.name];
     }

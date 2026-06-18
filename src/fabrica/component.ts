@@ -1,5 +1,5 @@
 import { batch, computed, effect, memo, signal, untrack } from "../broto/reactivity";
-import { createRoot, handleOwnerError, provide, runWithOwner, useContext } from "../broto/owner";
+import { createRoot, getOwner, handleOwnerError, provide, runWithOwner, useContext } from "../broto/owner";
 import { resource } from "../broto/resources";
 import { debugState } from "./debug";
 import { registerCleanup } from "./dom-cleanup";
@@ -215,6 +215,8 @@ export function materializeComponent<Props extends object>(request: ComponentRen
   const fragment = document.createDocumentFragment();
 
   let componentDispose: Cleanup | null = null;
+  let componentOwner: Parameters<typeof runWithOwner>[0] | null = null;
+  const parentOwner = getOwner();
 
   const [content, dispose] = createRoot<RenderValue>((disposeOwner, owner) => {
     const context: ComponentContext = {
@@ -258,6 +260,7 @@ export function materializeComponent<Props extends object>(request: ComponentRen
     };
 
     componentDispose = disposeOwner;
+    componentOwner = owner;
 
     try {
       return factory(request.props, context);
@@ -268,10 +271,16 @@ export function materializeComponent<Props extends object>(request: ComponentRen
 
       return null;
     }
-  }, { name: displayName });
+  }, { name: displayName, parent: parentOwner });
 
   fragment.append(start);
-  appendValue(fragment, content);
+
+  if (componentOwner) {
+    runWithOwner(componentOwner, () => appendValue(fragment, content));
+  } else {
+    appendValue(fragment, content);
+  }
+
   fragment.append(end);
 
   registerCleanup(start, () => {
