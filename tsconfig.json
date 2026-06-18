@@ -30,10 +30,12 @@
     },
     "ignoreDeprecations": "6.0"
   },
+  "exclude": [
+    "tests/**/*.ts"
+  ],
   "include": [
     "scripts/**/*.ts",
     "src/**/*.ts",
-    "src/**/*.tsx",
-    "tests/**/*.ts"
+    "src/**/*.tsx"
   ]
 }
