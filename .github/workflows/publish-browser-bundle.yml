@@ -9,8 +9,10 @@ on:
       - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "tsconfig.json"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
       - "vitest.config.*"
+      - "vitest.workspace.*"
       - ".github/workflows/publish-browser-bundle.yml"
       - "!**/*.md"
       - "!docs/**"
@@ -128,9 +130,71 @@ jobs:
             echo "| Reason | \`${{ steps.guard.outputs.reason }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  test:
+  changes:
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    runs-on: ubuntu-24.04
+
+    outputs:
+      should_test: ${{ steps.detect.outputs.should_test }}
+      reason: ${{ steps.detect.outputs.reason }}
+
+    steps:
+      - name: Checkout private source
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect test relevant changes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "reason=manual_run_always_tests" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          EMPTY_SHA="0000000000000000000000000000000000000000"
+
+          if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "$EMPTY_SHA" ] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            CHANGED_FILES="$(git diff-tree --root --no-commit-id --name-status -r --diff-filter=AMR "$HEAD_SHA")"
+          else
+            CHANGED_FILES="$(git diff --name-status --diff-filter=AMR "$BEFORE_SHA" "$HEAD_SHA")"
+          fi
+
+          TEST_RELEVANT_FILES="$(echo "$CHANGED_FILES" | awk '{ print $2 }' | grep -E '^(src|scripts)/.*\.ts$|(^|/)package\.json$|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|(^|/)tsconfig([^/]*)?\.json$|(^|/)vitest\.config\.(js|cjs|mjs|ts|cts|mts)$|(^|/)vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)$' || true)"
+
+          if [ -n "$TEST_RELEVANT_FILES" ]; then
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "reason=test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_test=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write changes summary
+        run: |
+          {
+            echo "## 🧭 Test Change Detector"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Should test | \`${{ steps.detect.outputs.should_test }}\` |"
+            echo "| Reason | \`${{ steps.detect.outputs.reason }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    needs:
+      - guard
+      - changes
+    if: ${{ github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') }}
     runs-on: ubuntu-24.04
     continue-on-error: true
 
