@@ -1,4 +1,4 @@
-import { HTML_TAGS } from '../cipo/src/constants'
+import { HTML_TAGS } from './html-tags'
 import { resolveAdapter } from './adapters'
 import { applyProps, mergeClassIntoProps } from './props'
 import type {
@@ -35,25 +35,27 @@ import { isDomElement } from './utils'
  * ```
  */
 export function createStyledFactory<Artifact = unknown>(options: StyledFactoryOptions<Artifact>): StyledFactory<Artifact> {
-  const base = ((target: unknown) => styledCore(target, options)) as StyledFactory<Artifact>
+  const styledTagCache = Object.create(null) as Record<string, StyledTagFactory<Artifact> | undefined>
+  const getStyledTagFactory = (tag: string): StyledTagFactory<Artifact> => styledTagCache[tag] ?? (styledTagCache[tag] = createStyledTagFactory(tag, options))
+  const base = ((target: unknown) => styledCore(target, options, getStyledTagFactory)) as StyledFactory<Artifact>
 
   if (typeof Proxy === 'undefined') {
-    installStyledTagFactories(base, options)
+    installStyledTagFactories(base, options, getStyledTagFactory)
     return base
   }
 
   return new Proxy(base, {
     get(target, property, receiver) {
       if (property in target) return Reflect.get(target, property, receiver)
-      if (typeof property === 'string') return createStyledTagFactory(property, options)
+      if (typeof property === 'string') return getStyledTagFactory(property)
       return undefined
     },
   })
 }
 
-function styledCore<Artifact>(target: unknown, options: StyledFactoryOptions<Artifact>): StyledBuilder {
+function styledCore<Artifact>(target: unknown, options: StyledFactoryOptions<Artifact>, getStyledTagFactory: (tag: string) => StyledTagFactory<Artifact>): StyledBuilder {
   if (isDomElement(target)) return createDomElementBuilder(target, options)
-  if (typeof target === 'string') return createStyledTagFactory(target, options)
+  if (typeof target === 'string') return getStyledTagFactory(target)
   return createComponentBuilder(target, options)
 }
 
@@ -117,9 +119,9 @@ function resolveFactoryAdapter(options: StyledFactoryOptions): ElementsAdapter {
   return resolveAdapter(value)
 }
 
-function installStyledTagFactories<Artifact>(target: StyledFactory<Artifact>, options: StyledFactoryOptions<Artifact>): void {
+function installStyledTagFactories<Artifact>(target: StyledFactory<Artifact>, _options: StyledFactoryOptions<Artifact>, getStyledTagFactory: (tag: string) => StyledTagFactory<Artifact>): void {
   for (let index = 0; index < HTML_TAGS.length; index += 1) {
     const tag = HTML_TAGS[index]
-    Object.defineProperty(target, tag, { configurable: true, enumerable: false, value: createStyledTagFactory(tag, options) })
+    Object.defineProperty(target, tag, { configurable: true, enumerable: false, value: getStyledTagFactory(tag) })
   }
 }

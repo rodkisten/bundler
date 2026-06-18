@@ -1,4 +1,4 @@
-import { HTML_TAGS } from '../cipo/src/constants'
+import { HTML_TAGS } from './html-tags'
 import { resolveAdapter } from './adapters'
 import type { ElementFactoryOptions, ElementTagFactory, ElementsAdapter, ElementsFactory, ElementsRecord } from './types'
 
@@ -20,17 +20,19 @@ import type { ElementFactoryOptions, ElementTagFactory, ElementsAdapter, Element
  * ```
  */
 export function createElementFactory<Output = unknown>(options: ElementFactoryOptions<Output> = {}): ElementsFactory<Output> {
-  const base = ((tag: string) => createTagFactory<Output>(tag, options)) as ElementsFactory<Output>
+  const tagFactoryCache = Object.create(null) as Record<string, ElementTagFactory<Output> | undefined>
+  const getTagFactory = (tag: string): ElementTagFactory<Output> => tagFactoryCache[tag] ?? (tagFactoryCache[tag] = createTagFactory<Output>(tag, options))
+  const base = ((tag: string) => getTagFactory(tag)) as ElementsFactory<Output>
 
   if (typeof Proxy === 'undefined') {
-    installTagFactories(base, options)
+    installTagFactories(base, options, getTagFactory)
     return base
   }
 
   return new Proxy(base, {
     get(target, property, receiver) {
       if (property in target) return Reflect.get(target, property, receiver)
-      if (typeof property === 'string') return createTagFactory<Output>(property, options)
+      if (typeof property === 'string') return getTagFactory(property)
       return undefined
     },
   })
@@ -54,9 +56,9 @@ function resolveFactoryAdapter(options: ElementFactoryOptions): ElementsAdapter 
   return resolveAdapter(value)
 }
 
-function installTagFactories<Output>(target: ElementsFactory<Output>, options: ElementFactoryOptions<Output>): void {
+function installTagFactories<Output>(target: ElementsFactory<Output>, _options: ElementFactoryOptions<Output>, getTagFactory: (tag: string) => ElementTagFactory<Output>): void {
   for (let index = 0; index < HTML_TAGS.length; index += 1) {
     const tag = HTML_TAGS[index]
-    Object.defineProperty(target, tag, { configurable: true, enumerable: false, value: createTagFactory(tag, options) })
+    Object.defineProperty(target, tag, { configurable: true, enumerable: false, value: getTagFactory(tag) })
   }
 }

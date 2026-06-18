@@ -6,6 +6,7 @@
  * @description Shared element/component factory layer used by Cipó and Fábrica.
  */
 export * from './types'
+export * from './html-tags'
 export * from './utils'
 export * from './props'
 export * from './adapters'
