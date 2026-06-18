@@ -30,9 +30,11 @@ import {
   defineElement,
   elements,
   html,
+  hydrate,
   jsx,
   listComponents,
   mount,
+  portal,
   rawHtml,
   ref,
   render,
@@ -41,12 +43,13 @@ import {
   sanitizedHtml,
   setDebug,
   styleMap,
+  suspense,
   trustedHtml,
   unsafeHtml,
   unregisterComponent,
   virtualRepeat,
   when,
-} from "../src/fabrica";
+} from "../index";
 import {
   batch,
   cleanupOwner,
@@ -77,8 +80,8 @@ import {
   store,
   untrack,
   useContext,
-} from "../src/broto";
-import type { Cleanup, RenderValue } from "../src/fabrica";
+} from "../../broto";
+import type { Cleanup, RenderValue } from "../index";
 
 type BenchResult = {
   label: string;
@@ -1284,4 +1287,61 @@ describe("Fábrica kitchen sink: render-value edge cases", () => {
     flushSync();
     expect(textOf()).toBe("Open");
   });
+
+
+  it("renders portal content into a foreign root and disposes it with owner range", () => {
+    const host = document.createElement("div");
+    const target = document.createElement("div");
+    document.body.append(host, target);
+
+    const dispose = render(host, html`${portal(target, html`<span class="ported">Portal</span>`)}`);
+
+    expect(host.textContent).toBe("");
+    expect(target.querySelector(".ported")?.textContent).toBe("Portal");
+
+    dispose();
+    expect(target.querySelector(".ported")).toBeNull();
+  });
+
+  it("renders suspense resource states", () => {
+    const host = document.createElement("div");
+    const state = signal({ loading: true, value: undefined as unknown, error: undefined as unknown });
+
+    render(host, html`${suspense(
+      state,
+      (value) => html`<strong>${String(value)}</strong>`,
+      () => html`<span>Loading</span>`,
+      (error) => html`<em>${String(error)}</em>`,
+    )}`);
+
+    expect(host.textContent).toBe("Loading");
+    state.set({ loading: false, value: "Done", error: undefined });
+    flushSync();
+    expect(host.textContent).toBe("Done");
+  });
+
+  it("hydrates without clearing existing markup", () => {
+    const host = document.createElement("div");
+    host.innerHTML = "<span>server</span>";
+
+    const dispose = hydrate(host, html`<button>client</button>`);
+
+    expect(host.textContent).toContain("server");
+    expect(host.textContent).toContain("client");
+    dispose();
+    expect(host.textContent).toContain("server");
+  });
+
+  it("supports append-only repeat strategy for growing log lists", () => {
+    const host = document.createElement("div");
+    const rows = signal([{ id: 1, label: "one" }]);
+
+    render(host, html`${repeat(rows, (row) => row.id, ({ item }) => html`<p>${() => item().label}</p>`, { strategy: "append-only" })}`);
+    expect(host.textContent).toBe("one");
+
+    rows.set([{ id: 1, label: "one" }, { id: 2, label: "two" }]);
+    flushSync();
+    expect(host.textContent).toBe("onetwo");
+  });
+
 });
