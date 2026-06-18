@@ -10,6 +10,7 @@ const DEFAULT_MAX_FLUSH_ITERATIONS = 1_000;
 let activeEffect: EffectRunner | null = null;
 let trackingEnabled = true;
 let flushQueued = false;
+let queuedFlushMode: SchedulerMode | null = null;
 let batchDepth = 0;
 let schedulerMode: SchedulerMode = "microtask";
 let maxFlushIterations = DEFAULT_MAX_FLUSH_ITERATIONS;
@@ -103,9 +104,11 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
     value = nextValue;
     brotoDebugState.updates += 1;
 
-    for (const subscriber of Array.from(subscribers)) {
-      scheduleEffect(subscriber);
-    }
+    // Snapshot manually instead of Array.from(). Sync effects cleanup and re-add
+    // themselves while running, and raw Set iteration can revisit them forever.
+    const pending: EffectRunner[] = [];
+    for (const subscriber of subscribers) pending[pending.length] = subscriber;
+    for (let index = 0; index < pending.length; index += 1) scheduleEffect(pending[index]);
   };
 
   read.update = (updater: (currentValue: Value) => Value): void => {
@@ -199,7 +202,8 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
   runner.deps = [];
   runner.cleanups = [];
   runner.disposed = false;
-  runner.sync = Boolean(options.sync);
+  runner.sync = Boolean(options.sync || options.scheduler === "sync");
+  runner.schedulerMode = options.scheduler;
   runner.owner = owner;
 
   brotoDebugState.effects += 1;
@@ -224,7 +228,13 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
 }
 
 /**
- * Creates a derived signal.
+ * Creates a lazy derived signal.
+ *
+ * @remarks
+ * The previous implementation eagerly recomputed through an internal effect.
+ * This version behaves more like a true memo: dependencies mark it dirty, but
+ * the getter only runs when somebody reads the computed value. That keeps large
+ * component trees and debug panels from doing invisible work.
  *
  * @param getter - Getter that may read signals.
  * @param options - Optional equality behavior.
@@ -233,17 +243,130 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
  * @example Derived label
  * ```ts
  * const label = computed(() => `Count: ${count()}`);
+ * // getter has not run yet
+ * console.log(label());
+ * // getter runs and caches now
  * ```
  */
 export function computed<Value>(getter: () => Value, options: SignalOptions<Value> = {}): Signal<Value> {
   brotoDebugState.computed += 1;
-  const output = signal<Value>(undefined as Value, options);
 
-  effect(() => {
-    output.set(getter());
-  });
+  const parentOwner = getOwner();
+  const owner = createOwner({ parent: parentOwner, name: "computed" });
+  const subscribers = new Set<EffectRunner>();
+  const equals = options.equals ?? Object.is;
 
-  return output;
+  let dirty = true;
+  let initialized = false;
+  let value: Value;
+
+  const runner = function markComputedDirty(): void {
+    if (runner.disposed || owner.disposed) {
+      return;
+    }
+
+    if (dirty) {
+      return;
+    }
+
+    dirty = true;
+
+    for (const subscriber of subscribers) {
+      scheduleEffect(subscriber);
+    }
+  } as EffectRunner;
+
+  runner.deps = [];
+  runner.cleanups = [];
+  runner.disposed = false;
+  runner.sync = true;
+  runner.schedulerMode = "sync";
+  runner.owner = owner;
+
+  const didNotChange = (previousValue: Value, nextValue: Value): boolean => {
+    if (!initialized || equals === false) {
+      return false;
+    }
+
+    return equals(previousValue, nextValue);
+  };
+
+  const recompute = (): Value => {
+    if (!dirty && initialized) {
+      return value;
+    }
+
+    cleanupEffect(runner);
+
+    const previousEffect = activeEffect;
+    activeEffect = runner;
+
+    try {
+      const nextValue = runWithOwner(owner, getter);
+
+      if (!didNotChange(value, nextValue)) {
+        value = nextValue;
+        brotoDebugState.updates += initialized ? 1 : 0;
+      }
+
+      initialized = true;
+      dirty = false;
+      return value;
+    } catch (error) {
+      if (!handleOwnerError(error, owner)) {
+        throw error;
+      }
+
+      return value;
+    } finally {
+      activeEffect = previousEffect;
+    }
+  };
+
+  function read(): Value {
+    if (activeEffect && trackingEnabled && !subscribers.has(activeEffect)) {
+      subscribers.add(activeEffect);
+      activeEffect.deps.push(subscribers);
+    }
+
+    return recompute();
+  }
+
+  read.set = (): void => {
+    throw new TypeError("computed.set() is not supported. Computed signals are read-only.");
+  };
+
+  read.update = (): void => {
+    throw new TypeError("computed.update() is not supported. Computed signals are read-only.");
+  };
+
+  read.peek = (): Value => untrack(recompute);
+
+  read.subscribe = (listener: EffectRunner): Cleanup => {
+    subscribers.add(listener);
+
+    return () => {
+      subscribers.delete(listener);
+    };
+  };
+
+  const dispose = (): void => {
+    if (runner.disposed) {
+      return;
+    }
+
+    runner.disposed = true;
+    cleanupEffect(runner);
+    subscribers.clear();
+    owner.parent?.children.delete(owner);
+    owner.disposed = true;
+  };
+
+  if (parentOwner) {
+    runWithOwner(parentOwner, () => onOwnerCleanup(dispose));
+  }
+
+  return read as Signal<Value>;
 }
 
 /**
@@ -429,24 +552,26 @@ function scheduleEffect(runner: EffectRunner): void {
   effectQueue.add(runner);
 
   if (batchDepth === 0) {
-    queueFlush();
+    queueFlush(runner.schedulerMode);
   }
 }
 
 /** Queues one scheduler flush. */
-function queueFlush(): void {
+function queueFlush(mode: SchedulerMode | undefined = undefined): void {
   if (flushQueued) {
+    if (queuedFlushMode !== "microtask" && mode === "microtask") queuedFlushMode = "microtask";
     return;
   }
 
   flushQueued = true;
+  queuedFlushMode = mode && mode !== "sync" ? mode : schedulerMode;
 
-  if (schedulerMode === "raf") {
+  if (queuedFlushMode === "raf") {
     requestAnimationFrame(flushEffects);
     return;
   }
 
-  if (schedulerMode === "idle" && "requestIdleCallback" in globalThis) {
+  if (queuedFlushMode === "idle" && "requestIdleCallback" in globalThis) {
     (globalThis as typeof globalThis & { requestIdleCallback(callback: () => void): number }).requestIdleCallback(flushEffects);
     return;
   }
@@ -457,6 +582,7 @@ function queueFlush(): void {
 /** Flushes queued effects with a recursion guard. */
 function flushEffects(): void {
   flushQueued = false;
+  queuedFlushMode = null;
   brotoDebugState.flushes += 1;
 
   let iterations = 0;
@@ -468,14 +594,18 @@ function flushEffects(): void {
     }
 
     iterations += 1;
-    const queued = Array.from(effectQueue);
+    const queued: EffectRunner[] = [];
+    for (const runner of effectQueue) {
+      queued[queued.length] = runner;
+    }
     effectQueue.clear();
 
     for (let index = 0; index < queued.length; index += 1) {
+      const runner = queued[index];
       try {
-        queued[index]?.();
+        runner?.();
       } catch (error) {
-        const owner = queued[index]?.owner ?? null;
+        const owner = runner?.owner ?? null;
         if (!handleOwnerError(error, owner)) {
           throw error;
         }

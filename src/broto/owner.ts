@@ -200,8 +200,13 @@ export function handleOwnerError(error: unknown, origin: Owner | null = activeOw
  * @returns void.
  */
 export function cleanupOwner(owner: Owner): void {
-  for (const child of Array.from(owner.children)) {
-    disposeOwner(child);
+  const children: Owner[] = [];
+  for (const child of owner.children) {
+    children[children.length] = child;
+  }
+
+  for (let index = 0; index < children.length; index += 1) {
+    disposeOwner(children[index]);
   }
 
   owner.children.clear();

@@ -76,12 +76,15 @@ export type EffectRunner = (() => void) & {
   cleanups: Cleanup[];
   disposed: boolean;
   sync: boolean;
+  schedulerMode?: SchedulerMode;
   owner: Owner;
 };
 
 /** Effect options. */
 export type EffectOptions = {
   sync?: boolean;
+  /** Overrides the global scheduler for this effect. */
+  scheduler?: SchedulerMode;
   name?: string;
 };
 

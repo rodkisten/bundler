@@ -144,3 +144,21 @@ Output state:
 profile();
 // { loading: false, value: { name: "Rod" }, error: undefined, stale: false }
 ```
+
+## Deep stores and per-effect scheduling
+
+Broto stores now support nested fields and dynamic path writes without Proxy magic:
+
+```ts
+const state = store({ panel: { open: false } });
+state.panel.open.set(true);
+state.set(['panel', 'title'], 'Inspector');
+state.snapshot();
+```
+
+Effects can override the global scheduler:
+
+```ts
+effect(() => expensiveLayoutRead(), { scheduler: 'raf' });
+effect(() => tinySynchronousMirror(), { scheduler: 'sync' });
+```
