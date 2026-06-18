@@ -31,7 +31,7 @@
     "ignoreDeprecations": "6.0"
   },
   "exclude": [
-    "tests/**/*.ts"
+    "**/*.test.ts"
   ],
   "include": [
     "scripts/**/*.ts",
