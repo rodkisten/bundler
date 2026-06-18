@@ -67,6 +67,22 @@ export type WhenDirective = Directive & {
   falsy?: () => RenderValue;
 };
 
+/** Portal directive that renders children into an external target. */
+export type PortalDirective = Directive & {
+  readonly kind: "portal";
+  target: Element | DocumentFragment | ShadowRoot | (() => Element | DocumentFragment | ShadowRoot | null);
+  value: RenderValue | (() => RenderValue);
+};
+
+/** Suspense directive for resource-like values. */
+export type SuspenseDirective = Directive & {
+  readonly kind: "suspense";
+  source: unknown;
+  pending: () => RenderValue;
+  resolved: (value: unknown) => RenderValue;
+  rejected?: (error: unknown) => RenderValue;
+};
+
 /** Keyed repeat directive. */
 export type RepeatDirective<Item, Key extends PropertyKey> = Directive & {
   readonly kind: "repeat";
@@ -74,6 +90,8 @@ export type RepeatDirective<Item, Key extends PropertyKey> = Directive & {
   key: (item: Item, index: number) => Key;
   render: (context: RepeatContext<Item, Key>) => RenderValue;
   empty?: () => RenderValue;
+  /** Diff strategy. append-only is optimized for logs/timelines that only grow. */
+  strategy?: "keyed" | "append-only" | "indexed";
 };
 
 /** Per-item context passed to keyed repeat renderers. */
@@ -86,6 +104,8 @@ export type RepeatContext<Item, Key extends PropertyKey> = {
 /** Repeat options. */
 export type RepeatOptions = {
   empty?: () => RenderValue;
+  /** Diff strategy. append-only is optimized for logs/timelines that only grow. */
+  strategy?: "keyed" | "append-only" | "indexed";
 };
 
 /** Virtual repeat options for large lists. */

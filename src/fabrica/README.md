@@ -446,3 +446,16 @@ jsx.html`<TabButton plugin=${item} />`;
 ```
 
 `html.jsx` remains an alias for existing code.
+
+## Composition helpers: portal, suspense, hydrate and repeat strategies
+
+Fábrica includes small composition primitives for app-scale UI:
+
+```ts
+html`${portal(document.body, Modal())}`;
+html`${suspense(resourceState, View, Spinner, ErrorView)}`;
+hydrate(root, App());
+repeat(records, (record) => record.id, Row, { strategy: 'append-only' });
+```
+
+`append-only` repeat is optimized for console logs, timelines and inspector surfaces where most updates add records at the end.

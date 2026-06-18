@@ -11,6 +11,8 @@ import type {
   VirtualRepeatDirective,
   VirtualRepeatOptions,
   WhenDirective,
+  PortalDirective,
+  SuspenseDirective,
 } from "./types";
 
 /**
@@ -56,8 +58,8 @@ export function repeat<Item, Key extends PropertyKey>(
   options: RepeatOptions = {},
 ): RepeatDirective<Item, Key> {
   const directive = options.empty
-    ? { kind: "repeat" as const, items, key, render: renderItem, empty: options.empty }
-    : { kind: "repeat" as const, items, key, render: renderItem };
+    ? { kind: "repeat" as const, items, key, render: renderItem, empty: options.empty, strategy: options.strategy }
+    : { kind: "repeat" as const, items, key, render: renderItem, strategy: options.strategy };
 
   return createDirective(directive);
 }
@@ -109,6 +111,44 @@ export function virtualRepeat<Item, Key extends PropertyKey>(
       };
 
   return createDirective(directive);
+}
+
+
+/**
+ * Renders content into another DOM root while the current template owns cleanup.
+ *
+ * @param target - Portal target or target getter.
+ * @param value - Value to render into the target.
+ * @returns Portal directive.
+ *
+ * @example
+ * ```ts
+ * html`${portal(document.body, html`<div role="dialog">Hi</div>`)}`
+ * ```
+ */
+export function portal(
+  target: PortalDirective["target"],
+  value: PortalDirective["value"],
+): PortalDirective {
+  return createDirective({ kind: "portal" as const, target, value });
+}
+
+/**
+ * Creates a small resource suspense directive.
+ *
+ * @param source - Resource-like signal/object with loading, value and error.
+ * @param resolved - Renderer for resolved values.
+ * @param pending - Pending fallback.
+ * @param rejected - Optional error fallback.
+ * @returns Suspense directive.
+ */
+export function suspense(
+  source: unknown,
+  resolved: (value: unknown) => RenderValue,
+  pending: () => RenderValue,
+  rejected?: (error: unknown) => RenderValue,
+): SuspenseDirective {
+  return createDirective({ kind: "suspense" as const, source, resolved, pending, rejected });
 }
 
 /**

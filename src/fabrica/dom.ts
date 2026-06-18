@@ -48,6 +48,8 @@ import type {
   RepeatDirective,
   RepeatRecord,
   TemplatePart,
+  PortalDirective,
+  SuspenseDirective,
   VirtualRepeatDirective,
   WhenDirective,
 } from "./types";
@@ -157,6 +159,27 @@ export function render(
   state.part.set(value);
 
   return state.dispose;
+}
+
+/**
+ * Hydrates an existing container by attaching Fabrica ownership.
+ *
+ * @remarks
+ * This conservative hydration path preserves existing DOM until the first
+ * reactive update. It is intentionally safe for progressively enhanced islands:
+ * callers can render server markup, then call hydrate with the equivalent view
+ * to install event listeners and range cleanup without a forced empty pass.
+ *
+ * @param container - Target container.
+ * @param value - Render value.
+ * @returns Dispose callback.
+ */
+export function hydrate(
+  container: Element | DocumentFragment | ShadowRoot,
+  value: RenderValue,
+): () => void {
+  if (!container.firstChild) return render(container, value);
+  return mount(container, value);
 }
 
 /**
@@ -982,10 +1005,144 @@ function createDirectiveController(
     return createVirtualRepeatController(start, end);
   }
 
+  if (directive.kind === "portal") {
+    return createPortalController(start, end);
+  }
+
+  if (directive.kind === "suspense") {
+    return createSuspenseController(start, end);
+  }
+
   return {
     kind: directive.kind,
     update(): void {},
     dispose(): void {
+      clearRange(start, end);
+    },
+  };
+}
+
+
+/**
+ * Creates a portal controller that renders into a foreign DOM root.
+ *
+ * @param start - Owned range start.
+ * @param end - Owned range end.
+ * @returns Directive controller.
+ */
+function createPortalController(start: Comment, end: Comment): DirectiveController {
+  let currentDirective: PortalDirective | null = null;
+  let disposePortal: (() => void) | null = null;
+  let disposeEffect: (() => void) | null = null;
+  let currentTarget: Element | DocumentFragment | ShadowRoot | null = null;
+
+  const updatePortal = (): void => {
+    if (!currentDirective) return;
+    const target = typeof currentDirective.target === "function" ? currentDirective.target() : currentDirective.target;
+    const value = readValue(currentDirective.value) as RenderValue;
+
+    if (!target) {
+      disposePortal?.();
+      disposePortal = null;
+      currentTarget = null;
+      return;
+    }
+
+    if (target !== currentTarget) {
+      disposePortal?.();
+      disposePortal = null;
+      currentTarget = target;
+    }
+
+    if (!disposePortal) {
+      disposePortal = mount(target, value);
+      return;
+    }
+
+    disposePortal();
+    disposePortal = mount(target, value);
+  };
+
+  return {
+    kind: "portal",
+    update(nextDirective: Directive): void {
+      currentDirective = nextDirective as PortalDirective;
+
+      if (disposeEffect) {
+        updatePortal();
+        return;
+      }
+
+      disposeEffect = effect(updatePortal, { name: "fabrica.portal" });
+      registerCleanup(start, () => {
+        disposeEffect?.();
+        disposeEffect = null;
+        disposePortal?.();
+        disposePortal = null;
+        currentTarget = null;
+      });
+    },
+    dispose(): void {
+      disposeEffect?.();
+      disposeEffect = null;
+      disposePortal?.();
+      disposePortal = null;
+      currentTarget = null;
+      clearRange(start, end);
+    },
+  };
+}
+
+/**
+ * Creates a resource suspense controller.
+ *
+ * @param start - Owned range start.
+ * @param end - Owned range end.
+ * @returns Directive controller.
+ */
+function createSuspenseController(start: Comment, end: Comment): DirectiveController {
+  let currentDirective: SuspenseDirective | null = null;
+  let disposeEffect: (() => void) | null = null;
+
+  const updateSuspense = (): void => {
+    if (!currentDirective) return;
+    const state = readValue(currentDirective.source) as { loading?: boolean; value?: unknown; error?: unknown } | unknown;
+    const resource = state && typeof state === "object" ? state as { loading?: boolean; value?: unknown; error?: unknown } : { value: state };
+
+    clearRange(start, end);
+
+    if (resource.error !== undefined && currentDirective.rejected) {
+      appendValue(end.parentNode, currentDirective.rejected(resource.error), end);
+      return;
+    }
+
+    if (resource.loading) {
+      appendValue(end.parentNode, currentDirective.pending(), end);
+      return;
+    }
+
+    appendValue(end.parentNode, currentDirective.resolved(resource.value), end);
+  };
+
+  return {
+    kind: "suspense",
+    update(nextDirective: Directive): void {
+      currentDirective = nextDirective as SuspenseDirective;
+
+      if (disposeEffect) {
+        updateSuspense();
+        return;
+      }
+
+      disposeEffect = effect(updateSuspense, { name: "fabrica.suspense" });
+      registerCleanup(start, () => {
+        disposeEffect?.();
+        disposeEffect = null;
+      });
+    },
+    dispose(): void {
+      disposeEffect?.();
+      disposeEffect = null;
       clearRange(start, end);
     },
   };
@@ -1270,6 +1427,15 @@ function updateRepeat(
 ): boolean {
   const resolvedItems = readValue(directive.items);
   const items = Array.isArray(resolvedItems) ? resolvedItems : [];
+
+  if (directive.strategy === "append-only") {
+    return updateAppendOnlyRepeat(start, end, records, directive, items);
+  }
+
+  if (directive.strategy === "indexed") {
+    return updateIndexedRepeat(start, end, records, directive, items);
+  }
+
   const nextKeys = new Set<PropertyKey>();
   let cursor: Node | null = start.nextSibling;
 
@@ -1303,14 +1469,126 @@ function updateRepeat(
     cursor = record.end.nextSibling;
   }
 
-  for (const [key, record] of Array.from(records.entries())) {
-    if (nextKeys.has(key)) {
+  const staleKeys: PropertyKey[] = [];
+  for (const [key, record] of records) {
+    if (nextKeys.has(key)) continue;
+    disposeRange(record.start, record.end);
+    removeRange(record.start, record.end);
+    staleKeys[staleKeys.length] = key;
+  }
+
+  for (let index = 0; index < staleKeys.length; index += 1) records.delete(staleKeys[index]);
+
+  return items.length > 0;
+}
+
+/**
+ * Updates a list that only appends or trims from the end.
+ *
+ * @remarks
+ * This is the fast path for logs, timelines and console records. It avoids
+ * building next-key sets, moving existing ranges and scanning old records on
+ * every push. When the list shrinks, only the truncated tail is disposed.
+ *
+ * @param start - Range start marker.
+ * @param end - Range end marker.
+ * @param records - Existing records.
+ * @param directive - Repeat directive.
+ * @param items - Resolved items.
+ * @returns Whether there are items.
+ */
+function updateAppendOnlyRepeat(
+  start: Comment,
+  end: Comment,
+  records: Map<PropertyKey, RepeatRecord>,
+  directive: RepeatDirective<unknown, PropertyKey>,
+  items: readonly unknown[],
+): boolean {
+  let index = 0;
+
+  for (; index < items.length; index += 1) {
+    const item = items[index];
+    const key = directive.key(item, index);
+    let record = records.get(key);
+
+    if (!record) {
+      record = createRepeatRecord(item, index, key, directive.render);
+      records.set(key, record);
+      end.parentNode?.insertBefore(record.fragment as DocumentFragment, end);
+      record.fragment = null;
       continue;
     }
 
-    disposeRange(record.start, record.end);
-    removeRange(record.start, record.end);
-    records.delete(key);
+    batch(() => {
+      record.item.set(item);
+      record.index.set(index);
+      record.key.set(key);
+    });
+  }
+
+  if (records.size > items.length) {
+    const staleKeys: PropertyKey[] = [];
+    let seen = 0;
+    for (const [key, record] of records) {
+      if (seen >= items.length) {
+        disposeRange(record.start, record.end);
+        removeRange(record.start, record.end);
+        staleKeys[staleKeys.length] = key;
+      }
+      seen += 1;
+    }
+    for (let staleIndex = 0; staleIndex < staleKeys.length; staleIndex += 1) records.delete(staleKeys[staleIndex]);
+  }
+
+  return items.length > 0;
+}
+
+/**
+ * Updates an index-stable list without moving DOM ranges.
+ *
+ * @param start - Range start marker.
+ * @param end - Range end marker.
+ * @param records - Existing records.
+ * @param directive - Repeat directive.
+ * @param items - Resolved items.
+ * @returns Whether there are items.
+ */
+function updateIndexedRepeat(
+  start: Comment,
+  end: Comment,
+  records: Map<PropertyKey, RepeatRecord>,
+  directive: RepeatDirective<unknown, PropertyKey>,
+  items: readonly unknown[],
+): boolean {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const key = index;
+    let record = records.get(key);
+
+    if (!record) {
+      record = createRepeatRecord(item, index, key, directive.render);
+      records.set(key, record);
+      end.parentNode?.insertBefore(record.fragment as DocumentFragment, end);
+      record.fragment = null;
+      continue;
+    }
+
+    batch(() => {
+      record.item.set(item);
+      record.index.set(index);
+      record.key.set(key);
+    });
+  }
+
+  if (records.size > items.length) {
+    const staleKeys: PropertyKey[] = [];
+    for (const [key, record] of records) {
+      if (Number(key) < items.length) continue;
+      disposeRange(record.start, record.end);
+      removeRange(record.start, record.end);
+      staleKeys[staleKeys.length] = key;
+    }
+    for (let index = 0; index < staleKeys.length; index += 1) records.delete(staleKeys[index]);
   }
 
   return items.length > 0;

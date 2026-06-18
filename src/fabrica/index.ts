@@ -21,8 +21,8 @@ export { clearComponents, component, listComponents, registerComponent, resolveC
 export { boundary } from "./boundary";
 export { createFabricaContext, provide, useContext } from "./context";
 export { debug, setDebug } from "./debug";
-export { classMap, ref, repeat, styleMap, virtualRepeat, when } from "./directives";
-export { html, jsx, mount, render } from "./dom";
+export { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";
+export { html, hydrate, jsx, mount, render } from "./dom";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
 

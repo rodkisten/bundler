@@ -4,8 +4,8 @@ import { boundary } from "./boundary";
 import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
-import { classMap, ref, repeat, styleMap, virtualRepeat, when } from "./directives";
-import { html, jsx, mount, render } from "./dom";
+import { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";
+import { html, hydrate, jsx, mount, render } from "./dom";
 import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
 import { config } from "./install-state";
@@ -17,6 +17,7 @@ export type FabricaApi = {
   html: typeof html & { raw(value: string): RawHtml; sanitized(value: string): RawHtml; trusted(value: string): RawHtml; unsafe(value: string): RawHtml };
   render: typeof render;
   mount: typeof mount;
+  hydrate: typeof hydrate;
   jsx: typeof jsx;
   component: typeof component;
   registerComponent: typeof registerComponent;
@@ -31,6 +32,8 @@ export type FabricaApi = {
   when: typeof when;
   repeat: typeof repeat;
   virtualRepeat: typeof virtualRepeat;
+  portal: typeof portal;
+  suspense: typeof suspense;
   ref: typeof ref;
   classMap: typeof classMap;
   styleMap: typeof styleMap;
@@ -77,6 +80,8 @@ export function createFabricaApi(): FabricaApi {
     when,
     repeat,
     virtualRepeat,
+    portal,
+    suspense,
     ref,
     classMap,
     styleMap,
@@ -87,6 +92,7 @@ export function createFabricaApi(): FabricaApi {
     html: htmlWithRaw,
     render,
     mount,
+    hydrate,
     jsx,
     component,
     registerComponent,
@@ -101,6 +107,8 @@ export function createFabricaApi(): FabricaApi {
     when,
     repeat,
     virtualRepeat,
+    portal,
+    suspense,
     ref,
     classMap,
     styleMap,
