@@ -81,8 +81,12 @@ export function reset(): void {
 
 export const cipo = createCipoCallable()
 
+/** Styled-components-like alias for the callable Cipó component factory. */
+export const styled = cipo
+
 Object.assign(cipo, {
   css,
+  styled,
   atomic,
   sheet,
   assertAtomicCssArtifact,
@@ -118,6 +122,7 @@ export function createBrowserGlobal() {
   return {
     cipo,
     css,
+    styled,
     atomic,
     sheet,
     assertAtomicCssArtifact,
