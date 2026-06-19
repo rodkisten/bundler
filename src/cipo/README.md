@@ -474,3 +474,30 @@ x:hover {
 }
 */
 ```
+
+## Styled components with Fábrica
+
+Cipó's callable API is also exported as `styled` for familiar styled-components-like authoring.
+
+```ts
+import { styled } from '../cipo'
+import { html, render } from '../fabrica'
+import { signal } from '../broto'
+
+const tone = signal('primary')
+
+const Button = styled.button.css`
+  px: 4
+  py: 2
+  bg: $brand
+  color: $ink
+`
+
+render(root, html`
+  <${Button} data-tone=${tone} @click=${save}>
+    Save
+  </${Button}>
+`)
+```
+
+When rendered through Fábrica component tags, dynamic props backed by Broto signals are reactive. Fábrica owns the effect and cleanup; Cipó only compiles the class list and Fabrica Elements creates the DOM or adapter payload.

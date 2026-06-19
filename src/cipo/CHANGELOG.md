@@ -23,3 +23,9 @@
 - Added `bleed`, `bleedX`, `bleedY` spacing aliases for negative spacing ergonomics.
 - Added built-in `glassCard` alias for the `$glassCard` example shape.
 - Added regression tests for comments, optional semicolons, helpers, x blocks and alias expansion.
+
+## Styled integration pass
+
+- Added `styled` as a public alias for Cipó's callable styled factory (`cipo`).
+- Documented Fábrica component-tag rendering for Cipó styled DOM factories.
+- Added integration tests proving styled components can render through Fábrica, receive events and update dynamic signal props.
