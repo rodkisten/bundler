@@ -145,16 +145,98 @@ profile();
 // { loading: false, value: { name: "Rod" }, error: undefined, stale: false }
 ```
 
-## Deep stores and per-effect scheduling
+## Deep stores, patch(), update() and set()
 
-Broto stores now support nested fields and dynamic path writes without Proxy magic:
+Broto stores support nested fields, dynamic path writes and batched deep patches without Proxy magic.
+Primitive leaves are writable signals, nested objects stay as stable store nodes and arrays are replaced as array signals.
+
+Input:
 
 ```ts
-const state = store({ panel: { open: false } });
-state.panel.open.set(true);
-state.set(['panel', 'title'], 'Inspector');
-state.snapshot();
+const state = store({
+  panel: {
+    open: false,
+    rect: { x: 10, y: 20, width: 520 },
+  },
+  user: { name: "Rod" },
+});
+
+state.patch({
+  panel: {
+    open: true,
+    rect: { width: 640 },
+  },
+}, { cause: "panel:resize" });
 ```
+
+Output:
+
+```ts
+state.panel.open();
+// true
+
+state.panel.rect.x();
+// 10
+
+state.panel.rect.width();
+// 640
+
+state.snapshot();
+// {
+//   panel: { open: true, rect: { x: 10, y: 20, width: 640 } },
+//   user: { name: "Rod" }
+// }
+```
+
+`patch()` also accepts a draft updater. The updater may mutate the draft or return a partial object:
+
+```ts
+state.patch((draft) => {
+  draft.panel.open = false;
+  draft.panel.rect.width = 320;
+}, { cause: "draft:patch" });
+```
+
+Use `update()` when you want the intent to be a draft mutation of the current snapshot:
+
+```ts
+state.update((draft) => {
+  draft.panel.rect.width = 700;
+  draft.user.name = "Rodolfo";
+}, { cause: "settings:import" });
+```
+
+Use `set()` to replace the whole root state. Missing keys are removed, including missing nested keys:
+
+```ts
+state.set({
+  panel: { open: false, rect: { width: 520 } },
+  user: { name: "Rod" },
+}, { cause: "reset" });
+```
+
+Path writes remain available for dynamic UI state:
+
+```ts
+state.setPath(["panel", "title"], "Inspector", { cause: "title" });
+state.set(["panel", "rect", "height"], 260, { cause: "legacy:path-set" });
+```
+
+Store snapshots and subscriptions:
+
+```ts
+const stop = state.subscribe((event) => {
+  console.log(event.type, event.cause, event.path, event.state);
+});
+
+state.peek();
+state.toJSON();
+stop();
+```
+
+All public store mutations are wrapped in `batch()`, so dependent effects rerun once per call instead of once per changed leaf.
+
+## Per-effect scheduling
 
 Effects can override the global scheduler:
 
