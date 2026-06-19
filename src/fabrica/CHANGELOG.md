@@ -3,6 +3,10 @@
 
 ## Next
 
+- Added template spread props syntax for DOM and component placeholder nodes: `html`<button ...${props}>Save</button>``.
+- Added component event prop normalization so `<${Button} @click=${save}>` reaches the component as `props.onClick`.
+- Fixed delegated events so root-level delegation no longer double-fires when a direct fallback is also needed for jsdom or isolated userscript worlds.
+- Added kitchen-sink tests covering component event props, spread props and stale spread event listener cleanup.
 - Added `html.jsx` micro-JSX syntax for registered string component tags: `html.jsx`<Dock />``.
 - Added component registry APIs: `registerComponent`, `unregisterComponent`, `resolveComponent`, `listComponents`, and `clearComponents`.
 - Added explicit parser-safe component fallback tag support with `<f-component name="Dock">...</f-component>`.

@@ -6,6 +6,7 @@ import type { EventBindingConfig, RenderValue } from "./types";
 
 /** Roots that already have a delegated listener for each event. */
 const delegatedEvents = new WeakMap<EventTarget, Set<string>>();
+const delegatedHandledEvents = new WeakMap<Event, Set<string>>();
 
 /**
  * Binds an event listener with modifiers.
@@ -146,14 +147,21 @@ function bindDelegatedEvent(element: Element, eventConfig: EventBindingConfig, v
     }
 
     const wrapped = createEventHandler(element, handler as (event: Event) => void, eventConfig);
+    const originalWrapped = wrapped as (event: Event) => void;
+    const markedWrapped = ((event: Event): void => {
+      markDelegatedEventHandled(event, eventConfig.name);
+      originalWrapped(event);
+    }) as typeof wrapped;
+    markedWrapped.original = wrapped.original;
 
     target.__fabricaDelegatedHandlers ??= {};
-    target.__fabricaDelegatedHandlers[eventConfig.name] = wrapped;
-    previousHandler = wrapped;
+    target.__fabricaDelegatedHandlers[eventConfig.name] = markedWrapped;
+    previousHandler = markedWrapped;
 
-    // Keep document/shadow-root delegation for cross-root dispatch, but also
-    // bind on the owner element so children bubble correctly in jsdom and in
-    // isolated userscript worlds where composedPath can be incomplete.
+    // Keep a direct fallback for jsdom and isolated userscript worlds where
+    // document-level composed paths can be incomplete. The wrapper marks the
+    // event before running so the root delegate can skip it and never double
+    // fire the same delegated handler.
     element.addEventListener(eventConfig.name, wrapped, eventConfig.options);
     ensureDelegatedEvent(getDelegationRoot(element), eventConfig.name);
   };
@@ -214,6 +222,10 @@ function ensureDelegatedEvent(root: Document | ShadowRoot, eventName: string): v
   debugState.delegatedEvents += 1;
 
   root.addEventListener(eventName, (event) => {
+    if (isDelegatedEventHandled(event, eventName)) {
+      return;
+    }
+
     const path = typeof event.composedPath === "function" ? event.composedPath() : [];
 
     if (path.length > 0) {
@@ -242,6 +254,21 @@ function ensureDelegatedEvent(root: Document | ShadowRoot, eventName: string): v
       current = current.parentNode;
     }
   });
+}
+
+function markDelegatedEventHandled(event: Event, eventName: string): void {
+  let events = delegatedHandledEvents.get(event);
+
+  if (!events) {
+    events = new Set<string>();
+    delegatedHandledEvents.set(event, events);
+  }
+
+  events.add(eventName);
+}
+
+function isDelegatedEventHandled(event: Event, eventName: string): boolean {
+  return delegatedHandledEvents.get(event)?.has(eventName) === true;
 }
 
 /**

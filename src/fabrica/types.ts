@@ -239,6 +239,11 @@ export type TemplatePart =
       name: string;
     }
   | {
+      type: "spread";
+      index: number;
+      path: number[];
+    }
+  | {
       type: "component";
       index: number;
       path: number[];

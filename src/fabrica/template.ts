@@ -103,6 +103,12 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       skipNextPrefix = "";
     }
 
+    if (index < strings.length - 1 && isSpreadAttributePosition(chunk)) {
+      source += chunk.replace(/\.\.\.\s*$/, "");
+      source += ` data-fabrica-spread="${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}"`;
+      continue;
+    }
+
     source += chunk;
 
     if (index >= strings.length - 1) {
@@ -140,6 +146,22 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
 
 function isComponentTagValue(value: unknown): boolean {
   return typeof value === "function";
+}
+
+/**
+ * Detects object-spread syntax inside an open tag.
+ *
+ * @remarks
+ * Fabrica accepts a template-only spread form such as `<button ...${props}>`.
+ * Browsers do not understand `...` attributes, so the compiler removes the
+ * ellipsis and emits a hidden marker attribute that is later bound as a props
+ * object.
+ *
+ * @param chunk - Static chunk before interpolation.
+ * @returns Whether the next value is a spread props object.
+ */
+export function isSpreadAttributePosition(chunk: string): boolean {
+  return /\.\.\.\s*$/.test(chunk) && chunk.lastIndexOf("<") > chunk.lastIndexOf(">");
 }
 
 /**
@@ -286,6 +308,12 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
       const markerIndex = getAttributeMarkerIndex(attribute.value);
 
       if (markerIndex === -1) {
+        continue;
+      }
+
+      if (attribute.name === "data-fabrica-spread") {
+        parts.push({ type: "spread", index: markerIndex, path: getNodePath(root, element) });
+        element.removeAttribute(attribute.name);
         continue;
       }
 

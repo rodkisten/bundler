@@ -108,6 +108,68 @@ Output:
 <button type="submit" class="primary">Save</button>
 ```
 
+## Component events and spread props
+
+Component event attributes are normalized to `onX` props before the component factory runs. This keeps component authoring ergonomic while preserving Fabrica's DOM event syntax.
+
+Input:
+
+```ts
+const Button = component(function Button({ children, ...props }) {
+  return html`<button ...${props}>${children}</button>`;
+});
+
+render(
+  document.body,
+  html`
+    <${Button} @click=${save} title="Save item">
+      Save
+    </${Button}>
+  `,
+);
+```
+
+Runtime props received by `Button`:
+
+```ts
+{
+  onClick: save,
+  title: "Save item",
+  children: DocumentFragment
+}
+```
+
+Output:
+
+```html
+<button title="Save item">Save</button>
+```
+
+DOM spread syntax is supported on real elements too. Spread props support `class`, `className`, `style`, `attrs`, `dataset`, `ref`, `on`, `onClick`, normal DOM properties and plain attributes. Reactive spread objects are diffed, so stale event listeners are removed instead of stacking duplicates.
+
+Input:
+
+```ts
+const props = signal({
+  class: "primary",
+  onClick: save,
+  dataset: { action: "save" },
+});
+
+render(document.body, html`<button ...${props}>Save</button>`);
+
+props.set({
+  class: "danger",
+  onClick: remove,
+});
+```
+
+Output after update:
+
+```html
+<button class="danger">Save</button>
+```
+
 ## Micro-JSX string component tags
 
 `html.jsx` enables uppercase component tags inside template strings without Babel, TSX, or a virtual DOM. Components are resolved from a registry. `component(function Name(){})` registers itself automatically under `Name`; minified or anonymous components can be registered manually.
