@@ -466,6 +466,24 @@ function applyPayloadProps(element: Element, props: Record<string, unknown>): vo
       continue;
     }
 
+    if (key === "attrs" && propValue && typeof propValue === "object") {
+      const attrs = propValue as Record<string, unknown>;
+      for (const attrName in attrs) {
+        setPropertyOrAttribute(element, attrName, attrs[attrName]);
+      }
+      continue;
+    }
+
+    if (key === "dataset" && propValue && typeof propValue === "object" && element instanceof HTMLElement) {
+      const dataset = propValue as Record<string, unknown>;
+      for (const dataName in dataset) {
+        const item = dataset[dataName];
+        if (item == null) delete element.dataset[dataName];
+        else element.dataset[dataName] = String(item);
+      }
+      continue;
+    }
+
     if (key === "ref") {
       applyPayloadRef(element, propValue);
       continue;
@@ -570,21 +588,84 @@ function bindComponentPart(
     return;
   }
 
-  const props = {
-    ...readStaticComponentProps(node),
-    ...readDynamicComponentProps(dynamicPropParts, values),
+  const owner = createOwner({ parent: getOwner(), name: `fabrica.componentTag:${componentName || "anonymous"}` });
+  registerCleanup(childPart.start, () => disposeOwner(owner));
+
+  const renderComponent = (): void => {
+    const props = {
+      ...readStaticComponentProps(node),
+      ...readDynamicComponentProps(dynamicPropParts, values),
+    };
+    const children = node.content.cloneNode(true) as DocumentFragment;
+    const childParts = compileParts(children);
+
+    applyParts(children, childParts, values);
+
+    const output = callComponentLike(componentValue, {
+      ...props,
+      children,
+    });
+
+    childPart.set(output as RenderValue);
   };
-  const children = node.content.cloneNode(true) as DocumentFragment;
-  const childParts = compileParts(children);
 
-  applyParts(children, childParts, values);
+  if (hasReactiveComponentInputs(dynamicPropParts, values)) {
+    const dispose = runWithOwner(owner, () =>
+      effect(renderComponent, { name: `fabrica.componentTagBinding:${componentName || "anonymous"}` }),
+    );
+    registerCleanup(childPart.start, dispose);
+    return;
+  }
 
-  const output = callComponentLike(componentValue, {
-    ...props,
-    children,
-  });
+  runWithOwner(owner, renderComponent);
+}
 
-  childPart.set(output as RenderValue);
+
+/**
+ * Checks whether dynamic component props or spreads contain reactive values.
+ *
+ * @remarks
+ * Component tags such as `<${Button} tone=${tone}>` must re-run the component
+ * factory when `tone` changes. Plain DOM parts already handle reactivity at the
+ * attribute/child level; component tags need this small bridge because their
+ * props are gathered before invoking an arbitrary component or styled factory.
+ *
+ * @param propParts - Dynamic prop descriptors.
+ * @param values - Template values.
+ * @returns Whether the component invocation should be owned by an effect.
+ */
+function hasReactiveComponentInputs(
+  propParts: readonly DynamicComponentPropPart[],
+  values: readonly RenderValue[],
+): boolean {
+  for (let index = 0; index < propParts.length; index += 1) {
+    const part = propParts[index];
+    if (!part) continue;
+
+    const value = values[part.index];
+    if (hasReactiveValue(value)) return true;
+
+    if (part.spread && hasReactiveRecordValue(value)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Checks a plain object for reactive values without importing adapter code.
+ *
+ * @param value - Possible object.
+ * @returns Whether at least one own property is reactive.
+ */
+function hasReactiveRecordValue(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  const record = value as Record<string, unknown>;
+  for (const key in record) {
+    if (hasReactiveValue(record[key])) return true;
+  }
+
+  return false;
 }
 
 function callComponentLike(componentValue: unknown, props: Record<string, unknown>): unknown {

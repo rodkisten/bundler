@@ -47,3 +47,9 @@
 - Fixed micro-JSX closing/self-closing component tag regex escaping so compiled bundles keep `\s` matching instead of degrading to literal `s`.
 - Fixed dynamic component props in micro-JSX/component placeholders so values like `<TabButton plugin=${item} />` reach the component as the original runtime value instead of stringifying to `[object Object]`.
 - Fixed a duplicated local declaration in property binding.
+
+## Integration pass
+
+- Added reactive component-tag invocation for dynamic props and spreads. Component tags such as `<${Button} tone=${tone}>` now re-run the component or styled factory when Broto signals used as props change.
+- Improved adapter payload materialization with `attrs` and `dataset` support so Fabrica Elements payload output renders through Fábrica without losing data attributes.
+- Added kitchen-sink coverage for Fabrica Elements payloads and Cipó styled components rendered through Fábrica component tags.

@@ -521,3 +521,53 @@ repeat(records, (record) => record.id, Row, { strategy: 'append-only' });
 ```
 
 `append-only` repeat is optimized for console logs, timelines and inspector surfaces where most updates add records at the end.
+
+## Fabrica Elements and Cipó styled integration
+
+Fábrica can render plain DOM nodes, Fabrica Elements payloads and Cipó styled factories through the same render pipeline.
+
+```ts
+import { html, render } from '../fabrica'
+import { styled } from '../cipo'
+import { signal } from '../broto'
+
+const tone = signal('primary')
+
+const Button = styled.button.css`
+  px: 4
+  py: 2
+  bg: $brand
+`
+
+render(root, html`
+  <${Button} data-tone=${tone} @click=${save}>
+    Save
+  </${Button}>
+`)
+```
+
+Dynamic component-tag props are owned by a Broto effect. When `tone.set('danger')` runs, Fábrica re-invokes the styled factory, disposes the previous DOM range and mounts the next output. This keeps styled DOM factories ergonomic while preserving Fábrica's cleanup model.
+
+Fabrica Elements payload adapter output is also renderable:
+
+```ts
+import { createElementFactory } from '../fabrica-elements'
+
+const payloadElements = createElementFactory({ adapter: 'payload' })
+
+render(root, html`
+  ${payloadElements.section({
+    class: 'card',
+    dataset: { source: 'payload' },
+    children: payloadElements.button({ children: 'Save' }),
+  })}
+`)
+```
+
+Supported renderable shapes now include:
+
+- `Node` and `DocumentFragment`;
+- Fabrica components and component render requests;
+- Fabrica Elements payloads with `tag`, `props`, `attrs`, `dataset`, events, refs and children;
+- Cipó styled DOM factories returned by `styled.button.css``...`` `;
+- arrays containing any combination of the above.
