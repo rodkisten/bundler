@@ -81,6 +81,12 @@ import {
   untrack,
   useContext,
 } from "../../broto";
+import {
+  reset as resetCipo,
+  setup as setupCipo,
+  styled as cipoStyled,
+} from "../../cipo/src/index";
+import { createElementFactory } from "../../fabrica-elements";
 import type { Cleanup, RenderValue } from "../index";
 
 type BenchResult = {
@@ -112,6 +118,7 @@ afterEach(() => {
   host.replaceChildren();
   document.body.innerHTML = "";
   configureScheduler({ mode: "microtask", maxFlushIterations: 1_000 });
+  resetCipo();
   vi.restoreAllMocks();
 });
 
@@ -160,6 +167,104 @@ function expectBenchResult(result: BenchResult): void {
   expect(result.vanillaMs).toBeGreaterThanOrEqual(0);
   expect(Number.isFinite(result.ratio) || result.ratio === Number.POSITIVE_INFINITY).toBe(true);
 }
+
+
+
+describe("Fábrica kitchen sink: Fabrica Elements and Cipó styled integration", () => {
+  beforeEach(() => {
+    resetCipo();
+    setupCipo({
+      prefix: "fx",
+      adapter: "dom",
+      minify: true,
+      layers: false,
+      theme: {
+        colors: {
+          brand: "#38bdf8",
+          ink: "#020617",
+        },
+        spacing: "0.25rem",
+        radius: { md: "12px" },
+      },
+    });
+  });
+
+  it("renders Fabrica Elements payloads through the Fabrica renderer", () => {
+    const payloadElements = createElementFactory({ adapter: "payload" });
+    const card = payloadElements.section({
+      class: ["card", "payload"],
+      dataset: { source: "elements" },
+      children: [
+        payloadElements.h2({ children: "Payload title" }),
+        payloadElements.button({ type: "button", children: "Save" }),
+      ],
+    }) as RenderValue;
+
+    render(host, html`${card}`);
+
+    expect(host.querySelector("section.card.payload")?.getAttribute("data-source")).toBe("elements");
+    expect(host.querySelector("h2")?.textContent).toBe("Payload title");
+    expect(host.querySelector("button")?.textContent).toBe("Save");
+  });
+
+  it("renders Cipó styled DOM factories as Fabrica component tags", () => {
+    const onClick = vi.fn();
+    const Button = cipoStyled.button.css`
+      px: 4
+      py: 2
+      bg: $brand
+      color: $ink
+      rounded: md
+    `;
+
+    render(host, html`
+      <${Button} type="button" data-kind="styled" @click=${onClick}>
+        Save
+      </${Button}>
+    `);
+
+    const button = host.querySelector("button") as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    expect(button.type).toBe("button");
+    expect(button.dataset.kind).toBe("styled");
+    expect(button.className).toContain("fx-a-");
+    expect(textOf(button)).toBe("Save");
+
+    button.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-runs styled component tags when dynamic props are reactive", async () => {
+    const tone = signal("primary");
+    const title = signal("Initial");
+    const Button = cipoStyled.button.css`
+      px: 2
+      bg: $brand
+    `;
+
+    render(host, html`
+      <${Button} data-tone=${tone} title=${title}>
+        Save
+      </${Button}>
+    `);
+
+    let button = host.querySelector("button") as HTMLButtonElement;
+    expect(button.dataset.tone).toBe("primary");
+    expect(button.title).toBe("Initial");
+
+    batch(() => {
+      tone.set("danger");
+      title.set("Updated");
+    });
+    flushSync();
+    await tick();
+
+    button = host.querySelector("button") as HTMLButtonElement;
+    expect(button.dataset.tone).toBe("danger");
+    expect(button.title).toBe("Updated");
+    expect(textOf(button)).toBe("Save");
+  });
+});
 
 describe("Fábrica kitchen sink: html/render/mount", () => {
   it("renders primitive values, arrays, nodes, fragments and falsy ignored values", () => {
