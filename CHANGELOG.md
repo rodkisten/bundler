@@ -14,6 +14,9 @@
 
 ### Added
 
+- Broto store now supports batched `patch(partial | updater)`, `update(mutator)`, root `set(nextState)`, `setPath(path, value)`, `peek()`, `toJSON()` and `subscribe(listener)` with patch metadata/cause diagnostics.
+- Broto store tests now cover deep merge patches, sibling signal preservation, draft updates, root replacement, dynamic path writes and subscriber events.
+
 - Added Cipó native CSS function registry and `registerNativeFunction()` so platform functions like `max()`, `env()`, `light-dark()`, gradients, filters, transforms, shape functions and future browser functions are preserved instead of being treated as custom helpers.
 - Added Cipó tests covering modern CSS functions, nested native functions, multiline declaration values, theme token resolution inside native functions and future native function registration.
 
@@ -29,6 +32,9 @@
 - The generated landing page now extracts `@example` blocks from every source file under each tool package, not just root entry files.
 
 ### Changed
+
+- Broto root `set(nextState)` now performs a true replacement: missing root and nested keys are removed while existing compatible signal/store nodes are reused where possible.
+- Broto store mutations are batched by default to avoid effect storms during deep patches and settings imports.
 
 - Cipó declaration parsing now keeps multiline property values together, preventing warning storms and invalid CSS when authoring safe-area styles such as `right: max(0.5rem, env(...))`.
 - Cipó helper resolution now only executes registered custom helpers and explicitly skips registered native CSS functions, keeping the hot path linear and avoiding recursive parsing traps.
