@@ -108,3 +108,20 @@ const children = childrenToArray(props.children)
 
 These helpers keep element/component utilities out of both the CSS runtime and the
 HTML renderer.
+
+## Reactive props when hosted by Fábrica
+
+Fabrica Elements stays runtime-agnostic, but it now reads signal-like values structurally when a factory is invoked inside Fábrica's component-tag effect. This means static factories remain simple, while styled components rendered by Fábrica can receive Broto signals as props.
+
+```ts
+const label = signal('Save')
+const Button = styled.button.css`px: 4`
+
+render(root, html`
+  <${Button} title=${label}>
+    ${label}
+  </${Button}>
+`)
+```
+
+Callbacks are not invoked as values. `onClick`, `onInput`, `ref` and event maps stay as functions and are attached normally.

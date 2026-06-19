@@ -46,7 +46,8 @@ export function mergeClassIntoProps(
  */
 export function applyProps(element: Element, props: ElementsRecord): void {
   for (const key in props) {
-    const value = props[key]
+    const rawValue = props[key]
+    const value = readElementValue(rawValue)
     if (value === null || value === undefined || value === false) continue
 
     if (key === 'children') {
@@ -77,7 +78,7 @@ export function applyProps(element: Element, props: ElementsRecord): void {
     }
 
     if (key === 'ref') {
-      applyRef(element, value)
+      applyRef(element, rawValue)
       continue
     }
 
@@ -86,13 +87,39 @@ export function applyProps(element: Element, props: ElementsRecord): void {
       continue
     }
 
-    if (key.startsWith('on') && typeof value === 'function') {
-      setEvent(element, key.slice(2).toLowerCase(), value as EventListener)
+    if (key.startsWith('on') && typeof rawValue === 'function') {
+      setEvent(element, key.slice(2).toLowerCase(), rawValue as EventListener)
       continue
     }
 
     setPropertyOrAttribute(element, key, value)
   }
+}
+
+/**
+ * Reads signal-like values without making Fabrica Elements depend on Broto.
+ *
+ * @remarks
+ * Static DOM factories stay framework-agnostic, but when they are invoked by
+ * Fábrica component tags inside an effect, reading a Broto signal here gives
+ * styled components reactive props without importing the reactivity package.
+ * Plain callback props are deliberately left untouched.
+ *
+ * @param value - Possible signal-like value.
+ * @returns Current value for signal-like inputs, otherwise the original value.
+ */
+function readElementValue(value: unknown): unknown {
+  if (
+    typeof value === 'function' &&
+    typeof (value as { set?: unknown }).set === 'function' &&
+    typeof (value as { update?: unknown }).update === 'function' &&
+    typeof (value as { peek?: unknown }).peek === 'function' &&
+    typeof (value as { subscribe?: unknown }).subscribe === 'function'
+  ) {
+    return (value as () => unknown)()
+  }
+
+  return value
 }
 
 /**
@@ -139,19 +166,21 @@ export function setPropertyOrAttribute(element: Element, name: string, value: un
  * @param children - Child value.
  */
 export function appendChildren(element: Element, children: unknown): void {
-  if (Array.isArray(children)) {
-    for (let index = 0; index < children.length; index += 1) appendChildren(element, children[index])
+  const resolvedChildren = readElementValue(children)
+
+  if (Array.isArray(resolvedChildren)) {
+    for (let index = 0; index < resolvedChildren.length; index += 1) appendChildren(element, resolvedChildren[index])
     return
   }
 
-  if (children === null || children === undefined || children === false || children === true) return
+  if (resolvedChildren === null || resolvedChildren === undefined || resolvedChildren === false || resolvedChildren === true) return
 
-  if (children instanceof Node) {
-    element.appendChild(children)
+  if (resolvedChildren instanceof Node) {
+    element.appendChild(resolvedChildren)
     return
   }
 
-  element.appendChild(document.createTextNode(String(children)))
+  element.appendChild(document.createTextNode(String(resolvedChildren)))
 }
 
 function applyStyle(element: HTMLElement, value: unknown): void {
@@ -170,7 +199,7 @@ function applyStyle(element: HTMLElement, value: unknown): void {
 
   const style = element.style
   for (const key in value) {
-    const item = value[key]
+    const item = readElementValue(value[key])
     if (item === null || item === undefined) continue
     style.setProperty(key.startsWith('--') ? key : toKebabCase(key), String(item))
   }
@@ -178,7 +207,7 @@ function applyStyle(element: HTMLElement, value: unknown): void {
 
 function applyDataset(element: HTMLElement, value: ElementsRecord): void {
   for (const key in value) {
-    const item = value[key]
+    const item = readElementValue(value[key])
     if (item === null || item === undefined) delete element.dataset[key]
     else element.dataset[key] = String(item)
   }
