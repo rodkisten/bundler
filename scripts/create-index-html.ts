@@ -166,7 +166,13 @@ ${createHead(`${input.title} · Rod ${label}`)}
       <a class="back-link" href="../index.html">← Home</a>
       <p class="eyebrow">${escapeHtml(label)} · ${escapeHtml(input.sourcePath)}</p>
       <h1>${title}</h1>
-      <pre class="code-page-pre"><code class="language-${language}">${escapeHtml(input.code)}</code></pre>
+      ${createCodeFrame({
+        code: input.code,
+        language,
+        title: input.sourcePath,
+        tone: input.kind,
+        className: "code-page-frame",
+      })}
     </article>
   </main>
   ${createScripts()}
@@ -241,8 +247,8 @@ function createToolCard(entry: RootEntry, outputs: string[], examples: SourceExa
         <div class="tags">${tags || "<span>browser</span><span>iife</span>"}</div>
         <div class="links">${links}</div>
         <div class="code-stack">
-          <pre><code class="language-js">${escapeHtml(requireLine)}</code></pre>
-          <pre><code class="language-js">${escapeHtml(importLine)}</code></pre>
+          ${createCodeFrame({ code: requireLine, language: "js", title: "Userscript require", tone: "source" })}
+          ${createCodeFrame({ code: importLine, language: "js", title: "ESM import", tone: "source" })}
         </div>
         ${exampleBlocks ? `<details class="examples" open><summary>Examples from source comments</summary>${exampleBlocks}</details>` : ""}
       </article>`;
@@ -253,8 +259,39 @@ function createExampleBlock(example: SourceExample): string {
     ${example.isFirstInGroup && example.groupComment ? `<div class="example-group"><strong>${escapeHtml(example.groupTitle)}</strong><p>${escapeHtml(example.groupComment)}</p></div>` : ""}
     <header><strong>${escapeHtml(example.title)}</strong><span>${escapeHtml(example.file)}</span></header>
     ${example.comment ? `<p class="example-comment">${escapeHtml(example.comment)}</p>` : ""}
-    <pre><code class="language-ts">${escapeHtml(example.code)}</code></pre>
+    ${createCodeFrame({ code: example.code, language: "ts", title: example.title, tone: "test" })}
   </section>`;
+}
+
+function createCodeFrame(input: {
+  code: string;
+  language: string;
+  title: string;
+  tone?: GeneratedCodePage["kind"];
+  className?: string;
+}): string {
+  const language = input.language || "plaintext";
+  const tone = input.tone || "source";
+  const title = input.title || language;
+
+  return `<figure class="code-frame ${escapeHtml(input.className || "")}" data-code-frame data-wrap="false" data-code-tone="${escapeHtml(tone)}">
+    <figcaption class="code-frame-bar">
+      <span class="code-frame-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="code-frame-title">${escapeHtml(title)}</span>
+      <span class="code-frame-meta">${escapeHtml(language)}</span>
+      <span class="code-frame-actions">
+        <button class="code-action" type="button" data-code-wrap aria-pressed="false" title="Toggle word wrap">
+          <span aria-hidden="true">↩</span>
+          <span>Wrap</span>
+        </button>
+        <button class="code-action" type="button" data-code-copy title="Copy code">
+          <span aria-hidden="true">⧉</span>
+          <span data-copy-label>Copy</span>
+        </button>
+      </span>
+    </figcaption>
+    <pre><code class="language-${escapeHtml(language)}">${escapeHtml(input.code)}</code></pre>
+  </figure>`;
 }
 
 function createDocSidebar(title: string, items: GeneratedDoc[], currentPath: string, headings: Heading[]): string {
@@ -326,7 +363,12 @@ function renderMarkdown(markdown: string): { html: string; headings: Heading[] }
 
     if (fenceMatch) {
       if (codeFence) {
-        html.push(`<pre><code class="language-${escapeHtml(codeFence.language || "plaintext")}">${escapeHtml(codeFence.lines.join("\n"))}</code></pre>`);
+        html.push(createCodeFrame({
+          code: codeFence.lines.join("\n"),
+          language: codeFence.language || "plaintext",
+          title: codeFence.language || "Code",
+          tone: "source",
+        }));
         codeFence = null;
       } else {
         closeFlow();
@@ -534,7 +576,8 @@ function createScripts(): string {
   <script>
     window.hljs && window.hljs.highlightAll();
 
-    const storageKey = "rod.docs.sidebar.open";
+    const sidebarStorageKey = "rod.docs.sidebar.open";
+    const wrapStorageKey = "rod.docs.code.wrap";
     const toggle = document.querySelector("[data-sidebar-toggle]");
     const sidebar = document.querySelector("[data-doc-sidebar]");
     const scrim = document.querySelector("[data-sidebar-close]");
@@ -543,7 +586,7 @@ function createScripts(): string {
       document.documentElement.classList.toggle("sidebar-open", open);
       if (toggle) toggle.setAttribute("aria-expanded", String(open));
       try {
-        window.localStorage.setItem(storageKey, open ? "1" : "0");
+        window.localStorage.setItem(sidebarStorageKey, open ? "1" : "0");
       } catch {}
     }
 
@@ -565,6 +608,64 @@ function createScripts(): string {
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") setSidebarOpen(false);
       });
+    }
+
+    function setCodeFrameWrap(frame, enabled) {
+      frame.dataset.wrap = enabled ? "true" : "false";
+      const button = frame.querySelector("[data-code-wrap]");
+      if (button) button.setAttribute("aria-pressed", String(enabled));
+    }
+
+    let initialWrap = false;
+    try {
+      initialWrap = window.localStorage.getItem(wrapStorageKey) === "1";
+    } catch {}
+
+    for (const frame of document.querySelectorAll("[data-code-frame]")) {
+      setCodeFrameWrap(frame, initialWrap);
+
+      const wrapButton = frame.querySelector("[data-code-wrap]");
+      const copyButton = frame.querySelector("[data-code-copy]");
+      const copyLabel = frame.querySelector("[data-copy-label]");
+      const code = frame.querySelector("code");
+
+      if (wrapButton) {
+        wrapButton.addEventListener("click", () => {
+          const enabled = frame.dataset.wrap !== "true";
+          setCodeFrameWrap(frame, enabled);
+          try {
+            window.localStorage.setItem(wrapStorageKey, enabled ? "1" : "0");
+          } catch {}
+        });
+      }
+
+      if (copyButton && code) {
+        copyButton.addEventListener("click", async () => {
+          const text = code.textContent || "";
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "");
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            textarea.style.pointerEvents = "none";
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            textarea.remove();
+          }
+
+          copyButton.classList.add("copied");
+          if (copyLabel) copyLabel.textContent = "Copied";
+
+          window.setTimeout(() => {
+            copyButton.classList.remove("copied");
+            if (copyLabel) copyLabel.textContent = "Copy";
+          }, 1400);
+        });
+      }
     }
 
     for (const input of document.querySelectorAll("[data-doc-search]")) {
@@ -993,11 +1094,9 @@ samp {
 pre {
   width: 100%;
   max-width: 100%;
-  margin: 12px 0 0;
-  border-radius: 18px;
+  margin: 0;
   overflow: auto;
-  border: 1px solid rgb(255 255 255 / .09);
-  background: var(--code-bg) !important;
+  background: transparent !important;
   -webkit-overflow-scrolling: touch;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -1008,14 +1107,163 @@ pre code {
   width: max-content;
   min-width: 100%;
   max-width: none;
+  padding: 18px;
+  color: var(--code-fg);
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.58;
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
   background: transparent;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+.code-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 12px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--code-line);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / .060), transparent 92px),
+    radial-gradient(circle at 0 0, rgb(56 189 248 / .16), transparent 18rem),
+    linear-gradient(145deg, var(--code-bg-2), var(--code-bg));
+  box-shadow:
+    0 24px 70px rgb(0 0 0 / .34),
+    inset 0 1px 0 rgb(255 255 255 / .08);
+}
+
+.code-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .55;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / .055), transparent 12% 88%, rgb(255 255 255 / .035)),
+    radial-gradient(circle at 100% 0, rgb(255 255 255 / .08), transparent 18rem);
+  mask-image: linear-gradient(to bottom, black, transparent 68%);
+}
+
+.code-frame[data-code-tone="test"] {
+  --code-line: rgb(245 158 11 / .26);
+  --code-bg: #120b04;
+  --code-bg-2: #1b1207;
+}
+
+.code-frame[data-code-tone="pipeline"] {
+  --code-line: rgb(192 132 252 / .28);
+  --code-bg: #10081c;
+  --code-bg-2: #1a1029;
+}
+
+.code-frame-bar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgb(255 255 255 / .08);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / .075), rgb(255 255 255 / .025)),
+    rgb(0 0 0 / .18);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.code-frame-dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.code-frame-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--moss);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--moss), transparent 40%);
+}
+
+.code-frame-dots i:nth-child(2) {
+  background: var(--water);
+}
+
+.code-frame-dots i:nth-child(3) {
+  background: var(--gold);
+}
+
+.code-frame-title {
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-frame-meta {
+  color: var(--muted);
+  border: 1px solid rgb(255 255 255 / .10);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgb(0 0 0 / .22);
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.code-frame-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.code-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid rgb(255 255 255 / .12);
+  border-radius: 12px;
+  color: var(--text);
+  background: rgb(255 255 255 / .055);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform .16s ease,
+    border-color .16s ease,
+    background .16s ease,
+    color .16s ease;
+}
+
+.code-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: rgb(255 255 255 / .10);
+}
+
+.code-action[aria-pressed="true"],
+.code-action.copied {
+  color: #06110c;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--moss), var(--water));
+}
+
+.code-frame[data-wrap="true"] pre code {
+  width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .code-stack,
@@ -1278,22 +1526,13 @@ pre code {
   font-size: .92em;
 }
 
-.markdown-body pre {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  background: var(--code-bg) !important;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+.markdown-body .code-frame {
+  margin: 22px 0;
 }
 
-.markdown-body pre code {
-  width: max-content;
-  min-width: 100%;
+.markdown-body .code-frame pre code {
   font-size: inherit;
   line-height: 1.65;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
 }
 
 .table-wrap {
@@ -1341,15 +1580,11 @@ pre code {
   color: var(--muted);
 }
 
-.code-page-pre {
+.code-page-frame {
   margin-top: 24px;
-  border-color: var(--code-line);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / .035), transparent),
-    var(--code-bg) !important;
 }
 
-.code-page-pre code {
+.code-page-frame pre code {
   font-size: 13px;
   line-height: 1.62;
 }
@@ -1441,6 +1676,14 @@ pre code {
   .architecture {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .code-frame-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .code-frame-meta {
+    display: none;
+  }
 }
 
 @media (max-width: 620px) {
@@ -1469,7 +1712,21 @@ pre code {
     min-width: 560px;
   }
 
-  .code-page-pre code {
+  .code-frame-bar {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .code-frame-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .code-action {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .code-page-frame pre code {
     font-size: 12px;
   }
 }
@@ -1477,7 +1734,8 @@ pre code {
 @media (prefers-reduced-motion: reduce) {
   .canopy,
   .doc-sidebar,
-  .sidebar-scrim {
+  .sidebar-scrim,
+  .code-action {
     animation: none;
     transition: none;
   }
