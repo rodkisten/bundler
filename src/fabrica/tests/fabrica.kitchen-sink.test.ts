@@ -469,6 +469,51 @@ describe("Fábrica kitchen sink: components, context and boundaries", () => {
     expect(host.querySelector(".micro")?.textContent).toBe("Works!");
   });
 
+  it("maps component event attributes to onX props and supports DOM spread props", () => {
+    const click = vi.fn();
+    const Button = component<{ onClick?: (event: MouseEvent) => void; title?: string }>("SpreadButton", (props) => {
+      const { children, ...rest } = props;
+      return html`<button ...${rest}>${children}</button>`;
+    });
+
+    render(host, html`<${Button} @click=${click} title="Spread title">Save</${Button}>`);
+
+    const button = host.querySelector("button") as HTMLButtonElement;
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(button.title).toBe("Spread title");
+    expect(button.textContent).toBe("Save");
+  });
+
+  it("diffs reactive spread props and removes stale spread event listeners", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const props = signal<Record<string, unknown>>({
+      class: "first",
+      disabled: false,
+      onClick: first,
+      dataset: { mode: "one" },
+    });
+
+    render(host, html`<button ...${props}>Spread</button>`);
+    const button = host.querySelector("button") as HTMLButtonElement;
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(button.className).toBe("first");
+    expect(button.dataset.mode).toBe("one");
+
+    props.set({ class: "second", disabled: true, onClick: second });
+    flushSync();
+
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(button.className).toBe("second");
+    expect(button.disabled).toBe(true);
+  });
+
   it("ignores uppercase component-looking tags inside HTML comments", () => {
     const spy = vi.fn();
     component("CommentedThing", () => {
