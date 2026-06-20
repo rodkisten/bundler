@@ -501,3 +501,20 @@ render(root, html`
 ```
 
 When rendered through Fábrica component tags, dynamic props backed by Broto signals are reactive. Fábrica owns the effect and cleanup; Cipó only compiles the class list and Fabrica Elements creates the DOM or adapter payload.
+
+## Validation and explainability
+
+Cipó keeps the existing `explain()` and `inspect()` APIs and adds `validateCss()` for fast debug checks on generated CSS:
+
+```ts
+const button = sheet.css`
+  .button {
+    color: red !important
+  }
+`
+
+const result = validateCss(String(button))
+console.log(result.valid)
+```
+
+`validateCss()` is not a heavyweight browser parser. It is a linear safety scan for unclosed blocks/functions/comments/strings and duplicated `!important`, useful in tests, generated docs and userscript diagnostics.

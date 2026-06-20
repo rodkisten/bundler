@@ -29,3 +29,9 @@
 - Added `styled` as a public alias for Cipó's callable styled factory (`cipo`).
 - Documented Fábrica component-tag rendering for Cipó styled DOM factories.
 - Added integration tests proving styled components can render through Fábrica, receive events and update dynamic signal props.
+
+## Audit hardening pass
+
+- Added `validateCss()` for linear debug validation of generated stylesheets.
+- Added regression coverage for duplicate `!important` and unclosed stylesheet structures.
+- Documented validation alongside `explain()` and `inspect()`.
