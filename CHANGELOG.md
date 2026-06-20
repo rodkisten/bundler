@@ -122,3 +122,12 @@
 - Added renderer-neutral Fabrica Elements `recipeProps()` for Panda-like prop recipes with variants and compound variants.
 - Added Cipó `explainCss()` source diagnostics for helper/token/alias/nesting debugging.
 - Expanded tests to cover diagnostics, lifecycle, recipe composition and Cipó source explanations.
+
+## Staff-level runtime hardening pass
+
+- Added Broto debug configuration, effect scopes, leak inspection, resource mutation/polling aliases, and tracked store path selection.
+- Added Fabrica fine-grained UI helpers without breaking existing APIs: two-way `bind`/`model`, keyed child remounting, explicit event listener options, fragments, child array helpers, slot reads, and memoized view factories.
+- Exposed Broto reactive primitives through the Fabrica public API for standalone browser globals and userscripts.
+- Added Fabrica Elements composition helpers for recipes, standalone variants, and as-child payloads.
+- Added Cipó stylesheet utilities for scoped sheets, cascade layers, sheet debug output, detailed explanations, and compile benchmarks.
+- Added feature-focused tests per package instead of expanding the kitchen sink suite.

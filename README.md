@@ -304,3 +304,14 @@ console.log(report.transformedCss)
 console.log(report.cssText)
 console.log(report.validation)
 ```
+
+## Staff-level feature pass
+
+This build keeps all existing public APIs intact while adding focused production APIs across the packages:
+
+- **Broto**: `configureDebug`, `effectScope`, `inspectLeaks`, `resource.mutate`, `resource.poll`, and `store.select`.
+- **Fabrica**: `bind`, `model`, `keyed`, `eventOptions`, `fragment`, `childrenToArray`, `slot`, and `memoView`.
+- **Fabrica Elements**: `recipe`, `variant`, and `asChild` composition helpers.
+- **Cipó**: `sheet.css.scoped`, `sheet.css.layer`, `sheet.css.debug`, `explainDetailed`, and `benchmark`.
+
+The new tests are split by feature so future regressions fail close to the package that owns the behavior.
