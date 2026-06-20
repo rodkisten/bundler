@@ -100,3 +100,11 @@
 - Dynamic props on component tags now preserve the raw value instead of being converted into HTML attributes. This enables patterns such as `jsx.html`\`<TabButton plugin=${item} />\`` where `plugin` can be a signal, object, function, node or any render-time value.
 - Fixed escaped whitespace in the micro-JSX component-tag compiler.
 - Fixed duplicate property binding state declaration in the DOM renderer.
+
+## Audit implementation pass
+
+- Added Broto `inspectGraph()` alias and descendant counts for owner diagnostics.
+- Added Broto resource `retry()` and `refreshInterval()` controls.
+- Added Fabrica Elements `composeProps`, `composeEvents`, `slot` and `polymorphic` helpers while preserving existing factories.
+- Added Cipó `validateCss()` for fast generated CSS diagnostics.
+- Added tests covering the new non-breaking audit improvements.
