@@ -38,6 +38,8 @@ export type Owner = {
   context: Map<ContextToken<unknown>, unknown>;
   errorHandlers: OwnerErrorHandler[];
   disposed: boolean;
+  /** Creation timestamp from performance.now()/Date.now() for diagnostics. */
+  createdAt: number;
 };
 
 /** Registers a cleanup callback in the currently running effect. */
@@ -50,6 +52,8 @@ export type ReactiveExpression<Value> = () => Value;
 export type SignalOptions<Value> = {
   /** Pass false to always notify subscribers. */
   equals?: false | ((previousValue: Value, nextValue: Value) => boolean);
+  /** Optional debug label surfaced by inspectRuntime()/inspectSignals(). */
+  name?: string;
 };
 
 /** Reactive scheduler mode used by the fine-grained effect queue. */
@@ -78,6 +82,8 @@ export type EffectRunner = (() => void) & {
   sync: boolean;
   schedulerMode?: SchedulerMode;
   owner: Owner;
+  /** Optional debug name for diagnostics. */
+  debugName?: string;
 };
 
 /** Effect options. */
@@ -137,8 +143,53 @@ export type OwnerGraphSnapshot = {
   cleanups: number;
   context: number;
   errorHandlers: number;
+  createdAt: number;
   descendants: number;
   children: OwnerGraphSnapshot[];
+};
+
+
+/** Serializable signal diagnostics. */
+export type SignalDebugSnapshot = {
+  id: string;
+  name?: string;
+  reads: number;
+  writes: number;
+  subscribers: number;
+  disposed: boolean;
+};
+
+/** Serializable effect diagnostics. */
+export type EffectDebugSnapshot = {
+  id: string;
+  name?: string;
+  ownerId: string;
+  ownerName?: string;
+  deps: number;
+  cleanups: number;
+  disposed: boolean;
+  sync: boolean;
+  schedulerMode?: SchedulerMode;
+  runs: number;
+};
+
+/** Serializable scheduler diagnostics. */
+export type SchedulerDebugSnapshot = {
+  mode: SchedulerMode;
+  queuedEffects: number;
+  queuedTasks: Record<SchedulerPriority, number>;
+  batchDepth: number;
+  flushQueued: boolean;
+  maxFlushIterations: number;
+};
+
+/** Complete Broto runtime diagnostics snapshot. */
+export type BrotoRuntimeSnapshot = {
+  debug: BrotoDebugSnapshot;
+  owners: OwnerGraphSnapshot[];
+  signals: SignalDebugSnapshot[];
+  effects: EffectDebugSnapshot[];
+  scheduler: SchedulerDebugSnapshot;
 };
 
 /** Small graph edge used by debugging/devtools. */

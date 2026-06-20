@@ -2,6 +2,7 @@ import type { Cleanup, ContextToken, Owner, OwnerErrorHandler, OwnerGraphSnapsho
 
 let ownerId = 0;
 let activeOwner: Owner | null = null;
+const ownerRoots = new Set<Owner>();
 
 /**
  * Gets the currently active owner.
@@ -72,10 +73,13 @@ export function createOwner(options: OwnerOptions = {}): Owner {
     context: new Map<ContextToken<unknown>, unknown>(),
     errorHandlers: options.onError ? [options.onError] : [],
     disposed: false,
+    createdAt: now(),
   };
 
   if (parent && !parent.disposed) {
     parent.children.add(owner);
+  } else {
+    ownerRoots.add(owner);
   }
 
   return owner;
@@ -231,6 +235,9 @@ export function disposeOwner(owner: Owner): void {
   cleanupOwner(owner);
   owner.disposed = true;
   owner.parent?.children.delete(owner);
+  if (!owner.parent) {
+    ownerRoots.delete(owner);
+  }
 }
 
 /**
@@ -320,6 +327,7 @@ export function inspectOwnerGraph(root: Owner | null = activeOwner): OwnerGraphS
     cleanups: root.cleanups.length,
     context: root.context.size,
     errorHandlers: root.errorHandlers.length,
+    createdAt: root.createdAt,
     descendants,
     children,
   };
@@ -357,4 +365,27 @@ function runCleanup(cleanup: Cleanup | undefined, owner: Owner): void {
       });
     }
   }
+}
+
+
+/**
+ * Returns currently known root owners for devtools and diagnostics.
+ *
+ * @returns Snapshot array of root owners.
+ *
+ * @example
+ * ```ts
+ * console.table(getOwnerRoots().map((owner) => owner.name));
+ * ```
+ */
+export function getOwnerRoots(): Owner[] {
+  const roots: Owner[] = [];
+  for (const owner of ownerRoots) {
+    if (!owner.disposed) roots[roots.length] = owner;
+  }
+  return roots;
+}
+
+function now(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
 }

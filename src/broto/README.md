@@ -267,3 +267,20 @@ await profile.retry()
 const stop = profile.refreshInterval(30_000)
 stop()
 ```
+
+## Runtime diagnostics
+
+Broto exposes read-only inspection helpers for devtools and userscript debug panels:
+
+```ts
+const snapshot = inspectRuntime()
+inspectSignals()
+inspectEffects()
+inspectScheduler()
+```
+
+Signals can be named without changing their behavior:
+
+```ts
+const count = signal(0, { name: 'counter.count' })
+```

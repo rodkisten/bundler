@@ -47,14 +47,20 @@ export type {
   OwnerGraphSnapshot,
   Signal,
   SignalOptions,
+  SignalDebugSnapshot,
+  EffectDebugSnapshot,
+  SchedulerDebugSnapshot,
+  BrotoRuntimeSnapshot,
 } from "./types";
 
 export { debug, setDebug } from "./debug";
-export { batch, computed, configureScheduler, effect, flushSync, hasReactiveValue, memo, onCleanup, readReactiveValue, scheduleTask, signal, untrack } from "./reactivity";
-export { cleanupOwner, createContext, createOwner, createRoot, disposeOwner, getOwner, handleOwnerError, inspectGraph, inspectOwnerGraph, onOwnerCleanup, onOwnerError, provide, runWithOwner, useContext } from "./owner";
+export { batch, computed, configureScheduler, effect, flushSync, hasReactiveValue, inspectEffects, inspectScheduler, inspectSignals, memo, onCleanup, readReactiveValue, scheduleTask, signal, untrack } from "./reactivity";
+export { cleanupOwner, createContext, createOwner, createRoot, disposeOwner, getOwner, getOwnerRoots, handleOwnerError, inspectGraph, inspectOwnerGraph, onOwnerCleanup, onOwnerError, provide, runWithOwner, useContext } from "./owner";
 export { graph, Graph } from "./graph";
 export { resource } from "./resources";
 export { store, type DeepPartial, type DeepStore, type Store, type StorePatchEvent, type StorePatchMeta, type StorePath, type StoreSubscriber, type StoreUnsubscribe } from "./store";
 
 import * as BrotoApi from "./public-api";
 export default BrotoApi;
+
+export { flattenOwnerGraph, inspectRuntime } from "./devtools";

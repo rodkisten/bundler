@@ -1,6 +1,6 @@
 import { brotoDebugState } from "./debug";
 import { cleanupOwner, createOwner, getOwner, handleOwnerError, onOwnerCleanup, runWithOwner } from "./owner";
-import type { Cleanup, CleanupRegistrar, EffectOptions, EffectRunner, SchedulerPriority, Signal, SignalOptions, SchedulerMode } from "./types";
+import type { Cleanup, CleanupRegistrar, EffectDebugSnapshot, EffectOptions, EffectRunner, SchedulerDebugSnapshot, SchedulerPriority, Signal, SignalDebugSnapshot, SignalOptions, SchedulerMode } from "./types";
 
 /** Queued async effects waiting for the next scheduler flush. */
 const effectQueue = new Set<EffectRunner>();
@@ -14,6 +14,10 @@ let queuedFlushMode: SchedulerMode | null = null;
 let batchDepth = 0;
 let schedulerMode: SchedulerMode = "microtask";
 let maxFlushIterations = DEFAULT_MAX_FLUSH_ITERATIONS;
+let signalId = 0;
+let effectId = 0;
+const signalDebugEntries = new Set<{ id: string; name?: string; reads: number; writes: number; subscribers: Set<EffectRunner>; disposed: boolean }>();
+const effectDebugEntries = new Set<EffectRunner & { debugId?: string; runs?: number }>();
 
 /** Priority queues used by scheduleTask(). */
 const taskQueues = {
@@ -78,6 +82,8 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
   let value = initialValue;
   const subscribers = new Set<EffectRunner>();
   const equals = options.equals ?? Object.is;
+  const debugEntry = { id: `signal-${++signalId}`, name: options.name, reads: 0, writes: 0, subscribers, disposed: false };
+  signalDebugEntries.add(debugEntry);
 
   function didNotChange(previousValue: Value, nextValue: Value): boolean {
     if (equals === false) {
@@ -88,6 +94,7 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
   }
 
   function read(): Value {
+    debugEntry.reads += 1;
     if (activeEffect && trackingEnabled && !subscribers.has(activeEffect)) {
       subscribers.add(activeEffect);
       activeEffect.deps.push(subscribers);
@@ -102,6 +109,7 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
     }
 
     value = nextValue;
+    debugEntry.writes += 1;
     brotoDebugState.updates += 1;
 
     // Snapshot manually instead of Array.from(). Sync effects cleanup and re-add
@@ -205,6 +213,10 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
   runner.sync = Boolean(options.sync || options.scheduler === "sync");
   runner.schedulerMode = options.scheduler;
   runner.owner = owner;
+  runner.debugName = options.name;
+  (runner as EffectRunner & { debugId?: string; runs?: number }).debugId = `effect-${++effectId}`;
+  (runner as EffectRunner & { debugId?: string; runs?: number }).runs = 0;
+  effectDebugEntries.add(runner as EffectRunner & { debugId?: string; runs?: number });
 
   brotoDebugState.effects += 1;
   runner();
@@ -255,6 +267,8 @@ export function computed<Value>(getter: () => Value, options: SignalOptions<Valu
   const owner = createOwner({ parent: parentOwner, name: "computed" });
   const subscribers = new Set<EffectRunner>();
   const equals = options.equals ?? Object.is;
+  const debugEntry = { id: `signal-${++signalId}`, name: options.name, reads: 0, writes: 0, subscribers, disposed: false };
+  signalDebugEntries.add(debugEntry);
 
   let dirty = true;
   let initialized = false;
@@ -282,6 +296,10 @@ export function computed<Value>(getter: () => Value, options: SignalOptions<Valu
   runner.sync = true;
   runner.schedulerMode = "sync";
   runner.owner = owner;
+  runner.debugName = options.name ?? "computed";
+  (runner as EffectRunner & { debugId?: string; runs?: number }).debugId = `effect-${++effectId}`;
+  (runner as EffectRunner & { debugId?: string; runs?: number }).runs = 0;
+  effectDebugEntries.add(runner as EffectRunner & { debugId?: string; runs?: number });
 
   const didNotChange = (previousValue: Value, nextValue: Value): boolean => {
     if (!initialized || equals === false) {
@@ -324,6 +342,7 @@ export function computed<Value>(getter: () => Value, options: SignalOptions<Valu
   };
 
   function read(): Value {
+    debugEntry.reads += 1;
     if (activeEffect && trackingEnabled && !subscribers.has(activeEffect)) {
       subscribers.add(activeEffect);
       activeEffect.deps.push(subscribers);
@@ -686,4 +705,74 @@ function isSignalLike(value: unknown): boolean {
     typeof (value as Partial<Signal<unknown>>).update === "function" &&
     typeof (value as Partial<Signal<unknown>>).peek === "function"
   );
+}
+
+
+/**
+ * Returns signal diagnostics without exposing live mutable internals.
+ *
+ * @returns Signal debug rows.
+ *
+ * @example
+ * ```ts
+ * console.table(inspectSignals());
+ * ```
+ */
+export function inspectSignals(): SignalDebugSnapshot[] {
+  const rows: SignalDebugSnapshot[] = [];
+  for (const entry of signalDebugEntries) {
+    rows[rows.length] = {
+      id: entry.id,
+      name: entry.name,
+      reads: entry.reads,
+      writes: entry.writes,
+      subscribers: entry.subscribers.size,
+      disposed: entry.disposed,
+    };
+  }
+  return rows;
+}
+
+/**
+ * Returns effect diagnostics for devtools and leak hunting.
+ *
+ * @returns Effect debug rows.
+ */
+export function inspectEffects(): EffectDebugSnapshot[] {
+  const rows: EffectDebugSnapshot[] = [];
+  for (const runner of effectDebugEntries) {
+    rows[rows.length] = {
+      id: runner.debugId ?? 'effect',
+      name: runner.debugName,
+      ownerId: runner.owner.id,
+      ownerName: runner.owner.name,
+      deps: runner.deps.length,
+      cleanups: runner.cleanups.length,
+      disposed: runner.disposed || runner.owner.disposed,
+      sync: runner.sync,
+      schedulerMode: runner.schedulerMode,
+      runs: runner.runs ?? 0,
+    };
+  }
+  return rows;
+}
+
+/**
+ * Returns scheduler queue diagnostics.
+ *
+ * @returns Scheduler debug snapshot.
+ */
+export function inspectScheduler(): SchedulerDebugSnapshot {
+  return {
+    mode: schedulerMode,
+    queuedEffects: effectQueue.size,
+    queuedTasks: {
+      'user-blocking': taskQueues['user-blocking'].size,
+      normal: taskQueues.normal.size,
+      background: taskQueues.background.size,
+    },
+    batchDepth,
+    flushQueued,
+    maxFlushIterations,
+  };
 }
