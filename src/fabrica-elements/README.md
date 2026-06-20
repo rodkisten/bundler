@@ -125,3 +125,7 @@ render(root, html`
 ```
 
 Callbacks are not invoked as values. `onClick`, `onInput`, `ref` and event maps stay as functions and are attached normally.
+
+## Prop recipes
+
+`recipeProps()` creates renderer-neutral prop recipes with variants, defaults and compound variants. It composes class names, refs, styles and events through the same `composeProps()` pipeline used by the rest of Fabrica Elements.

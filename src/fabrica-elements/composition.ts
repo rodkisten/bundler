@@ -132,3 +132,92 @@ function isPlainRecord(value: unknown): value is ElementsRecord {
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
 }
+
+export type RecipeSlot<Value = unknown> = Value | ((props: ElementsRecord) => Value)
+
+export type ElementsRecipeDefinition = {
+  readonly base?: RecipeSlot<ElementsRecord>
+  readonly variants?: Record<string, Record<string, RecipeSlot<ElementsRecord>>>
+  readonly defaults?: Record<string, string | boolean>
+  readonly compound?: readonly (ElementsRecord & { readonly props: RecipeSlot<ElementsRecord> })[]
+}
+
+/**
+ * Creates a prop recipe without choosing a renderer.
+ *
+ * @remarks
+ * This mirrors Panda-style recipes at the element-prop layer. It composes class,
+ * style, refs and events through `composeProps()` and returns plain props, so it
+ * works for DOM, React payloads, Fabrica payloads and Cipó styled components
+ * without adding a new public rendering contract.
+ *
+ * @param definition - Recipe definition with base, variants, defaults and compounds.
+ * @returns Recipe function that returns composed props.
+ *
+ * @example
+ * ```ts
+ * const button = recipeProps({
+ *   base: { class: 'btn', type: 'button' },
+ *   variants: { tone: { primary: { class: 'btn-primary' } } },
+ *   defaults: { tone: 'primary' },
+ * });
+ * button({ tone: 'primary', class: 'extra' });
+ * // { class: 'btn btn-primary extra', type: 'button' }
+ * ```
+ */
+export function recipeProps(definition: ElementsRecipeDefinition): (options?: ElementsRecord) => ElementsRecord {
+  return function resolveRecipeProps(options: ElementsRecord = {}): ElementsRecord {
+    const chunks: ElementsRecord[] = []
+    const base = resolveRecipeSlot(definition.base, options)
+    if (base) chunks[chunks.length] = base
+
+    const defaults = definition.defaults || {}
+    const variants = definition.variants || {}
+
+    for (const variantName in variants) {
+      const value = options[variantName] ?? defaults[variantName]
+      if (value === false || value === null || value === undefined) continue
+      const choice = variants[variantName]?.[String(value)]
+      const props = resolveRecipeSlot(choice, options)
+      if (props) chunks[chunks.length] = props
+    }
+
+    const compounds = definition.compound || []
+    for (let index = 0; index < compounds.length; index += 1) {
+      const compound = compounds[index]
+      if (!compound || !matchesCompound(compound, options, defaults)) continue
+      const props = resolveRecipeSlot(compound.props, options)
+      if (props) chunks[chunks.length] = props
+    }
+
+    chunks[chunks.length] = options
+    return composeProps(...chunks)
+  }
+}
+
+function resolveRecipeSlot(slotValue: RecipeSlot<ElementsRecord> | undefined, options: ElementsRecord): ElementsRecord | null {
+  if (!slotValue) return null
+  const value = typeof slotValue === 'function' ? slotValue(options) : slotValue
+  return isPlainRecord(value) ? value : null
+}
+
+function matchesCompound(compound: ElementsRecord, options: ElementsRecord, defaults: Record<string, string | boolean>): boolean {
+  for (const key in compound) {
+    if (key === 'props') continue
+    const expected = compound[key]
+    const actual = options[key] ?? defaults[key]
+    if (Array.isArray(expected)) {
+      let found = false
+      for (let index = 0; index < expected.length; index += 1) {
+        if (expected[index] === actual) {
+          found = true
+          break
+        }
+      }
+      if (!found) return false
+      continue
+    }
+    if (actual !== expected) return false
+  }
+  return true
+}
