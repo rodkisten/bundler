@@ -210,6 +210,17 @@ export interface CipoExplainResult {
   readonly css?: string
 }
 
+export interface CipoValidationIssue {
+  readonly code: string
+  readonly message: string
+  readonly index: number
+}
+
+export interface CipoValidationResult {
+  readonly valid: boolean
+  readonly issues: readonly CipoValidationIssue[]
+}
+
 export interface CipoAdapter {
   readonly name?: string
   readonly classProp: 'class' | 'className'
