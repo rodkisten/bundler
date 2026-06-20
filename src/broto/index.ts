@@ -58,7 +58,7 @@ export { batch, computed, configureScheduler, effect, flushSync, hasReactiveValu
 export { cleanupOwner, createContext, createOwner, createRoot, disposeOwner, getOwner, getOwnerRoots, handleOwnerError, inspectGraph, inspectOwnerGraph, onOwnerCleanup, onOwnerError, provide, runWithOwner, useContext } from "./owner";
 export { graph, Graph } from "./graph";
 export { resource } from "./resources";
-export { store, type DeepPartial, type DeepStore, type Store, type StorePatchEvent, type StorePatchMeta, type StorePath, type StoreSubscriber, type StoreUnsubscribe } from "./store";
+export { createDeepStore, store, type DeepPartial, type DeepStore, type Store, type StorePatchEvent, type StorePatchMeta, type StorePath, type StoreSubscriber, type StoreUnsubscribe } from "./store";
 
 import * as BrotoApi from "./public-api";
 export default BrotoApi;

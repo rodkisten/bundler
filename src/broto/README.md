@@ -148,7 +148,8 @@ profile();
 ## Deep stores, patch(), update() and set()
 
 Broto stores support nested fields, dynamic path writes and batched deep patches without Proxy magic.
-Primitive leaves are writable signals, nested objects stay as stable store nodes and arrays are replaced as array signals.
+Primitive leaves are writable signals, nested objects are callable branch nodes and arrays are replaced as array signals.
+Calling a branch returns a tracked plain snapshot, while `peek()` and `snapshot()` read without adding reactive dependencies.
 
 Input:
 
@@ -181,6 +182,12 @@ state.panel.rect.x();
 state.panel.rect.width();
 // 640
 
+state.panel();
+// { open: true, rect: { x: 10, y: 20, width: 640 } }
+
+state.panel.rect();
+// { x: 10, y: 20, width: 640 }
+
 state.snapshot();
 // {
 //   panel: { open: true, rect: { x: 10, y: 20, width: 640 } },
@@ -197,10 +204,10 @@ state.patch((draft) => {
 }, { cause: "draft:patch" });
 ```
 
-Use `update()` when you want the intent to be a draft mutation of the current snapshot:
+Use `draft()` when you want the intent to be a draft mutation of the current snapshot. `update()` remains available as the same operation:
 
 ```ts
-state.update((draft) => {
+state.draft((draft) => {
   draft.panel.rect.width = 700;
   draft.user.name = "Rodolfo";
 }, { cause: "settings:import" });

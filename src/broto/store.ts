@@ -47,9 +47,11 @@ export type DeepStoreValue<Value> = Value extends Primitive
       : Signal<Value>;
 
 /** Reactive store made from nested signals. */
-export type DeepStore<State extends Record<string, unknown>> = {
+export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
   readonly [Key in keyof State]: DeepStoreValue<State[Key]>;
 } & {
+  /** Reads a tracked plain snapshot by calling every nested signal. */
+  (): State;
   /** Reads a plain snapshot without subscribing to every field. */
   snapshot(): State;
   /** Alias for snapshot(), useful where signal-like APIs expose peek(). */
@@ -60,6 +62,8 @@ export type DeepStore<State extends Record<string, unknown>> = {
   patch(nextState: DeepPartial<State> | StorePatchUpdater<State>, meta?: StorePatchMeta): void;
   /** Mutates a plain draft snapshot and patches the store in one batch. */
   update(mutator: StorePatchMutator<State>, meta?: StorePatchMeta): void;
+  /** Alias for update(), matching the Broto snapshot/draft/peek flow. */
+  draft(mutator: StorePatchMutator<State>, meta?: StorePatchMeta): void;
   /** Replaces the whole root state, or writes a nested path for backwards compatibility. */
   set(nextState: State | StorePath, valueOrMeta?: unknown, meta?: StorePatchMeta): void;
   /** Writes a nested path, creating intermediate plain object stores as needed. */
@@ -92,14 +96,17 @@ export type StorePatchMutator<State extends Record<string, unknown>> = (draft: S
 const STORE_MARKER = Symbol("broto.store");
 const STORE_KEYS = new WeakMap<object, Set<string>>();
 const STORE_NOTIFY = new WeakMap<object, (event: StorePatchEvent) => void>();
+const STORE_VERSION = new WeakMap<object, Signal<number>>();
 
 /**
  * Creates a deep object store from writable signals.
  *
  * @remarks
  * Stores are deliberately built without Proxy. Each plain object becomes a
- * stable object whose primitive leaves are writable signals. That keeps field
- * reads cheap, snapshots predictable, old browsers happy and devtools simple.
+ * callable branch whose primitive leaves are writable signals. Calling any
+ * branch, such as `state.user()` or `state.plugins.filters()`, returns a
+ * tracked plain snapshot. Use `peek()` or `snapshot()` when you need a
+ * non-tracked read for diagnostics, persistence or event payloads.
  *
  * `patch()` does a controlled deep merge: nested objects patch nested stores,
  * primitive leaves update existing signals, arrays are replaced as arrays and
@@ -121,7 +128,7 @@ const STORE_NOTIFY = new WeakMap<object, (event: StorePatchEvent) => void>();
  *
  * @example Draft update
  * ```ts
- * state.update((draft) => {
+ * state.draft((draft) => {
  *   draft.panel.open = false;
  *   draft.panel.rect.width = 320;
  * });
@@ -145,21 +152,27 @@ export function store<State extends Record<string, unknown>>(initialState: State
   return root as Store<State>;
 }
 
+/** Alias for store(), useful for code that names Broto stores explicitly. */
+export const createDeepStore = store;
+
 function createStoreObject(
   initialState: Record<string, unknown>,
   basePath: StorePath,
   notify: (event: StorePatchEvent) => void,
 ): Record<string, unknown> {
-  const output: Record<string, unknown> = {};
   const keys = new Set<string>();
+  const output = function readStoreBranch() {
+    return readStoreObject(output as Record<string, unknown>, keys);
+  } as unknown as Record<string, unknown>;
 
   Object.defineProperty(output, STORE_MARKER, { value: true, enumerable: false });
   STORE_KEYS.set(output, keys);
   STORE_NOTIFY.set(output, notify);
+  STORE_VERSION.set(output, signal(0));
 
   for (const key in initialState) {
     keys.add(key);
-    output[key] = createStoreValue(initialState[key], appendPath(basePath, key), notify);
+    writeStoreKey(output, key, createStoreValue(initialState[key], appendPath(basePath, key), notify));
   }
 
   Object.defineProperties(output, {
@@ -191,6 +204,17 @@ function createStoreObject(
       },
     },
     update: {
+      enumerable: false,
+      value(mutator: StorePatchMutator<Record<string, unknown>>, meta: StorePatchMeta = {}) {
+        if (typeof mutator !== "function") return;
+        const draft = snapshotStoreObject(output, keys);
+        const returned = mutator(draft as never);
+        const patch = isPlainObject(returned) ? returned : draft;
+        batch(() => patchStoreObject(output, keys, patch, basePath, meta, notify));
+        notify({ type: "update", cause: meta.cause, path: meta.path, patch, state: snapshotStoreObject(output, keys) });
+      },
+    },
+    draft: {
       enumerable: false,
       value(mutator: StorePatchMutator<Record<string, unknown>>, meta: StorePatchMeta = {}) {
         if (typeof mutator !== "function") return;
@@ -287,6 +311,15 @@ function patchStoreObject(
   }
 }
 
+function writeStoreKey(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+}
+
 function replaceStoreObject(
   target: Record<string, unknown>,
   keys: Set<string>,
@@ -294,6 +327,7 @@ function replaceStoreObject(
   basePath: StorePath,
   notify: (event: StorePatchEvent) => void,
 ): void {
+  let structureChanged = false;
   const existingKeys: string[] = [];
   for (const key of keys) existingKeys[existingKeys.length] = key;
 
@@ -302,11 +336,14 @@ function replaceStoreObject(
     if (key in nextState) continue;
     keys.delete(key);
     delete target[key];
+    structureChanged = true;
   }
 
   for (const key in nextState) {
     replaceStoreKey(target, keys, key, nextState[key], appendPath(basePath, key), notify);
   }
+
+  if (structureChanged) bumpStoreVersion(target);
 }
 
 function replaceStoreKey(
@@ -321,7 +358,8 @@ function replaceStoreKey(
 
   if (!keys.has(key)) {
     keys.add(key);
-    target[key] = createStoreValue(value, path, notify);
+    writeStoreKey(target, key, createStoreValue(value, path, notify));
+    bumpStoreVersion(target);
     return;
   }
 
@@ -335,7 +373,7 @@ function replaceStoreKey(
     return;
   }
 
-  target[key] = createStoreValue(value, path, notify);
+  writeStoreKey(target, key, createStoreValue(value, path, notify));
 }
 
 function applyStoreKey(
@@ -350,7 +388,8 @@ function applyStoreKey(
 
   if (!keys.has(key)) {
     keys.add(key);
-    target[key] = createStoreValue(value, meta.path ?? [key], notify);
+    writeStoreKey(target, key, createStoreValue(value, meta.path ?? [key], notify));
+    bumpStoreVersion(target);
     return;
   }
 
@@ -365,7 +404,7 @@ function applyStoreKey(
     return;
   }
 
-  target[key] = createStoreValue(value, meta.path ?? [key], notify);
+  writeStoreKey(target, key, createStoreValue(value, meta.path ?? [key], notify));
 }
 
 function getStorePath(root: Record<string, unknown>, path: StorePath): unknown {
@@ -400,7 +439,8 @@ function setStorePath(
     const next = current[key];
     if (!isStoreObject(next)) {
       currentKeys.add(key);
-      current[key] = createStoreObject({}, path.slice(0, index + 1), notify);
+      writeStoreKey(current, key, createStoreObject({}, path.slice(0, index + 1), notify));
+      bumpStoreVersion(current);
     }
     current = current[key] as Record<string, unknown>;
     currentKeys = collectStoreKeys(current);
@@ -416,6 +456,30 @@ function collectStoreKeys(storeObject: Record<string, unknown>): Set<string> {
   for (const key in storeObject) output.add(key);
   STORE_KEYS.set(storeObject, output);
   return output;
+}
+
+function readStoreObject(target: Record<string, unknown>, keys: Set<string>): Record<string, unknown> {
+  STORE_VERSION.get(target)?.();
+  const snapshot: Record<string, unknown> = {};
+  for (const key of keys) snapshot[key] = readStoreValue(target[key]);
+  return snapshot;
+}
+
+function readStoreValue(value: unknown): unknown {
+  if (isStoreObject(value)) return (value as () => unknown)();
+  if (isSignalLike(value)) {
+    const rawValue = (value as Signal<unknown>)();
+    return Array.isArray(rawValue) ? rawValue.slice() : rawValue;
+  }
+  return value;
+}
+
+function bumpStoreVersion(target: Record<string, unknown>): void {
+  const version = STORE_VERSION.get(target);
+
+  if (version) {
+    version.set(version.peek() + 1);
+  }
 }
 
 function snapshotStoreObject(target: Record<string, unknown>, keys: Set<string>): Record<string, unknown> {
@@ -453,7 +517,11 @@ function isSignalLike(value: unknown): value is Signal<unknown> {
 }
 
 function isStoreObject(value: unknown): boolean {
-  return Boolean(value && typeof value === "object" && (value as Record<PropertyKey, unknown>)[STORE_MARKER]);
+  return Boolean(
+    value &&
+      (typeof value === "object" || typeof value === "function") &&
+      (value as Record<PropertyKey, unknown>)[STORE_MARKER],
+  );
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
