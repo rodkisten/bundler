@@ -83,6 +83,30 @@ export type SuspenseDirective = Directive & {
   rejected?: (error: unknown) => RenderValue;
 };
 
+/** Two-way binding directive for form controls. */
+export type BindDirective<Value = unknown> = Directive & {
+  readonly kind: "bind";
+  signal: Signal<Value>;
+  event?: string;
+  from?: (element: Element) => Value;
+  to?: (value: Value) => unknown;
+};
+
+/** Keyed child directive that remounts content when the key changes. */
+export type KeyedDirective = Directive & {
+  readonly kind: "keyed";
+  key: unknown | Signal<unknown> | ReactiveExpression<unknown>;
+  render: () => RenderValue;
+};
+
+/** Event handler object with explicit listener options. */
+export type EventOptionsDirective = Directive & {
+  readonly kind: "eventOptions";
+  handler: EventListener;
+  options: AddEventListenerOptions;
+};
+
+
 /** Keyed repeat directive. */
 export type RepeatDirective<Item, Key extends PropertyKey> = Directive & {
   readonly kind: "repeat";

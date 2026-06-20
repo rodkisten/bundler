@@ -13,6 +13,9 @@ import type {
   WhenDirective,
   PortalDirective,
   SuspenseDirective,
+  BindDirective,
+  KeyedDirective,
+  EventOptionsDirective,
 } from "./types";
 
 /**
@@ -149,6 +152,99 @@ export function suspense(
   rejected?: (error: unknown) => RenderValue,
 ): SuspenseDirective {
   return createDirective({ kind: "suspense" as const, source, resolved, pending, rejected });
+}
+
+
+
+/**
+ * Creates a two-way binding directive for form controls.
+ *
+ * @param source - Writable signal to sync with the element.
+ * @param options - Optional event and value mappers.
+ * @returns Bind directive.
+ *
+ * @example
+ * ```ts
+ * const name = signal('Rod');
+ * html`<input .value=${bind(name)} />`;
+ * ```
+ */
+export function bind<Value>(source: Signal<Value>, options: { event?: string; from?: (element: Element) => Value; to?: (value: Value) => unknown } = {}): BindDirective<Value> {
+  return createDirective({ kind: "bind" as const, signal: source, event: options.event, from: options.from, to: options.to });
+}
+
+/** Alias for bind(), useful for model-style APIs. */
+export const model = bind;
+
+/**
+ * Creates a keyed child directive that remounts when the key changes.
+ *
+ * @param key - Key value or expression.
+ * @param render - Renderer for the keyed branch.
+ * @returns Keyed directive.
+ */
+export function keyed(key: unknown | Signal<unknown> | (() => unknown), render: () => RenderValue): KeyedDirective {
+  return createDirective({ kind: "keyed" as const, key, render });
+}
+
+/**
+ * Wraps an event handler with explicit addEventListener options.
+ *
+ * @param handler - Event listener.
+ * @param options - Listener options.
+ * @returns Event options directive.
+ */
+export function eventOptions(handler: EventListener, options: AddEventListenerOptions = {}): EventOptionsDirective {
+  return createDirective({ kind: "eventOptions" as const, handler, options });
+}
+
+/** Creates a document fragment from render values. */
+export function fragment(...children: readonly RenderValue[]): DocumentFragment {
+  const node = document.createDocumentFragment();
+  for (let index = 0; index < children.length; index += 1) appendFragmentValue(node, children[index]);
+  return node;
+}
+
+/** Converts children into an array without flattening DOM nodes into text. */
+export function childrenToArray(children: unknown): unknown[] {
+  if (children == null || children === false || children === true) return [];
+  return Array.isArray(children) ? children.slice() : [children];
+}
+
+/** Reads a named slot from a slot dictionary. */
+export function slot(slots: unknown, name: string, fallback: RenderValue = null): RenderValue {
+  if (!slots || typeof slots !== "object") return fallback;
+  return Object.prototype.hasOwnProperty.call(slots, name) ? (slots as Record<string, RenderValue>)[name] : fallback;
+}
+
+/** Memoizes a view factory by strict dependency equality. */
+export function memoView<Args extends readonly unknown[]>(factory: (...args: Args) => RenderValue): (...args: Args) => RenderValue {
+  let hasValue = false;
+  let previousArgs: readonly unknown[] = [];
+  let previousValue: RenderValue = null;
+  return (...args: Args): RenderValue => {
+    if (hasValue && args.length === previousArgs.length) {
+      let same = true;
+      for (let index = 0; index < args.length; index += 1) {
+        if (!Object.is(args[index], previousArgs[index])) { same = false; break; }
+      }
+      if (same) return previousValue;
+    }
+    previousArgs = args.slice();
+    previousValue = factory(...args);
+    hasValue = true;
+    return previousValue;
+  };
+}
+
+function appendFragmentValue(parent: DocumentFragment, value: RenderValue): void {
+  if (value == null || value === false || value === true) return;
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) appendFragmentValue(parent, value[index]);
+    return;
+  }
+  if (value instanceof Node) { parent.appendChild(value); return; }
+  parent.appendChild(document.createTextNode(String(value)));
 }
 
 /**

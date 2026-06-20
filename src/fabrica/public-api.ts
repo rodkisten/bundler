@@ -1,10 +1,11 @@
 import { $, createDomBag } from "./bag";
+import { batch, computed, effect, signal } from "../broto/reactivity";
 import { clearComponents, component, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component";
 import { boundary } from "./boundary";
 import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
-import { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";
+import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "./directives";
 import { html, hydrate, jsx, mount, render } from "./dom";
 import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 import { defineElement, elements } from "./elements";
@@ -21,6 +22,10 @@ export type FabricaApi = {
   hydrate: typeof hydrate;
   jsx: typeof jsx;
   component: typeof component;
+  signal: typeof signal;
+  computed: typeof computed;
+  effect: typeof effect;
+  batch: typeof batch;
   registerComponent: typeof registerComponent;
   unregisterComponent: typeof unregisterComponent;
   resolveComponent: typeof resolveComponent;
@@ -39,6 +44,14 @@ export type FabricaApi = {
   virtualRepeat: typeof virtualRepeat;
   portal: typeof portal;
   suspense: typeof suspense;
+  bind: typeof bind;
+  model: typeof model;
+  keyed: typeof keyed;
+  eventOptions: typeof eventOptions;
+  fragment: typeof fragment;
+  childrenToArray: typeof childrenToArray;
+  slot: typeof slot;
+  memoView: typeof memoView;
   ref: typeof ref;
   classMap: typeof classMap;
   styleMap: typeof styleMap;
@@ -73,6 +86,10 @@ export function createFabricaApi(): FabricaApi {
     trustedHtml,
     unsafeHtml,
     component,
+    signal,
+    computed,
+    effect,
+    batch,
     registerComponent,
     unregisterComponent,
     resolveComponent,
@@ -91,6 +108,14 @@ export function createFabricaApi(): FabricaApi {
     virtualRepeat,
     portal,
     suspense,
+    bind,
+    model,
+    keyed,
+    eventOptions,
+    fragment,
+    childrenToArray,
+    slot,
+    memoView,
     ref,
     classMap,
     styleMap,
@@ -104,6 +129,10 @@ export function createFabricaApi(): FabricaApi {
     hydrate,
     jsx,
     component,
+    signal,
+    computed,
+    effect,
+    batch,
     registerComponent,
     unregisterComponent,
     resolveComponent,
@@ -122,6 +151,14 @@ export function createFabricaApi(): FabricaApi {
     virtualRepeat,
     portal,
     suspense,
+    bind,
+    model,
+    keyed,
+    eventOptions,
+    fragment,
+    childrenToArray,
+    slot,
+    memoView,
     ref,
     classMap,
     styleMap,

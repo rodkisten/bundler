@@ -600,3 +600,20 @@ onMount(() => {
 onDispose(() => stopFeature())
 onError((error) => true)
 ```
+
+## New non-breaking UI helpers
+
+```ts
+const name = signal('Rod')
+html`<input .value=${bind(name)} />`
+```
+
+```ts
+html`<button @click=${eventOptions(onClick, { once: true })}>Save</button>`
+```
+
+```ts
+html`${keyed(userId, () => UserCard({ id: userId() }))}`
+```
+
+These helpers are additive and do not change the existing `html`, component, directive, or DOM bag APIs.

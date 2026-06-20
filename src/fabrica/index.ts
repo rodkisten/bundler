@@ -22,8 +22,17 @@ export { boundary } from "./boundary";
 export { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 export { createFabricaContext, provide, useContext } from "./context";
 export { debug, setDebug } from "./debug";
-export { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";
+export { bind,
+    childrenToArray,
+    classMap,
+    eventOptions,
+    fragment,
+    keyed,
+    memoView,
+    model, portal, ref, repeat, slot,
+    styleMap, suspense, virtualRepeat, when } from "./directives";
 export { html, hydrate, jsx, mount, render } from "./dom";
+export { batch, computed, effect, signal } from "../broto/reactivity";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
 

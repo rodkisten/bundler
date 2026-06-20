@@ -58,3 +58,11 @@
 
 - Added integration coverage for Broto owner diagnostics and Fabrica Elements composition helpers.
 - Documented non-breaking composition diagnostics for package-level audits.
+
+## Staff-level composition helpers
+
+- Added `bind`/`model` for two-way form bindings.
+- Added `eventOptions` for explicit `addEventListener` options.
+- Added `keyed`, `fragment`, `childrenToArray`, `slot`, and `memoView` helpers.
+- Re-exported Broto primitives from the Fabrica package and browser API.
+- Added focused feature tests for directives and event options.

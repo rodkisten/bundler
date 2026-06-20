@@ -51,6 +51,9 @@ import type {
   TemplatePart,
   PortalDirective,
   SuspenseDirective,
+  BindDirective,
+  EventOptionsDirective,
+  KeyedDirective,
   VirtualRepeatDirective,
   WhenDirective,
 } from "./types";
@@ -1166,6 +1169,11 @@ function bindAttributePart(
     return;
   }
 
+  if (isDirective(value) && value.kind === "bind") {
+    bindModelPart(node, rawName, value as unknown as BindDirective);
+    return;
+  }
+
   if (isRefDirective(value)) {
     const cleanup = value.callback(node);
 
@@ -1349,6 +1357,10 @@ function createDirectiveController(
     return createSuspenseController(start, end);
   }
 
+  if (directive.kind === "keyed") {
+    return createKeyedController(start, end);
+  }
+
   return {
     kind: directive.kind,
     update(): void {},
@@ -1366,6 +1378,61 @@ function createDirectiveController(
  * @param end - Owned range end.
  * @returns Directive controller.
  */
+
+function bindModelPart(element: Element, rawName: string, directive: BindDirective): void {
+  const propertyName = rawName.startsWith('.') || rawName.startsWith('?') || rawName.startsWith(':') ? rawName.slice(1) : rawName;
+  const eventName = directive.event || (propertyName === 'checked' ? 'change' : 'input');
+  const readElement = directive.from || ((node: Element) => {
+    const target = node as HTMLInputElement & { [key: string]: unknown };
+    return (propertyName === 'checked' ? Boolean(target.checked) : target[propertyName]) as never;
+  });
+  const writeElement = directive.to || ((value: unknown) => value);
+
+  const update = () => {
+    const next = writeElement(directive.signal());
+    const target = element as HTMLElement & { [key: string]: unknown };
+    if (!Object.is(target[propertyName], next)) target[propertyName] = next;
+  };
+
+  const dispose = effect(update, { name: `fabrica.bind.${propertyName}` });
+  const listener = () => directive.signal.set(readElement(element));
+  element.addEventListener(eventName, listener);
+  registerCleanup(element, () => {
+    dispose();
+    element.removeEventListener(eventName, listener);
+  });
+}
+
+function createKeyedController(start: Comment, end: Comment): DirectiveController {
+  let previousKey: unknown = Symbol('initial-key');
+  let disposeEffect: (() => void) | null = null;
+  let currentDirective: KeyedDirective | null = null;
+
+  const updateKeyed = () => {
+    if (!currentDirective) return;
+    const nextKey = readValue(currentDirective.key);
+    if (Object.is(previousKey, nextKey)) return;
+    previousKey = nextKey;
+    clearRange(start, end);
+    appendValue(end.parentNode, currentDirective.render(), end);
+  };
+
+  return {
+    kind: 'keyed',
+    update(nextDirective: Directive) {
+      currentDirective = nextDirective as KeyedDirective;
+      if (disposeEffect) { updateKeyed(); return; }
+      disposeEffect = effect(updateKeyed, { name: 'fabrica.keyed' });
+      registerCleanup(start, disposeEffect);
+    },
+    dispose() {
+      disposeEffect?.();
+      disposeEffect = null;
+      clearRange(start, end);
+    },
+  };
+}
+
 function createPortalController(start: Comment, end: Comment): DirectiveController {
   let currentDirective: PortalDirective | null = null;
   let disposePortal: (() => void) | null = null;

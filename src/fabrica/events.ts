@@ -1,6 +1,6 @@
 import { debugState } from "./debug";
 import { registerCleanup } from "./dom-cleanup";
-import { isSignal } from "./guards";
+import { isDirective, isSignal } from "./guards";
 import { effect } from "../broto/reactivity";
 import type { EventBindingConfig, RenderValue } from "./types";
 
@@ -23,6 +23,11 @@ const delegatedHandledEvents = new WeakMap<Event, Set<string>>();
  */
 export function bindEvent(element: Element, rawName: string, value: RenderValue): void {
   const eventConfig = parseEventName(rawName);
+  const optionDirective = isDirective(value) && value.kind === "eventOptions" ? value as unknown as { handler: EventListener; options: AddEventListenerOptions } : null;
+  if (optionDirective) {
+    Object.assign(eventConfig.options, optionDirective.options);
+    value = optionDirective.handler as unknown as RenderValue;
+  }
 
   if (eventConfig.delegate) {
     bindDelegatedEvent(element, eventConfig, value);
