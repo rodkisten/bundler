@@ -14,6 +14,9 @@
 
 ### Added
 
+- Broto deep-store branch nodes are now callable, so `store.plugins.filters()` and any nested object branch return a tracked plain snapshot while `peek()`/`snapshot()` stay non-tracked.
+- Added `draft(mutator, meta?)` as an alias for `update()` and exported `createDeepStore` as an explicit alias for `store()`.
+
 - Broto store now supports batched `patch(partial | updater)`, `update(mutator)`, root `set(nextState)`, `setPath(path, value)`, `peek()`, `toJSON()` and `subscribe(listener)` with patch metadata/cause diagnostics.
 - Broto store tests now cover deep merge patches, sibling signal preservation, draft updates, root replacement, dynamic path writes and subscriber events.
 
@@ -32,6 +35,8 @@
 - The generated landing page now extracts `@example` blocks from every source file under each tool package, not just root entry files.
 
 ### Changed
+
+- Broto object branches now share the same callable mental model as primitive signal leaves, reducing `is not a function` errors in deeply nested UI stores.
 
 - Broto root `set(nextState)` now performs a true replacement: missing root and nested keys are removed while existing compatible signal/store nodes are reused where possible.
 - Broto store mutations are batched by default to avoid effect storms during deep patches and settings imports.
