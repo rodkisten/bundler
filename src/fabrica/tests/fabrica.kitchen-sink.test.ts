@@ -34,6 +34,8 @@ import {
   jsx,
   listComponents,
   mount,
+  onDispose,
+  onMount,
   portal,
   rawHtml,
   ref,
@@ -50,7 +52,7 @@ import {
   virtualRepeat,
   when,
 } from "../index";
-import { composeEvents, composeProps, composeRefs, polymorphic, slot } from '../../fabrica-elements';
+import { composeEvents, composeProps, composeRefs, polymorphic, recipeProps, slot } from '../../fabrica-elements';
 import {
   batch,
   cleanupOwner,
@@ -68,6 +70,8 @@ import {
   hasReactiveValue,
   inspectGraph,
   inspectOwnerGraph,
+  inspectRuntime,
+  inspectSignals,
   memo,
   onCleanup,
   onOwnerCleanup,
@@ -1550,4 +1554,62 @@ describe("Fábrica kitchen sink: render-value edge cases", () => {
     expect(calls.slice(-2).join(",")).toBe("one,two");
   });
 
+});
+
+
+describe("Staff-level additive diagnostics and composition", () => {
+  it("exposes Broto runtime snapshots for devtools without mutating state", () => {
+    const [_, dispose] = createRoot(() => {
+      const count = signal(0, { name: "audit.count" });
+      effect(() => {
+        count();
+      }, { name: "audit.effect" });
+      count.set(1);
+
+      const snapshot = inspectRuntime(getOwner());
+      expect(snapshot.owners[0]?.name).toBeDefined();
+      expect(snapshot.signals.some((item) => item.name === "audit.count")).toBe(true);
+      expect(snapshot.effects.some((item) => item.name === "audit.effect")).toBe(true);
+      expect(snapshot.scheduler.mode).toBe("sync");
+      expect(inspectSignals().some((item) => item.name === "audit.count")).toBe(true);
+    }, { name: "audit.root" });
+
+    dispose();
+  });
+
+  it("supports package-level lifecycle helpers inside active owners", async () => {
+    const mounted = vi.fn();
+    const cleanup = vi.fn();
+
+    const [_, dispose] = createRoot(() => {
+      onMount(() => {
+        mounted();
+        return cleanup;
+      });
+      onDispose(() => cleanup());
+    }, { name: "lifecycle.root" });
+
+    await tick();
+    expect(mounted).toHaveBeenCalledTimes(1);
+    dispose();
+    expect(cleanup).toHaveBeenCalledTimes(2);
+  });
+
+  it("builds renderer-neutral prop recipes with variants and compounds", () => {
+    const button = recipeProps({
+      base: { class: "btn", type: "button" },
+      variants: {
+        tone: { primary: { class: "btn-primary" }, danger: { class: "btn-danger" } },
+        size: { sm: { class: "btn-sm" }, lg: { class: "btn-lg" } },
+      },
+      defaults: { tone: "primary", size: "sm" },
+      compound: [
+        { tone: "danger", size: "lg", props: { class: "btn-danger-lg" } },
+      ],
+    });
+
+    const props = button({ tone: "danger", size: "lg", class: "extra" });
+    expect(props.class).toBe("btn btn-danger btn-lg btn-danger-lg extra");
+    expect(props.type).toBe("button");
+  });
 });
