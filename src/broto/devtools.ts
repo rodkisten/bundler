@@ -1,7 +1,7 @@
 import { debug } from "./debug";
 import { getOwnerRoots, inspectOwnerGraph } from "./owner";
 import { inspectEffects, inspectScheduler, inspectSignals } from "./reactivity";
-import type { BrotoRuntimeSnapshot, Owner, OwnerGraphSnapshot } from "./types";
+import type { BrotoLeakRecord, BrotoLeakSnapshot, BrotoRuntimeSnapshot, Owner, OwnerGraphSnapshot } from "./types";
 
 /**
  * Creates a complete runtime snapshot for debug panels and devtools adapters.
@@ -91,4 +91,56 @@ function appendOwnerRows(
   for (let index = 0; index < graph.children.length; index += 1) {
     appendOwnerRows(rows, graph.children[index], depth + 1, graph.id);
   }
+}
+
+
+/**
+ * Inspects likely lifecycle leaks without mutating the runtime.
+ *
+ * @remarks
+ * This heuristic report is intentionally conservative: it flags disposed owners
+ * still retaining children/cleanups, effects whose owners are disposed, and
+ * signals with unusually high subscriber counts. It is a devtools aid, not a GC
+ * oracle.
+ *
+ * @returns Leak diagnostics snapshot.
+ *
+ * @example
+ * ```ts
+ * const report = inspectLeaks();
+ * if (report.leaks.length) console.table(report.leaks);
+ * ```
+ */
+export function inspectLeaks(): BrotoLeakSnapshot {
+  const runtime = inspectRuntime();
+  const leaks: BrotoLeakRecord[] = [];
+  let ownerCount = 0;
+
+  for (let index = 0; index < runtime.owners.length; index += 1) {
+    collectOwnerLeaks(runtime.owners[index], leaks);
+    ownerCount += 1 + runtime.owners[index].descendants;
+  }
+
+  for (let index = 0; index < runtime.effects.length; index += 1) {
+    const effect = runtime.effects[index];
+    if (effect.disposed && (effect.deps > 0 || effect.cleanups > 0)) {
+      leaks[leaks.length] = { id: effect.id, name: effect.name, kind: 'effect', reason: 'Disposed effect still retains deps or cleanups.', count: effect.deps + effect.cleanups };
+    }
+  }
+
+  for (let index = 0; index < runtime.signals.length; index += 1) {
+    const signal = runtime.signals[index];
+    if (signal.subscribers > 1000) {
+      leaks[leaks.length] = { id: signal.id, name: signal.name, kind: 'signal', reason: 'Signal has an unusually high subscriber count.', count: signal.subscribers };
+    }
+  }
+
+  return { leaks, owners: ownerCount, effects: runtime.effects.length, signals: runtime.signals.length };
+}
+
+function collectOwnerLeaks(owner: OwnerGraphSnapshot, leaks: BrotoLeakRecord[]): void {
+  if (owner.disposed && (owner.cleanups > 0 || owner.children.length > 0)) {
+    leaks[leaks.length] = { id: owner.id, name: owner.name, kind: 'owner', reason: 'Disposed owner still retains cleanups or children.', count: owner.cleanups + owner.children.length };
+  }
+  for (let index = 0; index < owner.children.length; index += 1) collectOwnerLeaks(owner.children[index], leaks);
 }

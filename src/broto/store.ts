@@ -70,6 +70,8 @@ export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
   setPath(path: StorePath, value: unknown, meta?: StorePatchMeta): void;
   /** Reads a nested signal/store by path. */
   get(path: StorePath): unknown;
+  /** Reads a tracked value by path, resolving signals/stores to plain values. */
+  select(path: StorePath): unknown;
   /** Subscribes to root set/patch/update/path events. */
   subscribe(listener: StoreSubscriber<State>): StoreUnsubscribe;
 };
@@ -229,6 +231,12 @@ function createStoreObject(
       enumerable: false,
       value(path: StorePath) {
         return getStorePath(output, path);
+      },
+    },
+    select: {
+      enumerable: false,
+      value(path: StorePath) {
+        return readStoreSelection(output, path);
       },
     },
     set: {
@@ -416,6 +424,13 @@ function getStorePath(root: Record<string, unknown>, path: StorePath): unknown {
     else return undefined;
   }
   return current;
+}
+
+
+
+function readStoreSelection(root: Record<string, unknown>, path: StorePath): unknown {
+  const value = getStorePath(root, path);
+  return readStoreValue(value);
 }
 
 function setStorePath(

@@ -1,5 +1,5 @@
 import { brotoDebugState } from "./debug";
-import { cleanupOwner, createOwner, getOwner, handleOwnerError, onOwnerCleanup, runWithOwner } from "./owner";
+import { cleanupOwner, createOwner, createRoot, getOwner, handleOwnerError, onOwnerCleanup, runWithOwner } from "./owner";
 import type { Cleanup, CleanupRegistrar, EffectDebugSnapshot, EffectOptions, EffectRunner, SchedulerDebugSnapshot, SchedulerPriority, Signal, SignalDebugSnapshot, SignalOptions, SchedulerMode } from "./types";
 
 /** Queued async effects waiting for the next scheduler flush. */
@@ -27,6 +27,33 @@ const taskQueues = {
 } satisfies Record<SchedulerPriority, Set<() => void>>;
 
 let taskFlushQueued = false;
+
+
+
+/**
+ * Creates an owned effect scope and returns its value plus disposer.
+ *
+ * @remarks
+ * An effect scope is a lightweight root owner for grouping signals, effects,
+ * resources and cleanups without creating a UI component. It is useful for
+ * plugins, devtools panels and long-lived service objects.
+ *
+ * @param callback - Work to run inside the scope.
+ * @param name - Optional debug name.
+ * @returns Tuple with callback value and disposer.
+ *
+ * @example
+ * ```ts
+ * const [api, dispose] = effectScope(() => {
+ *   effect(() => console.log(count()), { name: 'counter-log' });
+ *   return { ready: true };
+ * }, 'plugin');
+ * dispose();
+ * ```
+ */
+export function effectScope<Value>(callback: () => Value, name = "effectScope"): [Value, Cleanup] {
+  return createRoot((dispose) => [callback(), dispose] as [Value, Cleanup], { name })[0];
+}
 
 /**
  * Configures the global reactive scheduler.
@@ -197,6 +224,7 @@ export function effect(callback: (cleanup: CleanupRegistrar) => void, options: E
     activeEffect = runner;
 
     try {
+      (runner as EffectRunner & { runs?: number }).runs = ((runner as EffectRunner & { runs?: number }).runs ?? 0) + 1;
       runWithOwner(owner, () => callback(onCleanup));
     } catch (error) {
       if (!handleOwnerError(error, owner)) {
@@ -708,6 +736,24 @@ function isSignalLike(value: unknown): boolean {
 }
 
 
+
+
+/** Prunes disposed debug rows when debug retention is disabled. */
+export function pruneDebugEntries(): void {
+  if (brotoDebugState.retainDisposed) return;
+  const maxEntries = brotoDebugState.maxEntries ?? 1000;
+  let signalCount = 0;
+  for (const entry of signalDebugEntries) {
+    signalCount += 1;
+    if (entry.disposed || signalCount > maxEntries) signalDebugEntries.delete(entry);
+  }
+  let effectCount = 0;
+  for (const runner of effectDebugEntries) {
+    effectCount += 1;
+    if (runner.disposed || runner.owner.disposed || effectCount > maxEntries) effectDebugEntries.delete(runner);
+  }
+}
+
 /**
  * Returns signal diagnostics without exposing live mutable internals.
  *
@@ -719,6 +765,7 @@ function isSignalLike(value: unknown): boolean {
  * ```
  */
 export function inspectSignals(): SignalDebugSnapshot[] {
+  pruneDebugEntries();
   const rows: SignalDebugSnapshot[] = [];
   for (const entry of signalDebugEntries) {
     rows[rows.length] = {
@@ -739,6 +786,7 @@ export function inspectSignals(): SignalDebugSnapshot[] {
  * @returns Effect debug rows.
  */
 export function inspectEffects(): EffectDebugSnapshot[] {
+  pruneDebugEntries();
   const rows: EffectDebugSnapshot[] = [];
   for (const runner of effectDebugEntries) {
     rows[rows.length] = {

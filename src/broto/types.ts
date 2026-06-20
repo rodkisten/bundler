@@ -95,6 +95,27 @@ export type EffectOptions = {
 };
 
 /** Snapshot of Broto runtime counters. */
+export type BrotoDebugOptions = {
+  enabled?: boolean;
+  retainDisposed?: boolean;
+  maxEntries?: number;
+};
+
+export type BrotoLeakRecord = {
+  id: string;
+  name?: string;
+  kind: 'owner' | 'effect' | 'signal';
+  reason: string;
+  count?: number;
+};
+
+export type BrotoLeakSnapshot = {
+  leaks: BrotoLeakRecord[];
+  owners: number;
+  effects: number;
+  signals: number;
+};
+
 export type BrotoDebugSnapshot = {
   enabled: boolean;
   signals: number;
@@ -104,6 +125,8 @@ export type BrotoDebugSnapshot = {
   resources: number;
   flushes: number;
   updates: number;
+  retainDisposed?: boolean;
+  maxEntries?: number;
 };
 
 /** Async resource state. */
@@ -131,8 +154,10 @@ export type ResourceOptions<Source = void> = {
 export type Resource<Value, ErrorValue = unknown> = Signal<ResourceState<Value, ErrorValue>> & {
   reload(): Promise<Value | undefined>;
   retry(): Promise<Value | undefined>;
+  mutate(value: Value | ((current: Value | undefined) => Value)): Value;
   abort(reason?: unknown): void;
   refreshInterval(ms: number): Cleanup;
+  poll(ms: number): Cleanup;
 };
 
 /** Serializable owner graph node used by diagnostics and devtools. */

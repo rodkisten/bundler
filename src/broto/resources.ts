@@ -53,7 +53,7 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
   let version = 0;
   let disposed = false;
   let previousSource: Source | undefined;
-  let intervalId = 0;
+  let intervalId: ReturnType<typeof globalThis.setInterval> | 0 = 0;
 
   const state = signal<ResourceState<Value, ErrorValue>>({
     loading: false,
@@ -92,15 +92,15 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
       return loader(signal, source);
     }
 
-    let timeoutId = 0;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | 0 = 0;
     const timeout = new Promise<never>((_resolve, reject) => {
-      timeoutId = window.setTimeout(() => reject(new Error(`[Broto] Resource timed out after ${timeoutMs}ms.`)), timeoutMs);
+      timeoutId = globalThis.setTimeout(() => reject(new Error(`[Broto] Resource timed out after ${timeoutMs}ms.`)), timeoutMs);
     });
 
     try {
       return await Promise.race([loader(signal, source), timeout]);
     } finally {
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
     }
   }
 
@@ -160,9 +160,16 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
     return undefined;
   }
 
+  function mutate(value: Value | ((current: Value | undefined) => Value)): Value {
+    const previous = state.peek();
+    const nextValue = typeof value === "function" ? (value as (current: Value | undefined) => Value)(previous.value) : value;
+    state.set({ loading: false, value: nextValue, error: undefined, stale: false });
+    return nextValue;
+  }
+
   function refreshInterval(ms: number) {
     if (intervalId) {
-      window.clearInterval(intervalId);
+      globalThis.clearInterval(intervalId);
       intervalId = 0;
     }
 
@@ -170,13 +177,13 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
       return () => {};
     }
 
-    intervalId = window.setInterval(() => {
+    intervalId = globalThis.setInterval(() => {
       void reload();
     }, ms);
 
     return () => {
       if (intervalId) {
-        window.clearInterval(intervalId);
+        globalThis.clearInterval(intervalId);
         intervalId = 0;
       }
     };
@@ -185,7 +192,7 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
   onOwnerCleanup(() => {
     disposed = true;
     if (intervalId) {
-      window.clearInterval(intervalId);
+      globalThis.clearInterval(intervalId);
       intervalId = 0;
     }
     abort("dispose");
@@ -217,8 +224,10 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
   const output = state as Resource<Value, ErrorValue>;
   output.reload = reload;
   output.retry = reload;
+  output.mutate = mutate;
   output.abort = abort;
   output.refreshInterval = refreshInterval;
+  output.poll = refreshInterval;
 
   return output;
 }

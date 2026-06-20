@@ -291,3 +291,23 @@ Signals can be named without changing their behavior:
 ```ts
 const count = signal(0, { name: 'counter.count' })
 ```
+
+## Staff-level diagnostics and scoped runtime helpers
+
+Broto now exposes focused diagnostics and lifecycle APIs:
+
+```ts
+configureDebug({ enabled: true, retainDisposed: false, maxEntries: 500 })
+const [value, dispose] = effectScope(() => setupPlugin(), 'plugin')
+const leaks = inspectLeaks()
+```
+
+Resources can be updated optimistically and polled without recreating them:
+
+```ts
+const profile = resource(loadProfile)
+profile.mutate((current) => ({ ...current, name: 'Rod' }))
+const stop = profile.poll(30_000)
+```
+
+Deep stores also support path reads with `select(path)` for small, focused bindings.
