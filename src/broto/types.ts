@@ -117,12 +117,28 @@ export type ResourceOptions<Source = void> = {
   cacheKey?: string | ((source: Source) => string);
   timeoutMs?: number;
   retries?: number;
+  /** Optional polling interval in milliseconds. Disabled by default. */
+  refreshIntervalMs?: number;
 };
 
 /** Async resource controls. */
 export type Resource<Value, ErrorValue = unknown> = Signal<ResourceState<Value, ErrorValue>> & {
   reload(): Promise<Value | undefined>;
+  retry(): Promise<Value | undefined>;
   abort(reason?: unknown): void;
+  refreshInterval(ms: number): Cleanup;
+};
+
+/** Serializable owner graph node used by diagnostics and devtools. */
+export type OwnerGraphSnapshot = {
+  id: string;
+  name?: string;
+  disposed: boolean;
+  cleanups: number;
+  context: number;
+  errorHandlers: number;
+  descendants: number;
+  children: OwnerGraphSnapshot[];
 };
 
 /** Small graph edge used by debugging/devtools. */

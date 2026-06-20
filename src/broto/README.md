@@ -244,3 +244,26 @@ Effects can override the global scheduler:
 effect(() => expensiveLayoutRead(), { scheduler: 'raf' });
 effect(() => tinySynchronousMirror(), { scheduler: 'sync' });
 ```
+
+## Diagnostics and resource controls
+
+Broto exposes lightweight devtools helpers without changing the signal/effect API:
+
+```ts
+const [snapshot, dispose] = createRoot(() => {
+  const child = createOwner({ name: 'Panel' })
+  return inspectGraph(getOwner())
+}, { name: 'App' })
+
+console.log(snapshot?.descendants)
+dispose()
+```
+
+Resources can now be retried and scheduled for refresh using the same resource object:
+
+```ts
+const profile = resource(fetchProfile, { immediate: false })
+await profile.retry()
+const stop = profile.refreshInterval(30_000)
+stop()
+```

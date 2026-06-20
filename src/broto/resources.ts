@@ -53,6 +53,7 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
   let version = 0;
   let disposed = false;
   let previousSource: Source | undefined;
+  let intervalId = 0;
 
   const state = signal<ResourceState<Value, ErrorValue>>({
     loading: false,
@@ -159,8 +160,34 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
     return undefined;
   }
 
+  function refreshInterval(ms: number) {
+    if (intervalId) {
+      window.clearInterval(intervalId);
+      intervalId = 0;
+    }
+
+    if (!Number.isFinite(ms) || ms <= 0) {
+      return () => {};
+    }
+
+    intervalId = window.setInterval(() => {
+      void reload();
+    }, ms);
+
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId);
+        intervalId = 0;
+      }
+    };
+  }
+
   onOwnerCleanup(() => {
     disposed = true;
+    if (intervalId) {
+      window.clearInterval(intervalId);
+      intervalId = 0;
+    }
     abort("dispose");
   });
 
@@ -182,9 +209,16 @@ export function resource<Value, ErrorValue = unknown, Source = void>(
     }
   }
 
+  if (options.refreshIntervalMs && options.refreshIntervalMs > 0) {
+    const stopRefresh = refreshInterval(options.refreshIntervalMs);
+    onOwnerCleanup(stopRefresh);
+  }
+
   const output = state as Resource<Value, ErrorValue>;
   output.reload = reload;
+  output.retry = reload;
   output.abort = abort;
+  output.refreshInterval = refreshInterval;
 
   return output;
 }

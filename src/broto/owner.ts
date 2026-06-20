@@ -1,4 +1,4 @@
-import type { Cleanup, ContextToken, Owner, OwnerErrorHandler, OwnerOptions } from "./types";
+import type { Cleanup, ContextToken, Owner, OwnerErrorHandler, OwnerGraphSnapshot, OwnerOptions } from "./types";
 
 let ownerId = 0;
 let activeOwner: Owner | null = null;
@@ -295,9 +295,22 @@ export function useContext<Value>(context: ContextToken<Value>): Value {
  * @param root - Root owner. Defaults to active owner.
  * @returns Owner graph object.
  */
-export function inspectOwnerGraph(root: Owner | null = activeOwner): unknown {
+export function inspectOwnerGraph(root: Owner | null = activeOwner): OwnerGraphSnapshot | null {
   if (!root) {
     return null;
+  }
+
+  const children: OwnerGraphSnapshot[] = [];
+  let descendants = 0;
+
+  for (const child of root.children) {
+    const snapshot = inspectOwnerGraph(child);
+    if (!snapshot) {
+      continue;
+    }
+
+    children[children.length] = snapshot;
+    descendants += 1 + snapshot.descendants;
   }
 
   return {
@@ -307,8 +320,27 @@ export function inspectOwnerGraph(root: Owner | null = activeOwner): unknown {
     cleanups: root.cleanups.length,
     context: root.context.size,
     errorHandlers: root.errorHandlers.length,
-    children: Array.from(root.children, (child) => inspectOwnerGraph(child)),
+    descendants,
+    children,
   };
+}
+
+/**
+ * Alias for inspectOwnerGraph with a shorter devtools-friendly name.
+ *
+ * @param root - Root owner. Defaults to the active owner.
+ * @returns Serializable owner graph snapshot.
+ *
+ * @example
+ * ```ts
+ * const [_, dispose] = createRoot(() => {
+ *   console.table(inspectGraph()?.children ?? []);
+ * });
+ * dispose();
+ * ```
+ */
+export function inspectGraph(root: Owner | null = activeOwner): OwnerGraphSnapshot | null {
+  return inspectOwnerGraph(root);
 }
 
 function runCleanup(cleanup: Cleanup | undefined, owner: Owner): void {
