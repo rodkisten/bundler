@@ -571,3 +571,18 @@ Supported renderable shapes now include:
 - Fabrica Elements payloads with `tag`, `props`, `attrs`, `dataset`, events, refs and children;
 - Cipó styled DOM factories returned by `styled.button.css``...`` `;
 - arrays containing any combination of the above.
+
+## Composition diagnostics
+
+Fábrica continues to render components, spreads, portals and suspense through the same public API. For deeper package integrations, use Broto's `inspectGraph()` and Fabrica Elements composition helpers:
+
+```ts
+import { inspectGraph, getOwner } from '../broto'
+import { composeProps, polymorphic } from '../fabrica-elements'
+
+console.log(inspectGraph(getOwner()))
+
+const ButtonProps = composeProps(baseProps, userProps)
+```
+
+These additions are incremental and do not change existing component, directive or render contracts.

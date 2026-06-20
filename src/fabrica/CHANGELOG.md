@@ -53,3 +53,8 @@
 - Added reactive component-tag invocation for dynamic props and spreads. Component tags such as `<${Button} tone=${tone}>` now re-run the component or styled factory when Broto signals used as props change.
 - Improved adapter payload materialization with `attrs` and `dataset` support so Fabrica Elements payload output renders through Fábrica without losing data attributes.
 - Added kitchen-sink coverage for Fabrica Elements payloads and Cipó styled components rendered through Fábrica component tags.
+
+## Audit hardening pass
+
+- Added integration coverage for Broto owner diagnostics and Fabrica Elements composition helpers.
+- Documented non-breaking composition diagnostics for package-level audits.
