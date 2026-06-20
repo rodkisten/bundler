@@ -19,6 +19,7 @@ export { $ } from "./bag";
 export { css } from "./css";
 export { clearComponents, component, listComponents, registerComponent, resolveComponent, unregisterComponent } from "./component";
 export { boundary } from "./boundary";
+export { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 export { createFabricaContext, provide, useContext } from "./context";
 export { debug, setDebug } from "./debug";
 export { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";

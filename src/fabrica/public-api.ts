@@ -6,6 +6,7 @@ import { css } from "./css";
 import { debug, setDebug } from "./debug";
 import { classMap, portal, ref, repeat, styleMap, suspense, virtualRepeat, when } from "./directives";
 import { html, hydrate, jsx, mount, render } from "./dom";
+import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
 import { config } from "./install-state";
@@ -26,6 +27,10 @@ export type FabricaApi = {
   listComponents: typeof listComponents;
   clearComponents: typeof clearComponents;
   boundary: typeof boundary;
+  onMount: typeof onMount;
+  onUnmount: typeof onUnmount;
+  onDispose: typeof onDispose;
+  onError: typeof onError;
   createContext: typeof createFabricaContext;
   provide: typeof provide;
   useContext: typeof useContext;
@@ -74,6 +79,10 @@ export function createFabricaApi(): FabricaApi {
     listComponents,
     clearComponents,
     boundary,
+    onMount,
+    onUnmount,
+    onDispose,
+    onError,
     createContext: createFabricaContext,
     provide,
     useContext,
@@ -101,6 +110,10 @@ export function createFabricaApi(): FabricaApi {
     listComponents,
     clearComponents,
     boundary,
+    onMount,
+    onUnmount,
+    onDispose,
+    onError,
     createContext: createFabricaContext,
     provide,
     useContext,

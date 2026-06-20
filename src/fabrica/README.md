@@ -586,3 +586,17 @@ const ButtonProps = composeProps(baseProps, userProps)
 ```
 
 These additions are incremental and do not change existing component, directive or render contracts.
+
+## Package-level lifecycle helpers
+
+In addition to component-context lifecycle methods, Fabrica now exports package-level helpers that bind to the active Broto owner:
+
+```ts
+onMount(() => {
+  const cleanup = startFeature()
+  return cleanup
+})
+
+onDispose(() => stopFeature())
+onError((error) => true)
+```
