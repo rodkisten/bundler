@@ -237,3 +237,70 @@ Fabrica.render(document.body, Fabrica.jsx.html`
 ```
 
 `Fabrica.html.jsx` still works. Dynamic props on component tags are passed as raw values, so objects, signals and functions are not stringified.
+
+## Staff-level additive APIs
+
+This pass keeps existing APIs intact and adds diagnostics/composition helpers for larger apps and userscripts.
+
+### Broto diagnostics
+
+```ts
+import { inspectRuntime, inspectSignals, inspectEffects, inspectScheduler } from './src/broto'
+
+const snapshot = inspectRuntime()
+console.table(snapshot.signals)
+console.table(snapshot.effects)
+console.log(snapshot.scheduler)
+```
+
+Use this to find effect leaks, owner trees that were not disposed, resources still polling, and large reactive graphs.
+
+### Fabrica lifecycle helpers
+
+```ts
+import { onMount, onDispose, onError } from './src/fabrica'
+
+onMount(() => {
+  const controller = new AbortController()
+  window.addEventListener('resize', sync, { signal: controller.signal })
+  return () => controller.abort()
+})
+
+onDispose(() => console.log('owner disposed'))
+onError((error) => {
+  console.error(error)
+  return true
+})
+```
+
+These helpers are additive. Component context lifecycle APIs continue working as before.
+
+### Fabrica Elements recipes
+
+```ts
+import { recipeProps } from './src/fabrica-elements'
+
+const button = recipeProps({
+  base: { class: 'btn', type: 'button' },
+  variants: {
+    tone: { primary: { class: 'btn-primary' }, danger: { class: 'btn-danger' } },
+    size: { sm: { class: 'btn-sm' }, lg: { class: 'btn-lg' } },
+  },
+  defaults: { tone: 'primary', size: 'sm' },
+  compound: [{ tone: 'danger', size: 'lg', props: { class: 'btn-danger-lg' } }],
+})
+
+button({ tone: 'danger', size: 'lg', class: 'extra' })
+// { class: 'btn btn-danger btn-lg btn-danger-lg extra', type: 'button', ... }
+```
+
+### Cipó source explanations
+
+```ts
+import { explainCss } from './src/cipo/src'
+
+const report = explainCss('.card { bg: alpha($brand / 20%) }', 'stylesheet')
+console.log(report.transformedCss)
+console.log(report.cssText)
+console.log(report.validation)
+```

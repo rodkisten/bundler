@@ -108,3 +108,12 @@
 - Added Fabrica Elements `composeProps`, `composeEvents`, `slot` and `polymorphic` helpers while preserving existing factories.
 - Added Cipó `validateCss()` for fast generated CSS diagnostics.
 - Added tests covering the new non-breaking audit improvements.
+
+## Staff-level audit implementation pass
+
+- Added Broto runtime diagnostics with `inspectRuntime()`, `flattenOwnerGraph()`, `inspectSignals()`, `inspectEffects()` and `inspectScheduler()`.
+- Added owner root tracking and creation timestamps for leak hunting and devtools panels without changing existing owner APIs.
+- Added package-level Fabrica lifecycle helpers: `onMount`, `onUnmount`, `onDispose` and `onError`.
+- Added renderer-neutral Fabrica Elements `recipeProps()` for Panda-like prop recipes with variants and compound variants.
+- Added Cipó `explainCss()` source diagnostics for helper/token/alias/nesting debugging.
+- Expanded tests to cover diagnostics, lifecycle, recipe composition and Cipó source explanations.
