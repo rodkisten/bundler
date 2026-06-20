@@ -529,3 +529,24 @@ console.log(report.transformedCss)
 console.log(report.cssText)
 console.log(report.validation)
 ```
+
+## Advanced stylesheet helpers
+
+```ts
+const scoped = sheet.css.scoped('.app')`
+  .card { px: 4 }
+`
+```
+
+```ts
+const layered = sheet.css.layer('components')`
+  .card { color: red }
+`
+```
+
+For diagnostics:
+
+```ts
+const info = explainDetailed('.card { color: red }', 'stylesheet')
+const perf = benchmark('color: red', 100, 'atomic')
+```

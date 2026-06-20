@@ -40,3 +40,10 @@
 
 - Added `explainCss()` to inspect raw Cipó input, transformed CSS, generated CSS text, warnings and validation issues.
 - Added tests for stylesheet diagnostics and validation-friendly output.
+
+## Staff-level stylesheet utilities
+
+- Added `sheet.css.scoped(selector)` for scoped stylesheet compilation.
+- Added `sheet.css.layer(name)` for cascade layer wrapping.
+- Added `sheet.css.debug`, `explainDetailed()`, and `benchmark()`.
+- Added focused tests for scoped sheets, layers and diagnostics.
