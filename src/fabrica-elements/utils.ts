@@ -143,14 +143,22 @@ export function createRef<Value = Element>(): { current: Value | null } {
  * ```
  */
 export function composeRefs<Value = Element>(...refs: readonly unknown[]): (value: Value | null) => void {
+  const cleanups: Array<() => void> = []
+
   return (value: Value | null): void => {
+    if (value === null) {
+      for (let index = cleanups.length - 1; index >= 0; index -= 1) cleanups[index]?.()
+      cleanups.length = 0
+    }
+
     for (let index = 0; index < refs.length; index += 1) {
       const ref = refs[index]
 
       if (!ref) continue
 
       if (typeof ref === 'function') {
-        ;(ref as (value: Value | null) => void)(value)
+        const cleanup = (ref as (value: Value | null) => void | (() => void))(value)
+        if (typeof cleanup === 'function') cleanups[cleanups.length] = cleanup
         continue
       }
 

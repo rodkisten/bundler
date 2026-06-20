@@ -32,6 +32,9 @@ export type ElementsClassValue = string | number | boolean | null | undefined | 
 /** Values accepted as children by the DOM adapter. */
 export type ElementsChild = string | number | boolean | null | undefined | Node | DocumentFragment | readonly ElementsChild[]
 
+/** Optional named children bag used by component-level slot helpers. */
+export type ElementsSlots = Record<string, unknown>
+
 /** Mutable object ref shared by DOM factories and components. */
 export type ElementsRef<Value = Element> = { current: Value | null }
 
