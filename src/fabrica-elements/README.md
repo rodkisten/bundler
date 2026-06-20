@@ -129,3 +129,17 @@ Callbacks are not invoked as values. `onClick`, `onInput`, `ref` and event maps 
 ## Prop recipes
 
 `recipeProps()` creates renderer-neutral prop recipes with variants, defaults and compound variants. It composes class names, refs, styles and events through the same `composeProps()` pipeline used by the rest of Fabrica Elements.
+
+## Recipes and composition helpers
+
+Fabrica Elements now includes tiny prop-level helpers that work across DOM, Fabrica, React-style payloads and Cipó styled APIs:
+
+```ts
+const button = recipe({
+  base: { class: 'button', type: 'button' },
+  variants: { tone: { primary: { class: 'primary' } } },
+  defaults: { tone: 'primary' },
+})
+```
+
+`variant()` resolves one variant map and `asChild()` provides an inert payload shape for adapter-level slot composition.

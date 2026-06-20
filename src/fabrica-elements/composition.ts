@@ -221,3 +221,44 @@ function matchesCompound(compound: ElementsRecord, options: ElementsRecord, defa
   }
   return true
 }
+
+/** Alias for recipeProps(), matching the short API used in examples. */
+export const recipe = recipeProps
+
+/**
+ * Creates a single variant resolver from a value-to-props map.
+ *
+ * @param variants - Variant map.
+ * @param fallback - Optional fallback key.
+ * @returns Resolver that returns props for one variant value.
+ *
+ * @example
+ * ```ts
+ * const tone = variant({ danger: { class: 'danger' } }, 'danger')
+ * tone('danger')
+ * // { class: 'danger' }
+ * ```
+ */
+export function variant(variants: Record<string, RecipeSlot<ElementsRecord>>, fallback?: string): (value?: string | boolean | null, props?: ElementsRecord) => ElementsRecord {
+  return function resolveVariant(value, props: ElementsRecord = {}): ElementsRecord {
+    const key = value === false || value === null || value === undefined ? fallback : String(value)
+    if (!key) return {}
+    return resolveRecipeSlot(variants[key], props) || {}
+  }
+}
+
+/**
+ * Marks a component invocation as asChild-compatible without choosing a renderer.
+ *
+ * @remarks
+ * This helper returns a small payload that consumers can interpret. It is
+ * intentionally inert in DOM mode, preserving current APIs while giving recipes
+ * and adapters a standard shape for future slot composition.
+ *
+ * @param child - Child payload.
+ * @param props - Props to merge into the child.
+ * @returns As-child payload.
+ */
+export function asChild(child: unknown, props: ElementsRecord = {}): ElementsRecord {
+  return { asChild: true, child, props }
+}
