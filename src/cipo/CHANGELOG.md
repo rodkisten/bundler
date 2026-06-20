@@ -35,3 +35,8 @@
 - Added `validateCss()` for linear debug validation of generated stylesheets.
 - Added regression coverage for duplicate `!important` and unclosed stylesheet structures.
 - Documented validation alongside `explain()` and `inspect()`.
+
+## Source diagnostics pass
+
+- Added `explainCss()` to inspect raw Cipó input, transformed CSS, generated CSS text, warnings and validation issues.
+- Added tests for stylesheet diagnostics and validation-friendly output.

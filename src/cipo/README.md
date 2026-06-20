@@ -518,3 +518,14 @@ console.log(result.valid)
 ```
 
 `validateCss()` is not a heavyweight browser parser. It is a linear safety scan for unclosed blocks/functions/comments/strings and duplicated `!important`, useful in tests, generated docs and userscript diagnostics.
+
+## Debugging source CSS
+
+Use `explainCss()` when a helper, token, alias or nested stylesheet behaves unexpectedly:
+
+```ts
+const report = explainCss('.card { bg: alpha($brand / 20%) }', 'stylesheet')
+console.log(report.transformedCss)
+console.log(report.cssText)
+console.log(report.validation)
+```
