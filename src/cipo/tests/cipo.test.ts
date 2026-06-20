@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { atomic, css, getCssText, inline, isAtomicCssArtifact, isStylesheetArtifact, registerAlias, registerHelper, registerNativeFunction, registerProperty, reset, setup, sheet } from '../src/index'
+import { atomic, css, getCssText, inline, isAtomicCssArtifact, isStylesheetArtifact, registerAlias, registerHelper, registerNativeFunction, registerProperty, reset, setup, sheet, validateCss } from '../src/index'
 
 describe('Cipó next', () => {
   beforeEach(() => {
@@ -295,6 +295,17 @@ describe('Cipó next', () => {
     expect(String(styleText)).toContain('width:future-size(width)')
     expect(warnings.includes('unknown-function-declaration')).toBe(false)
     expect(warnings.includes('invalid-declaration')).toBe(false)
+  })
+
+
+  it('validates generated css for debug diagnostics', () => {
+    const ok = validateCss('.card{color:red!important;}')
+    expect(ok.valid).toBe(true)
+
+    const broken = validateCss('.card{color:red!important!important;')
+    expect(broken.valid).toBe(false)
+    expect(broken.issues.map((issue) => issue.code).join(',')).toContain('duplicate-important')
+    expect(broken.issues.map((issue) => issue.code).join(',')).toContain('unclosed-block')
   })
 
 })
