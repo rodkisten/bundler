@@ -1,4 +1,6 @@
 import { compileAtomicRule } from './compiler'
+import { atomic, sheet } from './css'
+import { transformCss } from './transform'
 import { runtime } from './runtime'
 import type { CipoExplainResult } from './types'
 
@@ -158,4 +160,48 @@ export function validateCss(cssText: string): CipoValidationResult {
 
 function pushIssue(issues: CipoValidationIssue[], code: string, message: string, index: number): void {
   issues[issues.length] = { code, message, index }
+}
+
+export interface CipoSourceExplanation {
+  readonly rawCss: string
+  readonly transformedCss: string
+  readonly cssText: string
+  readonly warnings: readonly import('./types').CipoWarning[]
+  readonly validation: CipoValidationResult
+  readonly mode: 'atomic' | 'stylesheet'
+  readonly className?: string
+}
+
+/**
+ * Explains a CSS source string end-to-end.
+ *
+ * @remarks
+ * `explain()` is class-oriented for generated atoms. `explainCss()` is source-
+ * oriented: it compiles without hiding the intermediate transformed text,
+ * warnings or validation result. This is the fastest way to debug helpers,
+ * tokens, aliases, nesting, media helpers and stylesheet mode in a userscript.
+ *
+ * @param input - Raw Cipó CSS source.
+ * @param mode - Optional explicit mode. Defaults to stylesheet for selector-like input and atomic otherwise.
+ * @returns Explanation object.
+ *
+ * @example
+ * ```ts
+ * const info = explainCss('.card { bg: alpha($brand / 20%) }', 'stylesheet')
+ * console.log(info.transformedCss)
+ * ```
+ */
+export function explainCss(input: string, mode: 'atomic' | 'stylesheet' = input.indexOf('{') >= 0 ? 'stylesheet' : 'atomic'): CipoSourceExplanation {
+  const warnings: import('./types').CipoWarning[] = []
+  const rawCss = String(input || '')
+  const transformedCss = transformCss(rawCss, warnings)
+  const validation = validateCss(transformedCss)
+
+  if (mode === 'stylesheet') {
+    const artifact = sheet.css([rawCss] as unknown as TemplateStringsArray)
+    return { rawCss, transformedCss, cssText: artifact.cssText, warnings, validation, mode }
+  }
+
+  const artifact = atomic.css([rawCss] as unknown as TemplateStringsArray)
+  return { rawCss, transformedCss, cssText: artifact.compiledCss, warnings, validation, mode, className: artifact.className }
 }
