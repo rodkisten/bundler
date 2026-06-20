@@ -50,6 +50,7 @@ import {
   virtualRepeat,
   when,
 } from "../index";
+import { composeEvents, composeProps, composeRefs, polymorphic, slot } from '../../fabrica-elements';
 import {
   batch,
   cleanupOwner,
@@ -65,6 +66,7 @@ import {
   getOwner,
   graph,
   hasReactiveValue,
+  inspectGraph,
   inspectOwnerGraph,
   memo,
   onCleanup,
@@ -1492,6 +1494,60 @@ describe("Fábrica kitchen sink: render-value edge cases", () => {
     rows.set([{ id: 1, label: "one" }, { id: 2, label: "two" }]);
     flushSync();
     expect(host.textContent).toBe("onetwo");
+  });
+
+
+  it("exposes owner graph diagnostics with descendant counts", () => {
+    const [ownerSnapshot, dispose] = createRoot(() => {
+      const child = createOwner({ name: "child" });
+      runWithOwner(child, () => onOwnerCleanup(() => undefined));
+      return inspectGraph(getOwner());
+    }, { name: "root" });
+
+    expect(ownerSnapshot?.descendants).toBe(1);
+    expect(ownerSnapshot?.children[0]?.name).toBe("child");
+    dispose();
+  });
+
+  it("supports resource retry and refresh interval controls", async () => {
+    let count = 0;
+    const profile = resource(async () => {
+      count += 1;
+      return count;
+    }, { immediate: false });
+
+    await expect(profile.retry()).resolves.toBe(1);
+    const stop = profile.refreshInterval(1);
+    stop();
+    expect(typeof profile.abort).toBe("function");
+  });
+
+  it("composes Fabrica Elements props, refs, events, slots and polymorphic wrappers", () => {
+    const calls: string[] = [];
+    const refA = { current: null as Element | null };
+    const ref = composeRefs(refA, (node) => {
+      if (node) calls.push("ref");
+    });
+    const props = composeProps(
+      { class: "base", onClick: () => calls.push("base") },
+      { class: ["primary"], onClick: () => calls.push("override"), ref },
+    );
+    const event = new Event("click");
+    (props.onClick as (event: Event) => void)(event);
+    expect(calls.join(",")).toContain("base,override");
+    expect(props.class).toBe("base primary");
+
+    const node = document.createElement("button");
+    ;(props.ref as (value: Element | null) => void)(node);
+    expect(refA.current).toBe(node);
+    expect(slot({ header: "Title" }, "header")).toBe("Title");
+
+    const Box = polymorphic("div", (as, nextProps) => ({ as, props: nextProps }));
+    expect(Box({ as: "button", type: "button" }).as).toBe("button");
+
+    const chained = composeEvents<Event>(() => calls.push("one"), () => calls.push("two"));
+    chained(new Event("click"));
+    expect(calls.slice(-2).join(",")).toBe("one,two");
   });
 
 });
