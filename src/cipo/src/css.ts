@@ -189,6 +189,35 @@ export const sheet = {
           },
         )
       },
+      scoped(selector: string) {
+        return Object.assign(
+          function scopedSheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+            return compileScopedSheetCss(selector, strings, values, false)
+          },
+          {
+            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+              return compileScopedSheetCss(selector, strings, values, true)
+            },
+          },
+        )
+      },
+      layer(name: string) {
+        return Object.assign(
+          function layerSheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+            return wrapSheetLayer(name, compileSheetCss(strings, values, false))
+          },
+          {
+            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+              return wrapSheetLayer(name, compileSheetCss(strings, values, true))
+            },
+          },
+        )
+      },
+      debug(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
+        const artifact = compileSheetCss(strings, values, false)
+        if (runtime.config.debug && typeof console !== 'undefined') console.debug('[Cipo sheet]', artifact.debug)
+        return artifact
+      },
     },
   ),
 }
@@ -271,6 +300,34 @@ function compileSheetCss(strings: TemplateStringsArray, values: readonly CipoCss
 
   setCachedArtifact(cacheKey, artifact)
   return artifact
+}
+
+
+
+function compileScopedSheetCss(selector: string, strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
+  const rawCss = buildCss(strings, values);
+  const scopedSource = `${selector}{${rawCss}}`;
+  const cacheKey = createArtifactCacheKey(scopedSource, important ? 'sheet-scoped-important' : 'sheet-scoped');
+  const cached = getCachedArtifact(cacheKey);
+  if (cached && isStylesheetArtifact(cached)) return cached;
+  const warnings: CipoWarning[] = [];
+  const transformedCss = transformCss(scopedSource, warnings);
+  const ast = parseStylesheet(transformedCss, warnings);
+  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important);
+  setCachedArtifact(cacheKey, artifact);
+  return artifact;
+}
+
+function wrapSheetLayer(name: string, artifact: CipoStylesheetArtifact): CipoStylesheetArtifact {
+  const safeName = String(name || 'components').replace(/[^a-zA-Z0-9_.-]/g, '');
+  const cssText = `@layer ${safeName}{${artifact.cssText}}`;
+  return {
+    ...artifact,
+    cssText: formatStylesheetText(cssText),
+    debug: { ...artifact.debug, mode: 'stylesheet' as const },
+    toString: () => formatStylesheetText(cssText),
+    [Symbol.toPrimitive]: () => formatStylesheetText(cssText),
+  };
 }
 
 /**

@@ -205,3 +205,49 @@ export function explainCss(input: string, mode: 'atomic' | 'stylesheet' = input.
   const artifact = atomic.css([rawCss] as unknown as TemplateStringsArray)
   return { rawCss, transformedCss, cssText: artifact.compiledCss, warnings, validation, mode, className: artifact.className }
 }
+
+
+export interface CipoDetailedExplanation extends CipoSourceExplanation {
+  readonly phases: readonly { readonly name: string; readonly cssText: string }[];
+}
+
+/**
+ * Explains every major Cipó compilation phase for docs and debugging.
+ *
+ * @param input - Raw Cipó source.
+ * @param mode - Explicit mode.
+ * @returns Detailed explanation with phase list.
+ *
+ * @example
+ * ```ts
+ * const details = explainDetailed('px: 4', 'atomic');
+ * console.table(details.phases);
+ * ```
+ */
+export function explainDetailed(input: string, mode: 'atomic' | 'stylesheet' = input.indexOf('{') >= 0 ? 'stylesheet' : 'atomic'): CipoDetailedExplanation {
+  const base = explainCss(input, mode);
+  return {
+    ...base,
+    phases: [
+      { name: 'raw', cssText: base.rawCss },
+      { name: 'transformed', cssText: base.transformedCss },
+      { name: 'compiled', cssText: base.cssText },
+    ],
+  };
+}
+
+/**
+ * Benchmarks one Cipó compile loop with best-effort high resolution timing.
+ *
+ * @param input - Source to compile.
+ * @param iterations - Number of compiles.
+ * @param mode - Compile mode.
+ * @returns Timing summary.
+ */
+export function benchmark(input: string, iterations = 100, mode: 'atomic' | 'stylesheet' = input.indexOf('{') >= 0 ? 'stylesheet' : 'atomic') {
+  const count = Math.max(1, Math.floor(iterations));
+  const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  for (let index = 0; index < count; index += 1) explainCss(input, mode);
+  const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  return { iterations: count, totalMs: end - start, averageMs: (end - start) / count };
+}

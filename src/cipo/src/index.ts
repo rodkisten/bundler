@@ -10,7 +10,7 @@ import { createCipoCallable } from './adapters'
 import { installBuiltInAliases } from './aliases'
 import { configure, setup } from './config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
-import { explain, explainCss, inspect, validateCss } from './debug'
+import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { injectGlobal } from './global'
@@ -27,7 +27,7 @@ export { inline } from './inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
-export { explain, explainCss, inspect, validateCss } from './debug'
+export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
 
 /**
  * Compatibility HTML tag.
@@ -101,6 +101,8 @@ Object.assign(cipo, {
   injectStyle,
   explain,
   explainCss,
+  explainDetailed,
+  benchmark,
   inspect,
   validateCss,
   getCssText,
