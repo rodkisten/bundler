@@ -9,6 +9,8 @@ const RADIUS_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl
 const SHADOW_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'inner', 'glow', 'panel', 'neon'])
 const MAX_HELPER_PASSES = 12
 
+const toKebabMixed = str => str.replace(/[_\s]+|(?<=[a-z0-9])(?=[A-Z])/g, '-').toLowerCase();
+
 /**
  * Normalizes a property/value pair into one or more real CSS declarations.
  *
@@ -61,7 +63,7 @@ export function normalizePropertyDeclaration(rawProperty: string, rawValue: stri
   }
 
   if (propertyKey.startsWith('$$')) {
-    const customProperty = `--${runtime.config.prefix}-${propertyKey.slice(2).trim().replace(/[._]+/g, '-')}`
+    const customProperty = `--${runtime.config.prefix}-${toKebabMixed(propertyKey.slice(2).trim().replace(/[._]+/g, '-'))}`
     return [{ type: 'declaration', property: customProperty, value: normalizeValue('theme-token', rawValue), source: `${rawProperty}:${rawValue}` }]
   }
 
