@@ -46,6 +46,10 @@ export function toKebabCase(input: string): string {
   return input.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`)
 }
 
+export function toKebabMixed(str: string): string {
+  return str.replace(/[_\s]+|(?<=[a-z0-9])(?=[A-Z])/g, '-').toLowerCase();
+}
+
 /**
  * Removes noisy whitespace so CSS rules can be deduped reliably.
  *
