@@ -1,15 +1,13 @@
 import { runtime } from './runtime'
 import type { AliasScale, CipoDeclarationNode, CipoHelperContext } from './types'
 import { resolveThemeReferencesForValue } from './theme'
-import { createDeclaration, findTopLevelColon, isPlainNumber, parseFunctionCall, splitTopLevel } from './utils'
+import { createDeclaration, findTopLevelColon, isPlainNumber, parseFunctionCall, splitTopLevel, toKebabMixed } from './utils'
 import { normalizePxValues } from './helpers'
 
 const TEXT_SIZE_TOKENS = new Set(['xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl'])
 const RADIUS_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', 'full', 'pill'])
 const SHADOW_TOKENS = new Set(['none', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', 'inner', 'glow', 'panel', 'neon'])
 const MAX_HELPER_PASSES = 12
-
-const toKebabMixed = str => str.replace(/[_\s]+|(?<=[a-z0-9])(?=[A-Z])/g, '-').toLowerCase();
 
 /**
  * Normalizes a property/value pair into one or more real CSS declarations.
