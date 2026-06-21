@@ -23,6 +23,13 @@ import {
 } from "./guards";
 import { applyClassMap, applyStyleMap } from "./maps";
 import { setPropertyOrAttribute } from "./props";
+import {
+  isComponentPayload,
+  isElementPayload,
+  materializeComponentPayload,
+  materializeElementPayload,
+  stringifyAttributeValue,
+} from "./dom-payload";
 import { batch, effect, signal } from "../broto/reactivity";
 import {
   createOwner,
@@ -253,7 +260,7 @@ export function appendValue(
   }
 
   if (isElementPayload(resolvedValue)) {
-    appendValue(parentNode, materializeElementPayload(resolvedValue), beforeNode);
+    appendValue(parentNode, materializeElementPayload(resolvedValue, appendValue), beforeNode);
     return;
   }
 
@@ -421,143 +428,6 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
   runWithOwner(owner, () => part.set(value));
 }
 
-
-function isElementPayload(value: unknown): value is ElementPayload {
-  return Boolean(value && typeof value === "object" && typeof (value as ElementPayload).tag === "string");
-}
-
-function isComponentPayload(value: unknown): value is ComponentPayload {
-  return Boolean(value && typeof value === "object" && "component" in (value as Record<string, unknown>));
-}
-
-function materializeElementPayload(payload: ElementPayload): Element {
-  const element = document.createElement(payload.tag);
-  applyPayloadProps(element, payload.props || {});
-  return element;
-}
-
-function materializeComponentPayload(payload: ComponentPayload): unknown {
-  const componentValue = payload.component;
-
-  if (typeof componentValue === "function") {
-    return callComponentLike(componentValue, payload.props || {});
-  }
-
-  return null;
-}
-
-function applyPayloadProps(element: Element, props: Record<string, unknown>): void {
-  for (const key in props) {
-    const propValue = props[key];
-
-    if (key === "children") {
-      appendValue(element, propValue as RenderValue);
-      continue;
-    }
-
-    if (key === "class" || key === "className") {
-      const className = stringifyAttributeValue("class", propValue);
-      if (className) element.setAttribute("class", className);
-      else element.removeAttribute("class");
-      continue;
-    }
-
-    if (key === "style") {
-      const styleText = stringifyAttributeValue("style", propValue);
-      if (styleText) element.setAttribute("style", styleText);
-      else element.removeAttribute("style");
-      continue;
-    }
-
-    if (key === "attrs" && propValue && typeof propValue === "object") {
-      const attrs = propValue as Record<string, unknown>;
-      for (const attrName in attrs) {
-        setPropertyOrAttribute(element, attrName, attrs[attrName]);
-      }
-      continue;
-    }
-
-    if (key === "dataset" && propValue && typeof propValue === "object" && element instanceof HTMLElement) {
-      const dataset = propValue as Record<string, unknown>;
-      for (const dataName in dataset) {
-        const item = dataset[dataName];
-        if (item == null) delete element.dataset[dataName];
-        else element.dataset[dataName] = String(item);
-      }
-      continue;
-    }
-
-    if (key === "ref") {
-      applyPayloadRef(element, propValue);
-      continue;
-    }
-
-    if (key === "on" && propValue && typeof propValue === "object") {
-      const events = propValue as Record<string, unknown>;
-      for (const eventName in events) {
-        const listener = events[eventName];
-        if (typeof listener === "function") element.addEventListener(eventName, listener as EventListener);
-      }
-      continue;
-    }
-
-    if (key.startsWith("on") && typeof propValue === "function") {
-      element.addEventListener(key.slice(2).toLowerCase(), propValue as EventListener);
-      continue;
-    }
-
-    if (propValue == null || propValue === false) {
-      element.removeAttribute(key);
-      continue;
-    }
-
-    if (propValue === true) {
-      element.setAttribute(key, "");
-      continue;
-    }
-
-    if (!key.startsWith("data-") && !key.startsWith("aria-") && key in element) {
-      try {
-        (element as unknown as Record<string, unknown>)[key] = propValue;
-        continue;
-      } catch {}
-    }
-
-    element.setAttribute(key, stringifyAttributeValue(key, propValue));
-  }
-}
-
-function applyPayloadRef(element: Element, value: unknown): void {
-  if (typeof value === "function") {
-    const cleanup = (value as (node: Element) => void | (() => void))(element);
-    if (typeof cleanup === "function") registerCleanup(element, cleanup);
-    return;
-  }
-
-  if (value && typeof value === "object" && "current" in (value as Record<string, unknown>)) {
-    (value as { current: Element | null }).current = element;
-  }
-}
-
-function stringifyAttributeValue(name: string, value: unknown): string {
-  if (value == null || value === false) return "";
-
-  if (name === "style" && value && typeof value === "object") {
-    const styleLike = value as { cssText?: unknown; compiledCss?: unknown; value?: unknown };
-    if (typeof styleLike.cssText === "string") return styleLike.cssText;
-    if (typeof styleLike.compiledCss === "string") return styleLike.compiledCss;
-    if (typeof styleLike.value === "string") return styleLike.value;
-  }
-
-  if ((name === "class" || name === "className") && value && typeof value === "object") {
-    const classLike = value as { className?: unknown; classes?: unknown; value?: unknown };
-    if (typeof classLike.className === "string") return classLike.className;
-    if (typeof classLike.classes === "string") return classLike.classes;
-    if (typeof classLike.value === "string") return classLike.value;
-  }
-
-  return String(value);
-}
 
 /**
  * Binds a component placeholder created by `<${Component}>...</${Component}>`.
