@@ -1,5 +1,5 @@
 import { brotoDebugState } from "./debug";
-import { batch } from "./reactivity";
+import { batch, computed } from "./reactivity";
 import { signal } from "./reactivity";
 import type { Signal } from "./types";
 
@@ -72,6 +72,12 @@ export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
   get(path: StorePath): unknown;
   /** Reads a tracked value by path, resolving signals/stores to plain values. */
   select(path: StorePath): unknown;
+  /** Creates or reads a computed path selector that can be rendered directly by Fabrica. */
+  $(path: StorePath | string | StoreSelector<State>): Signal<unknown>;
+  /** Alias for $(), useful when the selector is path-shaped. */
+  path(path: StorePath | string): Signal<unknown>;
+  /** Proxy of computed path signals, e.g. state.view.user.name renders reactively without calling it. */
+  readonly view: StoreView<State>;
   /** Subscribes to root set/patch/update/path events. */
   subscribe(listener: StoreSubscriber<State>): StoreUnsubscribe;
 };
@@ -87,6 +93,27 @@ export type DeepPartial<Value> = Value extends Primitive
     : Value extends Record<string, unknown>
       ? { [Key in keyof Value]?: DeepPartial<Value[Key]> }
       : Value;
+
+
+/** Selector used by store.$() for computed reads over a plain tracked snapshot. */
+export type StoreSelector<State extends Record<string, unknown>> = (state: State) => unknown;
+
+/** Read/write computed signal returned by store.view path proxies. */
+export type StorePathSignal<Value = unknown> = Signal<Value> & {
+  /** Writes the represented store path. */
+  set(nextValue: Value): void;
+  /** Updates the represented store path from its current value. */
+  update(updater: (currentValue: Value) => Value): void;
+};
+
+/** Deep proxy whose leaves are computed signals backed by a store path. */
+export type StoreView<Value> = Value extends Primitive
+  ? StorePathSignal<Value>
+  : Value extends readonly (infer Item)[]
+    ? StorePathSignal<Value> & { readonly [index: number]: StoreView<Item> }
+    : Value extends Record<string, unknown>
+      ? StorePathSignal<Value> & { readonly [Key in keyof Value]: StoreView<Value[Key]> }
+      : StorePathSignal<Value>;
 
 /** Patch updater can mutate the draft or return a partial object. */
 export type StorePatchUpdater<State extends Record<string, unknown>> = (draft: State) => DeepPartial<State> | void;
@@ -236,7 +263,30 @@ function createStoreObject(
     select: {
       enumerable: false,
       value(path: StorePath) {
-        return readStoreSelection(output, path);
+        return readStoreSelection(output, normalizeStorePath(path));
+      },
+    },
+    $: {
+      enumerable: false,
+      value(pathOrSelector: StorePath | string | StoreSelector<Record<string, unknown>>) {
+        if (typeof pathOrSelector === "function") {
+          return computed(() => pathOrSelector(readStoreObject(output, keys)));
+        }
+
+        const path = normalizeStorePath(pathOrSelector);
+        return createStorePathSignal(output, keys, path, notify);
+      },
+    },
+    path: {
+      enumerable: false,
+      value(path: StorePath | string) {
+        return createStorePathSignal(output, keys, normalizeStorePath(path), notify);
+      },
+    },
+    view: {
+      enumerable: false,
+      get() {
+        return createStoreViewProxy(output, keys, [], notify);
       },
     },
     set: {
@@ -415,7 +465,8 @@ function applyStoreKey(
   writeStoreKey(target, key, createStoreValue(value, meta.path ?? [key], notify));
 }
 
-function getStorePath(root: Record<string, unknown>, path: StorePath): unknown {
+function getStorePath(root: Record<string, unknown>, path: StorePath | string): unknown {
+  path = normalizeStorePath(path);
   let current: unknown = root;
   for (let index = 0; index < path.length; index += 1) {
     const key = path[index];
@@ -518,6 +569,101 @@ function resolvePatchInput(target: Record<string, unknown>, input: Record<string
   const draft = snapshotStoreObject(target, keys);
   const returned = input(draft);
   return isPlainObject(returned) ? returned : draft;
+}
+
+
+function createStorePathSignal(
+  root: Record<string, unknown>,
+  keys: Set<string>,
+  path: StorePath,
+  notify: (event: StorePatchEvent) => void,
+): StorePathSignal {
+  const output = computed(() => readStoreSelection(root, path)) as StorePathSignal;
+
+  output.set = (nextValue: unknown): void => {
+    batch(() => setStorePath(root, keys, path, nextValue, { path }, notify));
+    notify({ type: "path:set", path, patch: nextValue, state: snapshotStoreObject(root, keys) });
+  };
+
+  output.update = (updater: (currentValue: unknown) => unknown): void => {
+    if (typeof updater !== "function") return;
+    const nextValue = updater(output.peek());
+    output.set(nextValue);
+  };
+
+  return output;
+}
+
+function createStoreViewProxy(
+  root: Record<string, unknown>,
+  keys: Set<string>,
+  path: StorePath,
+  notify: (event: StorePatchEvent) => void,
+): StorePathSignal {
+  const pathSignal = createStorePathSignal(root, keys, path, notify);
+  const childCache = new Map<PropertyKey, unknown>();
+
+  return new Proxy(pathSignal, {
+    get(target, property, receiver) {
+      if (property === "then") return undefined;
+      if (property === Symbol.toPrimitive) return () => stringifyStoreViewValue(target.peek());
+      if (property === "toJSON") return () => target.peek();
+      if (property === "toString") return () => stringifyStoreViewValue(target.peek());
+      if (property === "set" || property === "update" || property === "peek" || property === "subscribe") {
+        return Reflect.get(target, property, receiver);
+      }
+
+      const cached = childCache.get(property);
+      if (cached) return cached;
+
+      const child = createStoreViewProxy(root, keys, appendPath(path, property), notify);
+      childCache.set(property, child);
+      return child;
+    },
+  });
+}
+
+function stringifyStoreViewValue(value: unknown): string {
+  if (value == null) return "";
+  return String(value);
+}
+
+function normalizeStorePath(path: StorePath | string): StorePath {
+  if (Array.isArray(path)) return path;
+  const text = String(path || "").trim();
+  if (!text) return [];
+  const output: PropertyKey[] = [];
+  let token = "";
+  let quote = "";
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (quote) {
+      if (escaped) { token += char; escaped = false; continue; }
+      if (char === "\\") { escaped = true; continue; }
+      if (char === quote) { quote = ""; continue; }
+      token += char;
+      continue;
+    }
+
+    if (char === "'" || char === '"') { quote = char; continue; }
+    if (char === ".") { pushPathToken(output, token); token = ""; continue; }
+    if (char === "[") { pushPathToken(output, token); token = ""; continue; }
+    if (char === "]") { pushPathToken(output, token); token = ""; continue; }
+    token += char;
+  }
+
+  pushPathToken(output, token);
+  return output;
+}
+
+function pushPathToken(output: PropertyKey[], token: string): void {
+  const trimmed = token.trim();
+  if (!trimmed) return;
+  const numeric = Number(trimmed);
+  output[output.length] = Number.isInteger(numeric) && String(numeric) === trimmed ? numeric : trimmed;
 }
 
 function appendPath(path: StorePath, key: PropertyKey): StorePath {

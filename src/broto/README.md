@@ -311,3 +311,40 @@ const stop = profile.poll(30_000)
 ```
 
 Deep stores also support path reads with `select(path)` for small, focused bindings.
+
+## Store view selectors
+
+Broto stores keep the existing signal-leaf API, so primitive leaves can still be read or rendered as signals:
+
+```ts
+const state = store({ user: { name: 'Rod' } })
+
+state.user.name()
+// 'Rod'
+
+html`<span>${state.user.name}</span>`
+// updates when state.user.name.set(...) runs
+```
+
+For deeply nested reads where you want property-chain ergonomics without wrapping a template interpolation in a function, use `state.view`. Every path is a computed signal backed by the original store path:
+
+```ts
+const state = store({ user: { profile: { name: 'Rod' } } })
+
+html`<strong>${state.view.user.profile.name}</strong>`
+// updates when state.user.profile.name.set(...) or state.setPath(...) runs
+
+state.view.user.profile.name.set('Fabrica')
+state.view.user.profile.name.update((name) => name.toUpperCase())
+```
+
+`state.$()` creates computed selector signals for path strings, path arrays or snapshot selectors:
+
+```ts
+const name = state.$('user.profile.name')
+const label = state.$((snapshot) => `${snapshot.user.profile.name}`)
+
+html`<span>${label}</span>`
+```
+
+JavaScript evaluates `${state.user.profile.name()}` before the tagged template can see the expression, so that exact form is a plain value. Prefer `${state.user.profile.name}`, `${state.view.user.profile.name}` or `${() => state.user.profile.name()}` for live DOM bindings.
