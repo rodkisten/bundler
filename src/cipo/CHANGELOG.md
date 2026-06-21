@@ -47,3 +47,11 @@
 - Added `sheet.css.layer(name)` for cascade layer wrapping.
 - Added `sheet.css.debug`, `explainDetailed()`, and `benchmark()`.
 - Added focused tests for scoped sheets, layers and diagnostics.
+
+## Runtime DSL
+
+- Added runtime token object flattening: `$dock(radius: 14px)` → `--prefix-dock-radius`.
+- Added derived `$$customProperty` math with safe `calc(...)` output.
+- Added runtime mixins and simple equality macro blocks for stylesheet mode.
+- Added generated OKLCH color utilities: `color-amber-245`, `bg-sky-200`, and interpolated mixin forms such as `bg-*tone-235`.
+- Added focused runtime DSL tests and benchmark coverage.

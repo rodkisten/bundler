@@ -550,3 +550,65 @@ For diagnostics:
 const info = explainDetailed('.card { color: red }', 'stylesheet')
 const perf = benchmark('color: red', 100, 'atomic')
 ```
+
+## Runtime token DSL and OKLCH utilities
+
+Cipó runtime can now compile a bounded design-token DSL without a build step. It stays browser-safe: token objects, mixins, simple macro conditions, CSS-variable math and Tailwind-like color utilities are expanded into static CSS text.
+
+```ts
+const styleText = sheet.css`
+  :root {
+    $dock(
+      radius: 14px,
+      size: (sm: 4px, md: 1rem)
+    )
+
+    $$iconWrapSize: 16px
+    $$iconSize: $$iconWrapSize - 1px
+
+    $$glass(c: color, b: length) {
+      py: *b
+      color-amber-245
+      bg-*c-235
+      x:md { color-accent-420 }
+    }
+  }
+
+  .card {
+    glass(amber, 4)
+  }
+`
+```
+
+Output shape:
+
+```css
+:root {
+  --cipo-dock-radius: .875rem;
+  --cipo-dock-size-sm: .25rem;
+  --cipo-dock-size-md: 1rem;
+  --cipo-icon-wrap-size: 1rem;
+  --cipo-icon-size: calc(var(--cipo-icon-wrap-size) - .0625rem);
+}
+.card {
+  padding-block: calc(var(--cipo-spacing, .25rem) * 4);
+  color: oklch(...);
+  background: oklch(...);
+}
+```
+
+Runtime boundaries:
+
+- ✅ token objects and flattened CSS variables
+- ✅ derived `$$variable` math via `calc(...)`
+- ✅ simple mixins and equality macro blocks
+- ✅ `x:*` media/pseudo blocks inside mixins
+- ✅ generated OKLCH colors such as `color-amber-245` and `bg-sky-200`
+- ❌ loops and massive utility generation remain build-time concerns
+- ❌ deep type-checking remains dev/build-time only
+
+Benchmarks are generated with:
+
+```bash
+pnpm bench
+```
