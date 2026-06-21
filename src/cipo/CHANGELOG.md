@@ -55,3 +55,14 @@
 - Added runtime mixins and simple equality macro blocks for stylesheet mode.
 - Added generated OKLCH color utilities: `color-amber-245`, `bg-sky-200`, and interpolated mixin forms such as `bg-*tone-235`.
 - Added focused runtime DSL tests and benchmark coverage.
+
+## Custom property engine
+
+- Added first-class CSS Properties and Values API support.
+- Added `property(name, definition)` and `properties(map)` JS APIs with deduped runtime injection.
+- Added `typed(...)` and typed helpers such as `typed.angle()`, `typed.number()`, `typed.length()`, `typed.percent()` and `typed.color()`.
+- Added `@property $$token { ... }` support in `sheet.css`, including `initial` → `initial-value` normalization.
+- Added typed theme token integration so `theme({ knob: { angle: typed.angle('0deg') } })` emits both `@property` and token custom properties.
+- Added runtime `$$token: typed(...)` declarations that register typed properties and keep stylesheet declarations ergonomic.
+- Added `validateCss()` checks for malformed `@property` blocks.
+- Added focused custom property unit tests covering stylesheet, JS, theme and runtime DSL usage.

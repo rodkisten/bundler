@@ -612,3 +612,122 @@ Benchmarks are generated with:
 ```bash
 pnpm bench
 ```
+
+## Custom `@property` support
+
+Cipó now treats the CSS Properties and Values API as a first-class part of the token engine. You can define typed custom properties in stylesheets, from JavaScript, or directly inside theme tokens.
+
+### Declarative `sheet.css`
+
+```ts
+const styleText = sheet.css`
+  @property $$angle {
+    syntax: "<angle>"
+    inherits: false
+    initial: 0deg
+  }
+
+  .knob {
+    $$angle: 24deg
+    rotate: var(--cipo-angle)
+  }
+`
+```
+
+Output shape:
+
+```css
+@property --cipo-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.knob {
+  --cipo-angle: 24deg;
+  rotate: var(--cipo-angle);
+}
+```
+
+Rules:
+
+- `$$angle` is normalized to `--cipo-angle`.
+- `initial` is accepted as an ergonomic alias for `initial-value`.
+- `withImportant` never applies to `@property` internals, only normal declarations.
+- Duplicate JS registrations are deduped by name and definition signature.
+- `validateCss()` checks `@property` name, `syntax`, `inherits` and `initial-value`.
+
+### JS-first registration
+
+```ts
+property('angle', {
+  syntax: '<angle>',
+  inherits: false,
+  initial: '0deg',
+})
+
+properties({
+  progress: { syntax: '<number>', initial: 0 },
+  panelOpacity: { syntax: '<number>', inherits: true, initialValue: 0.94 },
+})
+```
+
+All names below normalize to the same CSS property:
+
+```ts
+property('angle', { syntax: '<angle>', initial: '0deg' })
+property('$$angle', { syntax: '<angle>', initial: '0deg' })
+property('--cipo-angle', { syntax: '<angle>', initial: '0deg' })
+```
+
+### Typed theme tokens
+
+```ts
+theme({
+  knob: {
+    angle: typed.angle('0deg', false),
+    progress: typed.number(0),
+    glow: typed.color('transparent'),
+  },
+})
+```
+
+This injects both the `@property` rules and the token values:
+
+```css
+@property --cipo-knob-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+:root { --cipo-knob-angle: 0deg; }
+```
+
+### Runtime typed declarations
+
+Typed values can also be used directly in the runtime DSL:
+
+```ts
+const styleText = sheet.css`
+  :root {
+    $$panelOpacity: typed("<number>", 0.94)
+    $$dockAngle: angle(0deg, false)
+    $$glow: color(transparent)
+  }
+`
+```
+
+The declaration keeps the custom property value in the stylesheet and registers the property in the runtime style sheet.
+
+### Typed helpers
+
+```ts
+typed('<length>', '1rem')
+typed.angle('0deg')
+typed.number(0)
+typed.length('1rem')
+typed.percent('0%')
+typed.color('transparent')
+typed.time('120ms')
+typed.integer(0)
+typed.transform('none')
+typed.shadow('none')
+typed.image('none')
+typed.string('ready')
+```
