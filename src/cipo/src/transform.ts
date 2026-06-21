@@ -1,4 +1,5 @@
 import { runtime } from './runtime'
+import { expandRuntimeDsl } from './runtime-dsl'
 import type { CipoStyleObject, CipoWarning } from './types'
 import { resolveThemeReferences } from './theme'
 import { resolveHelpers } from './values'
@@ -62,7 +63,8 @@ export function buildCss(strings: TemplateStringsArray, values: readonly unknown
  */
 export function transformCss(input: string, warnings: CipoWarning[]): string {
   const withoutComments = stripComments(input)
-  const expandedAliases = expandStandaloneAliases(withoutComments, warnings)
+  const runtimeExpanded = expandRuntimeDsl(withoutComments, warnings)
+  const expandedAliases = expandStandaloneAliases(runtimeExpanded, warnings)
   const compatWith = expandWithCompat(expandedAliases, warnings)
   const themed = resolveThemeReferences(compatWith)
   return resolveHelpers(themed)
