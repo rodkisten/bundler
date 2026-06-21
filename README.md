@@ -315,3 +315,33 @@ This build keeps all existing public APIs intact while adding focused production
 - **Cipó**: `sheet.css.scoped`, `sheet.css.layer`, `sheet.css.debug`, `explainDetailed`, and `benchmark`.
 
 The new tests are split by feature so future regressions fail close to the package that owns the behavior.
+
+## Runtime benchmarks
+
+The build pipeline now runs `pnpm bench` after browser bundles are emitted and uploads the generated benchmark artifacts. The same output is copied into `dist/pipeline/benchmarks.md` and `dist/pipeline/benchmarks.json` so the generated docs can show the latest local runtime profile.
+
+Current benchmark fixture shape:
+
+| Benchmark | Purpose |
+| --- | --- |
+| `cipo.atomic.basic` | Hot path for atomic declarations, aliases, theme tokens and generated OKLCH color utilities. |
+| `cipo.sheet.nested` | Full stylesheet parser with nesting, runtime `x:*` blocks and helpers. |
+| `cipo.sheet.runtime-dsl` | Runtime token objects, derived CSS variables, mixins and Tailwind-like color utilities. |
+
+Run locally:
+
+```bash
+pnpm bench
+```
+
+Example output:
+
+```txt
+## ⚡ Runtime Benchmarks
+
+| Benchmark | Iterations | Total ms | Avg ms |
+| --- | ---: | ---: | ---: |
+| cipo.atomic.basic | 250 | varies | varies |
+| cipo.sheet.nested | 150 | varies | varies |
+| cipo.sheet.runtime-dsl | 120 | varies | varies |
+```

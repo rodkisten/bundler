@@ -131,3 +131,12 @@
 - Added Fabrica Elements composition helpers for recipes, standalone variants, and as-child payloads.
 - Added Cipó stylesheet utilities for scoped sheets, cascade layers, sheet debug output, detailed explanations, and compile benchmarks.
 - Added feature-focused tests per package instead of expanding the kitchen sink suite.
+
+## Runtime DSL and benchmark pipeline
+
+- Added bounded Cipó runtime token objects with `$name(...)` flattening into prefixed CSS custom properties.
+- Added runtime mixins with positional parameters and simple equality macro blocks.
+- Added derived CSS-variable math that emits `calc(...)` while preserving browser-native CSS variables.
+- Added Tailwind-like generated OKLCH color utilities such as `color-amber-245` and `bg-amber-235`.
+- Split Fabrica payload materialization out of the large DOM renderer into `src/fabrica/dom-payload.ts`.
+- Added `pnpm bench` and CI benchmark artifacts/summary output.
