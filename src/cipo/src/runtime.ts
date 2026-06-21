@@ -59,6 +59,8 @@ export const runtime: RuntimeState = {
   nativeFunctionRegistry: new Set(),
   aliasRegistry: new Map(),
   propertyAliasRegistry: new Map(),
+  propertyDefinitions: new Map(),
+  registeredProperties: new Map(),
   variantRegistry: new Map(),
   warningSink: [],
   generatedCssText: '',

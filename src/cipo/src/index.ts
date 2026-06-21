@@ -15,6 +15,7 @@ import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { injectGlobal } from './global'
 import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
+import { properties, property, typed } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
 import { installBuiltInHelpers } from './helpers'
@@ -27,6 +28,7 @@ export { inline } from './inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
+export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed } from './properties'
 export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
 
 /**
@@ -75,6 +77,8 @@ export function reset(): void {
   runtime.debugAtoms.clear()
   runtime.warningSink = []
   runtime.generatedCssText = ''
+  runtime.registeredProperties.clear()
+  runtime.propertyDefinitions.clear()
   runtime.layerHeaderInserted = false
   if (typeof document !== 'undefined') document.getElementById(STYLE_ELEMENT_ID)?.remove()
 }
@@ -112,6 +116,9 @@ Object.assign(cipo, {
   registerNativeFunction,
   registerProperty,
   registerVariant,
+  property,
+  properties,
+  typed,
   recipe,
   createBrowserGlobal,
   installBrowserGlobal,
@@ -141,6 +148,8 @@ export function createBrowserGlobal() {
     injectStyle,
     explain,
     explainCss,
+    explainDetailed,
+    benchmark,
     inspect,
     validateCss,
     getCssText,
@@ -150,6 +159,9 @@ export function createBrowserGlobal() {
     registerNativeFunction,
     registerProperty,
     registerVariant,
+    property,
+    properties,
+    typed,
     recipe,
     createBrowserGlobal,
     installBrowserGlobal,

@@ -1,10 +1,11 @@
 import { DEFAULT_SPACING_VALUE } from './constants'
 import { runtime } from './runtime'
-import type { CipoTheme, CipoThemeValue } from './types'
+import type { CipoTheme, CipoThemeValue, CipoTypedValue } from './types'
 import { createDeclaration, isPlainObject } from './utils'
 import { insertCss } from './injection'
 import { wrapLayer } from './format'
 import { normalizeValue } from './values'
+import { getTypedInitialValue, isTypedValue, property } from './properties'
 
 /**
  * Registers theme tokens and injects them as CSS custom properties.
@@ -79,9 +80,25 @@ export function registerThemeTokens(tokens: CipoTheme): void {
  * @returns Nothing.
  */
 export function injectThemeTokens(tokens: CipoTheme): void {
-  const declarations = flattenTheme(tokens)
-    .map(([name, value]) => createDeclaration(`--${runtime.config.prefix}-${name}`, normalizeValue('theme-token', String(value))))
-    .join('')
+  const flattened = flattenTheme(tokens)
+  let declarations = ''
+
+  for (let index = 0; index < flattened.length; index += 1) {
+    const [name, value] = flattened[index]!
+    const propertyName = `--${runtime.config.prefix}-${name}`
+
+    if (isTypedValue(value)) {
+      property(propertyName, {
+        syntax: value.syntax,
+        inherits: value.inherits,
+        initialValue: value.initialValue,
+      })
+      declarations += createDeclaration(propertyName, getTypedInitialValue(value))
+      continue
+    }
+
+    declarations += createDeclaration(propertyName, normalizeValue('theme-token', String(value)))
+  }
 
   if (!declarations) return
   insertCss(wrapLayer('tokens', `${runtime.config.themeRootSelector}{${declarations}}`))
@@ -100,8 +117,8 @@ export function injectThemeTokens(tokens: CipoTheme): void {
  * // [['colors-brand', '#f97316']]
  * ```
  */
-export function flattenTheme(tokens: CipoTheme, path: readonly string[] = []): Array<readonly [string, string | number]> {
-  const output: Array<readonly [string, string | number]> = []
+export function flattenTheme(tokens: CipoTheme, path: readonly string[] = []): Array<readonly [string, string | number | CipoTypedValue]> {
+  const output: Array<readonly [string, string | number | CipoTypedValue]> = []
 
   for (const [key, value] of Object.entries(tokens)) {
     const nextPath = [...path, key]
@@ -280,5 +297,5 @@ export function inferThemeNamespace(property: string, scale = 'none'): string {
 }
 
 function isThemeBranch(value: CipoThemeValue): value is CipoTheme {
-  return isPlainObject(value)
+  return isPlainObject(value) && !isTypedValue(value)
 }

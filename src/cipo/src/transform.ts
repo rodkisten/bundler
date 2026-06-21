@@ -5,6 +5,7 @@ import { resolveThemeReferences } from './theme'
 import { resolveHelpers } from './values'
 import { isPlainObject, parseFunctionCall, splitTopLevel, warn } from './utils'
 import { styleObjectToCss } from './style-object'
+import { getTypedInitialValue, isTypedValue } from './properties'
 
 /**
  * Builds a CSS source string from template strings and interpolations.
@@ -28,6 +29,7 @@ export function buildCss(strings: TemplateStringsArray, values: readonly unknown
 
     const value = values[index]
     if (isCssLikeArtifact(value)) output += value.rawCss
+    else if (isTypedValue(value)) output += getTypedInitialValue(value)
     else if (isPlainObject(value)) output += styleObjectToCss(value as CipoStyleObject)
     else output += String(value ?? '')
   }

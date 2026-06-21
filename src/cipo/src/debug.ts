@@ -155,7 +155,53 @@ export function validateCss(cssText: string): CipoValidationResult {
   if (blockDepth > 0) pushIssue(issues, 'unclosed-block', 'Unclosed CSS block.', cssText.length)
   if (parenDepth > 0) pushIssue(issues, 'unclosed-function', 'Unclosed CSS function.', cssText.length)
 
+  validatePropertyBlocks(cssText, issues)
+
   return { valid: issues.length === 0, issues }
+}
+
+
+function validatePropertyBlocks(cssText: string, issues: CipoValidationIssue[]): void {
+  let index = 0
+
+  while (index < cssText.length) {
+    const start = cssText.indexOf('@property', index)
+    if (start < 0) return
+    const open = cssText.indexOf('{', start)
+    if (open < 0) {
+      pushIssue(issues, 'property-missing-block', '@property rule is missing a declaration block.', start)
+      return
+    }
+    const close = findMatchingBrace(cssText, open)
+    if (close < 0) {
+      pushIssue(issues, 'property-unclosed-block', '@property rule has an unclosed declaration block.', start)
+      return
+    }
+    const name = cssText.slice(start + '@property'.length, open).trim()
+    const body = cssText.slice(open + 1, close)
+    if (!name.startsWith('--')) pushIssue(issues, 'property-invalid-name', '@property name must be a CSS custom property.', start)
+    if (!/syntax\s*:/i.test(body)) pushIssue(issues, 'property-missing-syntax', '@property requires a syntax declaration.', open)
+    if (!/inherits\s*:\s*(true|false)\s*;/i.test(`${body};`)) pushIssue(issues, 'property-invalid-inherits', '@property inherits must be true or false.', open)
+    if (!/initial-value\s*:/i.test(body)) pushIssue(issues, 'property-missing-initial-value', '@property requires an initial-value declaration.', open)
+    index = close + 1
+  }
+}
+
+function findMatchingBrace(input: string, openIndex: number): number {
+  let depth = 0
+  let quote = ''
+  for (let index = openIndex; index < input.length; index += 1) {
+    const char = input[index]
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = ''
+      continue
+    }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '{') depth += 1
+    else if (char === '}') depth -= 1
+    if (depth === 0) return index
+  }
+  return -1
 }
 
 function pushIssue(issues: CipoValidationIssue[], code: string, message: string, index: number): void {
@@ -228,11 +274,18 @@ export function explainDetailed(input: string, mode: 'atomic' | 'stylesheet' = i
   const base = explainCss(input, mode);
   return {
     ...base,
-    phases: [
-      { name: 'raw', cssText: base.rawCss },
-      { name: 'transformed', cssText: base.transformedCss },
-      { name: 'compiled', cssText: base.cssText },
-    ],
+    phases: runtime.propertyDefinitions.size > 0
+      ? [
+          { name: 'raw', cssText: base.rawCss },
+          { name: 'transformed', cssText: base.transformedCss },
+          { name: '@property collection', cssText: Array.from(runtime.propertyDefinitions.keys()).join('\n') },
+          { name: 'compiled', cssText: base.cssText },
+        ]
+      : [
+          { name: 'raw', cssText: base.rawCss },
+          { name: 'transformed', cssText: base.transformedCss },
+          { name: 'compiled', cssText: base.cssText },
+        ],
   };
 }
 

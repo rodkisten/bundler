@@ -221,13 +221,11 @@ function stripRuntimeIfBlocks(input: string, values: Record<string, string>): st
 
     output += input.slice(index, start)
     const conditionStart = skipSpaces(input, start + 2)
-    const blockOpen = findTopLevelChar(input.slice(conditionStart), '{')
-    if (blockOpen < 0) {
+    const open = findRuntimeIfBlockOpen(input, conditionStart)
+    if (open < 0) {
       output += input.slice(start)
       break
     }
-
-    const open = conditionStart + blockOpen
     const close = findMatching(input, open, '{', '}')
     if (close < 0) {
       output += input.slice(start)
@@ -249,6 +247,24 @@ function findIfKeyword(input: string, startIndex: number): number {
     const next = input[index + 2] || ''
     if ((previous && isIdentifierPart(previous)) || (next && isIdentifierPart(next))) continue
     return index
+  }
+  return -1
+}
+
+
+function findRuntimeIfBlockOpen(input: string, startIndex: number): number {
+  let depth = 0
+  let quote: '"' | "'" | null = null
+  for (let index = startIndex; index < input.length; index += 1) {
+    const char = input[index]
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '(' || char === '[') { depth += 1; continue }
+    if (char === ')' || char === ']') { depth = Math.max(0, depth - 1); continue }
+    if (char === '{' && depth === 0) return index
   }
   return -1
 }

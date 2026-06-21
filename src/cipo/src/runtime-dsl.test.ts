@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createOklchUtilityColor, expandRuntimeDsl } from "../runtime-dsl";
-import type { CipoWarning } from "../types";
+import { createOklchUtilityColor, expandRuntimeDsl } from "./runtime-dsl";
+import type { CipoWarning } from "./types";
 
 function expand(input: string) {
   const warnings: CipoWarning[] = [];

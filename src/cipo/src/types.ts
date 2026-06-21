@@ -20,9 +20,42 @@ export type CipoAdapterName = 'dom' | 'solid' | 'react' | 'preact'
 export type CipoColorMode = 'oklch' | 'oklab' | 'hsl' | 'rgba' | 'preserve'
 export type CipoLayerName = 'reset' | 'tokens' | 'base' | 'atomic' | 'scoped' | 'global' | 'inline' | 'components' | 'utilities' | 'overrides'
 export type AliasScale = 'spacing' | 'radius' | 'shadow' | 'text' | 'color' | 'none'
-export type CipoThemeValue = string | number | CipoTheme
+export type CipoThemeValue = string | number | CipoTheme | CipoTypedValue
 export interface CipoTheme { readonly [key: string]: CipoThemeValue }
 export type CipoRecord = Record<string, unknown>
+
+
+export interface CipoPropertyDefinition {
+  readonly syntax: string
+  readonly inherits?: boolean
+  readonly initial?: string | number
+  readonly initialValue?: string | number
+}
+
+export type CipoPropertyMap = Record<string, CipoPropertyDefinition>
+
+export interface CipoTypedValue {
+  readonly kind: 'cipo.typed'
+  readonly syntax: string
+  readonly inherits: boolean
+  readonly initialValue: string
+}
+
+export interface CipoTypedFactory {
+  (syntax: string, initialValue: string | number, inherits?: boolean): CipoTypedValue
+  angle(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  number(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  length(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  percent(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  percentage(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  color(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  time(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  integer(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  transform(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  shadow(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  image(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+  string(initialValue?: string | number, inherits?: boolean): CipoTypedValue
+}
 
 export interface CipoRemConfig {
   readonly enabled?: boolean
@@ -311,6 +344,8 @@ export interface RuntimeState {
   nativeFunctionRegistry: Set<string>
   aliasRegistry: Map<string, CipoAliasValue>
   propertyAliasRegistry: Map<string, PropertyAliasDefinition>
+  propertyDefinitions: Map<string, Required<CipoPropertyDefinition>>
+  registeredProperties: Map<string, string>
   variantRegistry: Map<string, readonly string[]>
   warningSink: CipoWarning[]
   generatedCssText: string

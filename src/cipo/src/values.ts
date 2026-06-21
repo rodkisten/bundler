@@ -2,6 +2,7 @@ import { runtime } from './runtime'
 import type { AliasScale, CipoDeclarationNode, CipoHelperContext } from './types'
 import { resolveThemeReferencesForValue } from './theme'
 import { createDeclaration, findTopLevelColon, isPlainNumber, parseFunctionCall, splitTopLevel, toKebabMixed } from './utils'
+import { getTypedInitialValue, normalizeCustomPropertyName, normalizeTypedCssValue, property as registerCssProperty } from './properties'
 import { normalizePxValues } from './helpers'
 
 const TEXT_SIZE_TOKENS = new Set(['xs', 'sm', 'base', 'md', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl'])
@@ -61,7 +62,16 @@ export function normalizePropertyDeclaration(rawProperty: string, rawValue: stri
   }
 
   if (propertyKey.startsWith('$$')) {
-    const customProperty = `--${runtime.config.prefix}-${toKebabMixed(propertyKey.slice(2).trim().replace(/[._]+/g, '-'))}`
+    const customProperty = normalizeCustomPropertyName(propertyKey)
+    const typedValue = normalizeTypedCssValue(rawValue)
+    if (typedValue) {
+      registerCssProperty(customProperty, {
+        syntax: typedValue.syntax,
+        inherits: typedValue.inherits,
+        initialValue: typedValue.initialValue,
+      })
+      return [{ type: 'declaration', property: customProperty, value: getTypedInitialValue(typedValue), source: `${rawProperty}:${rawValue}` }]
+    }
     return [{ type: 'declaration', property: customProperty, value: normalizeValue('theme-token', rawValue), source: `${rawProperty}:${rawValue}` }]
   }
 

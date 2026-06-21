@@ -5,6 +5,7 @@ import { parseStylesheet } from './parser'
 import { addImportant, collectRules, compileCss, joinClassNames } from './compiler'
 import { insertCss } from './injection'
 import { hashString } from './utils'
+import { compilePropertyBlock } from './properties'
 
 /***************************************************************************************************
  * Public Types
@@ -892,6 +893,18 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
  * @returns CSS text.
  */
 function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
+  const name = block.name.trim()
+
+  if (name.startsWith('@property')) {
+    const propertyName = name.slice('@property'.length).trim()
+    const declarations: CipoDeclarationNode[] = []
+    for (let index = 0; index < block.body.length; index += 1) {
+      const child = block.body[index]
+      if (child.type === 'declaration') declarations.push(child)
+    }
+    return compilePropertyBlock(propertyName, declarations)
+  }
+
   let body = ''
   for (let index = 0; index < block.body.length; index += 1) {
     const chunk = compileStylesheetNode(block.body[index], parentSelectors, forceImportant)
@@ -900,7 +913,7 @@ function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly
 
   if (!body) return ''
 
-  return `${block.name.trim()}{${body}}`
+  return `${name}{${body}}`
 }
 
 /**
