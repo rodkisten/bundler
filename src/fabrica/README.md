@@ -617,3 +617,30 @@ html`${keyed(userId, () => UserCard({ id: userId() }))}`
 ```
 
 These helpers are additive and do not change the existing `html`, component, directive, or DOM bag APIs.
+
+## Rendering Broto stores directly
+
+Fabrica treats Broto signals and computed values as live bindings. A Broto store leaf can be rendered directly:
+
+```ts
+const state = store({ user: { name: 'Rod' } })
+
+render(root, html`<span>${state.user.name}</span>`)
+state.user.name.set('Cipó')
+// DOM becomes: <span>Cipó</span>
+```
+
+For property-chain readability, Broto stores expose `state.view`, where each path is a computed signal:
+
+```ts
+render(root, html`<span>${state.view.user.name}</span>`)
+state.setPath(['user', 'name'], 'Fabrica')
+```
+
+Avoid `${state.user.name()}` when you expect a DOM update, because JavaScript evaluates it to a plain string before Fabrica receives the template value. Use the signal itself, a store view path, or a function binding:
+
+```ts
+html`${state.user.name}`
+html`${state.view.user.name}`
+html`${() => state.user.name()}`
+```
