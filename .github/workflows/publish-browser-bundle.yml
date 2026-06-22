@@ -222,6 +222,13 @@ jobs:
           mkdir -p artifacts/test
 
           pnpm test 2>&1 | tee artifacts/test/test-output.log
+      
+      - name: Run Benchmarks
+        id: benchmarks
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pnpm bench
 
       - name: Write test summary
         if: always()
@@ -237,7 +244,7 @@ jobs:
             echo "### Last test output lines"
             echo ""
             echo '```txt'
-            tail -n 80 artifacts/test/test-output.log || true
+            tail -n 200 artifacts/test/test-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
