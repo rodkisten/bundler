@@ -151,3 +151,7 @@
 
 - Added runtime-safe design-system features selected for Cipó: reactive CSS variable helpers, context variables, variants, compound variants, slots, dark blocks, smart shadows, color system helpers, and OKLCH palette generation.
 - Added focused unit coverage for the new runtime features without expanding kitchen-sink tests.
+
+## Cipó CSS-first configuration
+
+- Added CSS-first configuration directives and tests for the Cipó package.
