@@ -146,3 +146,8 @@
 - Added modern Cipó shorthand helpers for layout, sizing, position, scrolling, snap, interaction, motion, borders, gradients and images.
 - Added focused tests for the new runtime-safe shorthand compiler path.
 
+
+## Cipó modern runtime design features
+
+- Added runtime-safe design-system features selected for Cipó: reactive CSS variable helpers, context variables, variants, compound variants, slots, dark blocks, smart shadows, color system helpers, and OKLCH palette generation.
+- Added focused unit coverage for the new runtime features without expanding kitchen-sink tests.
