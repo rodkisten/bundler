@@ -140,3 +140,9 @@
 - Added Tailwind-like generated OKLCH color utilities such as `color-amber-245` and `bg-amber-235`.
 - Split Fabrica payload materialization out of the large DOM renderer into `src/fabrica/dom-payload.ts`.
 - Added `pnpm bench` and CI benchmark artifacts/summary output.
+
+## Cipó smart shorthands
+
+- Added modern Cipó shorthand helpers for layout, sizing, position, scrolling, snap, interaction, motion, borders, gradients and images.
+- Added focused tests for the new runtime-safe shorthand compiler path.
+
