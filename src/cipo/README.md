@@ -917,3 +917,208 @@ typed.shadow('none')
 typed.image('none')
 typed.string('ready')
 ```
+
+## Modern runtime design features
+
+Cipó now includes a browser-safe design-system layer that stays string-first, bounded and cache-friendly. These features run in the runtime compiler and generate static CSS, so they are safe for userscripts, Shadow DOM styling and interactive tooling.
+
+### Reactive CSS values
+
+Use `signal(name)` when a value should be controlled by a CSS custom property instead of forcing a DOM rerender.
+
+```ts
+Cipo.sheet.css`
+  .card {
+    bg: signal(theme.cardBg)
+  }
+`
+```
+
+Output shape:
+
+```css
+.card {
+  background: var(--cipo-signal-theme-card-bg);
+}
+```
+
+`when(dark, truthy, falsy)` compiles to `light-dark(...)`, while other names compile to a fallback custom property.
+
+```ts
+Cipo.sheet.css`
+  .card {
+    color: when(dark, color(amber-245), color(sky-200))
+  }
+`
+```
+
+### Context variables
+
+Use `provide(name: value)` to expose a local custom property and `consume(name)` to read it in descendants.
+
+```ts
+Cipo.sheet.css`
+  .card {
+    provide(cardColor: sky-240)
+
+    .icon {
+      color: consume(cardColor)
+    }
+  }
+`
+```
+
+Output shape:
+
+```css
+.card { --cipo-context-card-color: sky-240; }
+.card .icon { color: var(--cipo-context-card-color); }
+```
+
+### Variants
+
+Variants generate both data-attribute selectors and class selectors, so components can choose either DOM API.
+
+```ts
+Cipo.sheet.css`
+  .button {
+    variant(size) {
+      sm { px: 2 }
+      lg { px: 6 }
+    }
+  }
+`
+```
+
+Output shape:
+
+```css
+.button[data-size="sm"], .button.size-sm { ... }
+.button[data-size="lg"], .button.size-lg { ... }
+```
+
+### Compound variants
+
+```ts
+Cipo.sheet.css`
+  .button {
+    compound(size: lg, tone: danger) {
+      shadow: glow(red-300)
+    }
+  }
+`
+```
+
+Output shape:
+
+```css
+.button[data-size="lg"][data-tone="danger"], .button.size-lg.tone-danger { ... }
+```
+
+### Slots
+
+```ts
+Cipo.sheet.css`
+  .card {
+    slot(header) {
+      pb: 2
+    }
+  }
+`
+```
+
+Output shape:
+
+```css
+.card [data-slot="header"] { padding-bottom: ...; }
+```
+
+### Dark blocks
+
+`dark { ... }` is a shorthand for the configured dark selector.
+
+```ts
+Cipo.sheet.css`
+  .card {
+    bg: white
+
+    dark {
+      bg: color(zinc-900)
+    }
+  }
+`
+```
+
+### Color system helper
+
+`color(...)` is a Cipó color-system helper unless it is using native CSS color spaces such as `display-p3`.
+
+```ts
+Cipo.sheet.css`
+  .card {
+    color: color(brand/45%)
+    border-color: color(brand+12)
+    bg: color(amber-245)
+  }
+`
+```
+
+Supported forms:
+
+```css
+color(amber-245)
+color(amber, 245)
+color(brand/45%)
+color(brand+12)
+color(display-p3 1 0.5 0)
+```
+
+### Palette generation
+
+`palette(name, source)` generates deterministic OKLCH custom properties for common shades.
+
+```ts
+Cipo.sheet.css`
+  :root {
+    palette(brand, amber)
+  }
+`
+```
+
+Output shape:
+
+```css
+:root {
+  --cipo-brand-50: oklch(...);
+  --cipo-brand-100: oklch(...);
+  --cipo-brand-200: oklch(...);
+  --cipo-brand-300: oklch(...);
+  --cipo-brand-400: oklch(...);
+  --cipo-brand-500: oklch(...);
+  --cipo-brand-600: oklch(...);
+  --cipo-brand-700: oklch(...);
+  --cipo-brand-800: oklch(...);
+  --cipo-brand-900: oklch(...);
+  --cipo-brand-950: oklch(...);
+}
+```
+
+### Smart shadows
+
+```ts
+Cipo.sheet.css`
+  .card {
+    shadow: elevation(4)
+    box-shadow: glow(sky-240)
+  }
+`
+```
+
+Supported forms:
+
+```css
+shadow(elevation(4))
+shadow(glow(sky-240))
+shadow(glass)
+glow(sky-240)
+```

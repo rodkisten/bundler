@@ -77,3 +77,16 @@
 - Added logical property aliases such as `pis`, `pie`, `mis` and `mie`, plus scrollbar and overflow-wrap aliases.
 - Added focused Vitest coverage in `cipo.smart-shorthands.test.ts` instead of growing the kitchen sink.
 
+
+## Modern runtime design features
+
+- Added runtime-safe reactive CSS value helpers: `signal(name)`, `when(dark, truthy, falsy)` and `consume(name)`.
+- Added declaration-level context variables through `provide(name: value)`, emitted as prefixed custom properties.
+- Added runtime stylesheet variants: `variant(size) { sm { ... } }` compiles to data-attribute and class selectors without requiring new JS APIs.
+- Added compound variant blocks: `compound(size: lg, tone: danger) { ... }` for multi-prop styling.
+- Added slot styling blocks: `slot(icon) { ... }` targets `[data-slot="icon"]` under the current selector.
+- Added `dark { ... }` shorthand for the existing configured dark selector pipeline.
+- Added `palette(name, color)` to generate deterministic OKLCH token palettes at runtime.
+- Added color-system helper support for `color(amber-245)`, `color(brand/45%)`, `color(brand+12)`, and native `color(display-p3 ...)` preservation.
+- Added smart shadow helpers for `shadow(elevation(n))`, `shadow(glow(color))`, `shadow(glass)` and direct `glow(color)`.
+- Added focused Vitest coverage in `cipo.modern-runtime-features.test.ts`.
