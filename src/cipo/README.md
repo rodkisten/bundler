@@ -1122,3 +1122,123 @@ shadow(glow(sky-240))
 shadow(glass)
 glow(sky-240)
 ```
+
+## CSS-first configuration
+
+Cipó can now be configured from CSS, similar in spirit to Tailwind's CSS-first setup, while still lowering everything into the existing runtime APIs. This means `setup({ ... })` keeps working, and `configure.css` simply becomes a more readable authoring layer.
+
+```ts
+Cipo.configure.css`
+  @cipo {
+    prefix: rod;
+    layers: true;
+    color-mode: oklch;
+    rem: 16px;
+  }
+
+  @theme {
+    colors: (
+      brand: #f97316,
+      ink: #f8fafc,
+      panel: #0f172a
+    );
+
+    spacing: 0.25rem;
+
+    radius: (
+      md: 12px,
+      xl: 24px
+    );
+  }
+
+  @breakpoints {
+    sm: 640px;
+    md: 768px;
+    lg: 1024px;
+  }
+
+  @alias glassCard {
+    bg: alpha($colors.panel / 72%)
+    border: 1px solid alpha($colors.ink / 12%)
+    backdrop-filter: blur(18px)
+  }
+
+  @property $$angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial: 0deg;
+  }
+`;
+```
+
+### Supported CSS-first directives
+
+| Directive | Purpose |
+|---|---|
+| `@cipo { ... }` | Runtime config such as `prefix`, `layers`, `important`, `debug`, `minify`, `color-mode`, `rem`, `dark-selector` and `theme-root`. |
+| `@theme { ... }` | Registers nested theme tokens and injects CSS custom properties. |
+| `@tokens { ... }` | Alias for `@theme`, useful when thinking in design-token language. |
+| `@breakpoints { ... }` | Registers responsive breakpoints. Plain lengths become `(min-width: value)`. Full media queries are preserved. |
+| `@alias name { ... }` | Registers a declaration macro usable as `name` inside `sheet.css`, `atomic.css` and `inline.css`. |
+| `@helper name { ... }` | CSS-only helper alias. JS value helpers still use `registerHelper()`. |
+| `@property $$name { ... }` | Registers a typed custom property through the CSS Properties and Values API. |
+| `@layer tokens, base, components;` | Emits a cascade layer order declaration. |
+| `@preset name;` | Applies a registered CSS-first preset. |
+| `@plugin name;` | Runs a registered config plugin hook. |
+
+### Presets
+
+```ts
+Cipo.registerPreset('forest', `
+  @cipo { prefix: leaf; layers: true; }
+
+  @theme {
+    colors: (brand: #22c55e, ink: #ecfccb);
+  }
+`);
+
+Cipo.configure.css`
+  @preset forest;
+`;
+```
+
+Presets may be CSS strings, functions returning CSS, or regular `CipoConfig` objects:
+
+```ts
+Cipo.registerPreset('quiet', { debug: false, minify: true });
+```
+
+### Plugins
+
+Config plugins receive a tiny safe API that delegates to existing Cipó primitives.
+
+```ts
+Cipo.registerConfigPlugin('forms', api => {
+  api.theme({ colors: { field: '#e5e7eb' } });
+  api.alias('fieldBase', `
+    border: 1px solid $colors.field
+    px: 3
+    py: 2
+  `);
+  api.property('focusOpacity', { syntax: '<number>', initial: 0 });
+});
+
+Cipo.configure.css`
+  @plugin forms;
+`;
+```
+
+### Alternate entry points
+
+All of these use the same engine:
+
+```ts
+Cipo.configure.css`@cipo { prefix: rod; }`;
+Cipo.setup.css`@theme { colors: (brand: #f97316); }`;
+Cipo.setupFromCss('@breakpoints { md: 768px; }');
+Cipo.configSheet('@tokens { spacing: 0.25rem; }');
+```
+
+### Merge order
+
+Configuration is applied in call order. A later `configure.css` call can override earlier `setup(...)` values, and a later `setup(...)` call can override CSS-first values. Theme tokens merge deeply, so small incremental config sheets are cheap and predictable.

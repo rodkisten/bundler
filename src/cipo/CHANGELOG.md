@@ -90,3 +90,12 @@
 - Added color-system helper support for `color(amber-245)`, `color(brand/45%)`, `color(brand+12)`, and native `color(display-p3 ...)` preservation.
 - Added smart shadow helpers for `shadow(elevation(n))`, `shadow(glow(color))`, `shadow(glass)` and direct `glow(color)`.
 - Added focused Vitest coverage in `cipo.modern-runtime-features.test.ts`.
+
+## CSS-first configuration pass
+
+- Added `configure.css` and `setup.css` tagged-template APIs for Tailwind-like CSS-first configuration.
+- Added `configureFromCss()`, `setupFromCss()` and `configSheet()` string APIs that share the same parser.
+- Added `@cipo`, `@theme`, `@tokens`, `@breakpoints`, `@alias`, `@helper`, `@property`, `@layer`, `@preset` and `@plugin` directives.
+- Added `registerPreset()` for reusable CSS-first presets backed by CSS strings, config objects or functions.
+- Added `registerConfigPlugin()` with a small plugin API for registering aliases, themes, custom properties and raw CSS.
+- Added focused Vitest coverage for CSS-first config, presets, plugins, breakpoints, aliases and typed custom properties.
