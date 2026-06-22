@@ -5,4 +5,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
   },
+  reporters: [
+      ['github-actions', {
+        jobSummary: {
+          outputPath: '/home/runner/jobs/summary/step',
+        },
+      }],
+    ],
 })
