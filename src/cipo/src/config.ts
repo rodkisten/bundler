@@ -2,6 +2,7 @@ import { DEFAULT_BASE_FONT_SIZE } from './constants'
 import { clearJitCaches, runtime } from './runtime'
 import type { CipoConfig, CipoJitConfig, CipoRemConfig } from './types'
 import { theme } from './theme'
+import { configureCss } from './config-css'
 
 /**
  * Configures the Cipó runtime.
@@ -67,9 +68,13 @@ export function configure(config: CipoConfig): void {
  * setup({ theme: { spacing: '0.25rem' } })
  * ```
  */
+Object.assign(configure, { css: configureCss })
+
 export function setup(config: CipoConfig): void {
   configure(config)
 }
+
+Object.assign(setup, { css: configureCss })
 
 function normalizeRemConfig(rem: boolean | CipoRemConfig | undefined, baseFontSize: number | undefined): Required<CipoRemConfig> | null {
   if (rem === undefined && baseFontSize === undefined) return null

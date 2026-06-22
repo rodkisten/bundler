@@ -19,9 +19,11 @@ import { properties, property, typed } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
 import { installBuiltInHelpers } from './helpers'
+import { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
 
 export * from './types'
 export { configure, setup } from './config'
+export { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
 export { theme } from './theme'
 export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 export { inline } from './inline'
@@ -120,6 +122,12 @@ Object.assign(cipo, {
   properties,
   typed,
   recipe,
+  configureCss,
+  configureFromCss,
+  setupFromCss,
+  configSheet,
+  registerPreset,
+  registerConfigPlugin,
   createBrowserGlobal,
   installBrowserGlobal,
 })
@@ -161,8 +169,14 @@ export function createBrowserGlobal() {
     registerVariant,
     property,
     properties,
-    typed,
-    recipe,
+  typed,
+  recipe,
+  configureCss,
+  configureFromCss,
+  setupFromCss,
+  configSheet,
+  registerPreset,
+  registerConfigPlugin,
     createBrowserGlobal,
     installBrowserGlobal,
   }
