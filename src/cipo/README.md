@@ -613,6 +613,192 @@ Benchmarks are generated with:
 pnpm bench
 ```
 
+
+## Smart modern shorthands
+
+Cipó ships a runtime-safe shorthand layer for the things you write constantly in UI code. These helpers compile to plain CSS declarations and are available in `css`, `atomic.css`, `sheet.css`, `inline.css`, aliases and recipes.
+
+### Size and position helpers
+
+Input:
+
+```ts
+const card = atomic.css`
+  h(contain, min: 240px, max: 70vh)
+  w(fill, min: 320px, max: 960px)
+  pos(fixed, top: 0, right: 0)
+`
+```
+
+Output shape:
+
+```css
+height: auto;
+min-height: 15rem;
+max-height: 70vh;
+width: 100%;
+min-width: 20rem;
+max-width: 60rem;
+position: fixed;
+top: 0;
+right: 0;
+```
+
+### Grid, layout and composition helpers
+
+Input:
+
+```ts
+const layout = atomic.css`
+  grid-template(cols: 220px minmax(0, 1fr), rows: auto minmax(0, 1fr))
+  grid-flow(row dense)
+  stack(gap: 3)
+  cluster(gap: 2, justify: space-between)
+  center(max: 720px, px: 16px, text: center)
+  cover(header: auto, main: minmax(0, 1fr), footer: auto)
+  sidebar(side: right, width: 280px, gap: 16px)
+`
+```
+
+Output shape:
+
+```css
+grid-template-columns: 13.75rem minmax(0, 1fr);
+grid-template-rows: auto minmax(0, 1fr);
+grid-auto-flow: row dense;
+display: flex;
+flex-direction: column;
+flex-wrap: wrap;
+justify-content: space-between;
+box-sizing: content-box;
+margin-inline: auto;
+max-width: 45rem;
+padding-inline: 1rem;
+text-align: center;
+```
+
+### Text, word-breaking and borders
+
+Input:
+
+```ts
+const textCard = atomic.css`
+  text(nowrap)
+  break(anywhere)
+  bor: red
+  bor-x: 2px dashed color-amber-245
+`
+```
+
+Output shape:
+
+```css
+white-space: nowrap;
+overflow-wrap: anywhere;
+border: 1px solid red;
+border-inline: 0.125rem dashed oklch(...);
+```
+
+`bor`, `bor-x`, `bor-y`, `bor-t`, `bor-r`, `bor-b` and `bor-l` infer `solid` and `1px` when they are omitted.
+
+### Background helpers
+
+Input:
+
+```ts
+const hero = atomic.css`
+  bg: gradient(repeating-linear, 90deg, red, blue)
+  background-image: image(https://example.com/panel.png)
+  color: color-amber-245
+`
+```
+
+Output shape:
+
+```css
+background: repeating-linear-gradient(90deg, red, blue);
+background-image: url("https://example.com/panel.png");
+color: oklch(...);
+```
+
+The generated `color-{name}-{shade}` and `bg-{name}-{shade}` utilities are deterministic OKLCH colors. Unknown color families are assigned a stable hue by hashing the name.
+
+### Scroll, snap, interaction and motion
+
+Input:
+
+```ts
+const scroller = atomic.css`
+  scroll(smooth)
+  scrollbar(thin)
+  snap(x, mandatory)
+  snap-item(start)
+  overscroll(contain)
+  tap(none)
+  select(none)
+  drag(none)
+  focus-ring($brand)
+  transition(colors, transform)
+  animate(fade-in)
+`
+```
+
+Output shape:
+
+```css
+scroll-behavior: smooth;
+scrollbar-width: thin;
+scroll-snap-type: x mandatory;
+scroll-snap-align: start;
+overscroll-behavior: contain;
+touch-action: none;
+user-select: none;
+-webkit-user-drag: none;
+outline: 2px solid var(--...);
+transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+animation: fade-in 180ms ease-out both;
+```
+
+### Modern stylesheet wrappers
+
+`sheet.css` supports runtime wrapper blocks that compile to native CSS wrappers while preserving the current selector.
+
+Input:
+
+```ts
+const styleText = sheet.css`
+  .card {
+    color: red
+
+    supports(backdrop-filter: blur(1px)) {
+      backdrop-filter: blur(18px)
+    }
+
+    layer(components) {
+      bg: blue
+    }
+
+    x:cq(md) {
+      grid-template(cols: 1fr 1fr)
+    }
+
+    reduce-motion {
+      transition: none
+    }
+  }
+`
+```
+
+Output shape:
+
+```css
+.card { color: red; }
+@supports (backdrop-filter: blur(0.0625rem)) { .card { backdrop-filter: blur(1.125rem); } }
+@layer components { .card { background: blue; } }
+@container md { .card { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+```
+
 ## Custom `@property` support
 
 Cipó now treats the CSS Properties and Values API as a first-class part of the token engine. You can define typed custom properties in stylesheets, from JavaScript, or directly inside theme tokens.

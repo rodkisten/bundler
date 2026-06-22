@@ -66,3 +66,14 @@
 - Added runtime `$$token: typed(...)` declarations that register typed properties and keep stylesheet declarations ergonomic.
 - Added `validateCss()` checks for malformed `@property` blocks.
 - Added focused custom property unit tests covering stylesheet, JS, theme and runtime DSL usage.
+
+## Smart shorthand expansion pass
+
+- Added declaration-level smart helpers for `h(...)`, `w(...)`, `pos(...)`, `grid-template(...)`, `grid-flow(...)`, `stack(...)`, `cluster(...)`, `center(...)`, `cover(...)`, `sidebar(...)`, `scroll(...)`, `scrollbar(...)`, `snap(...)`, `snap-item(...)`, `overscroll(...)`, `tap(...)`, `select(...)`, `drag(...)`, `focus-ring(...)`, `transition(...)` and `animate(...)`.
+- Added border inference aliases `bor`, `bor-x`, `bor-y`, `bor-t`, `bor-r`, `bor-b` and `bor-l`, including implicit `1px solid` output when only a color is supplied.
+- Added modern background value support for `image(...)` and expanded `gradient(...)` to include repeating linear, radial and conic gradients.
+- Added deterministic OKLCH utility values for `color-{name}-{shade}` and `bg-{name}-{shade}` in normal declarations.
+- Added stylesheet wrapper blocks for `supports(...)`, `layer(...)`, `container(...)`, `x:cq(...)` and `reduce-motion`.
+- Added logical property aliases such as `pis`, `pie`, `mis` and `mie`, plus scrollbar and overflow-wrap aliases.
+- Added focused Vitest coverage in `cipo.smart-shorthands.test.ts` instead of growing the kitchen sink.
+
