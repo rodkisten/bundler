@@ -751,6 +751,22 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
     return compileStylesheetAtRule(block, parentSelectors, forceImportant)
   }
 
+  if (name === 'reduce-motion') {
+    return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
+  }
+
+  if (name.startsWith('supports(')) {
+    return wrapStylesheetRuntimeWrapper(`@supports ${name.slice('supports('.length - 1)}`, block, parentSelectors, forceImportant)
+  }
+
+  if (name.startsWith('layer(')) {
+    return wrapStylesheetRuntimeWrapper(`@layer ${name.slice('layer('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  }
+
+  if (name.startsWith('container(')) {
+    return wrapStylesheetRuntimeWrapper(`@container ${name.slice('container('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  }
+
   if (name.startsWith('x:')) {
     return compileStylesheetRuntimeBlock(block, parentSelectors, forceImportant)
   }
@@ -819,6 +835,15 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
  * @param parentSelectors - Current selector chain.
  * @returns CSS text.
  */
+function wrapStylesheetRuntimeWrapper(wrapper: string, block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
+  let body = ''
+  for (let index = 0; index < block.body.length; index += 1) {
+    const chunk = compileStylesheetNode(block.body[index], parentSelectors, forceImportant)
+    if (chunk) body += body ? `\n${chunk}` : chunk
+  }
+  return body ? `${wrapper}{${body}}` : ''
+}
+
 function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   if (parentSelectors.length === 0) return ''
 
@@ -837,6 +862,11 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
       if (part in runtime.config.breakpoints) {
         const query = runtime.config.breakpoints[part]
         if (query) wrappers.push(`@media ${query}`)
+        continue
+      }
+
+      if (part.startsWith('cq(')) {
+        wrappers.push(`@container ${part.slice(3, -1).trim()}`)
         continue
       }
 

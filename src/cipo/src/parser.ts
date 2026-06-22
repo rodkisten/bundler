@@ -1,7 +1,9 @@
 import type { CipoAstNode, CipoDeclarationNode, CipoWarning } from './types'
 import { findMatchingBrace, findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from './utils'
-import { isNativeCssFunction, normalizePropertyDeclaration } from './values'
+import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyDeclaration, parseGeneratedDeclarations } from './values'
 import { runtime } from './runtime'
+
+const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', 'grid-flow', 'text', 'break', 'stack', 'cluster', 'center', 'cover', 'sidebar', 'scroll', 'scrollbar', 'snap', 'snap-item', 'overscroll', 'tap', 'select', 'drag', 'focus-ring', 'transition', 'animate'])
 
 /**
  * Parses transformed CSS into Cipó's tiny AST.
@@ -287,6 +289,9 @@ export function parseDeclarationFunction(source: string, warnings: CipoWarning[]
   const call = parseFunctionCall(source)
   if (!call) return []
 
+  const smart = expandSmartDeclarationFunction(call.name, call.args)
+  if (smart) return parseGeneratedDeclarations(smart)
+
   if (call.name === 'text') {
     return normalizePropertyDeclaration('text', call.args.join(','))
   }
@@ -406,6 +411,6 @@ function isCompleteDeclarationToken(value: string): boolean {
   if (token.endsWith(',') || token.endsWith(':')) return false
   if (findTopLevelColon(token) > 0) return true
   const call = parseFunctionCall(token)
-  if (call) return !isNativeCssFunction(call.name)
+  if (call) return SMART_DECLARATION_FUNCTIONS.has(call.name) || !isNativeCssFunction(call.name)
   return /^[a-zA-Z_][\w-]*$/.test(token)
 }

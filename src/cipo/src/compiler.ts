@@ -54,6 +54,26 @@ function collectDeclaration(declaration: CipoDeclarationNode, context: CipoRuleC
 function collectBlock(name: string, body: readonly CipoAstNode[], context: CipoRuleContext, atoms: CipoAtomicRule[], scopedRules: CipoScopedRule[], warnings: CipoWarning[], scopeClassName: string): void {
   const normalized = name.trim()
 
+  if (normalized === 'reduce-motion') {
+    collect(body, { ...context, mediaQuery: '(prefers-reduced-motion: reduce)' }, atoms, scopedRules, warnings, scopeClassName)
+    return
+  }
+
+  if (normalized.startsWith('supports(')) {
+    collect(body, { ...context, supports: normalized.slice('supports('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName)
+    return
+  }
+
+  if (normalized.startsWith('layer(')) {
+    collect(body, { ...context, layer: normalized.slice('layer('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName)
+    return
+  }
+
+  if (normalized.startsWith('container(')) {
+    collect(body, { ...context, container: normalized.slice('container('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName)
+    return
+  }
+
   if (normalized.startsWith('x:not(')) {
     const breakpoint = normalized.replace(/^x:not\(/, '').replace(/\)$/, '').trim()
     collect(body, { ...context, notBreakpoint: breakpoint }, atoms, scopedRules, warnings, scopeClassName)
@@ -68,6 +88,11 @@ function collectBlock(name: string, body: readonly CipoAstNode[], context: CipoR
     for (const part of contextParts) {
       if (part in runtime.config.breakpoints) {
         nextContext = resolveBreakpointContext(nextContext, part)
+        consumed = true
+        continue
+      }
+      if (part.startsWith('cq(')) {
+        nextContext = { ...nextContext, container: part.slice(3, -1).trim() }
         consumed = true
         continue
       }
@@ -191,6 +216,7 @@ export function wrapContext(rule: string, context: CipoRuleContext): string {
   }
   if (context.supports) output = `@supports ${context.supports}{${output}}`
   if (context.container) output = `@container ${context.container}{${output}}`
+  if (context.layer) output = `@layer ${context.layer}{${output}}`
   return output
 }
 

@@ -138,7 +138,7 @@ export interface CipoRuleContext {
   readonly dark?: boolean
   readonly supports?: string
   readonly container?: string
-  readonly layer?: CipoLayerName
+  readonly layer?: CipoLayerName | string
 }
 
 export interface CipoAtomicRule {

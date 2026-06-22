@@ -80,6 +80,7 @@ export function installBuiltInHelpers(): void {
   registerHelper('saturate', saturateHelper)
   registerHelper('desaturate', desaturateHelper)
   registerHelper('gradient', gradientHelper)
+  registerHelper('image', imageHelper)
   registerHelper('shadow', tokenHelper('shadow'))
   registerHelper('radius', tokenHelper('radius'))
   registerHelper('text-size', tokenHelper('text'))
@@ -176,7 +177,7 @@ function gradientHelper(args: string, context: CipoHelperContext): string {
   let startIndex = 0
   if (rawParts.length > 0) {
     const first = (rawParts[0] ?? '').trim()
-    if (first === 'linear' || first === 'radial' || first === 'conic') {
+    if (first === 'linear' || first === 'radial' || first === 'conic' || first === 'repeating-linear' || first === 'repeating-radial' || first === 'repeating-conic') {
       type = first
       startIndex = 1
     }
@@ -191,7 +192,18 @@ function gradientHelper(args: string, context: CipoHelperContext): string {
 
   if (type === 'radial') return `radial-gradient(${body})`
   if (type === 'conic') return `conic-gradient(${body})`
+  if (type === 'repeating-linear') return `repeating-linear-gradient(${body})`
+  if (type === 'repeating-radial') return `repeating-radial-gradient(${body})`
+  if (type === 'repeating-conic') return `repeating-conic-gradient(${body})`
   return `linear-gradient(${body})`
+}
+
+function imageHelper(args: string): string {
+  const value = args.trim()
+  if (!value) return 'none'
+  if (/^url\(/i.test(value)) return value
+  if (/^['"]/.test(value)) return `url(${value})`
+  return `url("${value.replace(/"/g, '\\"')}")`
 }
 
 function tokenHelper(namespace: string) {
