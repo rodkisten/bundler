@@ -1,11 +1,28 @@
-import { runtime, evictIfNeeded } from './runtime'
-import type { CipoAstNode, CipoBlockNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDeclarationNode, CipoStylesheetArtifact, CipoWarning } from './types'
-import { buildCss, transformCss } from './transform'
-import { parseStylesheet } from './parser'
-import { addImportant, collectRules, compileCss, joinClassNames } from './compiler'
-import { insertCss } from './injection'
-import { hashString } from './utils'
-import { compilePropertyBlock } from './properties'
+import { runtime, evictIfNeeded } from "./runtime";
+import type {
+  CipoAstNode,
+  CipoBlockNode,
+  CipoCssArtifact,
+  CipoCssInterpolation,
+  CipoCssResult,
+  CipoDeclarationNode,
+  CipoStyleObject,
+  CipoStylesheetArtifact,
+  CipoWarning,
+} from "./types";
+import { buildCss, transformCss } from "./transform";
+import { parseStylesheet } from "./parser";
+import {
+  addImportant,
+  collectRules,
+  compileCss,
+  joinClassNames,
+} from "./compiler";
+import { insertCss } from "./injection";
+import { hashString } from "./utils";
+import { compilePropertyBlock } from "./properties";
+import { configureFromCss } from "./config-css";
+import { inline } from "./inline";
 
 /***************************************************************************************************
  * Public Types
@@ -107,15 +124,27 @@ import { compilePropertyBlock } from './properties'
  * // ":root { --app-radius: 1rem; } body { margin: 0; }"
  * ```
  */
-export function css(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssResult {
-  return compilePolymorphicCss(strings, values, false)
+export function css(
+  first: TemplateStringsArray | CipoStyleObject,
+  ...values: readonly CipoCssInterpolation[]
+): CipoCssResult {
+  return compilePolymorphicCss(first, values, false);
 }
 
 Object.assign(css, {
-  withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssResult {
-    return compilePolymorphicCss(strings, values, true)
+  configure(
+    strings: TemplateStringsArray,
+    ...values: readonly CipoCssInterpolation[]
+  ) {
+    return configureFromCss(buildCss(strings, values));
   },
-})
+  withImportant(
+    first: TemplateStringsArray | CipoStyleObject,
+    ...values: readonly CipoCssInterpolation[]
+  ): CipoCssResult {
+    return compilePolymorphicCss(first, values, true);
+  },
+});
 
 /**
  * Explicit atomic CSS namespace.
@@ -136,16 +165,22 @@ Object.assign(css, {
  */
 export const atomic = {
   css: Object.assign(
-    function atomicCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
-      return compileAtomicCss(strings, values, false)
+    function atomicCss(
+      strings: TemplateStringsArray,
+      ...values: readonly CipoCssInterpolation[]
+    ): CipoCssArtifact {
+      return compileAtomicCss(strings, values, false);
     },
     {
-      withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoCssArtifact {
-        return compileAtomicCss(strings, values, true)
+      withImportant(
+        strings: TemplateStringsArray,
+        ...values: readonly CipoCssInterpolation[]
+      ): CipoCssArtifact {
+        return compileAtomicCss(strings, values, true);
       },
     },
   ),
-}
+};
 
 /**
  * Explicit stylesheet namespace.
@@ -167,61 +202,95 @@ export const atomic = {
  */
 export const sheet = {
   css: Object.assign(
-    function sheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-      return compileSheetCss(strings, values, false)
+    function sheetCss(
+      strings: TemplateStringsArray,
+      ...values: readonly CipoCssInterpolation[]
+    ): CipoStylesheetArtifact {
+      return compileSheetCss(strings, values, false);
     },
     {
-      withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-        return compileSheetCss(strings, values, true)
+      withImportant(
+        strings: TemplateStringsArray,
+        ...values: readonly CipoCssInterpolation[]
+      ): CipoStylesheetArtifact {
+        return compileSheetCss(strings, values, true);
       },
       insertInto(target: HTMLElement | ShadowRoot | Document) {
         return Object.assign(
-          function sheetCssInto(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-            const artifact = compileSheetCss(strings, values, false)
-            injectSheetInto(target, artifact.cssText)
-            return artifact
+          function sheetCssInto(
+            strings: TemplateStringsArray,
+            ...values: readonly CipoCssInterpolation[]
+          ): CipoStylesheetArtifact {
+            const artifact = compileSheetCss(strings, values, false);
+            injectSheetInto(target, artifact.cssText);
+            return artifact;
           },
           {
-            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-              const artifact = compileSheetCss(strings, values, true)
-              injectSheetInto(target, artifact.cssText)
-              return artifact
+            withImportant(
+              strings: TemplateStringsArray,
+              ...values: readonly CipoCssInterpolation[]
+            ): CipoStylesheetArtifact {
+              const artifact = compileSheetCss(strings, values, true);
+              injectSheetInto(target, artifact.cssText);
+              return artifact;
             },
           },
-        )
+        );
       },
       scoped(selector: string) {
         return Object.assign(
-          function scopedSheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-            return compileScopedSheetCss(selector, strings, values, false)
+          function scopedSheetCss(
+            strings: TemplateStringsArray,
+            ...values: readonly CipoCssInterpolation[]
+          ): CipoStylesheetArtifact {
+            return compileScopedSheetCss(selector, strings, values, false);
           },
           {
-            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-              return compileScopedSheetCss(selector, strings, values, true)
+            withImportant(
+              strings: TemplateStringsArray,
+              ...values: readonly CipoCssInterpolation[]
+            ): CipoStylesheetArtifact {
+              return compileScopedSheetCss(selector, strings, values, true);
             },
           },
-        )
+        );
       },
       layer(name: string) {
         return Object.assign(
-          function layerSheetCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-            return wrapSheetLayer(name, compileSheetCss(strings, values, false))
+          function layerSheetCss(
+            strings: TemplateStringsArray,
+            ...values: readonly CipoCssInterpolation[]
+          ): CipoStylesheetArtifact {
+            return wrapSheetLayer(
+              name,
+              compileSheetCss(strings, values, false),
+            );
           },
           {
-            withImportant(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-              return wrapSheetLayer(name, compileSheetCss(strings, values, true))
+            withImportant(
+              strings: TemplateStringsArray,
+              ...values: readonly CipoCssInterpolation[]
+            ): CipoStylesheetArtifact {
+              return wrapSheetLayer(
+                name,
+                compileSheetCss(strings, values, true),
+              );
             },
           },
-        )
+        );
       },
-      debug(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): CipoStylesheetArtifact {
-        const artifact = compileSheetCss(strings, values, false)
-        if (runtime.config.debug && typeof console !== 'undefined') console.debug('[Cipo sheet]', artifact.debug)
-        return artifact
+      debug(
+        strings: TemplateStringsArray,
+        ...values: readonly CipoCssInterpolation[]
+      ): CipoStylesheetArtifact {
+        const artifact = compileSheetCss(strings, values, false);
+        if (runtime.config.debug && typeof console !== "undefined")
+          console.debug("[Cipo sheet]", artifact.debug);
+        return artifact;
       },
     },
   ),
-}
+};
 
 /**
  * Compiles the legacy polymorphic css`` API.
@@ -231,27 +300,314 @@ export const sheet = {
  * @param important - Whether to force a single !important on every declaration.
  * @returns CSS result.
  */
-function compilePolymorphicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssResult {
-  const rawCss = buildCss(strings, values)
-  const cacheKey = createArtifactCacheKey(rawCss, important ? 'important' : 'auto')
-  const cached = getCachedArtifact(cacheKey)
+function compilePolymorphicCss(
+  first: TemplateStringsArray | CipoStyleObject,
+  values: readonly CipoCssInterpolation[],
+  important: boolean,
+): CipoCssResult {
+  if (!Array.isArray(first))
+    return important
+      ? inline.css.withImportant(first, ...values)
+      : inline.css(first, ...values);
 
-  if (cached) return cached
+  const rawCss = buildCss(first as TemplateStringsArray, values);
+  const polymorphic = splitPolymorphicCssSource(rawCss);
 
-  const warnings: CipoWarning[] = []
-  const transformedCss = transformCss(rawCss, warnings)
-  const ast = parseStylesheet(transformedCss, warnings)
+  if (polymorphic.inline)
+    return important
+      ? inline.css.withImportant([
+          polymorphic.css,
+        ] as unknown as TemplateStringsArray)
+      : inline.css([polymorphic.css] as unknown as TemplateStringsArray);
 
-  if (shouldCompileAsStylesheet(rawCss, transformedCss, ast)) {
-    const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
-    setCachedArtifact(cacheKey, artifact)
-    return artifact
+  if (polymorphic.configCss) {
+    const result = configureFromCss(polymorphic.configCss);
+    if (!polymorphic.css.trim()) return result;
   }
 
-  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
-  insertCss(artifact.compiledCss)
-  setCachedArtifact(cacheKey, artifact)
-  return artifact
+  const cacheKey = createArtifactCacheKey(
+    polymorphic.css,
+    important ? "important" : "auto",
+  );
+  const cached = getCachedArtifact(cacheKey);
+
+  if (cached) return cached;
+
+  const warnings: CipoWarning[] = [];
+  const transformedCss = transformCss(polymorphic.css, warnings);
+  const ast = parseStylesheet(transformedCss, warnings);
+
+  if (shouldCompileAsStylesheet(polymorphic.css, transformedCss, ast)) {
+    const artifact = createStylesheetArtifact(
+      polymorphic.css,
+      transformedCss,
+      ast,
+      warnings,
+      important,
+    );
+    setCachedArtifact(cacheKey, artifact);
+    return artifact;
+  }
+
+  const artifact = createAtomicArtifact(
+    polymorphic.css,
+    transformedCss,
+    ast,
+    warnings,
+    important,
+  );
+  insertCss(artifact.compiledCss);
+  setCachedArtifact(cacheKey, artifact);
+  return artifact;
+}
+
+type PolymorphicCssSource = {
+  readonly css: string;
+  readonly configCss: string;
+  readonly inline: boolean;
+};
+
+const CONFIG_DIRECTIVES: Record<string, 1> = {
+  cipo: 1,
+  config: 1,
+  theme: 1,
+  tokens: 1,
+  breakpoints: 1,
+  alias: 1,
+  helper: 1,
+  preset: 1,
+  plugin: 1,
+};
+
+/**
+ * Splits the single `Cipo.css` entry point into the lightest safe mode.
+ *
+ * @remarks
+ * This is a bounded top-level scanner, not a second parser. It only looks at
+ * the first meaningful directive and top-level CSS-first config directives.
+ * That keeps legacy atomic detection fast while allowing:
+ *
+ * - `css({ px: 2 })` for inline style objects.
+ * - `css`@inline { px: 2 }`` for inline template strings.
+ * - `css`@cipo {...} @theme {...} .card {...}`` for configure + sheet.
+ * - `css`@cipo {...}`` for pure CSS-first setup.
+ */
+function splitPolymorphicCssSource(input: string): PolymorphicCssSource {
+  const first = findFirstMeaningful(input);
+  if (
+    first >= 0 &&
+    input.startsWith("@inline", first) &&
+    isDirectiveBoundary(input[first + 7] || "")
+  ) {
+    const afterName = skipWhitespace(input, first + 7);
+    if (input[afterName] === "{") {
+      const close = findMatchingTopLevelBrace(input, afterName);
+      if (close >= 0) {
+        return {
+          css: input.slice(afterName + 1, close),
+          configCss: "",
+          inline: true,
+        };
+      }
+    }
+    if (input[afterName] === ";")
+      return { css: input.slice(afterName + 1), configCss: "", inline: true };
+  }
+
+  let configCss = "";
+  let cssText = "";
+  let index = 0;
+  let sawConfig = false;
+
+  while (index < input.length) {
+    const next = findNextTopLevelAt(input, index);
+    if (next < 0) {
+      cssText += input.slice(index);
+      break;
+    }
+
+    cssText += input.slice(index, next);
+
+    const nameStart = next + 1;
+    const nameEnd = readDirectiveNameEnd(input, nameStart);
+    const directive = input.slice(nameStart, nameEnd);
+    const cursor = skipWhitespace(input, nameEnd);
+    const namedBlock = readTopLevelNamedBlock(input, cursor);
+    const shouldTreatAsConfig =
+      CONFIG_DIRECTIVES[directive] === 1 ||
+      (directive === "property" && sawConfig);
+
+    if (!shouldTreatAsConfig) {
+      cssText += input.slice(next, nameEnd);
+      index = nameEnd;
+      continue;
+    }
+
+    if (input[cursor] === "{" || namedBlock) {
+      const open = namedBlock ? namedBlock.open : cursor;
+      const close = findMatchingTopLevelBrace(input, open);
+      if (close < 0) {
+        cssText += input.slice(next);
+        break;
+      }
+      configCss += input.slice(next, close + 1) + "\n";
+      sawConfig = true;
+      index = close + 1;
+      continue;
+    }
+
+    const end = findTopLevelStatementEnd(input, cursor);
+    configCss += input.slice(next, end + 1) + "\n";
+    sawConfig = true;
+    index = end + 1;
+  }
+
+  return { css: cssText, configCss, inline: false };
+}
+
+function findFirstMeaningful(input: string): number {
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (/\s/.test(char || "")) continue;
+    if (char === "/" && input[index + 1] === "*") {
+      const close = input.indexOf("*/", index + 2);
+      if (close < 0) return -1;
+      index = close + 1;
+      continue;
+    }
+    if (char === "/" && input[index + 1] === "/") {
+      const close = input.indexOf("\n", index + 2);
+      if (close < 0) return -1;
+      index = close;
+      continue;
+    }
+    return index;
+  }
+  return -1;
+}
+
+function findNextTopLevelAt(input: string, start: number): number {
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  for (let index = start; index < input.length; index += 1) {
+    const char = input[index];
+    if (quote) {
+      if (char === quote && input[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "/" && input[index + 1] === "*") {
+      const close = input.indexOf("*/", index + 2);
+      if (close < 0) return -1;
+      index = close + 1;
+      continue;
+    }
+    if (char === "{" || char === "(" || char === "[") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}" || char === ")" || char === "]") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0 && char === "@" && isDirectiveStart(input[index + 1] || ""))
+      return index;
+  }
+  return -1;
+}
+
+function readDirectiveNameEnd(input: string, start: number): number {
+  let index = start;
+  while (index < input.length && /[a-zA-Z0-9_-]/.test(input[index] || ""))
+    index += 1;
+  return index;
+}
+
+function skipWhitespace(input: string, start: number): number {
+  let index = start;
+  while (index < input.length && /\s/.test(input[index] || "")) index += 1;
+  return index;
+}
+
+function readTopLevelNamedBlock(
+  input: string,
+  start: number,
+): { readonly open: number } | null {
+  let index = start;
+  let quote: '"' | "'" | null = null;
+  while (index < input.length) {
+    const char = input[index];
+    if (quote) {
+      if (char === quote && input[index - 1] !== "\\") quote = null;
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      index += 1;
+      continue;
+    }
+    if (char === "{") return { open: index };
+    if (char === ";" || char === "\n" || char === "}") return null;
+    index += 1;
+  }
+  return null;
+}
+
+function findMatchingTopLevelBrace(input: string, open: number): number {
+  if (input[open] !== "{") return -1;
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  for (let index = open; index < input.length; index += 1) {
+    const char = input[index];
+    if (quote) {
+      if (char === quote && input[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "/" && input[index + 1] === "*") {
+      const close = input.indexOf("*/", index + 2);
+      if (close < 0) return -1;
+      index = close + 1;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") depth -= 1;
+    if (depth === 0) return index;
+  }
+  return -1;
+}
+
+function findTopLevelStatementEnd(input: string, start: number): number {
+  let quote: '"' | "'" | null = null;
+  for (let index = start; index < input.length; index += 1) {
+    const char = input[index];
+    if (quote) {
+      if (char === quote && input[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === ";") return index;
+    if (char === "\n") return Math.max(start, index - 1);
+  }
+  return input.length - 1;
+}
+
+function isDirectiveStart(value: string): boolean {
+  return /[a-zA-Z]/.test(value);
+}
+
+function isDirectiveBoundary(value: string): boolean {
+  return !value || !/[a-zA-Z0-9_-]/.test(value);
 }
 
 /**
@@ -262,21 +618,34 @@ function compilePolymorphicCss(strings: TemplateStringsArray, values: readonly C
  * @param important - Whether to force important declarations.
  * @returns Atomic artifact.
  */
-function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
-  const rawCss = buildCss(strings, values)
-  const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
-  const cached = getCachedArtifact(cacheKey)
+function compileAtomicCss(
+  strings: TemplateStringsArray,
+  values: readonly CipoCssInterpolation[],
+  important: boolean,
+): CipoCssArtifact {
+  const rawCss = buildCss(strings, values);
+  const cacheKey = createArtifactCacheKey(
+    rawCss,
+    important ? "atomic-important" : "atomic",
+  );
+  const cached = getCachedArtifact(cacheKey);
 
-  if (cached && isAtomicCssArtifact(cached)) return cached
+  if (cached && isAtomicCssArtifact(cached)) return cached;
 
-  const warnings: CipoWarning[] = []
-  const transformedCss = transformCss(rawCss, warnings)
-  const ast = parseStylesheet(transformedCss, warnings)
-  const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
+  const warnings: CipoWarning[] = [];
+  const transformedCss = transformCss(rawCss, warnings);
+  const ast = parseStylesheet(transformedCss, warnings);
+  const artifact = createAtomicArtifact(
+    rawCss,
+    transformedCss,
+    ast,
+    warnings,
+    important,
+  );
 
-  insertCss(artifact.compiledCss)
-  setCachedArtifact(cacheKey, artifact)
-  return artifact
+  insertCss(artifact.compiledCss);
+  setCachedArtifact(cacheKey, artifact);
+  return artifact;
 }
 
 /**
@@ -287,45 +656,73 @@ function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCs
  * @param important - Whether to force important declarations.
  * @returns Stylesheet artifact.
  */
-function compileSheetCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
-  const rawCss = buildCss(strings, values)
-  const cacheKey = createArtifactCacheKey(rawCss, important ? 'sheet-important' : 'sheet')
-  const cached = getCachedArtifact(cacheKey)
+function compileSheetCss(
+  strings: TemplateStringsArray,
+  values: readonly CipoCssInterpolation[],
+  important: boolean,
+): CipoStylesheetArtifact {
+  const rawCss = buildCss(strings, values);
+  const cacheKey = createArtifactCacheKey(
+    rawCss,
+    important ? "sheet-important" : "sheet",
+  );
+  const cached = getCachedArtifact(cacheKey);
 
-  if (cached && isStylesheetArtifact(cached)) return cached
+  if (cached && isStylesheetArtifact(cached)) return cached;
 
-  const warnings: CipoWarning[] = []
-  const transformedCss = transformCss(rawCss, warnings)
-  const ast = parseStylesheet(transformedCss, warnings)
-  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
+  const warnings: CipoWarning[] = [];
+  const transformedCss = transformCss(rawCss, warnings);
+  const ast = parseStylesheet(transformedCss, warnings);
+  const artifact = createStylesheetArtifact(
+    rawCss,
+    transformedCss,
+    ast,
+    warnings,
+    important,
+  );
 
-  setCachedArtifact(cacheKey, artifact)
-  return artifact
+  setCachedArtifact(cacheKey, artifact);
+  return artifact;
 }
 
-
-
-function compileScopedSheetCss(selector: string, strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
+function compileScopedSheetCss(
+  selector: string,
+  strings: TemplateStringsArray,
+  values: readonly CipoCssInterpolation[],
+  important: boolean,
+): CipoStylesheetArtifact {
   const rawCss = buildCss(strings, values);
   const scopedSource = `${selector}{${rawCss}}`;
-  const cacheKey = createArtifactCacheKey(scopedSource, important ? 'sheet-scoped-important' : 'sheet-scoped');
+  const cacheKey = createArtifactCacheKey(
+    scopedSource,
+    important ? "sheet-scoped-important" : "sheet-scoped",
+  );
   const cached = getCachedArtifact(cacheKey);
   if (cached && isStylesheetArtifact(cached)) return cached;
   const warnings: CipoWarning[] = [];
   const transformedCss = transformCss(scopedSource, warnings);
   const ast = parseStylesheet(transformedCss, warnings);
-  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important);
+  const artifact = createStylesheetArtifact(
+    rawCss,
+    transformedCss,
+    ast,
+    warnings,
+    important,
+  );
   setCachedArtifact(cacheKey, artifact);
   return artifact;
 }
 
-function wrapSheetLayer(name: string, artifact: CipoStylesheetArtifact): CipoStylesheetArtifact {
-  const safeName = String(name || 'components').replace(/[^a-zA-Z0-9_.-]/g, '');
+function wrapSheetLayer(
+  name: string,
+  artifact: CipoStylesheetArtifact,
+): CipoStylesheetArtifact {
+  const safeName = String(name || "components").replace(/[^a-zA-Z0-9_.-]/g, "");
   const cssText = `@layer ${safeName}{${artifact.cssText}}`;
   return {
     ...artifact,
     cssText: formatStylesheetText(cssText),
-    debug: { ...artifact.debug, mode: 'stylesheet' as const },
+    debug: { ...artifact.debug, mode: "stylesheet" as const },
     toString: () => formatStylesheetText(cssText),
     [Symbol.toPrimitive]: () => formatStylesheetText(cssText),
   };
@@ -348,18 +745,17 @@ function wrapSheetLayer(name: string, artifact: CipoStylesheetArtifact): CipoSty
  * // "12|3|cipo||pretty|px: 4;"
  * ```
  */
-export function createArtifactCacheKey(rawCss: string, mode = ''): string {
+export function createArtifactCacheKey(rawCss: string, mode = ""): string {
   return [
     runtime.configVersion,
     runtime.themeVersion,
     runtime.config.prefix,
-    runtime.config.important ? 'important' : '',
-    runtime.config.minify ? 'min' : 'pretty',
+    runtime.config.important ? "important" : "",
+    runtime.config.minify ? "min" : "pretty",
     mode,
     rawCss,
-  ].join('|')
+  ].join("|");
 }
-
 
 /**
  * Checks whether a css`` result is an atomic/class-list artifact.
@@ -375,8 +771,12 @@ export function createArtifactCacheKey(rawCss: string, mode = ''): string {
  * }
  * ```
  */
-export function isAtomicCssArtifact(artifact: CipoCssResult): artifact is CipoCssArtifact {
-  return artifact.kind === 'cipo.css'
+export function isAtomicCssArtifact(
+  artifact: CipoCssResult,
+): artifact is CipoCssArtifact {
+  return Boolean(
+    artifact && "kind" in artifact && artifact.kind === "cipo.css",
+  );
 }
 
 /**
@@ -390,10 +790,14 @@ export function isAtomicCssArtifact(artifact: CipoCssResult): artifact is CipoCs
  * @param artifact - Polymorphic css result.
  * @returns Atomic CSS artifact.
  */
-export function assertAtomicCssArtifact(artifact: CipoCssResult): CipoCssArtifact {
-  if (isAtomicCssArtifact(artifact)) return artifact
+export function assertAtomicCssArtifact(
+  artifact: CipoCssResult,
+): CipoCssArtifact {
+  if (isAtomicCssArtifact(artifact)) return artifact;
 
-  throw new TypeError('Cipó styled APIs require declaration/component CSS. Full stylesheets return CSS text and cannot be used as className artifacts.')
+  throw new TypeError(
+    "Cipó styled APIs require declaration/component CSS. Full stylesheets return CSS text and cannot be used as className artifacts.",
+  );
 }
 
 /**
@@ -402,8 +806,12 @@ export function assertAtomicCssArtifact(artifact: CipoCssResult): CipoCssArtifac
  * @param artifact - Polymorphic css result.
  * @returns Whether the artifact stringifies to stylesheet text.
  */
-export function isStylesheetArtifact(artifact: CipoCssResult): artifact is CipoStylesheetArtifact {
-  return artifact.kind === 'cipo.stylesheet'
+export function isStylesheetArtifact(
+  artifact: CipoCssResult,
+): artifact is CipoStylesheetArtifact {
+  return Boolean(
+    artifact && "kind" in artifact && artifact.kind === "cipo.stylesheet",
+  );
 }
 
 /***************************************************************************************************
@@ -426,18 +834,25 @@ function createAtomicArtifact(
   warnings: readonly CipoWarning[],
   forceImportant = false,
 ): CipoCssArtifact {
-  const mutableWarnings = [...warnings]
-  const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
-  const previousImportant = runtime.config.important
-  runtime.config.important = previousImportant || forceImportant
-  const { atoms, scopedRules } = collectRules(ast, scopeClassName, mutableWarnings)
-  const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
-  const compiledCss = compileCss(atoms, scopedRules)
-  runtime.config.important = previousImportant
-  const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
+  const mutableWarnings = [...warnings];
+  const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`;
+  const previousImportant = runtime.config.important;
+  runtime.config.important = previousImportant || forceImportant;
+  const { atoms, scopedRules } = collectRules(
+    ast,
+    scopeClassName,
+    mutableWarnings,
+  );
+  const className = joinClassNames(
+    atoms,
+    scopedRules.length > 0 ? scopeClassName : "",
+  );
+  const compiledCss = compileCss(atoms, scopedRules);
+  runtime.config.important = previousImportant;
+  const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`;
 
   return {
-    kind: 'cipo.css',
+    kind: "cipo.css",
     className,
     scopeClassName,
     atoms,
@@ -448,8 +863,8 @@ function createAtomicArtifact(
     debug: { id: artifactId, ast, atoms, scopedRules, warnings },
     toString: () => className,
     [Symbol.toPrimitive]: () => className,
-    [Symbol.toStringTag]: 'CipoCssArtifact',
-  }
+    [Symbol.toStringTag]: "CipoCssArtifact",
+  };
 }
 
 /**
@@ -473,11 +888,11 @@ function createStylesheetArtifact(
   warnings: readonly CipoWarning[],
   forceImportant = false,
 ): CipoStylesheetArtifact {
-  const cssText = compileStylesheetText(ast, forceImportant)
-  const artifactId = `${runtime.config.prefix}-stylesheet-${hashString(rawCss)}`
+  const cssText = compileStylesheetText(ast, forceImportant);
+  const artifactId = `${runtime.config.prefix}-stylesheet-${hashString(rawCss)}`;
 
   return {
-    kind: 'cipo.stylesheet',
+    kind: "cipo.stylesheet",
     rawCss,
     transformedCss,
     cssText,
@@ -485,12 +900,12 @@ function createStylesheetArtifact(
       id: artifactId,
       ast,
       warnings,
-      mode: 'stylesheet',
+      mode: "stylesheet",
     },
     toString: () => cssText,
     [Symbol.toPrimitive]: () => cssText,
-    [Symbol.toStringTag]: 'CipoStylesheetArtifact',
-  }
+    [Symbol.toStringTag]: "CipoStylesheetArtifact",
+  };
 }
 
 /***************************************************************************************************
@@ -529,20 +944,20 @@ function shouldCompileAsStylesheet(
   transformedCss: string,
   ast: readonly CipoAstNode[],
 ): boolean {
-  const source = transformedCss.trim()
+  const source = transformedCss.trim();
 
-  if (!source) return false
+  if (!source) return false;
 
-  if (hasTopLevelLooseStatements(rawCss)) return false
+  if (hasTopLevelLooseStatements(rawCss)) return false;
 
-  if (ast.length === 0) return false
+  if (ast.length === 0) return false;
 
   for (const node of ast) {
-    if (node.type !== 'block') return false
-    if (!isStylesheetRootBlock(node)) return false
+    if (node.type !== "block") return false;
+    if (!isStylesheetRootBlock(node)) return false;
   }
 
-  return true
+  return true;
 }
 
 /**
@@ -563,58 +978,58 @@ function shouldCompileAsStylesheet(
  * @returns Whether a top-level loose statement exists.
  */
 function hasTopLevelLooseStatements(input: string): boolean {
-  let buffer = ''
-  let depth = 0
-  let quote: '"' | "'" | null = null
+  let buffer = "";
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
 
   for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
+    const char = input[index];
 
     if (quote) {
-      buffer += char
+      buffer += char;
 
-      if (char === quote && input[index - 1] !== '\\') {
-        quote = null
+      if (char === quote && input[index - 1] !== "\\") {
+        quote = null;
       }
 
-      continue
+      continue;
     }
 
     if (char === '"' || char === "'") {
-      quote = char
-      buffer += char
-      continue
+      quote = char;
+      buffer += char;
+      continue;
     }
 
-    if (char === '{') {
+    if (char === "{") {
       if (depth === 0 && buffer.trim()) {
-        buffer = ''
+        buffer = "";
       }
 
-      depth += 1
-      continue
+      depth += 1;
+      continue;
     }
 
-    if (char === '}') {
-      depth = Math.max(0, depth - 1)
+    if (char === "}") {
+      depth = Math.max(0, depth - 1);
 
       if (depth === 0) {
-        buffer = ''
+        buffer = "";
       }
 
-      continue
+      continue;
     }
 
     if (depth === 0) {
-      buffer += char
+      buffer += char;
 
-      if (char === ';' && buffer.trim()) {
-        return true
+      if (char === ";" && buffer.trim()) {
+        return true;
       }
     }
   }
 
-  return buffer.trim().length > 0
+  return buffer.trim().length > 0;
 }
 
 /**
@@ -624,17 +1039,17 @@ function hasTopLevelLooseStatements(input: string): boolean {
  * @returns Whether the block is a stylesheet root.
  */
 function isStylesheetRootBlock(node: CipoBlockNode): boolean {
-  const name = node.name.trim()
+  const name = node.name.trim();
 
-  if (!name) return false
+  if (!name) return false;
 
-  if (name.startsWith('x:')) return false
-  if (name.startsWith('&')) return false
+  if (name.startsWith("x:")) return false;
+  if (name.startsWith("&")) return false;
 
-  if (isStylesheetAtRule(name)) return true
-  if (isRootSelector(name)) return true
+  if (isStylesheetAtRule(name)) return true;
+  if (isRootSelector(name)) return true;
 
-  return false
+  return false;
 }
 
 /**
@@ -644,7 +1059,9 @@ function isStylesheetRootBlock(node: CipoBlockNode): boolean {
  * @returns Whether the block name is a stylesheet at-rule.
  */
 function isStylesheetAtRule(name: string): boolean {
-  return /^@(media|supports|container|layer|scope|keyframes|font-face|property|page|starting-style)\b/.test(name)
+  return /^@(media|supports|container|layer|scope|keyframes|font-face|property|page|starting-style)\b/.test(
+    name,
+  );
 }
 
 /**
@@ -654,17 +1071,28 @@ function isStylesheetAtRule(name: string): boolean {
  * @returns Whether the block name looks like a selector.
  */
 function isRootSelector(name: string): boolean {
-  if (name.startsWith('.') || name.startsWith('#') || name.startsWith(':') || name.startsWith('[') || name.startsWith('*')) {
-    return true
+  if (
+    name.startsWith(".") ||
+    name.startsWith("#") ||
+    name.startsWith(":") ||
+    name.startsWith("[") ||
+    name.startsWith("*")
+  ) {
+    return true;
   }
 
-  if (name.includes(',') || name.includes('>') || name.includes('+') || name.includes('~') || name.includes(' ')) {
-    return true
+  if (
+    name.includes(",") ||
+    name.includes(">") ||
+    name.includes("+") ||
+    name.includes("~") ||
+    name.includes(" ")
+  ) {
+    return true;
   }
 
-  return /^[a-z][a-z0-9-]*$/i.test(name)
+  return /^[a-z][a-z0-9-]*$/i.test(name);
 }
-
 
 /**
  * Detects pseudo names supported by stylesheet runtime context blocks.
@@ -674,21 +1102,21 @@ function isRootSelector(name: string): boolean {
  */
 function isStylesheetPseudoName(name: string): boolean {
   return [
-    'hover',
-    'focus',
-    'active',
-    'disabled',
-    'checked',
-    'focus-visible',
-    'focus-within',
-    'visited',
-    'first-child',
-    'last-child',
-    'before',
-    'after',
-    'target',
-    'open',
-  ].includes(name)
+    "hover",
+    "focus",
+    "active",
+    "disabled",
+    "checked",
+    "focus-visible",
+    "focus-within",
+    "visited",
+    "first-child",
+    "last-child",
+    "before",
+    "after",
+    "target",
+    "open",
+  ].includes(name);
 }
 
 /***************************************************************************************************
@@ -706,16 +1134,19 @@ function isStylesheetPseudoName(name: string): boolean {
  * @param ast - Parsed AST.
  * @returns Stylesheet text.
  */
-function compileStylesheetText(ast: readonly CipoAstNode[], forceImportant = false): string {
-  let cssText = ''
+function compileStylesheetText(
+  ast: readonly CipoAstNode[],
+  forceImportant = false,
+): string {
+  let cssText = "";
 
   for (let index = 0; index < ast.length; index += 1) {
-    const chunk = compileStylesheetNode(ast[index], [], forceImportant)
-    if (!chunk) continue
-    cssText += cssText ? `\n${chunk}` : chunk
+    const chunk = compileStylesheetNode(ast[index], [], forceImportant);
+    if (!chunk) continue;
+    cssText += cssText ? `\n${chunk}` : chunk;
   }
 
-  return formatStylesheetText(cssText)
+  return formatStylesheetText(cssText);
 }
 
 /**
@@ -725,16 +1156,22 @@ function compileStylesheetText(ast: readonly CipoAstNode[], forceImportant = fal
  * @param parentSelectors - Current selector chain.
  * @returns CSS text.
  */
-function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly string[], forceImportant: boolean): string {
-  if (node.type === 'declaration') {
-    return parentSelectors.length > 0 ? compileStylesheetRule(parentSelectors, [node], forceImportant) : compileDeclaration(node, forceImportant)
+function compileStylesheetNode(
+  node: CipoAstNode,
+  parentSelectors: readonly string[],
+  forceImportant: boolean,
+): string {
+  if (node.type === "declaration") {
+    return parentSelectors.length > 0
+      ? compileStylesheetRule(parentSelectors, [node], forceImportant)
+      : compileDeclaration(node, forceImportant);
   }
 
-  if (node.type === 'directive') {
-    return ''
+  if (node.type === "directive") {
+    return "";
   }
 
-  return compileStylesheetBlock(node, parentSelectors, forceImportant)
+  return compileStylesheetBlock(node, parentSelectors, forceImportant);
 }
 
 /**
@@ -744,64 +1181,98 @@ function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly stri
  * @param parentSelectors - Parent selectors.
  * @returns CSS text.
  */
-function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
-  const name = block.name.trim()
+function compileStylesheetBlock(
+  block: CipoBlockNode,
+  parentSelectors: readonly string[],
+  forceImportant: boolean,
+): string {
+  const name = block.name.trim();
 
   if (isStylesheetAtRule(name)) {
-    return compileStylesheetAtRule(block, parentSelectors, forceImportant)
+    return compileStylesheetAtRule(block, parentSelectors, forceImportant);
   }
 
-  if (name === 'reduce-motion') {
-    return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
+  if (name === "reduce-motion") {
+    return wrapStylesheetRuntimeWrapper(
+      "@media (prefers-reduced-motion: reduce)",
+      block,
+      parentSelectors,
+      forceImportant,
+    );
   }
 
-  if (name.startsWith('supports(')) {
-    return wrapStylesheetRuntimeWrapper(`@supports ${name.slice('supports('.length - 1)}`, block, parentSelectors, forceImportant)
+  if (name.startsWith("supports(")) {
+    return wrapStylesheetRuntimeWrapper(
+      `@supports ${name.slice("supports(".length - 1)}`,
+      block,
+      parentSelectors,
+      forceImportant,
+    );
   }
 
-  if (name.startsWith('layer(')) {
-    return wrapStylesheetRuntimeWrapper(`@layer ${name.slice('layer('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  if (name.startsWith("layer(")) {
+    return wrapStylesheetRuntimeWrapper(
+      `@layer ${name.slice("layer(".length, -1).trim()}`,
+      block,
+      parentSelectors,
+      forceImportant,
+    );
   }
 
-  if (name.startsWith('container(')) {
-    return wrapStylesheetRuntimeWrapper(`@container ${name.slice('container('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  if (name.startsWith("container(")) {
+    return wrapStylesheetRuntimeWrapper(
+      `@container ${name.slice("container(".length, -1).trim()}`,
+      block,
+      parentSelectors,
+      forceImportant,
+    );
   }
 
-  if (name.startsWith('x:')) {
-    return compileStylesheetRuntimeBlock(block, parentSelectors, forceImportant)
+  if (name.startsWith("x:")) {
+    return compileStylesheetRuntimeBlock(
+      block,
+      parentSelectors,
+      forceImportant,
+    );
   }
 
-  const selectors = resolveNestedSelectors(parentSelectors, splitSelectorList(name))
-  const declarations: CipoDeclarationNode[] = []
-  let output = ''
+  const selectors = resolveNestedSelectors(
+    parentSelectors,
+    splitSelectorList(name),
+  );
+  const declarations: CipoDeclarationNode[] = [];
+  let output = "";
 
   for (let index = 0; index < block.body.length; index += 1) {
-    const child = block.body[index]
-    if (child.type === 'declaration') {
-      declarations.push(child)
-      continue
+    const child = block.body[index];
+    if (child.type === "declaration") {
+      declarations.push(child);
+      continue;
     }
 
-    if (child.type === 'block') {
+    if (child.type === "block") {
       if (declarations.length > 0) {
-        const rule = compileStylesheetRule(selectors, declarations, forceImportant)
-        output += output ? `\n${rule}` : rule
-        declarations.length = 0
+        const rule = compileStylesheetRule(
+          selectors,
+          declarations,
+          forceImportant,
+        );
+        output += output ? `\n${rule}` : rule;
+        declarations.length = 0;
       }
 
-      const nested = compileStylesheetBlock(child, selectors, forceImportant)
-      if (nested) output += output ? `\n${nested}` : nested
+      const nested = compileStylesheetBlock(child, selectors, forceImportant);
+      if (nested) output += output ? `\n${nested}` : nested;
     }
   }
 
   if (declarations.length > 0) {
-    const rule = compileStylesheetRule(selectors, declarations, forceImportant)
-    output += output ? `\n${rule}` : rule
+    const rule = compileStylesheetRule(selectors, declarations, forceImportant);
+    output += output ? `\n${rule}` : rule;
   }
 
-  return output
+  return output;
 }
-
 
 /**
  * Compiles Cipó runtime context blocks inside full stylesheets.
@@ -835,73 +1306,93 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
  * @param parentSelectors - Current selector chain.
  * @returns CSS text.
  */
-function wrapStylesheetRuntimeWrapper(wrapper: string, block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
-  let body = ''
+function wrapStylesheetRuntimeWrapper(
+  wrapper: string,
+  block: CipoBlockNode,
+  parentSelectors: readonly string[],
+  forceImportant: boolean,
+): string {
+  let body = "";
   for (let index = 0; index < block.body.length; index += 1) {
-    const chunk = compileStylesheetNode(block.body[index], parentSelectors, forceImportant)
-    if (chunk) body += body ? `\n${chunk}` : chunk
+    const chunk = compileStylesheetNode(
+      block.body[index],
+      parentSelectors,
+      forceImportant,
+    );
+    if (chunk) body += body ? `\n${chunk}` : chunk;
   }
-  return body ? `${wrapper}{${body}}` : ''
+  return body ? `${wrapper}{${body}}` : "";
 }
 
-function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
-  if (parentSelectors.length === 0) return ''
+function compileStylesheetRuntimeBlock(
+  block: CipoBlockNode,
+  parentSelectors: readonly string[],
+  forceImportant: boolean,
+): string {
+  if (parentSelectors.length === 0) return "";
 
-  let selectors = copyStrings(parentSelectors)
-  const wrappers: string[] = []
-  const name = block.name.trim()
+  let selectors = copyStrings(parentSelectors);
+  const wrappers: string[] = [];
+  const name = block.name.trim();
 
-  if (name.startsWith('x:not(')) {
-    const breakpoint = name.replace(/^x:not\(/, '').replace(/\)$/, '').trim()
-    const query = runtime.config.breakpoints[breakpoint]
-    if (query) wrappers.push(`@media not all and ${query}`)
+  if (name.startsWith("x:not(")) {
+    const breakpoint = name
+      .replace(/^x:not\(/, "")
+      .replace(/\)$/, "")
+      .trim();
+    const query = runtime.config.breakpoints[breakpoint];
+    if (query) wrappers.push(`@media not all and ${query}`);
   } else {
-    const contextParts = splitRuntimeContextParts(name.slice(2))
+    const contextParts = splitRuntimeContextParts(name.slice(2));
 
     for (const part of contextParts) {
       if (part in runtime.config.breakpoints) {
-        const query = runtime.config.breakpoints[part]
-        if (query) wrappers.push(`@media ${query}`)
-        continue
+        const query = runtime.config.breakpoints[part];
+        if (query) wrappers.push(`@media ${query}`);
+        continue;
       }
 
-      if (part.startsWith('cq(')) {
-        wrappers.push(`@container ${part.slice(3, -1).trim()}`)
-        continue
+      if (part.startsWith("cq(")) {
+        wrappers.push(`@container ${part.slice(3, -1).trim()}`);
+        continue;
       }
 
-      if (part === 'dark') {
-        selectors = prefixSelectors(runtime.config.darkSelector, selectors)
-        continue
+      if (part === "dark") {
+        selectors = prefixSelectors(runtime.config.darkSelector, selectors);
+        continue;
       }
 
-      if (part === 'motion-safe') {
-        wrappers.push('@media (prefers-reduced-motion: no-preference)')
-        continue
+      if (part === "motion-safe") {
+        wrappers.push("@media (prefers-reduced-motion: no-preference)");
+        continue;
       }
 
-      if (part === 'motion-reduce') {
-        wrappers.push('@media (prefers-reduced-motion: reduce)')
-        continue
+      if (part === "motion-reduce") {
+        wrappers.push("@media (prefers-reduced-motion: reduce)");
+        continue;
       }
 
       if (isStylesheetPseudoName(part)) {
-        selectors = appendPseudoToSelectors(selectors, part)
+        selectors = appendPseudoToSelectors(selectors, part);
       }
     }
   }
 
-  let body = ''
+  let body = "";
   for (let index = 0; index < block.body.length; index += 1) {
-    const chunk = compileStylesheetNode(block.body[index], selectors, forceImportant)
-    if (chunk) body += body ? `\n${chunk}` : chunk
+    const chunk = compileStylesheetNode(
+      block.body[index],
+      selectors,
+      forceImportant,
+    );
+    if (chunk) body += body ? `\n${chunk}` : chunk;
   }
 
   for (let index = wrappers.length - 1; index >= 0; index -= 1) {
-    body = `${wrappers[index]}{${body}}`
+    body = `${wrappers[index]}{${body}}`;
   }
 
-  return body
+  return body;
 }
 
 /**
@@ -922,28 +1413,36 @@ function compileStylesheetRuntimeBlock(block: CipoBlockNode, parentSelectors: re
  * @param parentSelectors - Parent selectors.
  * @returns CSS text.
  */
-function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
-  const name = block.name.trim()
+function compileStylesheetAtRule(
+  block: CipoBlockNode,
+  parentSelectors: readonly string[],
+  forceImportant: boolean,
+): string {
+  const name = block.name.trim();
 
-  if (name.startsWith('@property')) {
-    const propertyName = name.slice('@property'.length).trim()
-    const declarations: CipoDeclarationNode[] = []
+  if (name.startsWith("@property")) {
+    const propertyName = name.slice("@property".length).trim();
+    const declarations: CipoDeclarationNode[] = [];
     for (let index = 0; index < block.body.length; index += 1) {
-      const child = block.body[index]
-      if (child.type === 'declaration') declarations.push(child)
+      const child = block.body[index];
+      if (child.type === "declaration") declarations.push(child);
     }
-    return compilePropertyBlock(propertyName, declarations)
+    return compilePropertyBlock(propertyName, declarations);
   }
 
-  let body = ''
+  let body = "";
   for (let index = 0; index < block.body.length; index += 1) {
-    const chunk = compileStylesheetNode(block.body[index], parentSelectors, forceImportant)
-    if (chunk) body += body ? `\n${chunk}` : chunk
+    const chunk = compileStylesheetNode(
+      block.body[index],
+      parentSelectors,
+      forceImportant,
+    );
+    if (chunk) body += body ? `\n${chunk}` : chunk;
   }
 
-  if (!body) return ''
+  if (!body) return "";
 
-  return `${name}{${body}}`
+  return `${name}{${body}}`;
 }
 
 /**
@@ -958,12 +1457,12 @@ function compileStylesheetRule(
   declarations: readonly CipoDeclarationNode[],
   forceImportant: boolean,
 ): string {
-  let body = ''
+  let body = "";
   for (let index = 0; index < declarations.length; index += 1) {
-    body += compileDeclaration(declarations[index], forceImportant)
+    body += compileDeclaration(declarations[index], forceImportant);
   }
 
-  return `${joinSelectors(selectors)}{${body}}`
+  return `${joinSelectors(selectors)}{${body}}`;
 }
 
 /**
@@ -972,9 +1471,12 @@ function compileStylesheetRule(
  * @param declaration - Declaration node.
  * @returns CSS declaration text.
  */
-function compileDeclaration(declaration: CipoDeclarationNode, forceImportant: boolean): string {
-  const important = runtime.config.important || forceImportant
-  return `${declaration.property}:${important ? addImportant(declaration.value) : declaration.value};`
+function compileDeclaration(
+  declaration: CipoDeclarationNode,
+  forceImportant: boolean,
+): string {
+  const important = runtime.config.important || forceImportant;
+  return `${declaration.property}:${important ? addImportant(declaration.value) : declaration.value};`;
 }
 
 /**
@@ -988,21 +1490,21 @@ function resolveNestedSelectors(
   parents: readonly string[],
   children: readonly string[],
 ): readonly string[] {
-  if (parents.length === 0) return children
+  if (parents.length === 0) return children;
 
-  const output: string[] = []
+  const output: string[] = [];
 
   for (const parent of parents) {
     for (const child of children) {
-      if (child.includes('&')) {
-        output.push(child.replaceAll('&', parent))
+      if (child.includes("&")) {
+        output.push(child.replaceAll("&", parent));
       } else {
-        output.push(`${parent} ${child}`)
+        output.push(`${parent} ${child}`);
       }
     }
   }
 
-  return output
+  return output;
 }
 
 /**
@@ -1012,48 +1514,48 @@ function resolveNestedSelectors(
  * @returns Individual selectors.
  */
 function splitSelectorList(selector: string): readonly string[] {
-  const output: string[] = []
-  let buffer = ''
-  let depth = 0
-  let quote: '"' | "'" | null = null
+  const output: string[] = [];
+  let buffer = "";
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
 
   for (let index = 0; index < selector.length; index += 1) {
-    const char = selector[index]
+    const char = selector[index];
 
     if (quote) {
-      buffer += char
+      buffer += char;
 
-      if (char === quote && selector[index - 1] !== '\\') {
-        quote = null
+      if (char === quote && selector[index - 1] !== "\\") {
+        quote = null;
       }
 
-      continue
+      continue;
     }
 
     if (char === '"' || char === "'") {
-      quote = char
-      buffer += char
-      continue
+      quote = char;
+      buffer += char;
+      continue;
     }
 
-    if (char === '(' || char === '[') {
-      depth += 1
-    } else if (char === ')' || char === ']') {
-      depth -= 1
+    if (char === "(" || char === "[") {
+      depth += 1;
+    } else if (char === ")" || char === "]") {
+      depth -= 1;
     }
 
-    if (char === ',' && depth === 0) {
-      if (buffer.trim()) output.push(buffer.trim())
-      buffer = ''
-      continue
+    if (char === "," && depth === 0) {
+      if (buffer.trim()) output.push(buffer.trim());
+      buffer = "";
+      continue;
     }
 
-    buffer += char
+    buffer += char;
   }
 
-  if (buffer.trim()) output.push(buffer.trim())
+  if (buffer.trim()) output.push(buffer.trim());
 
-  return output
+  return output;
 }
 
 /**
@@ -1064,10 +1566,10 @@ function splitSelectorList(selector: string): readonly string[] {
  */
 function formatStylesheetText(cssText: string): string {
   if (runtime.config.minify) {
-    return minifyStylesheetText(cssText)
+    return minifyStylesheetText(cssText);
   }
 
-  return prettyStylesheetText(cssText)
+  return prettyStylesheetText(cssText);
 }
 
 /**
@@ -1077,7 +1579,10 @@ function formatStylesheetText(cssText: string): string {
  * @returns Minified CSS.
  */
 function minifyStylesheetText(cssText: string): string {
-  return cssText.replace(/\s+/g, ' ').replace(/\s*([{}:;,>+~])\s*/g, '$1').trim()
+  return cssText
+    .replace(/\s+/g, " ")
+    .replace(/\s*([{}:;,>+~])\s*/g, "$1")
+    .trim();
 }
 
 /**
@@ -1087,62 +1592,62 @@ function minifyStylesheetText(cssText: string): string {
  * @returns Pretty CSS.
  */
 function prettyStylesheetText(cssText: string): string {
-  let output = ''
-  let token = ''
-  let depth = 0
-  let quote: '"' | "'" | null = null
+  let output = "";
+  let token = "";
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
 
   for (let index = 0; index < cssText.length; index += 1) {
-    const char = cssText[index]
+    const char = cssText[index];
 
     if (quote) {
-      token += char
+      token += char;
 
-      if (char === quote && cssText[index - 1] !== '\\') {
-        quote = null
+      if (char === quote && cssText[index - 1] !== "\\") {
+        quote = null;
       }
 
-      continue
+      continue;
     }
 
     if (char === '"' || char === "'") {
-      quote = char
-      token += char
-      continue
+      quote = char;
+      token += char;
+      continue;
     }
 
-    if (char === '{') {
-      output += `${indent(depth)}${token.trim()} {\n`
-      token = ''
-      depth += 1
-      continue
+    if (char === "{") {
+      output += `${indent(depth)}${token.trim()} {\n`;
+      token = "";
+      depth += 1;
+      continue;
     }
 
-    if (char === '}') {
+    if (char === "}") {
       if (token.trim()) {
-        output += `${indent(depth)}${token.trim()}\n`
-        token = ''
+        output += `${indent(depth)}${token.trim()}\n`;
+        token = "";
       }
 
-      depth = Math.max(0, depth - 1)
-      output += `${indent(depth)}}\n`
-      continue
+      depth = Math.max(0, depth - 1);
+      output += `${indent(depth)}}\n`;
+      continue;
     }
 
-    if (char === ';') {
-      output += `${indent(depth)}${token.trim()};\n`
-      token = ''
-      continue
+    if (char === ";") {
+      output += `${indent(depth)}${token.trim()};\n`;
+      token = "";
+      continue;
     }
 
-    token += char
+    token += char;
   }
 
   if (token.trim()) {
-    output += `${indent(depth)}${token.trim()}`
+    output += `${indent(depth)}${token.trim()}`;
   }
 
-  return output.trim()
+  return output.trim();
 }
 
 /**
@@ -1152,9 +1657,8 @@ function prettyStylesheetText(cssText: string): string {
  * @returns Spaces.
  */
 function indent(depth: number): string {
-  return '  '.repeat(depth)
+  return "  ".repeat(depth);
 }
-
 
 /**
  * Injects a stylesheet artifact into a target and keeps it as the last style node.
@@ -1163,13 +1667,16 @@ function indent(depth: number): string {
  * @param cssText - CSS text.
  * @returns Created style element.
  */
-function injectSheetInto(target: HTMLElement | ShadowRoot | Document, cssText: string): HTMLStyleElement {
-  const parent = target instanceof Document ? target.head : target
-  const element = document.createElement('style')
-  element.dataset.cipoSheet = 'true'
-  element.textContent = cssText
-  parent.append(element)
-  return element
+function injectSheetInto(
+  target: HTMLElement | ShadowRoot | Document,
+  cssText: string,
+): HTMLStyleElement {
+  const parent = target instanceof Document ? target.head : target;
+  const element = document.createElement("style");
+  element.dataset.cipoSheet = "true";
+  element.textContent = cssText;
+  parent.append(element);
+  return element;
 }
 
 /**
@@ -1179,9 +1686,10 @@ function injectSheetInto(target: HTMLElement | ShadowRoot | Document, cssText: s
  * @returns Mutable copy.
  */
 function copyStrings(input: readonly string[]): string[] {
-  const output = new Array<string>(input.length)
-  for (let index = 0; index < input.length; index += 1) output[index] = input[index]
-  return output
+  const output = new Array<string>(input.length);
+  for (let index = 0; index < input.length; index += 1)
+    output[index] = input[index];
+  return output;
 }
 
 /**
@@ -1191,15 +1699,15 @@ function copyStrings(input: readonly string[]): string[] {
  * @returns Context parts.
  */
 function splitRuntimeContextParts(input: string): string[] {
-  const output: string[] = []
-  let start = 0
+  const output: string[] = [];
+  let start = 0;
   for (let index = 0; index <= input.length; index += 1) {
-    if (index < input.length && input[index] !== ':') continue
-    const part = input.slice(start, index).trim()
-    if (part) output.push(part)
-    start = index + 1
+    if (index < input.length && input[index] !== ":") continue;
+    const part = input.slice(start, index).trim();
+    if (part) output.push(part);
+    start = index + 1;
   }
-  return output
+  return output;
 }
 
 /**
@@ -1209,10 +1717,14 @@ function splitRuntimeContextParts(input: string): string[] {
  * @param selectors - Selector list.
  * @returns New selector list.
  */
-function prefixSelectors(prefix: string, selectors: readonly string[]): string[] {
-  const output = new Array<string>(selectors.length)
-  for (let index = 0; index < selectors.length; index += 1) output[index] = `${prefix} ${selectors[index]}`
-  return output
+function prefixSelectors(
+  prefix: string,
+  selectors: readonly string[],
+): string[] {
+  const output = new Array<string>(selectors.length);
+  for (let index = 0; index < selectors.length; index += 1)
+    output[index] = `${prefix} ${selectors[index]}`;
+  return output;
 }
 
 /**
@@ -1222,10 +1734,14 @@ function prefixSelectors(prefix: string, selectors: readonly string[]): string[]
  * @param pseudo - Pseudo name without colon.
  * @returns New selector list.
  */
-function appendPseudoToSelectors(selectors: readonly string[], pseudo: string): string[] {
-  const output = new Array<string>(selectors.length)
-  for (let index = 0; index < selectors.length; index += 1) output[index] = `${selectors[index]}:${pseudo}`
-  return output
+function appendPseudoToSelectors(
+  selectors: readonly string[],
+  pseudo: string,
+): string[] {
+  const output = new Array<string>(selectors.length);
+  for (let index = 0; index < selectors.length; index += 1)
+    output[index] = `${selectors[index]}:${pseudo}`;
+  return output;
 }
 
 /**
@@ -1235,9 +1751,10 @@ function appendPseudoToSelectors(selectors: readonly string[], pseudo: string): 
  * @returns Selector text.
  */
 function joinSelectors(selectors: readonly string[]): string {
-  let output = ''
-  for (let index = 0; index < selectors.length; index += 1) output += output ? `,${selectors[index]}` : selectors[index]
-  return output
+  let output = "";
+  for (let index = 0; index < selectors.length; index += 1)
+    output += output ? `,${selectors[index]}` : selectors[index];
+  return output;
 }
 
 /***************************************************************************************************
@@ -1251,9 +1768,10 @@ function joinSelectors(selectors: readonly string[]): string {
  * @returns Cached artifact or undefined.
  */
 function getCachedArtifact(cacheKey: string): CipoCssResult | undefined {
-  if (!runtime.config.jit.enabled || !runtime.config.jit.cache) return undefined
+  if (!runtime.config.jit.enabled || !runtime.config.jit.cache)
+    return undefined;
 
-  return runtime.artifactCache.get(cacheKey) as CipoCssResult | undefined
+  return runtime.artifactCache.get(cacheKey) as CipoCssResult | undefined;
 }
 
 /**
@@ -1264,10 +1782,10 @@ function getCachedArtifact(cacheKey: string): CipoCssResult | undefined {
  * @returns Nothing.
  */
 function setCachedArtifact(cacheKey: string, artifact: CipoCssResult): void {
-  if (!runtime.config.jit.enabled || !runtime.config.jit.cache) return
+  if (!runtime.config.jit.enabled || !runtime.config.jit.cache) return;
 
-  runtime.artifactCache.set(cacheKey, artifact)
-  evictIfNeeded(runtime.artifactCache as Map<string, unknown>)
+  runtime.artifactCache.set(cacheKey, artifact);
+  evictIfNeeded(runtime.artifactCache as Map<string, unknown>);
 }
 
 /***************************************************************************************************
@@ -1281,7 +1799,7 @@ function setCachedArtifact(cacheKey: string, artifact: CipoCssResult): void {
  * @returns Whether it is a declaration.
  */
 function isDeclarationNode(node: CipoAstNode): node is CipoDeclarationNode {
-  return node.type === 'declaration'
+  return node.type === "declaration";
 }
 
 /**
@@ -1291,5 +1809,5 @@ function isDeclarationNode(node: CipoAstNode): node is CipoDeclarationNode {
  * @returns Whether it is a block.
  */
 function isBlockNode(node: CipoAstNode): node is CipoBlockNode {
-  return node.type === 'block'
+  return node.type === "block";
 }
