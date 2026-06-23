@@ -1,24 +1,24 @@
 name: 📦 Publish browser bundle
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "src/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig*.json"
-      - "vitest.config.*"
-      - "vitest.workspace.*"
-      - ".github/workflows/publish-browser-bundle.yml"
-      - "!**/*.md"
-      - "!docs/**"
-      - "!.vscode/**"
-      - "!.idea/**"
-      - "!.DS_Store"
+  #push:
+   # branches:
+    #  - main
+  #  paths:
+     # - "src/**"
+#      - "scripts/**"
+   #   - "package.json"
+    #  - "pnpm-lock.yaml"
+    #  - "pnpm-workspace.yaml"
+      #- "tsconfig*.json"
+  #    - "vitest.config.*"
+  #    - "vitest.workspace.*"
+  #    - ".github/workflows/publish-browser-bundle.yml"
+   #   - "!**/*.md"
+   #   - "!docs/**"
+   #   - "!.vscode/**"
+   #   - "!.idea/**"
+   #   - "!.DS_Store"
 
   workflow_dispatch:
     inputs:
