@@ -3,6 +3,8 @@
 
 ## Next
 
+- Split DOM directive controllers into `dom-directives.ts` and spread prop diffing into `dom-spread.ts` to reduce `dom.ts` hot-spot complexity without changing public APIs.
+- Added focused unit tests for directive controllers and spread prop diffing.
 - Added template spread props syntax for DOM and component placeholder nodes: `html`<button ...${props}>Save</button>``.
 - Added component event prop normalization so `<${Button} @click=${save}>` reaches the component as `props.onClick`.
 - Fixed delegated events so root-level delegation no longer double-fires when a direct fallback is also needed for jsdom or isolated userscript worlds.
