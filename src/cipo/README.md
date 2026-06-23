@@ -4,6 +4,17 @@ Cipó is the CSS owner in the Rod browser toolbox. It provides a semantic CSS DS
 
 Cipó does **not** own HTML rendering. Fábrica owns reactivity/templates. `fabrica-elements` owns element/component factories. Cipó consumes that bridge for `cipo.div.css``...`` ` and `cipo(Component).css``...`` `.
 
+
+## Internal compiler layout
+
+The runtime compiler is split by responsibility so feature work does not keep inflating the main public entry file:
+
+- `css.ts` owns public APIs and artifact creation.
+- `css-mode.ts` owns the tiny top-level scanner that routes polymorphic `css` calls to inline, configure, atomic, or stylesheet mode.
+- `runtime-dsl.ts` owns runtime-safe design-language expansion such as token objects, mixins, palettes and smart helpers.
+
+The mode scanner is intentionally string-first and bounded. It does not parse declarations or selectors; it only peeks at top-level directives so `Cipo.css` remains fast enough to be the universal entry point.
+
 ## Install / import
 
 ```ts
