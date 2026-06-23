@@ -14,6 +14,9 @@
 
 ### Added
 
+- Refactored Fabrica DOM internals into specialized directive and spread modules, with focused unit coverage for each extraction.
+- Refactored Cipó polymorphic `css` mode detection into a dedicated scanner module with isolated unit tests.
+
 - Broto deep-store branch nodes are now callable, so `store.plugins.filters()` and any nested object branch return a tracked plain snapshot while `peek()`/`snapshot()` stay non-tracked.
 - Added `draft(mutator, meta?)` as an alias for `update()` and exported `createDeepStore` as an explicit alias for `store()`.
 
