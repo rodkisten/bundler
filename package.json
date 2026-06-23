@@ -16,7 +16,10 @@
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
     "publish:gist": "tsx scripts/publish-gist.ts",
-    "bench": "tsx scripts/benchmarks.ts"
+    "bench:all": "tsx scripts/benchmarks.ts",
+    "bench": "vitest bench",
+    "bench:cipo": "vitest bench src/cipo/tests/cipo.bench.ts",
+    "bench:cipo:run": "vitest bench src/cipo/tests/cipo.bench.ts --run"
   },
   "devDependencies": {
     "@types/node": "25.9.1",
