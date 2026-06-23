@@ -246,13 +246,13 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Benchmarks
-        id: benchmarks
+        id: benchmarks_cipo
         continue-on-error: true
         run: |
           set -o pipefail
           mkdir -p artifacts/test 
           
-          pnpm bench:all 2>&1 | tail -n +5 | tee artifacts/test/benchmark-output.log
+          pnpm bench:cipo:run 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
 
       - name: Write benchmark summary
         if: always()
@@ -262,12 +262,12 @@ jobs:
             echo ""
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Status | \`${{ steps.tests.outcome }}\` |"
+            echo "| Status | \`${{ steps.benchmarks_cipo.outcome }}\` |"
             echo ""
             echo "### Last test output lines"
             echo ""
             echo '```md'
-            tail -n 200 artifacts/test/benchmark-output.log || true
+            tail -n 200 artifacts/test/benchmarks-cipo-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
