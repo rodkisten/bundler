@@ -222,14 +222,8 @@ jobs:
           mkdir -p artifacts/test
 
           pnpm test 2>&1 | tee artifacts/test/test-output.log
-      
-      - name: Run Benchmarks
-        id: benchmarks
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          pnpm bench
-
+        
+        
       - name: Write test summary
         if: always()
         run: |
@@ -245,6 +239,32 @@ jobs:
             echo ""
             echo '```txt'
             tail -n 200 artifacts/test/test-output.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Benchmarks
+        id: benchmarks
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -0 artifacts/test 
+          
+          pnpm bench 2>&1 | tee artifacts/test/benchmark-output.log
+
+      - name: Write benchmark summary
+        if: always()
+        run: |
+          {
+            echo "## ⏱️ Benchmark Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ steps.tests.outcome }}\` |"
+            echo ""
+            echo "### Last test output lines"
+            echo ""
+            echo '```txt'
+            tail -n 200 artifacts/test/benchmark-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
