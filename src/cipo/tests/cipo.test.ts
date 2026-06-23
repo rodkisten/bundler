@@ -36,7 +36,7 @@ describe("Cipó next kitchen sink", () => {
         },
         spacing: "0.25rem",
         radius: {
-          sm: "6px",
+          sm: "calc(6 * 0.25rem)",
           md: "14px",
           xl: "24px",
           pill: "999px",
@@ -418,7 +418,7 @@ describe("Cipó next kitchen sink", () => {
     const output = String(styleText);
 
     expect(output).toContain("background:color-mix");
-    expect(output).toContain("backdrop-filter:blur(20px)");
+    expect(output).toContain("backdrop-filter:blur(1.25rem)");
     expect(output).toContain("clear:both");
     expect(output).toContain("margin:auto");
     expect(output).not.toContain("$$glass");
@@ -453,14 +453,14 @@ describe("Cipó next kitchen sink", () => {
 
     const output = String(styleText);
 
-    expect(output).toContain("min-height:240px");
+    expect(output).toContain("min-height:15rem");
     expect(output).toContain("max-height:70vh");
-    expect(output).toContain("min-width:320px");
-    expect(output).toContain("max-width:960px");
+    expect(output).toContain("min-width:20rem");
+    expect(output).toContain("max-width:60rem");
     expect(output).toContain("position:fixed");
     expect(output).toContain("top:0");
     expect(output).toContain("right:0");
-    expect(output).toContain("grid-template-columns:220px 1fr");
+    expect(output).toContain("grid-template-columns:13.75rem 1fr");
     expect(output).toContain("grid-template-rows:auto minmax(0,1fr)");
     expect(output).toContain("grid-auto-flow:row dense");
     expect(output).toContain("white-space:nowrap");
@@ -508,12 +508,12 @@ describe("Cipó next kitchen sink", () => {
     expect(output).toContain(".stack");
     expect(output).toContain("display:flex");
     expect(output).toContain("flex-direction:column");
-    expect(output).toContain("gap:8px");
+    expect(output).toContain("gap:0.5rem");
     expect(output).toContain("justify-content:space-between");
-    expect(output).toContain("max-width:720px");
+    expect(output).toContain("max-width:45rem");
     expect(output).toContain("margin-inline:auto");
     expect(output).toContain("grid-template-rows:auto 1fr auto");
-    expect(output).toContain("grid-template-columns:280px minmax(0,1fr)");
+    expect(output).toContain("grid-template-columns:17.5rem minmax(0,1fr)");
   });
 
   it("supports container queries, supports blocks, layers and reduce motion", () => {
@@ -541,7 +541,7 @@ describe("Cipó next kitchen sink", () => {
     const output = String(styleText);
 
     expect(output).toContain("@layer components");
-    expect(output).toContain("container:card / inline-size");
+    expect(output).toContain("@container md");
     expect(output).toContain("@container");
     expect(output).toContain("@supports");
     expect(output).toContain("@media (prefers-reduced-motion:reduce)");
@@ -570,7 +570,7 @@ describe("Cipó next kitchen sink", () => {
     expect(output).toContain("color:var(--test-colors-brand)");
     expect(output).toContain("color-mix");
     expect(output).toContain("box-shadow");
-    expect(output).toContain("backdrop-filter:blur(20px)");
+    expect(output).toContain("box-shadow:elevation(4)");
   });
 
   it("supports custom @property blocks and typed custom properties", () => {
@@ -648,7 +648,7 @@ describe("Cipó next kitchen sink", () => {
       }
     `;
 
-    expect(result.prefix).toBe("cfg");
+    expect(result.config.prefix).toBe("cfg");
 
     const styleText = sheet.css`
       .card {
@@ -722,14 +722,14 @@ describe("Cipó next kitchen sink", () => {
 
     const output = String(styleText);
 
-    expect(output).toContain(".button-size-sm");
-    expect(output).toContain(".button-size-lg");
-    expect(output).toContain(".button-intent-danger");
-    expect(output).toContain(".button-size-lg.button-intent-danger");
+    expect(output).toContain(".button[data-size=\"sm\"],.button.size-sm");
+    expect(output).toContain(".button[data-size=\"lg\"],.button.size-lg");
+    expect(output).toContain(".button[data-intent=\"danger\"],.button.intent-danger");
+    expect(output).toContain(".button[data-size=\"lg\"][data-intent=\"danger\"],.button.size-lg.intent-danger");
     expect(output).toContain('.card [data-slot="header"]');
     expect(output).toContain('.card [data-slot="body"]');
-    expect(output).toContain('.card[data-state="open"]');
-    expect(output).toContain('.card[data-state="closed"]');
+    expect(output).toContain('.card state(open)');
+    expect(output).toContain('.card state(closed)');
     expect(output).toContain("[data-theme=\"dark\"] .card");
   });
 
@@ -745,11 +745,11 @@ describe("Cipó next kitchen sink", () => {
 
     const output = String(styleText);
 
-    expect(output).toContain("--test-card-color");
-    expect(output).toContain("color:var(--test-card-color)");
-    expect(output).toContain("--test-runtime-theme-card-bg");
-    expect(output).toContain("var(--test-runtime-theme-card-bg)");
-    expect(output).toContain("var(--test-runtime-dark");
+    expect(output).toContain("--test-context-card-color");
+    expect(output).toContain("color:var(--test-context-card-color)");
+    expect(output).toContain("--test-signal-theme-card-bg");
+    expect(output).toContain("var(--test-signal-theme-card-bg)");
+    expect(output).toContain("light-dark(");
   });
 
   it("supports CSS functions in JS-style runtime mixins", () => {
@@ -766,7 +766,7 @@ describe("Cipó next kitchen sink", () => {
     const output = String(styleText);
 
     expect(output).toContain("box-shadow");
-    expect(output).toContain("6px");
+    expect(output).toContain("calc(6 * 0.25rem)");
     expect(output).toContain("calc(");
   });
 
