@@ -21,6 +21,8 @@ import { theme } from './theme'
 import { installBuiltInHelpers } from './helpers'
 import { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
 
+Object.assign(css, { configure: configureCss })
+
 export * from './types'
 export { configure, setup } from './config'
 export { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
