@@ -247,7 +247,7 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
-          mkdir -0 artifacts/test 
+          mkdir -p artifacts/test 
           
           pnpm bench 2>&1 | tee artifacts/test/benchmark-output.log
 
