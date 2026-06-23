@@ -252,7 +252,7 @@ jobs:
           set -o pipefail
           mkdir -p artifacts/test 
           
-          pnpm bench 2>&1 | tail -n +5 | tee artifacts/test/benchmark-output.log
+          pnpm bench:all 2>&1 | tail -n +5 | tee artifacts/test/benchmark-output.log
 
       - name: Write benchmark summary
         if: always()
