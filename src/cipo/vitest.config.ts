@@ -6,6 +6,7 @@ export default defineConfig({
     globals: true,
   },
   reporters: [
+       'verbose',
       ['github-actions', {
         jobSummary: {
           outputPath: '/home/runner/jobs/summary/step',
