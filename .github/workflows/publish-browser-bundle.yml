@@ -219,6 +219,9 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
+          
           mkdir -p artifacts/test
 
           pnpm test 2>&1 | tee artifacts/test/test-output.log
@@ -249,7 +252,7 @@ jobs:
           set -o pipefail
           mkdir -p artifacts/test 
           
-          pnpm bench 2>&1 | tee artifacts/test/benchmark-output.log
+          pnpm bench 2>&1 | tail -n +5 | tee artifacts/test/benchmark-output.log
 
       - name: Write benchmark summary
         if: always()
@@ -263,7 +266,7 @@ jobs:
             echo ""
             echo "### Last test output lines"
             echo ""
-            echo '```txt'
+            echo '```md'
             tail -n 200 artifacts/test/benchmark-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
