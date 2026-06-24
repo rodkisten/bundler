@@ -40,7 +40,8 @@ export function joinClassNames(atoms: readonly CipoAtomicRule[], scopeClassName:
 }
 
 import type { CipoAstNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoWarning } from '../types'
-import { buildCss, transformCss } from '../transform'
+import { transformCss } from '../transform'
+import { buildSafeSource } from '../safe-source'
 import { parseStylesheet } from '../parser'
 import { insertCss } from '../injection'
 import { collectRules } from './at-rules'
@@ -48,7 +49,7 @@ import { compileCss, createArtifactCacheKey, getCachedArtifact, setCachedArtifac
 
 /** Compiles explicit atomic CSS and injects its generated rules. */
 export function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
-  const rawCss = buildCss(strings, values)
+  const rawCss = buildSafeSource(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
   const cached = getCachedArtifact(cacheKey)
 
