@@ -25,11 +25,11 @@ describe('Cipó CSS corruption safety', () => {
       }
     `)
 
-    expect(css).toContain('font:600 0.6875rem var(--cipo-internal-native-slash-7f3c,/) 1 var(--font-ui)')
+    expect(css).toContain('font:600 0.6875rem / 1 var(--font-ui)')
     expect(css).toContain('content:""')
     expect(css).toContain('transform:translateX(-50%)')
     expect(css).toContain('direction:rtl')
-    expect(css).toContain('grid:auto-flow var(--cipo-internal-native-slash-7f3c,/) 1fr 2fr')
+    expect(css).toContain('grid:auto-flow / 1fr 2fr')
     expect(css).not.toContain('font-family:calc(')
     expect(css).not.toContain('align-content:""')
     expect(css).not.toContain('text-transform:translateX(')

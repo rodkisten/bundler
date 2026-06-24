@@ -1,3 +1,4 @@
+import { prepareCoreCssInput, finalizeCoreCssOutput } from './core-transform-safety'
 import { runtime } from './runtime'
 import { expandRuntimeDsl } from './runtime-dsl'
 import type { CipoStyleObject, CipoWarning } from './types'
@@ -45,13 +46,18 @@ export function buildCss(strings: TemplateStringsArray, values: readonly unknown
  * The order is tuned to avoid corruption:
  *
  * 1. comments are removed;
- * 2. standalone aliases are expanded in a single pass;
- * 3. legacy `@with(...)` is lowered to property declarations;
- * 4. theme tokens are resolved;
- * 5. value helpers are resolved with balanced-parentheses scanning.
+ * 2. source constructs that must survive runtime parsing are protected;
+ * 3. runtime-only design-language features are expanded;
+ * 4. standalone aliases are expanded in a single pass;
+ * 5. legacy `@with(...)` is lowered to property declarations;
+ * 6. theme tokens are resolved;
+ * 7. value helpers are resolved with balanced-parentheses scanning;
+ * 8. protected CSS syntax and deferred runtime references are restored.
  *
  * Runtime contexts such as `x:md {}` and `x:hover {}` are intentionally left as
- * block names. They are parsed later by the AST compiler.
+ * block names. They are parsed later by the AST compiler. Protection and
+ * restoration are deliberately placed around runtime expansion so native CSS
+ * shorthand grammar is never mistaken for Cipó arithmetic.
  *
  * @param input - Raw CSS source.
  * @param warnings - Warning sink.
@@ -65,11 +71,13 @@ export function buildCss(strings: TemplateStringsArray, values: readonly unknown
  */
 export function transformCss(input: string, warnings: CipoWarning[]): string {
   const withoutComments = stripComments(input)
-  const runtimeExpanded = expandRuntimeDsl(withoutComments, warnings)
+  const prepared = prepareCoreCssInput(withoutComments)
+  const runtimeExpanded = expandRuntimeDsl(prepared, warnings)
   const expandedAliases = expandStandaloneAliases(runtimeExpanded, warnings)
   const compatWith = expandWithCompat(expandedAliases, warnings)
   const themed = resolveThemeReferences(compatWith)
-  return resolveHelpers(themed)
+  const resolved = resolveHelpers(themed)
+  return finalizeCoreCssOutput(resolved)
 }
 
 /**
