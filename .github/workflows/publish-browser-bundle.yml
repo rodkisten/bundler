@@ -255,17 +255,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 🌿 Run Cipó benchmarks
-        shell: bash
-        run: |
-         set -o pipefail
-         mkdir -p artifacts
-
-         pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
-           2>&1 \
-           | node scripts/strip-ansi-stream.mjs \
-           | tee artifacts/cipo-benchmark.log
-     
       - name: Run Benchmarks
         id: benchmarks_cipo
         continue-on-error: true
@@ -278,6 +267,18 @@ jobs:
           
           pnpm bench:cipo:run 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
 
+      - name: 🌿 Run Cipó benchmarks
+        shell: bash
+        continue-on-error: true
+        run: |
+         set -o pipefail
+         mkdir -p artifacts
+
+         pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
+           2>&1 \
+           | node scripts/strip-ansi-stream.mjs \
+           | tee artifacts/cipo-benchmark.log
+     
       - name: Write benchmark summary
         if: always()
         run: |
