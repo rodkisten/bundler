@@ -1,1 +1,0 @@
-export const CIPO_NATIVE_SLASH_SENTINEL = '__CIPO_SLASH__'
