@@ -1,0 +1,69 @@
+name: Validate Cipó CSS corruption fix
+
+on:
+  push:
+    branches:
+      - codex/fix-cipo-css-corruption
+    paths:
+      - cipo-css-corruption.patch
+      - .github/workflows/validate-cipo-css-corruption-fix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/fix-cipo-css-corruption
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.1 --activate
+
+      - name: Apply declarative patch
+        run: |
+          git apply --check cipo-css-corruption.patch
+          git apply cipo-css-corruption.patch
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Cipó regression tests
+        run: >-
+          pnpm exec vitest run
+          --config src/cipo/vitest.config.ts
+          src/cipo/tests/cipo.css-corruption-regressions.test.ts
+          src/cipo/src/runtime-dsl.test.ts
+          src/cipo/tests/cipo.test.ts
+
+      - name: Typecheck repository
+        run: pnpm typecheck
+
+      - name: Package validated files
+        run: |
+          mkdir -p validated/src/cipo/src validated/src/cipo/tests
+          cp src/cipo/src/aliases.ts validated/src/cipo/src/aliases.ts
+          cp src/cipo/src/runtime-dsl.ts validated/src/cipo/src/runtime-dsl.ts
+          cp src/cipo/src/parser.ts validated/src/cipo/src/parser.ts
+          cp src/cipo/src/injection.ts validated/src/cipo/src/injection.ts
+          cp src/cipo/tests/cipo.css-corruption-regressions.test.ts validated/src/cipo/tests/cipo.css-corruption-regressions.test.ts
+
+      - name: Upload validated files
+        uses: actions/upload-artifact@v4
+        with:
+          name: cipo-css-corruption-fix
+          path: validated
+          if-no-files-found: error
