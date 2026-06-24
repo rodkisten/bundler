@@ -99,3 +99,16 @@
 - Added `registerPreset()` for reusable CSS-first presets backed by CSS strings, config objects or functions.
 - Added `registerConfigPlugin()` with a small plugin API for registering aliases, themes, custom properties and raw CSS.
 - Added focused Vitest coverage for CSS-first config, presets, plugins, breakpoints, aliases and typed custom properties.
+
+## Typed theme schema and compiler safety pass
+
+- Added CSS-first semantic annotations such as `radius<length>` and `shadow<shadow>`.
+- Added inherited group typing so one annotation validates every scalar leaf in a nested token map.
+- Added `strict`, `warn` and `off` theme validation modes plus deferred browser-value handling for `var()`, `env()` and `attr()`.
+- Added native-compatible type metadata and selective automatic `@property` generation with safe syntax and initial values.
+- Added semantic-only validators for shadows, easing functions, borders, transitions, fonts and z-index values without emitting invalid browser registrations.
+- Added `typedTheme()`, `typedProperty()`, `defineThemeType()`, `getThemeType()`, `listThemeTypes()` and `validateThemeValue()` APIs.
+- Added annotation options for registration, inheritance, initial values and per-token validation overrides.
+- Fixed CSS-first object parsing so comma-separated font stacks and transition lists remain intact inside typed maps.
+- Moved slash protection, compact-block normalization, selector-list safety and native property guards into the primary compiler entry points.
+- Added a large typed-theme application stylesheet covering complex selectors, nested states, containers, media queries, dialogs, tables, forms, dashboards and design-system utilities.

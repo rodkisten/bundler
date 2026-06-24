@@ -896,6 +896,117 @@ This injects both the `@property` rules and the token values:
 :root { --cipo-knob-angle: 0deg; }
 ```
 
+### Semantic typed theme schema
+
+CSS-first themes can declare a Cipó semantic type directly on a scalar token or
+on an entire nested group. A group annotation is inherited by every scalar leaf.
+
+```ts
+configureCss`
+  @cipo {
+    theme-validation: warn;
+    register-typed-theme-properties: true;
+  }
+
+  @theme {
+    spacing<size>: 0.25rem;
+
+    radius<length>: (
+      sm: 6px,
+      md: 14px,
+      modal: 24px,
+      pill: 999px
+    );
+
+    shadow<shadow>: (
+      panel: 0 28px 90px rgb(0 0 0 / 0.72),
+      modal: 0 32px 120px rgb(0 0 0 / 0.78)
+    );
+  }
+`
+```
+
+`<length>` and `<size>` validate every value and automatically emit native
+`@property` registrations because they map safely to browser syntax. `<shadow>`
+is a richer semantic Cipó type: it validates each shadow layer, but does not emit
+an invalid fictional `syntax: "<shadow>"` registration.
+
+```css
+@property --cipo-radius-md {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+:root {
+  --cipo-radius-md: 0.875rem;
+  --cipo-shadow-panel: 0 1.75rem 5.625rem rgb(0 0 0 / 0.72);
+}
+```
+
+Annotation options are optional and comma-separated:
+
+```css
+radius<length, no-register>: (sm: 6px, md: 14px);
+progress<number, register, inherits:false, initial:0>: 0.72;
+legacy<any, validation:off>: proprietary-value;
+```
+
+Validation modes:
+
+- `strict` throws and fails the build/config application.
+- `warn` reports a structured warning and preserves the original token value.
+- `off` keeps the schema metadata but skips validation.
+- `var()`, `env()` and `attr()` values are marked as deferred because the browser
+  owns their final computed value.
+
+Built-in native-compatible types include `length`, `size`, `spacing`,
+`length-percentage`, `percentage`, `number`, `integer`, `angle`, `time`,
+`resolution`, `color`, `transform`, `image`, `gradient`, `url` and
+`custom-ident`. Semantic-only validators include `shadow`, `easing`, `border`,
+`transition`, `font`, `z-index`, `string` and `any`.
+
+JS-first themes use the same registry and validation pipeline:
+
+```ts
+theme({
+  radius: typedTheme('length', { sm: '6px', md: '14px' }),
+  elevation: typedTheme('shadow', {
+    panel: '0 28px 90px rgb(0 0 0 / 0.72)',
+  }),
+})
+
+typedProperty('dockOffset', 'length', '12px', { inherits: false })
+```
+
+Custom semantic types can reuse existing validators:
+
+```ts
+defineThemeType('positive-length', {
+  cssSyntax: '<length>',
+  registrable: true,
+  initialValue: '0px',
+  validate(value) {
+    const base = validateThemeValue('length', value)
+    if (base.status !== 'valid') return { ...base, type: 'positive-length' }
+    return value.trim().startsWith('-')
+      ? {
+          status: 'invalid',
+          valid: false,
+          type: 'positive-length',
+          value,
+          code: 'positive-length-negative',
+          reason: 'Negative lengths are not allowed.',
+        }
+      : { status: 'valid', valid: true, type: 'positive-length', value }
+  },
+})
+```
+
+The CSS-first object parser preserves comma-separated CSS values, so font stacks,
+transition lists, gradients and multi-layer shadows can live inside typed maps
+without being mistaken for sibling token entries.
+
 ### Runtime typed declarations
 
 Typed values can also be used directly in the runtime DSL:

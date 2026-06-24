@@ -8,6 +8,7 @@ import type {
   CipoWarning,
 } from "./types";
 import { buildCss, transformCss } from "./transform";
+import { normalizeTemplateChunk } from "./safe-template";
 import { parseStylesheet } from "./parser";
 import {
   compileAtomicCss,
@@ -389,7 +390,7 @@ function getPolymorphicTemplateSource(
     return cached;
   }
 
-  const rawCss = buildCss(strings, values);
+  const rawCss = normalizeTemplateChunk(buildCss(strings, values));
   const source = splitPolymorphicCssSource(rawCss);
   const entry: PolymorphicTemplateCacheEntry = {
     values: values.length === 0 ? EMPTY_INTERPOLATIONS : values.slice(),

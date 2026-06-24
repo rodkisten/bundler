@@ -34,6 +34,9 @@ export function configure(config: CipoConfig): void {
     layers: config.layers ?? config.output?.layers ?? current.layers,
     rem: nextRem,
     colorMode: config.colorMode ?? current.colorMode,
+    themeValidation: config.themeValidation ?? current.themeValidation,
+    registerTypedThemeProperties:
+      config.registerTypedThemeProperties ?? current.registerTypedThemeProperties,
     jit: nextJit,
     onWarning: config.onWarning ?? current.onWarning,
   }
@@ -126,6 +129,8 @@ function sameRuntimeConfig(left: RuntimeConfig, right: RuntimeConfig): boolean {
     left.layers === right.layers &&
     left.rem === right.rem &&
     left.colorMode === right.colorMode &&
+    left.themeValidation === right.themeValidation &&
+    left.registerTypedThemeProperties === right.registerTypedThemeProperties &&
     left.jit === right.jit &&
     left.onWarning === right.onWarning
   )

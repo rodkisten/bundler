@@ -1,7 +1,2 @@
+/** @deprecated CipoCssConfigResult now declares its non-artifact kind directly. */
 export {}
-
-declare module './config-css' {
-  interface CipoCssConfigResult {
-    readonly kind?: never
-  }
-}

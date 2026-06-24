@@ -1,6 +1,7 @@
 import { runtime, evictIfNeeded } from '../runtime'
 import type { CipoAstNode, CipoBlockNode, CipoCssInterpolation, CipoCssResult, CipoDeclarationNode, CipoScopedRule, CipoStylesheetArtifact, CipoWarning } from '../types'
-import { buildCss, transformCss } from '../transform'
+import { transformCss } from '../transform'
+import { buildSafeSource } from '../safe-source'
 import { parseStylesheet } from '../parser'
 import { formatCss, wrapLayer } from '../format'
 import { createDeclaration, hashString } from '../utils'
@@ -37,7 +38,7 @@ function importWrapContext(rule: string, context: import('../types').CipoRuleCon
 
 /** Compiles explicit full stylesheet CSS. */
 export function compileSheetCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
-  const rawCss = buildCss(strings, values)
+  const rawCss = buildSafeSource(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss, important ? 'sheet-important' : 'sheet')
   const cached = getCachedArtifact(cacheKey)
 
@@ -54,7 +55,7 @@ export function compileSheetCss(strings: TemplateStringsArray, values: readonly 
 
 /** Compiles a stylesheet wrapped in a scope selector. */
 export function compileScopedSheetCss(selector: string, strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
-  const rawCss = buildCss(strings, values)
+  const rawCss = buildSafeSource(strings, values)
   const scopedSource = `${selector}{${rawCss}}`
   const cacheKey = createArtifactCacheKey(scopedSource, important ? 'sheet-scoped-important' : 'sheet-scoped')
   const cached = getCachedArtifact(cacheKey)
