@@ -2,6 +2,7 @@ import { normalizeCompactRuntimeBlocks } from './compact-block-safety'
 import { expandCoreSizeCalls } from './core-size-safety'
 import { installNativePropertyGuards } from './native-property-guards'
 import { protectNativeSlashes } from './native-slash-protection'
+import { resolveRemainingRuntimeVars } from './remaining-runtime-vars'
 import { restoreNativeSlash } from './restore-native-slash'
 import { joinNestedSelectorLists } from './selector-list-safety'
 
@@ -19,5 +20,7 @@ export function prepareCoreCssInput(input: string): string {
 }
 
 export function finalizeCoreCssOutput(input: string): string {
-  return joinNestedSelectorLists(restoreNativeSlash(input))
+  return joinNestedSelectorLists(
+    resolveRemainingRuntimeVars(restoreNativeSlash(input)),
+  )
 }
