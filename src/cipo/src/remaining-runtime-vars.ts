@@ -2,7 +2,7 @@ import { runtime } from './runtime'
 
 export function resolveRemainingRuntimeVars(input: string): string {
   return input.replace(
-    /\$\$([a-zA-Z_][\w.-]*)(?![\w.-])(?!\s*:)/g,
+    /(?<![\w-])\$\$([a-zA-Z_][\w.-]*)(?![\w.-])(?!\s*:)/g,
     (_match, name: string) => {
       const normalized = name
         .replace(/[._]+/g, '-')
