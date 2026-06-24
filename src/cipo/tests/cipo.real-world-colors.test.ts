@@ -3,6 +3,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { css, getCssText, reset, sheet } from '../../cipo'
 
+/**
+ * Installs the exact CSS-first configuration that exposed the production regressions.
+ *
+ * @remarks
+ * Keeping this fixture close to the reported source prevents future tests from
+ * becoming synthetic and accidentally omitting interactions between `@cipo`,
+ * `@theme`, native shorthand grammar, color helpers and runtime custom properties.
+ *
+ * @param tag - Cipó's polymorphic CSS template tag.
+ * @returns The artifact produced while applying the configuration directives.
+ */
 function installBaseStyles(tag: typeof css) {
   return tag`
     @cipo {
