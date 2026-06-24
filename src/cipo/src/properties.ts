@@ -68,6 +68,7 @@ export function property(name: string, definition: CipoPropertyDefinition): stri
   runtime.propertyDefinitions.set(normalizedName, normalized)
   insertCss(wrapPropertyCss(compilePropertyRule(normalizedName, normalized)))
   runtime.configVersion += 1
+  runtime.registryVersion += 1
   return normalizedName
 }
 

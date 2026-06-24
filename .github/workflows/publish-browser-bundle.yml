@@ -250,7 +250,7 @@ jobs:
             echo ""
             echo "### Last test output lines"
             echo ""
-            echo '```txt'
+            echo '```markdown'
             tail -n 200 artifacts/test/test-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -260,6 +260,9 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
+          
           mkdir -p artifacts/test 
           
           pnpm bench:cipo:run 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
@@ -276,7 +279,7 @@ jobs:
             echo ""
             echo "### Last test output lines"
             echo ""
-            echo '```md'
+            echo '```markdown'
             tail -n 200 artifacts/test/benchmarks-cipo-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

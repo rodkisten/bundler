@@ -39,23 +39,40 @@ import { getTypedInitialValue, isTypedValue, property } from './properties'
  * }
  * ```
  */
+export type FlattenedThemeEntry = readonly [string, string | number | CipoTypedValue]
+
+const themeValueSignatures = new Map<string, string>()
+
 export function theme(tokens: CipoTheme): void {
-  registerThemeTokens(tokens)
-  injectThemeTokens(tokens)
+  const flattened = flattenTheme(tokens)
+  registerThemeEntries(flattened)
+  injectThemeEntries(flattened)
 }
 
-/**
- * Registers token lookup metadata without injecting CSS.
- *
- * @param tokens - Theme object.
- * @returns Nothing.
- */
+/** Registers token lookup metadata without injecting CSS. */
 export function registerThemeTokens(tokens: CipoTheme): void {
-  const flattened = flattenTheme(tokens)
+  registerThemeEntries(flattenTheme(tokens))
+}
 
-  for (const [fullName] of flattened) {
+/** Injects the theme custom property declarations. */
+export function injectThemeTokens(tokens: CipoTheme): void {
+  injectThemeEntries(flattenTheme(tokens))
+}
+
+function registerThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
+  let changed = false
+
+  for (let index = 0; index < flattened.length; index += 1) {
+    const [fullName, value] = flattened[index]!
+    const signature = themeValueSignature(value)
+
+    if (themeValueSignatures.get(fullName) !== signature) {
+      themeValueSignatures.set(fullName, signature)
+      changed = true
+    }
+
     runtime.themeKeys.add(fullName)
-    const shortName = fullName.split('-').at(-1)
+    const shortName = fullName.slice(fullName.lastIndexOf('-') + 1)
     if (!shortName) continue
 
     const existing = runtime.shortThemeTokens.get(shortName)
@@ -70,17 +87,10 @@ export function registerThemeTokens(tokens: CipoTheme): void {
     }
   }
 
-  runtime.themeVersion += 1
+  if (changed) runtime.themeVersion += 1
 }
 
-/**
- * Injects the theme custom property declarations.
- *
- * @param tokens - Theme object.
- * @returns Nothing.
- */
-export function injectThemeTokens(tokens: CipoTheme): void {
-  const flattened = flattenTheme(tokens)
+function injectThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
   let declarations = ''
 
   for (let index = 0; index < flattened.length; index += 1) {
@@ -100,38 +110,47 @@ export function injectThemeTokens(tokens: CipoTheme): void {
     declarations += createDeclaration(propertyName, normalizeValue('theme-token', String(value)))
   }
 
-  if (!declarations) return
-  insertCss(wrapLayer('tokens', `${runtime.config.themeRootSelector}{${declarations}}`))
+  if (declarations) {
+    insertCss(wrapLayer('tokens', `${runtime.config.themeRootSelector}{${declarations}}`))
+  }
 }
 
 /**
  * Flattens a nested token object into dash-separated token names.
  *
- * @param tokens - Theme object.
- * @param path - Current token path.
- * @returns Flat token entries.
- *
- * @example
- * ```ts
- * flattenTheme({ colors: { brand: '#f97316' } })
- * // [['colors-brand', '#f97316']]
- * ```
+ * @remarks
+ * The walker reuses one output array and one path string, avoiding the recursive
+ * array spreads that previously multiplied allocations for large themes.
  */
-export function flattenTheme(tokens: CipoTheme, path: readonly string[] = []): Array<readonly [string, string | number | CipoTypedValue]> {
-  const output: Array<readonly [string, string | number | CipoTypedValue]> = []
-
-  for (const [key, value] of Object.entries(tokens)) {
-    const nextPath = [...path, key]
-
-    if (isThemeBranch(value)) {
-      output.push(...flattenTheme(value, nextPath))
-      continue
-    }
-
-    output.push([nextPath.join('-'), value])
-  }
-
+export function flattenTheme(
+  tokens: CipoTheme,
+  path: readonly string[] = [],
+): FlattenedThemeEntry[] {
+  const output: FlattenedThemeEntry[] = []
+  appendFlattenedTheme(tokens, path.join('-'), output)
   return output
+}
+
+function appendFlattenedTheme(
+  tokens: CipoTheme,
+  prefix: string,
+  output: FlattenedThemeEntry[],
+): void {
+  for (const key in tokens) {
+    const value = tokens[key]
+    if (value === undefined) continue
+    const name = prefix ? `${prefix}-${key}` : key
+
+    if (isThemeBranch(value)) appendFlattenedTheme(value, name, output)
+    else output.push([name, value])
+  }
+}
+
+function themeValueSignature(value: string | number | CipoTypedValue): string {
+  if (isTypedValue(value)) {
+    return `typed:${value.syntax}:${value.inherits ? 1 : 0}:${value.initialValue}`
+  }
+  return `${typeof value}:${String(value)}`
 }
 
 /**

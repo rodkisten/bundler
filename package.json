@@ -19,7 +19,8 @@
     "bench:all": "tsx scripts/benchmarks.ts",
     "bench": "vitest bench",
     "bench:cipo": "vitest bench src/cipo/tests/cipo.bench.ts",
-    "bench:cipo:run": "vitest bench src/cipo/tests/cipo.bench.ts --run"
+    "bench:cipo:run": "vitest bench src/cipo/tests/cipo.bench.ts --run && pnpm bench:cipo:memory",
+    "bench:cipo:memory": "node --expose-gc --import tsx scripts/cipo-memory-benchmark.ts"
   },
   "devDependencies": {
     "@types/node": "25.9.1",

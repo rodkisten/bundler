@@ -419,4 +419,5 @@ export interface RuntimeState {
   layerHeaderInserted: boolean;
   themeVersion: number;
   configVersion: number;
+  registryVersion: number;
 }

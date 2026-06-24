@@ -1,6 +1,6 @@
 import { DEFAULT_BASE_FONT_SIZE } from './constants'
 import { clearJitCaches, runtime } from './runtime'
-import type { CipoConfig, CipoJitConfig, CipoRemConfig } from './types'
+import type { CipoConfig, CipoJitConfig, CipoRemConfig, RuntimeConfig } from './types'
 import { theme } from './theme'
 import { configureCss } from './config-css'
 
@@ -8,66 +8,46 @@ import { configureCss } from './config-css'
  * Configures the Cipó runtime.
  *
  * @remarks
- * This function preserves the original `configure()` API and adds the new
- * merged `theme` key. It deliberately accepts both flat flags and nested config
- * because userscript usage benefits from ergonomic one-call setup.
+ * Configuration is a cold-path operation. Reapplying an equivalent patch is a
+ * no-op: the runtime object is preserved, versions are not bumped and JIT caches
+ * stay warm. Nested rem/JIT/breakpoint objects are only allocated when one of
+ * their values actually changes.
  *
  * @param config - Runtime config patch.
  * @returns Nothing.
- *
- * @example
- * ```ts
- * configure({
- *   prefix: 'rod',
- *   minify: false,
- *   layers: true,
- *   rem: { enabled: true, baseFontSize: 16 },
- *   theme: { colors: { brand: '#f97316' } },
- * })
- * ```
  */
 export function configure(config: CipoConfig): void {
-  const nextRem = normalizeRemConfig(config.rem, config.baseFontSize)
-  const nextJit = normalizeJitConfig(config.jit)
+  const current = runtime.config
+  const nextRem = normalizeRemConfig(config.rem, config.baseFontSize, current.rem)
+  const nextJit = normalizeJitConfig(config.jit, current.jit)
+  const nextBreakpoints = mergeBreakpoints(current.breakpoints, config.breakpoints)
 
-  runtime.config = {
-    prefix: config.prefix ?? runtime.config.prefix,
-    debug: config.debug ?? runtime.config.debug,
-    important: config.important ?? runtime.config.important,
-    adapter: config.adapter ?? runtime.config.adapter,
-    darkSelector: config.darkSelector ?? runtime.config.darkSelector,
-    themeRootSelector: config.themeRootSelector ?? runtime.config.themeRootSelector,
-    breakpoints: {
-      ...runtime.config.breakpoints,
-      ...(config.breakpoints ?? {}),
-    },
-    minify: config.minify ?? config.output?.minify ?? runtime.config.minify,
-    layers: config.layers ?? config.output?.layers ?? runtime.config.layers,
-    rem: nextRem ?? runtime.config.rem,
-    colorMode: config.colorMode ?? runtime.config.colorMode,
-    jit: nextJit ?? runtime.config.jit,
-    onWarning: config.onWarning ?? runtime.config.onWarning,
+  const next: RuntimeConfig = {
+    prefix: config.prefix ?? current.prefix,
+    debug: config.debug ?? current.debug,
+    important: config.important ?? current.important,
+    adapter: config.adapter ?? current.adapter,
+    darkSelector: config.darkSelector ?? current.darkSelector,
+    themeRootSelector: config.themeRootSelector ?? current.themeRootSelector,
+    breakpoints: nextBreakpoints,
+    minify: config.minify ?? config.output?.minify ?? current.minify,
+    layers: config.layers ?? config.output?.layers ?? current.layers,
+    rem: nextRem,
+    colorMode: config.colorMode ?? current.colorMode,
+    jit: nextJit,
+    onWarning: config.onWarning ?? current.onWarning,
   }
 
-  runtime.configVersion += 1
-  clearJitCaches()
-
-  if (config.theme) {
-    theme(config.theme)
+  if (!sameRuntimeConfig(current, next)) {
+    runtime.config = next
+    runtime.configVersion += 1
+    clearJitCaches()
   }
+
+  if (config.theme) theme(config.theme)
 }
 
-/**
- * Ergonomic alias for configure().
- *
- * @param config - Runtime config patch.
- * @returns Nothing.
- *
- * @example
- * ```ts
- * setup({ theme: { spacing: '0.25rem' } })
- * ```
- */
+/** Ergonomic alias for configure(). */
 Object.assign(configure, { css: configureCss })
 
 export function setup(config: CipoConfig): void {
@@ -76,22 +56,77 @@ export function setup(config: CipoConfig): void {
 
 Object.assign(setup, { css: configureCss })
 
-function normalizeRemConfig(rem: boolean | CipoRemConfig | undefined, baseFontSize: number | undefined): Required<CipoRemConfig> | null {
-  if (rem === undefined && baseFontSize === undefined) return null
-  if (typeof rem === 'boolean') return { enabled: rem, baseFontSize: baseFontSize ?? runtime.config.rem.baseFontSize }
-  return {
-    enabled: rem?.enabled ?? runtime.config.rem.enabled,
-    baseFontSize: rem?.baseFontSize ?? baseFontSize ?? runtime.config.rem.baseFontSize ?? DEFAULT_BASE_FONT_SIZE,
-  }
+function normalizeRemConfig(
+  rem: boolean | CipoRemConfig | undefined,
+  baseFontSize: number | undefined,
+  current: Required<CipoRemConfig>,
+): Required<CipoRemConfig> {
+  if (rem === undefined && baseFontSize === undefined) return current
+
+  const enabled = typeof rem === 'boolean' ? rem : rem?.enabled ?? current.enabled
+  const nextBaseFontSize =
+    typeof rem === 'object'
+      ? rem.baseFontSize ?? baseFontSize ?? current.baseFontSize ?? DEFAULT_BASE_FONT_SIZE
+      : baseFontSize ?? current.baseFontSize ?? DEFAULT_BASE_FONT_SIZE
+
+  if (enabled === current.enabled && nextBaseFontSize === current.baseFontSize) return current
+  return { enabled, baseFontSize: nextBaseFontSize }
 }
 
-function normalizeJitConfig(jit: boolean | CipoJitConfig | undefined): Required<CipoJitConfig> | null {
-  if (jit === undefined) return null
-  if (typeof jit === 'boolean') return { ...runtime.config.jit, enabled: jit }
-  return {
-    enabled: jit.enabled ?? runtime.config.jit.enabled,
-    cache: jit.cache ?? runtime.config.jit.cache,
-    maxEntries: jit.maxEntries ?? runtime.config.jit.maxEntries,
-    debug: jit.debug ?? runtime.config.jit.debug,
+function normalizeJitConfig(
+  jit: boolean | CipoJitConfig | undefined,
+  current: Required<CipoJitConfig>,
+): Required<CipoJitConfig> {
+  if (jit === undefined) return current
+
+  const enabled = typeof jit === 'boolean' ? jit : jit.enabled ?? current.enabled
+  const cache = typeof jit === 'boolean' ? current.cache : jit.cache ?? current.cache
+  const maxEntries = typeof jit === 'boolean' ? current.maxEntries : jit.maxEntries ?? current.maxEntries
+  const debug = typeof jit === 'boolean' ? current.debug : jit.debug ?? current.debug
+
+  if (
+    enabled === current.enabled &&
+    cache === current.cache &&
+    maxEntries === current.maxEntries &&
+    debug === current.debug
+  ) {
+    return current
   }
+
+  return { enabled, cache, maxEntries, debug }
+}
+
+function mergeBreakpoints(
+  current: Readonly<Record<string, string | null>>,
+  patch: Readonly<Record<string, string | null>> | undefined,
+): Readonly<Record<string, string | null>> {
+  if (!patch) return current
+
+  let changed = false
+  for (const key in patch) {
+    if (!Object.is(current[key], patch[key])) {
+      changed = true
+      break
+    }
+  }
+
+  return changed ? { ...current, ...patch } : current
+}
+
+function sameRuntimeConfig(left: RuntimeConfig, right: RuntimeConfig): boolean {
+  return (
+    left.prefix === right.prefix &&
+    left.debug === right.debug &&
+    left.important === right.important &&
+    Object.is(left.adapter, right.adapter) &&
+    left.darkSelector === right.darkSelector &&
+    left.themeRootSelector === right.themeRootSelector &&
+    left.breakpoints === right.breakpoints &&
+    left.minify === right.minify &&
+    left.layers === right.layers &&
+    left.rem === right.rem &&
+    left.colorMode === right.colorMode &&
+    left.jit === right.jit &&
+    left.onWarning === right.onWarning
+  )
 }

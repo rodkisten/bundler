@@ -25,11 +25,24 @@ import {
 import { insertCss } from "./injection";
 import { configureFromCss } from "./config-css";
 import { inline } from "./inline";
-import { splitPolymorphicCssSource } from "./css-mode";
+import { splitPolymorphicCssSource, type PolymorphicCssSource } from "./css-mode";
 
 /***************************************************************************************************
  * Public Types
  **************************************************************************************************/
+
+type PolymorphicTemplateCacheEntry = {
+  readonly values: readonly CipoCssInterpolation[];
+  readonly rawCss: string;
+  readonly source: PolymorphicCssSource;
+};
+
+let polymorphicTemplateCache = new WeakMap<TemplateStringsArray, PolymorphicTemplateCacheEntry>();
+
+/** Clears template-identity mode detection cache. Intended for tests/benchmarks. */
+export function clearPolymorphicTemplateCache(): void {
+  polymorphicTemplateCache = new WeakMap();
+}
 
 /***************************************************************************************************
  * Public API
@@ -313,8 +326,10 @@ function compilePolymorphicCss(
       ? inline.css.withImportant(first, ...values)
       : inline.css(first, ...values);
 
-  const rawCss = buildCss(first as TemplateStringsArray, values);
-  const polymorphic = splitPolymorphicCssSource(rawCss);
+  const { rawCss, source: polymorphic } = getPolymorphicTemplateSource(
+    first as TemplateStringsArray,
+    values,
+  );
 
   if (polymorphic.inline)
     return important
@@ -362,6 +377,43 @@ function compilePolymorphicCss(
   insertCss(artifact.compiledCss);
   setCachedArtifact(cacheKey, artifact);
   return artifact;
+}
+
+function getPolymorphicTemplateSource(
+  strings: TemplateStringsArray,
+  values: readonly CipoCssInterpolation[],
+): { readonly rawCss: string; readonly source: PolymorphicCssSource } {
+  const cached = polymorphicTemplateCache.get(strings);
+
+  if (cached && canReuseInterpolationValues(cached.values, values)) {
+    return cached;
+  }
+
+  const rawCss = buildCss(strings, values);
+  const source = splitPolymorphicCssSource(rawCss);
+  const entry: PolymorphicTemplateCacheEntry = {
+    values: values.length === 0 ? EMPTY_INTERPOLATIONS : values.slice(),
+    rawCss,
+    source,
+  };
+  polymorphicTemplateCache.set(strings, entry);
+  return entry;
+}
+
+const EMPTY_INTERPOLATIONS: readonly CipoCssInterpolation[] = Object.freeze([]);
+
+function canReuseInterpolationValues(
+  previous: readonly CipoCssInterpolation[],
+  next: readonly CipoCssInterpolation[],
+): boolean {
+  if (previous.length !== next.length) return false;
+  for (let index = 0; index < previous.length; index += 1) {
+    const value = next[index];
+    if ((typeof value === "object" && value !== null) || !Object.is(previous[index], value)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
