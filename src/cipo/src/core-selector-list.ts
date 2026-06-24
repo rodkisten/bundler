@@ -13,5 +13,5 @@ export function normalizeCoreSelectorLists(input: string): string {
     output.push(line)
   }
 
-  return output.join('\n')
+  return output.join('\n').replace(/&:\s+(?=[a-zA-Z_-])/g, '&:')
 }
