@@ -1,0 +1,369 @@
+diff --git a/src/cipo/src/aliases.ts b/src/cipo/src/aliases.ts
+index a5474c4..1111111 100644
+--- a/src/cipo/src/aliases.ts
++++ b/src/cipo/src/aliases.ts
+@@ -238,7 +238,7 @@ export function installPropertyAliases(): void {
+     shrink: ['flex-shrink', none],
+     order: ['order', none],
+-    direction: ['flex-direction', none],
++    direction: ['direction', none],
+     flexDirection: ['flex-direction', none],
+     'flex-direction': ['flex-direction', none],
+@@ -257,7 +257,7 @@ export function installPropertyAliases(): void {
+     self: ['align-self', none],
+     alignSelf: ['align-self', none],
+     'align-self': ['align-self', none],
+-    content: ['align-content', none],
++    content: ['content', none],
+     alignContent: ['align-content', none],
+     'align-content': ['align-content', none],
+@@ -272,7 +272,7 @@ export function installPropertyAliases(): void {
+      * Grid
+      ***********************************************************************************************/
+ 
+-    grid: ['grid-template-columns', none],
++    grid: ['grid', none],
+     gridCols: ['grid-template-columns', none],
+     'grid-cols': ['grid-template-columns', none],
+@@ -315,7 +315,7 @@ export function installPropertyAliases(): void {
+      * Typography
+      ***********************************************************************************************/
+ 
+-    font: ['font-family', none],
++    font: ['font', none],
+     fontFamily: ['font-family', none],
+     'font-family': ['font-family', none],
+@@ -348,7 +348,7 @@ export function installPropertyAliases(): void {
+     underlineOffset: ['text-underline-offset', spacing],
+     'underline-offset': ['text-underline-offset', spacing],
+-    transform: ['text-transform', none],
++    transform: ['transform', none],
+     textTransform: ['text-transform', none],
+     'text-transform': ['text-transform', none],
+diff --git a/src/cipo/src/runtime-dsl.ts b/src/cipo/src/runtime-dsl.ts
+index 980f4e8..2222222 100644
+--- a/src/cipo/src/runtime-dsl.ts
++++ b/src/cipo/src/runtime-dsl.ts
+@@ -910,6 +910,25 @@ export function createOklchUtilityColor(name: string, shade: number): string {
+   return `oklch(${round(lightness)} ${round(chroma)} ${round(hue)})`;
+ }
+ 
++const SLASH_GRAMMAR_PROPERTIES = new Set([
++  "aspect-ratio",
++  "background",
++  "border-image",
++  "border-radius",
++  "font",
++  "grid",
++  "grid-area",
++  "grid-column",
++  "grid-column-end",
++  "grid-column-start",
++  "grid-row",
++  "grid-row-end",
++  "grid-row-start",
++  "grid-template",
++  "mask",
++  "mask-border",
++  "offset",
++]);
++
+ function hashHue(name: string): number {
+   let hash = 0;
+   for (let index = 0; index < name.length; index += 1)
+@@ -932,17 +951,53 @@ function normalizeRuntimeVariableMath(input: string): string {
+ }
+ 
+ function normalizeRuntimeDeclarationChunk(chunk: string): string {
+-  if (chunk.indexOf("{") >= 0 || chunk.indexOf("}") >= 0) return chunk;
+-  const colon = findTopLevelChar(chunk, ":");
++  const declarationStart = findRuntimeDeclarationStart(chunk);
++  const prefix = chunk.slice(0, declarationStart);
++  const declaration = chunk.slice(declarationStart);
++  const colon = findTopLevelChar(declaration, ":");
+   if (colon <= 0) return chunk;
+-  const before = chunk.slice(0, colon + 1);
+-  const value = chunk.slice(colon + 1).trim();
+-  if (!value) return chunk;
+-  return `${before} ${normalizeRuntimeExpression(value)}`;
++
++  const property = declaration.slice(0, colon).trim();
++  const value = declaration.slice(colon + 1).trim();
++  if (!property || !value) return chunk;
++
++  const before = declaration.slice(0, colon + 1);
++  return `${prefix}${before} ${normalizeRuntimeExpression(value, property)}`;
++}
++
++function findRuntimeDeclarationStart(chunk: string): number {
++  let start = 0;
++  let depth = 0;
++  let quote: '"' | "'" | null = null;
++
++  for (let index = 0; index < chunk.length; index += 1) {
++    const char = chunk[index];
++    if (quote) {
++      if (char === quote && chunk[index - 1] !== "\\") quote = null;
++      continue;
++    }
++    if (char === '"' || char === "'") {
++      quote = char;
++      continue;
++    }
++    if (char === "(" || char === "[") {
++      depth += 1;
++      continue;
++    }
++    if (char === ")" || char === "]") {
++      depth = Math.max(0, depth - 1);
++      continue;
++    }
++    if (depth === 0 && (char === "{" || char === "}")) start = index + 1;
++  }
++
++  return start;
+ }
+ 
+-function normalizeRuntimeExpression(value: string): string {
++function normalizeRuntimeExpression(value: string, property = ""): string {
+   const withVars = replaceRuntimeVars(value.trim());
+   if (withVars.startsWith("calc(")) return withVars;
+-  if (!hasTopLevelMath(withVars)) return withVars;
++  if (!hasTopLevelMath(withVars, property)) return withVars;
+   return `calc(${withVars})`;
+ }
+@@ -970,8 +1025,10 @@ function replaceRuntimeVars(value: string): string {
+   return output;
+ }
+ 
+-function hasTopLevelMath(value: string): boolean {
++function hasTopLevelMath(value: string, property: string): boolean {
++  const normalizedProperty = property.trim().replace(/^#/, "").toLowerCase();
+   let depth = 0;
+   let quote: '"' | "'" | null = null;
++
+   for (let index = 0; index < value.length; index += 1) {
+     const char = value[index];
+     if (quote) {
+@@ -991,8 +1048,17 @@ function hasTopLevelMath(value: string): boolean {
+       depth = Math.max(0, depth - 1);
+       continue;
+     }
+-    if (depth === 0 && (char === "+" || char === "*" || char === "/"))
++    if (depth !== 0) continue;
++
++    if (char === "+" || char === "*")
++      return true;
++    if (
++      char === "/" &&
++      !SLASH_GRAMMAR_PROPERTIES.has(normalizedProperty) &&
++      isLikelyDivisionOperator(value, index)
++    )
+       return true;
+     if (
+-      depth === 0 &&
+       char === "-" &&
+       index > 0 &&
+       /\s/.test(value[index - 1] || "") &&
+@@ -1004,6 +1070,14 @@ function hasTopLevelMath(value: string): boolean {
+   return false;
+ }
+ 
++function isLikelyDivisionOperator(value: string, index: number): boolean {
++  const left = value.slice(0, index).trimEnd();
++  const right = value.slice(index + 1).trimStart();
++  if (!left || !right) return false;
++  if (!/[)\w.%]$/.test(left)) return false;
++  return /^(?:[+-]?(?:\d|\.)|var\(|calc\(|min\(|max\(|clamp\()/.test(right);
++}
++
+ function findTopLevelChar(value: string, target: string): number {
+   let depth = 0;
+   let quote: '"' | "'" | null = null;
+diff --git a/src/cipo/src/parser.ts b/src/cipo/src/parser.ts
+index 98a36bb..3333333 100644
+--- a/src/cipo/src/parser.ts
++++ b/src/cipo/src/parser.ts
+@@ -359,6 +359,7 @@ function findDeclarationBlockBoundary(input: string): number {
+       const after = input.slice(index + 1).trim()
+ 
+       if (!after) return -1
++      if (before.endsWith(',')) continue
+       if (before && containsDeclarationLikeStatement(before)) return index + 1
+     }
+   }
+@@ -376,6 +377,7 @@ function containsDeclarationLikeStatement(input: string): boolean {
+   for (let index = 0; index < tokens.length; index += 1) {
+     const token = tokens[index]
+     if (!token) continue
++    if (isSelectorLikeToken(token)) continue
+     if (findTopLevelColon(token) > 0) return true
+     if (parseFunctionCall(token)) return true
+     if (/^\$?[a-zA-Z_][\w-]*$/.test(token.trim())) return true
+@@ -385,6 +387,15 @@ function containsDeclarationLikeStatement(input: string): boolean {
+   return false
+ }
+ 
++/** Returns whether a token is a selector fragment rather than a declaration. */
++function isSelectorLikeToken(input: string): boolean {
++  const token = input.trim()
++  if (!token) return false
++  if (token.endsWith(',')) return true
++  return /^[&.#[:*>+~]/.test(token) || token.startsWith('@nest ')
++}
++
+ /**
+  * Appends one token when it contains meaningful content.
+  *
+diff --git a/src/cipo/src/injection.ts b/src/cipo/src/injection.ts
+index 13fda34..4444444 100644
+--- a/src/cipo/src/injection.ts
++++ b/src/cipo/src/injection.ts
+@@ -6,6 +6,8 @@ import type { CipoCssArtifact, CipoInjectStyleOptions, CipoInlineCssArtifact, Cip
+ import { hashString, normalizeCss } from './utils'
+ 
++let hydrationScheduled = false
++
+ /**
+  * Injects CSS into the runtime stylesheet sink.
+@@ -34,6 +36,7 @@ export function insertCss(cssText: string): void {
+   if (!cssText || !cssText.trim()) return
+ 
+   const style = hasDocument() ? ensureStyleElement() : null
++  if (!style) scheduleStyleHydration()
+ 
+   if (runtime.config.layers && !runtime.layerHeaderInserted) {
+@@ -136,10 +139,29 @@ export function ensureStyleElement(): HTMLStyleElement {
+   const element = document.createElement('style')
+   element.id = STYLE_ELEMENT_ID
+   element.dataset.cipo = 'runtime'
++  element.textContent = runtime.generatedCssText
+   document.head.appendChild(element)
+   return element
+ }
+ 
++function scheduleStyleHydration(): void {
++  if (hydrationScheduled || typeof document === 'undefined') return
++  hydrationScheduled = true
++
++  const hydrate = () => {
++    if (!runtime.generatedCssText || !hasDocument()) return
++    ensureStyleElement()
++    hydrationScheduled = false
++    document.removeEventListener('readystatechange', hydrate)
++    document.removeEventListener('DOMContentLoaded', hydrate)
++  }
++
++  document.addEventListener('readystatechange', hydrate)
++  document.addEventListener('DOMContentLoaded', hydrate, { once: true })
++  queueMicrotask(hydrate)
++}
++
+ export function hasDocument(): boolean {
+   return typeof document !== 'undefined' && Boolean(document.head)
+ }
+diff --git a/src/cipo/tests/cipo.css-corruption-regressions.test.ts b/src/cipo/tests/cipo.css-corruption-regressions.test.ts
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/src/cipo/tests/cipo.css-corruption-regressions.test.ts
+@@ -0,0 +1,105 @@
++import { beforeEach, describe, expect, it } from 'vitest'
++import { getCssText, reset, setup, sheet } from '../src/index'
++
++describe('Cipó CSS corruption regressions', () => {
++  beforeEach(() => {
++    reset()
++    setup({
++      prefix: 'reg',
++      layers: false,
++      minify: true,
++      theme: {
++        colors: {
++          strong: '#ffffff',
++          panel: '#111111',
++          cyan: '#00ffff',
++          danger: '#ff0000',
++        },
++      },
++    })
++  })
++
++  it('preserves native CSS properties instead of destructive aliases', () => {
++    const artifact = sheet.css`
++      .native-properties {
++        font: 600 11px / 1 var(--font-ui)
++        content: ""
++        transform: translateX(-50%)
++        direction: rtl
++        grid: auto-flow / 1fr 2fr
++      }
++    `
++    const css = String(artifact)
++
++    expect(css).toContain('font:600 0.6875rem / 1 var(--font-ui)')
++    expect(css).toContain('content:""')
++    expect(css).toContain('transform:translateX(-50%)')
++    expect(css).toContain('direction:rtl')
++    expect(css).toContain('grid:auto-flow / 1fr 2fr')
++    expect(css).not.toContain('font-family:calc(')
++    expect(css).not.toContain('align-content:""')
++    expect(css).not.toContain('text-transform:translateX(')
++  })
++
++  it('keeps multiline nested selector lists intact', () => {
++    const artifact = sheet.css`
++      .details-resize {
++        &::before {
++          content: ""
++          transform: translateX(-50%)
++        }
++
++        &:hover::before,
++        &:focus-visible::before {
++          background: red
++        }
++      }
++    `
++    const css = String(artifact)
++
++    expect(css).toContain('.details-resize::before')
++    expect(css).toContain('.details-resize:hover::before,.details-resize:focus-visible::before')
++    expect(css).not.toContain('&:hover')
++    expect(css).not.toContain(';&')
++  })
++
++  it('emits token colors and resolves runtime variables in one-line blocks', () => {
++    const artifact = sheet.css`:root { $colors(strong: #fff, panel: #111, cyan: #0ff); $$strong: $colors.strong; $$detailsHeight: 280px; } .layout { grid-template-rows: minmax(0, 1fr) auto minmax(0, $$detailsHeight); }`
++    const css = String(artifact)
++
++    expect(css).toContain('--reg-colors-strong:#fff')
++    expect(css).toContain('--reg-colors-panel:#111')
++    expect(css).toContain('--reg-colors-cyan:#0ff')
++    expect(css).toContain('--reg-strong:var(--reg-colors-strong)')
++    expect(css).toContain('minmax(0, var(--reg-details-height))')
++    expect(css).not.toContain('$$')
++  })
++
++  it('hydrates theme CSS generated before document.head exists', async () => {
++    document.head?.remove()
++
++    reset()
++    setup({
++      prefix: 'early',
++      layers: false,
++      theme: { colors: { strong: '#abcdef' } },
++    })
++
++    expect(document.getElementById('cipo-runtime-style')).toBeNull()
++    expect(getCssText()).toContain('--early-colors-strong')
++
++    const head = document.createElement('head')
++    document.documentElement.insertBefore(head, document.body)
++    document.dispatchEvent(new Event('readystatechange'))
++    await Promise.resolve()
++
++    const style = document.getElementById('cipo-runtime-style')
++    expect(style?.textContent).toContain('--early-colors-strong:#abcdef')
++  })
++})
