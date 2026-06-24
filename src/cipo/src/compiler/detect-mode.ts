@@ -17,6 +17,14 @@ const CONFIG_DIRECTIVES: Record<string, 1> = {
   plugin: 1,
 };
 
+const DETECTION_CACHE_LIMIT = 512;
+const sourceDetectionCache = new Map<string, PolymorphicCssSource>();
+
+/** Clears bounded source-shape detection cache. Intended for tests/benchmarks. */
+export function clearPolymorphicDetectionCache(): void {
+  sourceDetectionCache.clear();
+}
+
 /**
  * Splits the single `Cipo.css` entry point into the lightest safe mode.
  *
@@ -31,6 +39,19 @@ const CONFIG_DIRECTIVES: Record<string, 1> = {
  * - `css`@cipo {...}`` for pure CSS-first setup.
  */
 export function splitPolymorphicCssSource(input: string): PolymorphicCssSource {
+  const cached = sourceDetectionCache.get(input);
+  if (cached) return cached;
+
+  const result = scanPolymorphicCssSource(input);
+  sourceDetectionCache.set(input, result);
+  if (sourceDetectionCache.size > DETECTION_CACHE_LIMIT) {
+    const oldest = sourceDetectionCache.keys().next().value as string | undefined;
+    if (oldest !== undefined) sourceDetectionCache.delete(oldest);
+  }
+  return result;
+}
+
+function scanPolymorphicCssSource(input: string): PolymorphicCssSource {
   const first = findFirstMeaningful(input);
   if (
     first >= 0 &&
