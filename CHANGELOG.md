@@ -14,6 +14,9 @@
 
 ### Added
 
+- Refactored the real Cipó compiler implementation into focused modules for detection, atomic compilation, stylesheet compilation, inline compilation, declaration expansion, selector/context wrapping, at-rule collection and important handling.
+- Added focused unit tests for every new Cipó compiler module so the extracted implementation is covered independently from the kitchen sink tests.
+
 - Refactored Fabrica DOM internals into specialized directive and spread modules, with focused unit coverage for each extraction.
 - Refactored Cipó polymorphic `css` mode detection into a dedicated scanner module with isolated unit tests.
 
@@ -38,6 +41,9 @@
 - The generated landing page now extracts `@example` blocks from every source file under each tool package, not just root entry files.
 
 ### Changed
+
+- `src/cipo/src/compiler.ts` is now a compatibility barrel over `src/cipo/src/compiler/*`; existing imports keep working while the implementation lives in smaller production modules.
+- `src/cipo/src/inline.ts` now delegates inline compilation to `compiler/inline-compile.ts`, reducing duplicated compiler responsibilities.
 
 - Broto object branches now share the same callable mental model as primitive signal leaves, reducing `is not a function` errors in deeply nested UI stores.
 
