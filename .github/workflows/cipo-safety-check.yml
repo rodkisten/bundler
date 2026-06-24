@@ -1,0 +1,20 @@
+name: Cipó safety checks
+on: [push]
+permissions:
+  contents: read
+jobs:
+  test:
+    if: github.ref == 'refs/heads/codex/fix-cipo-css-corruption'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --config src/cipo/vitest.config.ts src/cipo/tests/cipo.native-property-safety.test.ts src/cipo/tests/cipo.runtime-output-safety.test.ts src/cipo/tests/cipo.document-start-hydration.test.ts
+      - run: pnpm typecheck
