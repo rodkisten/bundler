@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { configSheet, configureCss, getCssText, registerConfigPlugin, registerPreset, reset, sheet, setupFromCss } from '../src'
+import { configSheet, configure, configureCss, configureFromCss, getCssText, registerConfigPlugin, registerPreset, reset, sheet, setupFromCss } from '../src'
 import { runtime } from '../src/runtime'
 
 describe('Cipó CSS-first configuration', () => {
@@ -110,4 +110,62 @@ describe('Cipó CSS-first configuration', () => {
     expect(result.warnings.map(warning => warning.code)).toContain('cipo-config-preset-not-found')
     expect(result.warnings.map(warning => warning.code)).toContain('cipo-config-plugin-not-found')
   })
+  it('caches prepared plans and skips equivalent warm applications', () => {
+    const previousConfig = runtime.config
+    const source = `
+      @cipo { prefix: cached; layers: false; minify: true; }
+      @theme { colors: (brand: #38bdf8); }
+      @breakpoints { panel: 900px; }
+    `
+
+    try {
+      const first = configureFromCss(source)
+      const versions = {
+        config: runtime.configVersion,
+        theme: runtime.themeVersion,
+        registry: runtime.registryVersion,
+      }
+      const cssText = getCssText()
+      const second = configureFromCss(source)
+
+      expect(second).toBe(first)
+      expect(runtime.configVersion).toBe(versions.config)
+      expect(runtime.themeVersion).toBe(versions.theme)
+      expect(runtime.registryVersion).toBe(versions.registry)
+      expect(getCssText()).toBe(cssText)
+
+      configure({ prefix: 'external' })
+      const reapplied = configureFromCss(source)
+
+      expect(reapplied).not.toBe(first)
+      expect(runtime.config.prefix).toBe('cached')
+    } finally {
+      configure(previousConfig)
+    }
+  })
+
+  it('reapplies cached plans after reset so generated CSS is restored', () => {
+    const previousConfig = runtime.config
+    const source = `
+      @cipo { prefix: restored; layers: false; }
+      @theme { colors: (brand: #22c55e); }
+      @property $$angle { syntax: "<angle>"; inherits: false; initial: 0deg; }
+    `
+
+    try {
+      configureFromCss(source)
+      expect(getCssText()).toContain('--restored-colors-brand:#22c55e')
+      expect(getCssText()).toContain('@property --restored-angle')
+
+      reset()
+      expect(getCssText()).toBe('')
+
+      configureFromCss(source)
+      expect(getCssText()).toContain('--restored-colors-brand:#22c55e')
+      expect(getCssText()).toContain('@property --restored-angle')
+    } finally {
+      configure(previousConfig)
+    }
+  })
+
 })

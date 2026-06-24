@@ -77,6 +77,19 @@ describe("Cipó polymorphic css entry point", () => {
     expect(String(result)).toContain("var(--poly-colors-brand)");
   });
 
+  it("does not reuse template-identity output for mutable interpolations", () => {
+    const compile = (style: { color: string }) => css`
+      @inline { ${style} }
+    `;
+    const style = { color: "red" };
+
+    expect(String(compile(style))).toContain("color:red");
+
+    style.color = "blue";
+
+    expect(String(compile(style))).toContain("color:blue");
+  });
+
   it("applies CSS-first config and returns the config result when no style body remains", () => {
     const result = css`
       @cipo {
