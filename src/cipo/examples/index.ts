@@ -253,3 +253,6 @@ export function runCipoExamples(): void {
   console.log(String(card), String(style), button({ tone: 'danger' }).className, Button({ children: 'Save' }), getCssText())
   if ('className' in card) console.log(explain(card.className.split(' ')[0] ?? ''))
 }
+
+export { createTypedThemeMegaSheet } from './typed-theme-mega-sheet'
+export type { TypedThemeMegaSheetResult } from './typed-theme-mega-sheet'

@@ -39,6 +39,8 @@ export const runtime: RuntimeState = {
       baseFontSize: DEFAULT_BASE_FONT_SIZE,
     },
     colorMode: 'oklch',
+    themeValidation: 'warn',
+    registerTypedThemeProperties: true,
     jit: {
       enabled: true,
       cache: true,

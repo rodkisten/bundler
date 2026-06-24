@@ -1,52 +1,42 @@
 import { DEFAULT_SPACING_VALUE } from './constants'
 import { runtime } from './runtime'
-import type { CipoTheme, CipoThemeValue, CipoTypedValue } from './types'
-import { createDeclaration, isPlainObject } from './utils'
+import type {
+  CipoTheme,
+  CipoThemeValue,
+  CipoTypedThemeValue,
+  CipoTypedValue,
+  CipoWarning,
+} from './types'
+import { createDeclaration, isPlainObject, warn } from './utils'
 import { insertCss } from './injection'
 import { wrapLayer } from './format'
 import { normalizeValue } from './values'
 import { getTypedInitialValue, isTypedValue, property } from './properties'
+import {
+  getThemeType,
+  isTypedThemeValue,
+  typedTheme,
+  validateThemeValue,
+} from './theme-types'
 
 /**
  * Registers theme tokens and injects them as CSS custom properties.
  *
  * @remarks
- * New API: `configure({ theme })` calls this internally. Old API: direct
- * `theme({...})` remains fully supported.
- *
- * Cipó also creates short `$token` aliases when they are unambiguous:
- * `$brand -> var(--cipo-colors-brand)`, `$xl -> var(--cipo-radius-xl)`.
- * Ambiguous short names are tracked and warned when used.
- *
- * @param tokens - Nested theme object.
- * @returns Nothing.
- *
- * @example
- * ```ts
- * theme({ colors: { brand: '#f97316' }, radius: { xl: '24px' } })
- *
- * css`
- *   bg: $brand;
- *   rounded: $xl;
- * `
- * ```
- *
- * Output CSS:
- * ```css
- * :root {
- *   --cipo-colors-brand: #f97316;
- *   --cipo-radius-xl: 1.5rem;
- * }
- * ```
+ * CSS-first typed groups such as `radius<length>: (...)` arrive here as typed
+ * theme nodes. Every leaf is validated once, receives precise warnings and is
+ * registered through `@property` only when its semantic type has a valid browser
+ * syntax.
  */
-export type FlattenedThemeEntry = readonly [string, string | number | CipoTypedValue]
+export type FlattenedThemeValue = string | number | CipoTypedValue | CipoTypedThemeValue
+export type FlattenedThemeEntry = readonly [string, FlattenedThemeValue]
 
 const themeValueSignatures = new Map<string, string>()
 
-export function theme(tokens: CipoTheme): void {
+export function theme(tokens: CipoTheme, warnings: CipoWarning[] = []): void {
   const flattened = flattenTheme(tokens)
   registerThemeEntries(flattened)
-  injectThemeEntries(flattened)
+  injectThemeEntries(flattened, warnings)
 }
 
 /** Registers token lookup metadata without injecting CSS. */
@@ -55,8 +45,8 @@ export function registerThemeTokens(tokens: CipoTheme): void {
 }
 
 /** Injects the theme custom property declarations. */
-export function injectThemeTokens(tokens: CipoTheme): void {
-  injectThemeEntries(flattenTheme(tokens))
+export function injectThemeTokens(tokens: CipoTheme, warnings: CipoWarning[] = []): void {
+  injectThemeEntries(flattenTheme(tokens), warnings)
 }
 
 function registerThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
@@ -90,7 +80,10 @@ function registerThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
   if (changed) runtime.themeVersion += 1
 }
 
-function injectThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
+function injectThemeEntries(
+  flattened: readonly FlattenedThemeEntry[],
+  warnings: CipoWarning[],
+): void {
   let declarations = ''
 
   for (let index = 0; index < flattened.length; index += 1) {
@@ -107,6 +100,11 @@ function injectThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
       continue
     }
 
+    if (isTypedThemeValue(value)) {
+      declarations += compileTypedThemeDeclaration(name, propertyName, value, warnings)
+      continue
+    }
+
     declarations += createDeclaration(propertyName, normalizeValue('theme-token', String(value)))
   }
 
@@ -115,12 +113,114 @@ function injectThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
   }
 }
 
+function compileTypedThemeDeclaration(
+  path: string,
+  propertyName: string,
+  token: CipoTypedThemeValue,
+  warnings: CipoWarning[],
+): string {
+  const rawValue = String(token.value)
+  const validationMode = token.validation ?? runtime.config.themeValidation
+  const result = validationMode === 'off'
+    ? { status: 'valid' as const, valid: true, type: token.type, value: rawValue }
+    : validateThemeValue(token.type, rawValue, { path })
+
+  if (result.status === 'invalid') {
+    const message = `Invalid <${token.type}> theme token "${path}": ${result.reason ?? 'invalid CSS value'} Received: ${JSON.stringify(rawValue)}.`
+    if (validationMode === 'strict') {
+      throw new TypeError(`[Cipó:${result.code ?? 'cipo-theme-value-invalid'}] ${message}`)
+    }
+    if (validationMode === 'warn') {
+      warn(
+        runtime,
+        warnings,
+        result.code ?? 'cipo-theme-value-invalid',
+        message,
+        { path, type: token.type, value: rawValue },
+      )
+    }
+  }
+
+  registerTypedThemeProperty(path, propertyName, token, result.status, warnings)
+  return createDeclaration(propertyName, normalizeValue('theme-token', rawValue))
+}
+
+function registerTypedThemeProperty(
+  path: string,
+  propertyName: string,
+  token: CipoTypedThemeValue,
+  validationStatus: 'valid' | 'invalid' | 'deferred',
+  warnings: CipoWarning[],
+): void {
+  const definition = getThemeType(token.type)
+  if (!definition) return
+
+  const requested = token.register
+  const shouldAutoRegister =
+    requested === 'auto' &&
+    runtime.config.registerTypedThemeProperties &&
+    definition.registrable !== false
+  const shouldRegister = requested === true || shouldAutoRegister
+  if (!shouldRegister) return
+
+  if (!definition.registrable || !definition.cssSyntax) {
+    if (requested === true) {
+      warn(
+        runtime,
+        warnings,
+        'cipo-theme-type-not-registrable',
+        `Theme type <${token.type}> validates "${path}" but cannot be represented safely by CSS @property syntax.`,
+        { path, type: token.type },
+      )
+    }
+    return
+  }
+
+  if (validationStatus === 'invalid') return
+
+  const initialValue = token.initialValue ?? definition.initialValue
+  if (initialValue === undefined || String(initialValue).trim() === '') {
+    warn(
+      runtime,
+      warnings,
+      'cipo-theme-property-initial-missing',
+      `Typed theme token "${path}" cannot emit @property because <${token.type}> has no safe initial value.`,
+      { path, type: token.type },
+    )
+    return
+  }
+
+  const validationMode = token.validation ?? runtime.config.themeValidation
+  if (validationMode !== 'off') {
+    const initialValidation = validateThemeValue(token.type, initialValue, {
+      path: `${path}.@property.initial`,
+    })
+    if (initialValidation.status !== 'valid') {
+      const message = `Typed theme token "${path}" cannot emit @property because its initial value ${JSON.stringify(String(initialValue))} is not a static valid <${token.type}>: ${initialValidation.reason ?? initialValidation.status}`
+      if (validationMode === 'strict') {
+        throw new TypeError(`[Cipó:${initialValidation.code ?? 'cipo-theme-property-initial-invalid'}] ${message}`)
+      }
+      warn(
+        runtime,
+        warnings,
+        initialValidation.code ?? 'cipo-theme-property-initial-invalid',
+        message,
+        { path, type: token.type, initialValue: String(initialValue) },
+      )
+      return
+    }
+  }
+
+  property(propertyName, {
+    syntax: definition.cssSyntax,
+    inherits: token.inherits ?? definition.inherits ?? true,
+    initialValue,
+  })
+}
+
 /**
  * Flattens a nested token object into dash-separated token names.
- *
- * @remarks
- * The walker reuses one output array and one path string, avoiding the recursive
- * array spreads that previously multiplied allocations for large themes.
+ * Typed groups propagate their semantic type to every scalar leaf.
  */
 export function flattenTheme(
   tokens: CipoTheme,
@@ -135,20 +235,71 @@ function appendFlattenedTheme(
   tokens: CipoTheme,
   prefix: string,
   output: FlattenedThemeEntry[],
+  inheritedType?: CipoTypedThemeValue,
 ): void {
   for (const key in tokens) {
     const value = tokens[key]
     if (value === undefined) continue
     const name = prefix ? `${prefix}-${key}` : key
-
-    if (isThemeBranch(value)) appendFlattenedTheme(value, name, output)
-    else output.push([name, value])
+    appendFlattenedThemeValue(value, name, output, inheritedType)
   }
 }
 
-function themeValueSignature(value: string | number | CipoTypedValue): string {
+function appendFlattenedThemeValue(
+  value: CipoThemeValue,
+  name: string,
+  output: FlattenedThemeEntry[],
+  inheritedType?: CipoTypedThemeValue,
+): void {
+  if (isTypedThemeValue(value)) {
+    if (isThemeBranch(value.value)) {
+      appendFlattenedTheme(value.value, name, output, value)
+    } else {
+      output.push([name, value])
+    }
+    return
+  }
+
+  if (isThemeBranch(value)) {
+    appendFlattenedTheme(value, name, output, inheritedType)
+    return
+  }
+
+  if (isTypedValue(value)) {
+    output.push([name, value])
+    return
+  }
+
+  if (inheritedType) {
+    output.push([
+      name,
+      typedTheme(inheritedType.type, value, {
+        register: inheritedType.register,
+        inherits: inheritedType.inherits,
+        initialValue: inheritedType.initialValue,
+        validation: inheritedType.validation,
+      }),
+    ])
+    return
+  }
+
+  output.push([name, value])
+}
+
+function themeValueSignature(value: FlattenedThemeValue): string {
   if (isTypedValue(value)) {
     return `typed:${value.syntax}:${value.inherits ? 1 : 0}:${value.initialValue}`
+  }
+  if (isTypedThemeValue(value)) {
+    return [
+      'theme-typed',
+      value.type,
+      value.register,
+      value.inherits,
+      value.initialValue,
+      value.validation,
+      String(value.value),
+    ].join(':')
   }
   return `${typeof value}:${String(value)}`
 }

@@ -36,11 +36,69 @@ export type AliasScale =
   | "text"
   | "color"
   | "none";
-export type CipoThemeValue = string | number | CipoTheme | CipoTypedValue;
+export type CipoThemeValidationMode = "strict" | "warn" | "off";
+export type CipoThemePropertyRegistration = "auto" | boolean;
+export type CipoThemeValidationStatus = "valid" | "invalid" | "deferred";
+
+export interface CipoTypedThemeOptions {
+  readonly register?: CipoThemePropertyRegistration;
+  readonly inherits?: boolean;
+  readonly initialValue?: string | number;
+  readonly validation?: CipoThemeValidationMode;
+}
+
+export interface CipoTypedThemeValue {
+  readonly kind: "cipo.theme.typed";
+  readonly type: string;
+  readonly value: string | number | CipoTheme;
+  readonly register: CipoThemePropertyRegistration;
+  readonly inherits?: boolean;
+  readonly initialValue?: string | number;
+  readonly validation?: CipoThemeValidationMode;
+}
+
+export type CipoThemeValue =
+  | string
+  | number
+  | CipoTheme
+  | CipoTypedValue
+  | CipoTypedThemeValue;
+
 export interface CipoTheme {
   readonly [key: string]: CipoThemeValue;
 }
+
+export interface CipoThemeValidationResult {
+  readonly status: CipoThemeValidationStatus;
+  readonly valid: boolean;
+  readonly type: string;
+  readonly value: string;
+  readonly reason?: string;
+  readonly code?: string;
+}
+
+export interface CipoThemeTypeValidationContext {
+  readonly path: string;
+  readonly type: string;
+  readonly definition: CipoThemeTypeDefinition;
+}
+
+export interface CipoThemeTypeDefinition {
+  readonly name?: string;
+  readonly cssSyntax?: string;
+  readonly registrable?: boolean;
+  readonly initialValue?: string | number;
+  readonly inherits?: boolean;
+  readonly validate?: (
+    value: string,
+    context: CipoThemeTypeValidationContext,
+  ) => CipoThemeValidationResult;
+}
 export type CipoRecord = Record<string, unknown>;
+
+export interface CipoTypedPropertyOptions {
+  readonly inherits?: boolean;
+}
 
 export interface CipoPropertyDefinition {
   readonly syntax: string;
@@ -114,6 +172,8 @@ export interface CipoConfig {
   readonly baseFontSize?: number;
   readonly colorMode?: CipoColorMode;
   readonly theme?: CipoTheme;
+  readonly themeValidation?: CipoThemeValidationMode;
+  readonly registerTypedThemeProperties?: boolean;
   readonly jit?: boolean | CipoJitConfig;
   readonly onWarning?: ((warning: CipoWarning) => void) | undefined;
 }
@@ -392,6 +452,8 @@ export interface RuntimeConfig {
   layers: boolean;
   rem: Required<CipoRemConfig>;
   colorMode: CipoColorMode;
+  themeValidation: CipoThemeValidationMode;
+  registerTypedThemeProperties: boolean;
   jit: Required<CipoJitConfig>;
   onWarning?: ((warning: CipoWarning) => void) | undefined;
 }

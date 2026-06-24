@@ -1,5 +1,11 @@
 import { runtime } from './runtime'
-import type { CipoPropertyDefinition, CipoPropertyMap, CipoTypedValue } from './types'
+import type {
+  CipoPropertyDefinition,
+  CipoPropertyMap,
+  CipoTypedPropertyOptions,
+  CipoTypedValue,
+} from './types'
+import { getThemeType, normalizeThemeTypeName, validateThemeValue } from './theme-types'
 import { wrapLayer } from './format'
 import { insertCss } from './injection'
 import { normalizeValue } from './values'
@@ -139,6 +145,45 @@ export function normalizeCustomPropertyName(name: string): string {
 
 export function customPropertyReference(name: string): string {
   return `var(${normalizeCustomPropertyName(name)})`
+}
+
+/**
+ * Registers a custom property from a semantic Cipó theme type.
+ *
+ * @remarks
+ * Unlike `property()`, this helper validates the initial value and refuses
+ * semantic-only types such as `shadow` that cannot be represented by native
+ * CSS Properties and Values API syntax.
+ */
+export function typedProperty(
+  name: string,
+  type: string,
+  initialValue: string | number,
+  options: CipoTypedPropertyOptions = {},
+): string {
+  const normalizedType = normalizeThemeTypeName(type)
+  const definition = getThemeType(normalizedType)
+  if (!definition) {
+    throw new TypeError(`Unknown Cipó typed property type <${normalizedType || type}>.`)
+  }
+  if (!definition.registrable || !definition.cssSyntax) {
+    throw new TypeError(
+      `Cipó type <${normalizedType}> is semantic-only and cannot be registered with CSS @property.`,
+    )
+  }
+
+  const validation = validateThemeValue(normalizedType, initialValue, { path: name })
+  if (validation.status !== 'valid') {
+    throw new TypeError(
+      `Invalid initial value for typed property "${name}" as <${normalizedType}>: ${validation.reason ?? validation.status}.`,
+    )
+  }
+
+  return property(name, {
+    syntax: definition.cssSyntax,
+    inherits: options.inherits ?? definition.inherits ?? true,
+    initialValue,
+  })
 }
 
 export function compilePropertyRule(name: string, definition: CipoPropertyDefinition): string {
