@@ -1,0 +1,122 @@
+diff --git a/src/cipo/src/runtime-dsl.ts b/src/cipo/src/runtime-dsl.ts
+index 980f4e8..ab2b9c1 100644
+--- a/src/cipo/src/runtime-dsl.ts
++++ b/src/cipo/src/runtime-dsl.ts
+@@ -910,6 +910,25 @@ export function createOklchUtilityColor(name: string, shade: number): string {
+   return `oklch(${round(lightness)} ${round(chroma)} ${round(hue)})`;
+ }
+ 
++const SLASH_GRAMMAR_PROPERTIES = new Set([
++  "aspect-ratio",
++  "background",
++  "border-image",
++  "border-radius",
++  "font",
++  "grid",
++  "grid-area",
++  "grid-column",
++  "grid-column-end",
++  "grid-column-start",
++  "grid-row",
++  "grid-row-end",
++  "grid-row-start",
++  "grid-template",
++  "mask",
++  "mask-border",
++  "offset",
++]);
++
+ function hashHue(name: string): number {
+@@ -932,17 +951,53 @@ function normalizeRuntimeVariableMath(input: string): string {
+ }
+ 
+ function normalizeRuntimeDeclarationChunk(chunk: string): string {
+-  if (chunk.indexOf("{") >= 0 || chunk.indexOf("}") >= 0) return chunk;
+-  const colon = findTopLevelChar(chunk, ":");
++  const declarationStart = findRuntimeDeclarationStart(chunk);
++  const prefix = chunk.slice(0, declarationStart);
++  const declaration = chunk.slice(declarationStart);
++  const colon = findTopLevelChar(declaration, ":");
+   if (colon <= 0) return chunk;
+-  const before = chunk.slice(0, colon + 1);
+-  const value = chunk.slice(colon + 1).trim();
+-  if (!value) return chunk;
+-  return `${before} ${normalizeRuntimeExpression(value)}`;
++
++  const property = declaration.slice(0, colon).trim();
++  const value = declaration.slice(colon + 1).trim();
++  if (!property || !value) return chunk;
++
++  const before = declaration.slice(0, colon + 1);
++  return `${prefix}${before} ${normalizeRuntimeExpression(value, property)}`;
++}
++
++function findRuntimeDeclarationStart(chunk: string): number {
++  let start = 0;
++  let depth = 0;
++  let quote: '"' | "'" | null = null;
++
++  for (let index = 0; index < chunk.length; index += 1) {
++    const char = chunk[index];
++    if (quote) {
++      if (char === quote && chunk[index - 1] !== "\\") quote = null;
++      continue;
++    }
++    if (char === '"' || char === "'") {
++      quote = char;
++      continue;
++    }
++    if (char === "(" || char === "[") {
++      depth += 1;
++      continue;
++    }
++    if (char === ")" || char === "]") {
++      depth = Math.max(0, depth - 1);
++      continue;
++    }
++    if (depth === 0 && (char === "{" || char === "}")) start = index + 1;
++  }
++
++  return start;
+ }
+ 
+-function normalizeRuntimeExpression(value: string): string {
++function normalizeRuntimeExpression(value: string, property = ""): string {
+   const withVars = replaceRuntimeVars(value.trim());
+   if (withVars.startsWith("calc(")) return withVars;
+-  if (!hasTopLevelMath(withVars)) return withVars;
++  if (!hasTopLevelMath(withVars, property)) return withVars;
+   return `calc(${withVars})`;
+ }
+@@ -970,8 +1025,10 @@ function replaceRuntimeVars(value: string): string {
+   return output;
+ }
+ 
+-function hasTopLevelMath(value: string): boolean {
++function hasTopLevelMath(value: string, property: string): boolean {
++  const normalizedProperty = property.trim().replace(/^#/, "").toLowerCase();
+   let depth = 0;
+   let quote: '"' | "'" | null = null;
++
+   for (let index = 0; index < value.length; index += 1) {
+@@ -991,10 +1048,17 @@ function hasTopLevelMath(value: string): boolean {
+       depth = Math.max(0, depth - 1);
+       continue;
+     }
+-    if (depth === 0 && (char === "+" || char === "*" || char === "/"))
++    if (depth !== 0) continue;
++
++    if (char === "+" || char === "*")
++      return true;
++    if (
++      char === "/" &&
++      !SLASH_GRAMMAR_PROPERTIES.has(normalizedProperty) &&
++      /\s/.test(value[index - 1] || "") &&
++      /\s/.test(value[index + 1] || "")
++    )
+       return true;
+     if (
+-      depth === 0 &&
+       char === "-" &&
+       index > 0 &&
+       /\s/.test(value[index - 1] || "") &&
