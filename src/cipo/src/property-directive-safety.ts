@@ -1,6 +1,24 @@
 import { runtime } from './runtime'
 import { toKebabMixed } from './utils'
 
+/**
+ * Normalizes declarative `@property $$name` headers before runtime variable parsing.
+ *
+ * @remarks
+ * Runtime variable expansion treats `$$name` as a value reference. In an
+ * `@property` header the same syntax names a custom property instead, so it must
+ * be converted first. The scanner only consumes identifier characters after the
+ * directive marker and leaves the block body unchanged.
+ *
+ * @param input - CSS source that may contain declarative typed-property blocks.
+ * @returns CSS with directive names converted to prefixed custom-property names.
+ *
+ * @example
+ * ```ts
+ * normalizePropertyDirectiveNames('@property $$angle { syntax: "<angle>" }')
+ * // '@property --cipo-angle { syntax: "<angle>" }'
+ * ```
+ */
 export function normalizePropertyDirectiveNames(input: string): string {
   const marker = '@property $$'
   const parts = input.split(marker)
