@@ -4,7 +4,14 @@ import { registerAlias } from './plugins'
 import { property } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
-import type { CipoConfig, CipoPropertyDefinition, CipoTheme, CipoWarning } from './types'
+import { typedTheme } from './theme-types'
+import type {
+  CipoConfig,
+  CipoPropertyDefinition,
+  CipoTheme,
+  CipoTypedThemeOptions,
+  CipoWarning,
+} from './types'
 import { findMatchingBrace, findTopLevelColon, splitTopLevel, toKebabMixed, warn } from './utils'
 
 export type CipoConfigPreset = string | (() => string | void) | CipoConfig
@@ -52,6 +59,7 @@ type AppliedCssConfig = {
 }
 
 export interface CipoCssConfigResult {
+  readonly kind?: never
   readonly config: Partial<CipoConfig>
   readonly theme: CipoTheme
   readonly warnings: readonly CipoWarning[]
@@ -279,7 +287,7 @@ function applyPreparedCssConfig(prepared: PreparedCssConfig): CipoCssConfigResul
 
   const flushTheme = () => {
     if (!hasPendingTheme) return
-    theme(pendingTheme)
+    theme(pendingTheme, warnings)
     pendingTheme = {}
     hasPendingTheme = false
   }
@@ -410,6 +418,13 @@ function parseCipoBlock(body: string): Partial<Mutable<CipoConfig>> {
     else if (key === 'color-mode' || key === 'colorMode') config.colorMode = stripQuotes(value) as NonNullable<CipoConfig['colorMode']>
     else if (key === 'dark-selector' || key === 'darkSelector') config.darkSelector = stripQuotes(value)
     else if (key === 'theme-root' || key === 'themeRootSelector') config.themeRootSelector = stripQuotes(value)
+    else if (key === 'theme-validation' || key === 'themeValidation') {
+      const mode = stripQuotes(value)
+      if (mode === 'strict' || mode === 'warn' || mode === 'off') config.themeValidation = mode
+    }
+    else if (key === 'register-typed-theme-properties' || key === 'registerTypedThemeProperties') {
+      config.registerTypedThemeProperties = parseBoolean(value)
+    }
     else if (key === 'rem') config.rem = { enabled: true, baseFontSize: parseCssNumber(value, 16) }
     else if (key === 'base-font-size' || key === 'baseFontSize') config.baseFontSize = parseCssNumber(value, 16)
   }
@@ -426,7 +441,12 @@ function objectEntriesToTheme(entries: readonly ObjectEntry[]): CipoTheme {
   const output: Record<string, import('./types').CipoThemeValue> = Object.create(null)
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index]!
-    output[entry.key] = Array.isArray(entry.value) ? objectEntriesToTheme(entry.value) : stripTrailingSemicolon(entry.value)
+    const value = Array.isArray(entry.value)
+      ? objectEntriesToTheme(entry.value)
+      : stripTrailingSemicolon(entry.value)
+    output[entry.key] = entry.type
+      ? typedTheme(entry.type, value, entry.options)
+      : value
   }
   return output
 }
@@ -472,7 +492,12 @@ function parseDeclarationMap(body: string): Record<string, string> {
   return output
 }
 
-type ObjectEntry = { key: string; value: string | ObjectEntry[] }
+type ObjectEntry = {
+  key: string
+  value: string | ObjectEntry[]
+  type?: string
+  options?: CipoTypedThemeOptions
+}
 
 function parseObjectEntries(body: string): ObjectEntry[] {
   const parts = splitTopLevelStatements(body)
@@ -480,28 +505,160 @@ function parseObjectEntries(body: string): ObjectEntry[] {
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index]!.trim()
     if (!part) continue
-    const colon = findTopLevelColon(part)
+    const colon = findThemeEntryColon(part)
     if (colon <= 0) continue
-    const key = toCamelSafe(part.slice(0, colon).trim().replace(/^[$]+/, ''))
+    const annotation = parseTypedThemeKey(part.slice(0, colon).trim().replace(/^[$]+/, ''))
     let value = stripTrailingSemicolon(part.slice(colon + 1).trim())
-    if (value.startsWith('(') && value.endsWith(')')) output.push({ key, value: parseObjectEntries(value.slice(1, -1)) })
-    else output.push({ key, value })
+    const entry: ObjectEntry = value.startsWith('(') && value.endsWith(')')
+      ? { ...annotation, value: parseObjectEntries(value.slice(1, -1)) }
+      : { ...annotation, value }
+    output.push(entry)
   }
   return output
 }
 
-function splitTopLevelStatements(input: string): string[] {
-  const normalized = input.replace(/\n/g, ';')
-  const semiParts = splitTopLevel(normalized, ';')
-  const output: string[] = []
-  for (let index = 0; index < semiParts.length; index += 1) {
-    const part = semiParts[index] || ''
-    const commaParts = splitTopLevel(part, ',')
-    for (let subIndex = 0; subIndex < commaParts.length; subIndex += 1) {
-      if (commaParts[subIndex]?.trim()) output.push(commaParts[subIndex]!)
+function findThemeEntryColon(input: string): number {
+  let structuralDepth = 0
+  let annotationDepth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(' || char === '[') { structuralDepth += 1; continue }
+    if (char === ')' || char === ']') { structuralDepth = Math.max(0, structuralDepth - 1); continue }
+    if (structuralDepth === 0 && char === '<') { annotationDepth += 1; continue }
+    if (structuralDepth === 0 && char === '>') { annotationDepth = Math.max(0, annotationDepth - 1); continue }
+    if (char === ':' && structuralDepth === 0 && annotationDepth === 0) return index
+  }
+
+  return -1
+}
+
+function parseTypedThemeKey(source: string): Pick<ObjectEntry, 'key' | 'type' | 'options'> {
+  const text = source.trim()
+  const open = text.lastIndexOf('<')
+  if (open <= 0 || !text.endsWith('>')) return { key: toCamelSafe(text) }
+
+  const rawName = text.slice(0, open).trim()
+  const annotation = text.slice(open + 1, -1).trim()
+  const parts = splitTopLevel(annotation, ',')
+  const type = stripQuotes(parts.shift() || '').trim()
+  if (!rawName || !type) return { key: toCamelSafe(text) }
+
+  const options: Mutable<CipoTypedThemeOptions> = {}
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = (parts[index] || '').trim()
+    if (!part) continue
+    if (part === 'register') options.register = true
+    else if (part === 'no-register' || part === 'noregister') options.register = false
+    else if (part === 'auto') options.register = 'auto'
+    else {
+      const colon = findTopLevelColon(part)
+      if (colon <= 0) continue
+      const name = toKebabMixed(part.slice(0, colon).trim())
+      const value = stripQuotes(part.slice(colon + 1).trim())
+      if (name === 'inherits') options.inherits = parseBoolean(value)
+      else if (name === 'initial' || name === 'initial-value') options.initialValue = value
+      else if (name === 'validation' && (value === 'strict' || value === 'warn' || value === 'off')) {
+        options.validation = value
+      }
     }
   }
+
+  return {
+    key: toCamelSafe(rawName),
+    type,
+    options,
+  }
+}
+
+function splitTopLevelStatements(input: string): string[] {
+  const output: string[] = []
+  let buffer = ''
+  let structuralDepth = 0
+  let annotationDepth = 0
+  let quote: '"' | "'" | null = null
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+
+    if (quote) {
+      buffer += char
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      buffer += char
+      continue
+    }
+
+    if (char === '(' || char === '[') structuralDepth += 1
+    else if (char === ')' || char === ']') structuralDepth = Math.max(0, structuralDepth - 1)
+    else if (char === '<' && structuralDepth === 0) annotationDepth += 1
+    else if (char === '>' && structuralDepth === 0) annotationDepth = Math.max(0, annotationDepth - 1)
+
+    const isHardSeparator = char === ';' || char === '\n' || char === '\r'
+    const isMapEntryComma = char === ',' && startsObjectEntryAfter(input, index + 1)
+    if ((isHardSeparator || isMapEntryComma) && structuralDepth === 0 && annotationDepth === 0) {
+      if (buffer.trim()) output.push(buffer.trim())
+      buffer = ''
+      continue
+    }
+
+    buffer += char
+  }
+
+  if (buffer.trim()) output.push(buffer.trim())
   return output
+}
+
+/**
+ * Distinguishes a map separator from a comma that belongs to a CSS value.
+ *
+ * `md: 14px, lg: 22px` splits, while font stacks, transition lists and other
+ * comma-separated CSS values stay intact until a following `name:` entry.
+ */
+function startsObjectEntryAfter(input: string, start: number): boolean {
+  let index = start
+  while (index < input.length && /\s/.test(input[index] ?? '')) index += 1
+  const candidateStart = index
+  let annotationDepth = 0
+  let quote: '"' | "'" | null = null
+
+  for (; index < input.length; index += 1) {
+    const char = input[index]!
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '<') { annotationDepth += 1; continue }
+    if (char === '>') { annotationDepth = Math.max(0, annotationDepth - 1); continue }
+    if (annotationDepth > 0) continue
+
+    if (char === ':') {
+      const candidate = input.slice(candidateStart, index).trim().replace(/^[$]+/, '')
+      return /^[a-zA-Z0-9_][a-zA-Z0-9_.-]*(?:<[^>]+>)?$/.test(candidate)
+    }
+    if (char === ',' || char === ';' || char === '\n' || char === '\r' || char === ')') {
+      return false
+    }
+  }
+
+  return false
 }
 
 function readNamedBlock(input: string, start: number): { readonly name: string; readonly open: number } | null {

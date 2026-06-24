@@ -15,24 +15,29 @@ import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { injectGlobal } from './global'
 import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
-import { properties, property, typed } from './properties'
+import { properties, property, typed, typedProperty } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
+import { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
 import { installBuiltInHelpers } from './helpers'
 import { configSheet, configureCss, configureFromCss, invalidateCssConfigApplications, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
+import { installNativePropertyGuards } from './native-property-guards'
+import { resetWarningDedupe } from './utils'
 
 Object.assign(css, { configure: configureCss })
 
 export * from './types'
 export { configure, setup } from './config'
 export { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
+export type { CipoConfigPlugin, CipoConfigPreset, CipoCssConfigureApi, CipoCssConfigResult } from './config-css'
 export { theme } from './theme'
+export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
 export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 export { inline } from './inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
-export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed } from './properties'
+export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed, typedProperty } from './properties'
 export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
 
 /**
@@ -80,6 +85,7 @@ export function reset(): void {
   runtime.inlineCache.clear()
   runtime.debugAtoms.clear()
   runtime.warningSink = []
+  resetWarningDedupe()
   runtime.generatedCssText = ''
   runtime.registeredProperties.clear()
   runtime.propertyDefinitions.clear()
@@ -124,6 +130,12 @@ Object.assign(cipo, {
   property,
   properties,
   typed,
+  typedProperty,
+  typedTheme,
+  defineThemeType,
+  getThemeType,
+  listThemeTypes,
+  validateThemeValue,
   recipe,
   configureCss,
   configureFromCss,
@@ -172,14 +184,20 @@ export function createBrowserGlobal() {
     registerVariant,
     property,
     properties,
-  typed,
-  recipe,
-  configureCss,
-  configureFromCss,
-  setupFromCss,
-  configSheet,
-  registerPreset,
-  registerConfigPlugin,
+    typed,
+    typedProperty,
+    typedTheme,
+    defineThemeType,
+    getThemeType,
+    listThemeTypes,
+    validateThemeValue,
+    recipe,
+    configureCss,
+    configureFromCss,
+    setupFromCss,
+    configSheet,
+    registerPreset,
+    registerConfigPlugin,
     createBrowserGlobal,
     installBrowserGlobal,
   }
@@ -201,6 +219,7 @@ export function installBrowserGlobal(globalName = 'Cipo') {
 
 installBuiltInHelpers()
 installBuiltInAliases()
+installNativePropertyGuards()
 
 if (typeof window !== 'undefined') {
   installBrowserGlobal('Cipo')

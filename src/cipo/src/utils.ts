@@ -3,6 +3,11 @@ import type { CipoWarning, RuntimeState } from './types'
 
 const emittedWarningKeys = new Set<string>()
 
+/** Clears warning dedupe state when the public runtime is reset. */
+export function resetWarningDedupe(): void {
+  emittedWarningKeys.clear()
+}
+
 /**
  * Creates a stable, tiny hash used in generated class names and JIT cache keys.
  *
