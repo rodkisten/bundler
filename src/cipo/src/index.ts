@@ -19,7 +19,7 @@ import { properties, property, typed } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
 import { installBuiltInHelpers } from './helpers'
-import { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
+import { configSheet, configureCss, configureFromCss, invalidateCssConfigApplications, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
 
 Object.assign(css, { configure: configureCss })
 
@@ -84,6 +84,7 @@ export function reset(): void {
   runtime.registeredProperties.clear()
   runtime.propertyDefinitions.clear()
   runtime.layerHeaderInserted = false
+  invalidateCssConfigApplications()
   if (typeof document !== 'undefined') document.getElementById(STYLE_ELEMENT_ID)?.remove()
 }
 

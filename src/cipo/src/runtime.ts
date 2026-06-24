@@ -67,6 +67,7 @@ export const runtime: RuntimeState = {
   layerHeaderInserted: false,
   themeVersion: 0,
   configVersion: 0,
+  registryVersion: 0,
 }
 
 /**
