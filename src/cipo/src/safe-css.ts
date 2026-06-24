@@ -1,3 +1,4 @@
+import { configureCss } from './config-css'
 import { parseStylesheet } from './parser'
 import { buildSafeSource } from './safe-source'
 import { transformCss } from './transform'
@@ -29,6 +30,7 @@ export function safeCss(
 }
 
 Object.assign(safeCss, {
+  configure: configureCss,
   withImportant(first: TemplateStringsArray | CipoStyleObject, ...values: readonly CipoCssInterpolation[]) {
     if (!Array.isArray(first)) return coreInline.css.withImportant(first, ...values)
     return compile(buildSafeSource(first as TemplateStringsArray, values), true)
