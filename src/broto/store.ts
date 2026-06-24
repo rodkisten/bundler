@@ -9,6 +9,9 @@ type Primitive = string | number | boolean | bigint | symbol | null | undefined 
 /** Store path key used by patch diagnostics and deep writes. */
 export type StorePath = readonly PropertyKey[];
 
+/** Array or dot/bracket string accepted by public path APIs. */
+export type StorePathInput = StorePath | string;
+
 /** Patch metadata used by devtools and diagnostics. */
 export type StorePatchMeta = {
   /** Optional human-readable reason for the mutation. */
@@ -65,17 +68,17 @@ export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
   /** Alias for update(), matching the Broto snapshot/draft/peek flow. */
   draft(mutator: StorePatchMutator<State>, meta?: StorePatchMeta): void;
   /** Replaces the whole root state, or writes a nested path for backwards compatibility. */
-  set(nextState: State | StorePath, valueOrMeta?: unknown, meta?: StorePatchMeta): void;
+  set(nextState: State | StorePathInput, valueOrMeta?: unknown, meta?: StorePatchMeta): void;
   /** Writes a nested path, creating intermediate plain object stores as needed. */
-  setPath(path: StorePath, value: unknown, meta?: StorePatchMeta): void;
+  setPath(path: StorePathInput, value: unknown, meta?: StorePatchMeta): void;
   /** Reads a nested signal/store by path. */
-  get(path: StorePath): unknown;
+  get(path: StorePathInput): unknown;
   /** Reads a tracked value by path, resolving signals/stores to plain values. */
-  select(path: StorePath): unknown;
+  select(path: StorePathInput): unknown;
   /** Creates or reads a computed path selector that can be rendered directly by Fabrica. */
-  $(path: StorePath | string | StoreSelector<State>): Signal<unknown>;
+  $(path: StorePathInput | StoreSelector<State>): Signal<unknown>;
   /** Alias for $(), useful when the selector is path-shaped. */
-  path(path: StorePath | string): Signal<unknown>;
+  path(path: StorePathInput): Signal<unknown>;
   /** Proxy of computed path signals, e.g. state.view.user.name renders reactively without calling it. */
   readonly view: StoreView<State>;
   /** Subscribes to root set/patch/update/path events. */
@@ -256,19 +259,19 @@ function createStoreObject(
     },
     get: {
       enumerable: false,
-      value(path: StorePath) {
+      value(path: StorePathInput) {
         return getStorePath(output, path);
       },
     },
     select: {
       enumerable: false,
-      value(path: StorePath) {
+      value(path: StorePathInput) {
         return readStoreSelection(output, normalizeStorePath(path));
       },
     },
     $: {
       enumerable: false,
-      value(pathOrSelector: StorePath | string | StoreSelector<Record<string, unknown>>) {
+      value(pathOrSelector: StorePathInput | StoreSelector<Record<string, unknown>>) {
         if (typeof pathOrSelector === "function") {
           return computed(() => pathOrSelector(readStoreObject(output, keys)));
         }
@@ -279,7 +282,7 @@ function createStoreObject(
     },
     path: {
       enumerable: false,
-      value(path: StorePath | string) {
+      value(path: StorePathInput) {
         return createStorePathSignal(output, keys, normalizeStorePath(path), notify);
       },
     },
@@ -291,11 +294,12 @@ function createStoreObject(
     },
     set: {
       enumerable: false,
-      value(nextStateOrPath: Record<string, unknown> | StorePath, valueOrMeta?: unknown, maybeMeta: StorePatchMeta = {}) {
-        if (Array.isArray(nextStateOrPath)) {
+      value(nextStateOrPath: Record<string, unknown> | StorePathInput, valueOrMeta?: unknown, maybeMeta: StorePatchMeta = {}) {
+        if (typeof nextStateOrPath === "string" || Array.isArray(nextStateOrPath)) {
           const meta = maybeMeta;
-          batch(() => setStorePath(output, keys, nextStateOrPath, valueOrMeta, { ...meta, path: nextStateOrPath }, notify));
-          notify({ type: "path:set", cause: meta.cause, path: nextStateOrPath, patch: valueOrMeta, state: snapshotStoreObject(output, keys) });
+          const path = normalizeStorePath(nextStateOrPath);
+          batch(() => setStorePath(output, keys, path, valueOrMeta, { ...meta, path }, notify));
+          notify({ type: "path:set", cause: meta.cause, path, patch: valueOrMeta, state: snapshotStoreObject(output, keys) });
           return;
         }
 
@@ -307,7 +311,8 @@ function createStoreObject(
     },
     setPath: {
       enumerable: false,
-      value(path: StorePath, value: unknown, meta: StorePatchMeta = {}) {
+      value(pathInput: StorePathInput, value: unknown, meta: StorePatchMeta = {}) {
+        const path = normalizeStorePath(pathInput);
         batch(() => setStorePath(output, keys, path, value, { ...meta, path }, notify));
         notify({ type: "path:set", cause: meta.cause, path, patch: value, state: snapshotStoreObject(output, keys) });
       },
@@ -465,7 +470,7 @@ function applyStoreKey(
   writeStoreKey(target, key, createStoreValue(value, meta.path ?? [key], notify));
 }
 
-function getStorePath(root: Record<string, unknown>, path: StorePath | string): unknown {
+function getStorePath(root: Record<string, unknown>, path: StorePathInput): unknown {
   path = normalizeStorePath(path);
   let current: unknown = root;
   for (let index = 0; index < path.length; index += 1) {
@@ -628,7 +633,7 @@ function stringifyStoreViewValue(value: unknown): string {
   return String(value);
 }
 
-function normalizeStorePath(path: StorePath | string): StorePath {
+function normalizeStorePath(path: StorePathInput): StorePath {
   if (Array.isArray(path)) return path;
   const text = String(path || "").trim();
   if (!text) return [];
