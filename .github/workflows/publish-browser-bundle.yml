@@ -369,7 +369,7 @@ jobs:
     needs:
       - guard
       - build
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
 
     environment:
