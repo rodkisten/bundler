@@ -7,9 +7,10 @@ import {
   createRoot,
   effect,
   effectScope,
+  flushSync,
   getOwner,
-  inspectGraph,
   inspectLeaks,
+  inspectRuntime,
   memo,
   onCleanup,
   onOwnerCleanup,
@@ -40,10 +41,12 @@ describe("Broto kitchen sink", () => {
     expect(count.peek()).toBe(0);
 
     count.set(1);
+    flushSync();
     expect(count()).toBe(1);
     expect(spy).toHaveBeenCalled();
 
     count.update((value) => value + 1);
+    flushSync();
     expect(count()).toBe(2);
 
     unsubscribe();
@@ -63,6 +66,7 @@ describe("Broto kitchen sink", () => {
     expect(spy).toHaveBeenCalledWith(0);
 
     count.set(1);
+    flushSync();
     expect(spy).toHaveBeenCalledWith(1);
 
     dispose();
@@ -81,6 +85,7 @@ describe("Broto kitchen sink", () => {
     });
 
     count.set(1);
+    flushSync();
     expect(cleanup).toHaveBeenCalledTimes(1);
 
     dispose();
@@ -122,6 +127,7 @@ describe("Broto kitchen sink", () => {
       a.set(2);
       b.set(3);
     });
+    flushSync();
 
     expect(spy).toHaveBeenCalledWith(5);
   });
@@ -136,9 +142,11 @@ describe("Broto kitchen sink", () => {
     });
 
     ignored.set(20);
+    flushSync();
     expect(spy).not.toHaveBeenCalledWith(21);
 
     tracked.set(2);
+    flushSync();
     expect(spy).toHaveBeenCalledWith(22);
   });
 
@@ -155,6 +163,7 @@ describe("Broto kitchen sink", () => {
     expect(spy).toHaveBeenCalledWith(0);
 
     count.set(1);
+    flushSync();
     expect(spy).toHaveBeenCalledWith(1);
 
     dispose();
@@ -189,6 +198,7 @@ describe("Broto kitchen sink", () => {
     expect(spy).toHaveBeenCalledWith(0);
 
     count.set(1);
+    flushSync();
     expect(spy).toHaveBeenCalledWith(1);
 
     dispose();
@@ -307,7 +317,7 @@ describe("Broto kitchen sink", () => {
       count: 1,
     });
 
-    expect(state.value().user.name).toBe("Rod");
+    expect(state().user.name).toBe("Rod");
     expect(state.select(["user", "profile", "city"])).toBe("Simonésia");
   });
 
@@ -340,9 +350,9 @@ describe("Broto kitchen sink", () => {
       },
     });
 
-    expect(state.value().count).toBe(2);
-    expect(state.value().user.name).toBe("Broto");
-    expect(state.value().user.age).toBe(30);
+    expect(state().count).toBe(2);
+    expect(state().user.name).toBe("Broto");
+    expect(state().user.age).toBe(30);
   });
 
   it("updates store values", () => {
@@ -354,7 +364,7 @@ describe("Broto kitchen sink", () => {
       count: current.count + 1,
     }));
 
-    expect(state.value().count).toBe(2);
+    expect(state().count).toBe(2);
   });
 
   it("notifies effects from store changes", () => {
@@ -365,10 +375,11 @@ describe("Broto kitchen sink", () => {
     const spy = vi.fn();
 
     effect(() => {
-      spy(state.value().count);
+      spy(state().count);
     });
 
     state.patch({ count: 2 });
+    flushSync();
 
     expect(spy).toHaveBeenCalledWith(2);
   });
@@ -400,7 +411,7 @@ describe("Broto kitchen sink", () => {
       name: "graph-root",
     });
 
-    const graph = inspectGraph();
+    const graph = inspectRuntime();
 
     expect(graph).toBeTruthy();
     expect(Array.isArray(graph.owners)).toBe(true);
