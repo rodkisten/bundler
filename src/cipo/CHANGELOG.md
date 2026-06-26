@@ -117,3 +117,11 @@
 
 - Unified Cipó's Vitest benchmark-mode output with the root branch baseline and PR comparison reporter.
 - Persisted warm and cold compiler measurements in `bench/cipo.json` for commit-to-commit regression tracking.
+
+## Named Fabrica registry integration
+
+- Added named styled syntax through `styled.button('Button').css``...```, direct `styled.button('Button')``...``` invocation and `component(name, options)`.
+- Enabled automatic registration of explicitly named Cipó components in an available Fabrica registry while keeping anonymous styled factories unchanged.
+- Added polling-free delayed-load queuing for Cipó-before-Fabrica bundle order.
+- Added explicit `connectFabrica`, `disconnectFabrica`, `configureFabricaRegistry`, `flushFabricaRegistry` and `pendingFabricaComponents` exports.
+- Added component metadata, polymorphic `as`, attrs resolvers, collision policies, focused integration tests and benchmark cases.

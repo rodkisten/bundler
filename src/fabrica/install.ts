@@ -2,6 +2,7 @@ import { $ } from "./bag";
 import { config } from "./install-state";
 import type { InstallOptions } from "./types";
 import type { FabricaApi } from "./public-api";
+import { notifyFabricaRegistryReady } from "../fabrica-elements/registry";
 
 const previousDollar = globalThis.$;
 const previousDollarEl = globalThis.$el;
@@ -23,6 +24,7 @@ export function install(api: FabricaApi, options: InstallOptions = {}): FabricaA
   Object.assign(config, options);
 
   globalThis.Fabrica = api;
+  notifyFabricaRegistryReady(api);
 
   if (config.exposeDollar && (config.forceAlias || !globalThis.$)) {
     globalThis.$ = $;

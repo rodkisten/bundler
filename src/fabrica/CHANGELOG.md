@@ -87,3 +87,15 @@
 - Added a Vitest benchmark-mode kitchen sink with manual `document.createElement` baselines for twelve major rendering paths.
 - Added a framework-neutral benchmark adapter contract with stable case identifiers for future renderer comparisons.
 - Added branch-level JSON baselines and Markdown performance reports through the root benchmark pipeline.
+
+## Named styled registry bridge
+
+### Added
+
+- Fabrica installation now announces registry readiness to independently bundled Fabrica Elements/Cipó styled factories.
+- Normal `html`` ` automatically recognizes registered uppercase component tags through a bounded static-chunk scan; `jsx.html` remains available.
+- Added integration tests for named Cipó styled components rendered by registry name without passing the function.
+
+### Performance
+
+- Added manual-versus-Fabrica benchmark cases for named styled registry rendering and styled component registration/unregistration.

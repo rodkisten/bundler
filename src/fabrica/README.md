@@ -733,3 +733,28 @@ pnpm bench:fabrica
 The adapter contract in `tests/fabrica.bench-cases.ts` uses stable case IDs. A
 future React, Preact, Solid or other adapter only needs to implement
 `FabricaBenchmarkAdapter.run(caseId)` and join the adapter list.
+
+## Named styled components in the registry
+
+Fabrica's installer now announces its component registry to independently
+bundled styled factories. A named Cipó/Fabrica Elements component can therefore
+be rendered by name without passing the component function into the template:
+
+```ts
+const Button = styled.button('ToolbarButton').css`
+  inline-flex
+  px: 3
+`
+
+render(root, html`
+  <ToolbarButton onClick=${refresh}>Refresh</ToolbarButton>
+`)
+```
+
+Normal `html` only activates registered uppercase component parsing when a
+static template chunk contains an uppercase tag. `jsx.html` remains the explicit
+micro-JSX namespace and behaves identically for named components.
+
+Registry collision behavior is owned by the styled factory. Fabrica keeps its
+existing `registerComponent`, `resolveComponent`, `unregisterComponent` and
+`clearComponents` APIs unchanged.

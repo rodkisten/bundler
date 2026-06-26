@@ -14,6 +14,8 @@ import {
   virtualRepeat,
 } from '../index'
 import type { RenderValue } from '../types'
+import { reset as resetCipo, setup as setupCipo, styled as cipoStyled } from '../../cipo/src/index'
+import type { StyledTagFactory } from '../../fabrica-elements'
 
 export type FabricaBenchmarkAdapter = {
   /** Stable identifier used in JSON reports and cross-framework comparisons. */
@@ -43,6 +45,8 @@ export type FabricaBenchmarkCaseId =
   | 'portal-mount'
   | 'raw-html'
   | 'two-way-bind'
+  | 'named-styled-registry'
+  | 'styled-component-registration'
 
 export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.freeze([
   {
@@ -105,6 +109,16 @@ export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.f
     label: 'Two-way input binding',
     description: 'Synchronizes an input event into a writable signal and reflects a subsequent update.',
   },
+  {
+    id: 'named-styled-registry',
+    label: 'Named styled registry render',
+    description: 'Resolves a Cipó styled component by registry name and renders it without passing the function.',
+  },
+  {
+    id: 'styled-component-registration',
+    label: 'Styled component registration',
+    description: 'Compiles a warm styled template, decorates metadata, registers and unregisters a named component.',
+  },
 ])
 
 const ToolbarButton = component<{
@@ -127,6 +141,24 @@ const ToolbarButton = component<{
 const ConditionalPanel = component<{ label: string }>('BenchmarkConditionalPanel', (props) => html`
   <aside class="bench-panel"><strong>${props.label}</strong><p>Ready</p></aside>
 `)
+
+resetCipo()
+setupCipo({
+  prefix: 'bench-registry',
+  minify: true,
+  layers: false,
+  theme: { colors: { brand: '#38bdf8' }, spacing: '0.25rem' },
+})
+
+const cipoStyledButton = cipoStyled.button as StyledTagFactory
+
+const RegistryStyledButton = cipoStyledButton('BenchmarkRegistryButton', { collision: 'replace' }).css`
+  px: 2
+  py: 1
+  bg: $brand
+`
+const manualNamedRegistry = new Map<string, (props: Record<string, unknown>) => Element>()
+let styledRegistrationId = 0
 
 export const manualCreateElementAdapter: FabricaBenchmarkAdapter = {
   id: 'manual.createElement',
@@ -163,6 +195,8 @@ function runManualCase(caseId: FabricaBenchmarkCaseId): void {
     case 'portal-mount': return manualPortalMount()
     case 'raw-html': return manualRawHtml()
     case 'two-way-bind': return manualTwoWayBind()
+    case 'named-styled-registry': return manualNamedStyledRegistry()
+    case 'styled-component-registration': return manualStyledComponentRegistration()
   }
 }
 
@@ -180,6 +214,8 @@ function runFabricaCase(caseId: FabricaBenchmarkCaseId): void {
     case 'portal-mount': return fabricaPortalMount()
     case 'raw-html': return fabricaRawHtml()
     case 'two-way-bind': return fabricaTwoWayBind()
+    case 'named-styled-registry': return fabricaNamedStyledRegistry()
+    case 'styled-component-registration': return fabricaStyledComponentRegistration()
   }
 }
 
@@ -539,3 +575,48 @@ function fabricaTwoWayBind(): void {
   flushSync()
   dispose()
 }
+
+
+function manualNamedStyledRegistry(): void {
+  const host = createHost()
+  manualNamedRegistry.set('BenchmarkRegistryButton', (props) => {
+    const button = document.createElement('button')
+    button.type = props.type === 'submit' || props.type === 'reset' ? props.type : 'button'
+    button.className = 'bench-registry-button'
+    button.textContent = String(props.children || '')
+    return button
+  })
+  const factory = manualNamedRegistry.get('BenchmarkRegistryButton')!
+  host.append(factory({ type: 'button', children: 'Save' }))
+  host.replaceChildren()
+}
+
+function fabricaNamedStyledRegistry(): void {
+  const host = createHost()
+  const dispose = render(host, html`<BenchmarkRegistryButton type="button">Save</BenchmarkRegistryButton>`)
+  dispose()
+}
+
+function manualStyledComponentRegistration(): void {
+  const name = `ManualStyled${++styledRegistrationId}`
+  const className = 'bench-registry-class'
+  const component = (props: Record<string, unknown> = {}) => {
+    const button = document.createElement('button')
+    button.className = className
+    button.textContent = String(props.children || '')
+    return button
+  }
+  manualNamedRegistry.set(name, component)
+  manualNamedRegistry.delete(name)
+}
+
+function fabricaStyledComponentRegistration(): void {
+  const name = `FabricaStyled${++styledRegistrationId}`
+  const Styled = cipoStyledButton(name, { collision: 'replace' }).css`
+    px: 2
+    bg: $brand
+  `
+  Styled.unregister()
+}
+
+void RegistryStyledButton

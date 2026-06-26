@@ -1,4 +1,4 @@
-import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsRecord, type StyledBuilder, type StyledDomResult, type StyledFactory, type StyledTagFactory } from '../../fabrica-elements'
+import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsRecord, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledTagFactory } from '../../fabrica-elements'
 import type { CipoComponent, CipoCssInterpolation, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from './types'
 import { assertAtomicCssArtifact, css } from './css'
 import { runtime } from './runtime'
@@ -29,12 +29,7 @@ import { runtime } from './runtime'
  * // true
  * ```
  */
-export interface CipoCallableRuntime extends StyledFactory<CipoCssArtifactForElements> {
-  <ElementType extends Element>(target: ElementType): CipoStyledBuilder<CipoDomStyledResult<ElementType>>
-  <Props extends CipoRecord>(target: CipoComponent<Props>): CipoStyledBuilder<CipoComponent<Props>>
-  (target: string): CipoStyledTagFactory
-  [key: string]: unknown
-}
+export type CipoCallableRuntime = StyledFactory<CipoCssArtifactForElements>
 
 type CipoCssArtifactForElements = ReturnType<typeof assertAtomicCssArtifact>
 
@@ -46,6 +41,8 @@ type CipoCssArtifactForElements = ReturnType<typeof assertAtomicCssArtifact>
 export function createCipoCallable(): CipoCallableRuntime {
   const factory = createStyledFactory<CipoCssArtifactForElements>({
     adapter: resolveElementsAdapter,
+    autoRegister: true,
+    collision: 'warn',
     createStyle(strings, values) {
       const artifact = assertAtomicCssArtifact(css(strings, ...(values as readonly CipoCssInterpolation[])))
       return { artifact, className: artifact.className }
@@ -70,4 +67,11 @@ function resolveElementsAdapter(): ElementsAdapterName | ElementsAdapter {
 }
 
 /** Compatibility aliases for older internal imports. */
-export type { ElementsComponent as CipoElementsComponent, ElementsRecord as CipoElementsRecord, StyledBuilder, StyledDomResult, StyledTagFactory }
+export type {
+  ElementsComponent as CipoElementsComponent,
+  ElementsRecord as CipoElementsRecord,
+  StyledBuilder,
+  StyledComponent,
+  StyledDomResult,
+  StyledTagFactory,
+}

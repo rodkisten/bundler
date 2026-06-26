@@ -5,6 +5,7 @@ import type { CompiledTemplate, RenderValue, TemplatePart } from "./types";
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
+const namedComponentSyntaxCache = new WeakMap<TemplateStringsArray, boolean>();
 const JSX_COMPONENT_NAME = "[A-Z][A-Za-z0-9_$.-]*";
 const ATTR_NAME_MARKER_SUFFIX = "__fabrica_attr_name_end__";
 
@@ -43,7 +44,7 @@ const ATTR_NAME_MARKER_SUFFIX = "__fabrica_attr_name_end__";
  * ```
  */
 export function getCompiledTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
-  return getCompiledTemplateWithMode(strings, values, false);
+  return getCompiledTemplateWithMode(strings, values, hasNamedComponentTagSyntax(strings));
 }
 
 /**
@@ -61,6 +62,36 @@ export function getCompiledTemplate(strings: TemplateStringsArray, values: reado
  */
 export function getCompiledJsxTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
   return getCompiledTemplateWithMode(strings, values, true);
+}
+
+/**
+ * Detects registered-component syntax with a tiny static-chunk scan.
+ *
+ * @remarks
+ * Normal `html`` ` remains on its original cache/compiler path unless a static
+ * chunk contains `<Uppercase...` or `</Uppercase...`. Named styled components
+ * can therefore be authored without passing their function to the template,
+ * while ordinary templates pay only this bounded character scan once per call.
+ */
+export function hasNamedComponentTagSyntax(strings: TemplateStringsArray): boolean {
+  const cached = namedComponentSyntaxCache.get(strings);
+  if (cached !== undefined) return cached;
+
+  for (let chunkIndex = 0; chunkIndex < strings.length; chunkIndex += 1) {
+    const chunk = strings[chunkIndex] ?? "";
+    for (let index = 0; index < chunk.length - 1; index += 1) {
+      if (chunk[index] !== "<") continue;
+      let nameIndex = index + 1;
+      if (chunk[nameIndex] === "/") nameIndex += 1;
+      const code = chunk.charCodeAt(nameIndex);
+      if (code >= 65 && code <= 90) {
+        namedComponentSyntaxCache.set(strings, true);
+        return true;
+      }
+    }
+  }
+  namedComponentSyntaxCache.set(strings, false);
+  return false;
 }
 
 function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: readonly RenderValue[], jsx: boolean): CompiledTemplate {

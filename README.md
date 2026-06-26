@@ -388,3 +388,21 @@ On every push to a non-main branch, the **⚡ Performance Observatory** workflow
 
 The report treats changes within the greater of 3% or the combined RME as
 stable, reducing false alarms from shared-runner noise.
+
+## 🌿 Named Cipó + Fabrica components
+
+Named Cipó styled components now bridge automatically into Fabrica's registry:
+
+```ts
+const Button = Cipo.styled.button('Button').css`
+  px: 4
+  bg: $brand
+`
+
+Fabrica.render(root, Fabrica.html`
+  <Button onClick=${save}>Save</Button>
+`)
+```
+
+The bridge is load-order safe, polling-free, collision-configurable and exposed
+through the reusable Fabrica Elements styled factory.
