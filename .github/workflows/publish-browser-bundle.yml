@@ -268,9 +268,9 @@ jobs:
           
           mkdir -p artifacts/test 
           
-          pnpm bench:cipo:run 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
+          pnpm bench:all:run 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
 
-      - name: 🌿 Run Cipó benchmarks
+      - name: 🌿 Run All benchmarks
         shell: bash
         continue-on-error: true
         run: |
