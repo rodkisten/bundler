@@ -14,6 +14,8 @@
 
 ### Added
 
+- Added focused Fabrica component-render tests for self-closing interpolated tags, camelCase prop preservation, React-like boolean component branches, and reactive conditional mounting.
+
 - Refactored the real Cipó compiler implementation into focused modules for detection, atomic compilation, stylesheet compilation, inline compilation, declaration expansion, selector/context wrapping, at-rule collection and important handling.
 - Added focused unit tests for every new Cipó compiler module so the extracted implementation is covered independently from the kitchen sink tests.
 
@@ -41,6 +43,8 @@
 - The generated landing page now extracts `@example` blocks from every source file under each tool package, not just root entry files.
 
 ### Changed
+
+- Fabrica now normalizes self-closing interpolated component placeholders before browser parsing, preserves dynamic prop spelling, omits empty `children` fragments, and renders bare component references as zero-prop component requests.
 
 - `src/cipo/src/compiler.ts` is now a compatibility barrel over `src/cipo/src/compiler/*`; existing imports keep working while the implementation lives in smaller production modules.
 - `src/cipo/src/inline.ts` now delegates inline compilation to `compiler/inline-compile.ts`, reducing duplicated compiler responsibilities.
