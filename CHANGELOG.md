@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased - named styled registry bridge
+
+### Added
+
+- Added enterprise-grade named styled component registration across Cipó, Fabrica Elements and Fabrica without introducing a runtime import cycle.
+- Added load-order-safe pending registration, explicit registry connection APIs, collision policies, component metadata, attrs resolvers and polymorphic `as`.
+- Added normal `Fabrica.html` support for registered uppercase component tags while preserving the ordinary-template fast path.
+- Added focused registry/integration tests and manual `document.createElement` benchmark cases for named rendering and registration overhead.
+
+### Changed
+
+- Fabrica installation now publishes a shared registry-ready handshake used by independently bundled tools.
+- Styled factory HTML tag properties are strongly typed and anonymous styled APIs remain backwards compatible.
+
 ## Unreleased - Performance observatory
 
 ### Added
