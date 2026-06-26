@@ -143,3 +143,102 @@ const button = recipe({
 ```
 
 `variant()` resolves one variant map and `asChild()` provides an inert payload shape for adapter-level slot composition.
+
+## Named styled components and Fabrica registry bridge
+
+Named styled components can register themselves in any structural
+Fabrica-compatible registry while anonymous components keep the original API.
+The bridge does not poll and does not import Fabrica. It registers immediately
+when a registry exists, or queues the component until Fabrica announces that its
+bundle is ready.
+
+```ts
+const styled = createStyledFactory({
+  createStyle,
+  autoRegister: true,
+  collision: 'warn',
+})
+
+const Button = styled.button('Button').css`
+  display: inline-flex;
+`
+```
+
+The direct template form is equivalent:
+
+```ts
+const Button = styled.button('Button')`
+  display: inline-flex;
+`
+```
+
+A named component exposes stable metadata and explicit lifecycle controls:
+
+```ts
+Button.displayName      // 'Button'
+Button.className        // generated compiler class list
+Button.artifact         // original compiler artifact
+Button.tag              // 'button'
+Button.registeredName   // 'Button'
+Button.unregister()
+Button.register('Button', 'replace')
+```
+
+### Delayed Fabrica loading
+
+```ts
+const Button = styled.button('Button').css`display:flex;`
+styled.pendingComponents() // ['Button'] when Fabrica is not loaded yet
+
+styled.connectRegistry(Fabrica)
+styled.pendingComponents() // []
+```
+
+Fabrica's browser installer also publishes a shared readiness notification, so
+separately loaded Cipó and Fabrica IIFE bundles flush the queue automatically.
+The listener only exists while pending components exist, avoiding a permanent
+factory retention path.
+
+### Collision policies
+
+```ts
+styled.configureRegistry({ collision: 'replace' })
+```
+
+Supported policies:
+
+- `warn`: preserve the existing component and emit one warning;
+- `replace`: unregister and replace the existing component;
+- `error`: throw immediately;
+- `ignore`: preserve the existing component silently.
+
+### Props, attrs and polymorphic `as`
+
+```ts
+const Action = styled.button('Action', {
+  attrs: (props) => ({
+    type: 'button',
+    'aria-label': props.label,
+  }),
+})`
+  display: inline-flex;
+`
+
+Action({ label: 'Save', children: 'Save' })
+Action({ as: 'a', href: '/settings', label: 'Settings', children: 'Settings' })
+```
+
+`attrs()` remains available and accepts either an object or a props resolver.
+Caller props win, while classes, styles, refs and events continue through the
+shared `composeProps()` semantics.
+
+### Styling an existing component
+
+```ts
+const ToolbarButton = styled(Button).named('ToolbarButton').css`
+  min-width: 2rem;
+`
+```
+
+The original prop contract is preserved and the generated class is merged
+through the active adapter.

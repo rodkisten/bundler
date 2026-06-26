@@ -1,24 +1,21 @@
+import type { HtmlTagName } from './html-tags'
+
 /**
  * Shared types for Fabrica Elements.
  *
  * @remarks
- * This package owns the boring but important element/component surface shared by
- * Cipó and Fábrica: props, class merging, children, DOM events, refs, adapter
- * props and styled factories. Keeping these types separate prevents the CSS
- * runtime and the HTML runtime from quietly growing duplicate component code.
- *
- * @example DOM styled component shape
- * ```ts
- * const Button = elements.button.css`color:red;`
- * const node = Button({ children: 'Save' })
- * ```
+ * This package owns the element/component surface shared by Cipó and Fábrica:
+ * props, class merging, children, DOM events, refs, adapters, styled factories
+ * and the optional named-component registry bridge. Keeping these contracts in
+ * one dependency-neutral module prevents the CSS compiler and renderer from
+ * growing subtly incompatible component APIs.
  */
 
 /** General object shape used for props and adapter payloads. */
 export type ElementsRecord = Record<string, unknown>
 
 /** Component function accepted by wrapper factories. */
-export type ElementsComponent<Props extends ElementsRecord = ElementsRecord> = (props: Props) => unknown
+export type ElementsComponent<Props extends ElementsRecord = ElementsRecord> = (props?: Props) => unknown
 
 /** Supported built-in adapter names. */
 export type ElementsAdapterName = 'dom' | 'react' | 'preact' | 'solid' | 'payload'
@@ -92,20 +89,78 @@ export interface ElementsFactory<Output = unknown> {
   [tag: string]: unknown
 }
 
+/** Structural Fabrica-compatible registry contract. */
+export interface ElementsComponentRegistry {
+  registerComponent(name: string, component: ElementsComponent): unknown
+  unregisterComponent?(name: string): boolean
+  resolveComponent?(name: string): unknown
+}
+
+/** Collision policy for named styled components. */
+export type StyledRegistryCollision = 'warn' | 'replace' | 'error' | 'ignore'
+
+/** Registry configuration shared by a styled factory. */
+export interface StyledRegistryOptions {
+  readonly autoRegister?: boolean
+  readonly collision?: StyledRegistryCollision
+  readonly registry?: ElementsComponentRegistry | (() => ElementsComponentRegistry | undefined)
+  readonly onWarning?: (message: string) => void
+}
+
+/** Runtime status returned by registry operations. */
+export type StyledRegistrationStatus = 'registered' | 'queued' | 'replaced' | 'existing' | 'ignored' | 'disabled'
+
+/** Static or prop-derived defaults applied before caller props. */
+export type StyledAttrs<Props extends ElementsRecord = ElementsRecord> = Props | ((props: Props) => ElementsRecord)
+
+/** Named component creation options. */
+export interface StyledComponentOptions<Props extends ElementsRecord = ElementsRecord> {
+  readonly attrs?: StyledAttrs<Props>
+  readonly collision?: StyledRegistryCollision
+}
+
 /** Options for styled factories. */
-export interface StyledFactoryOptions<Artifact = unknown, Output = unknown> extends ElementsFactoryOptions<Output> {
+export interface StyledFactoryOptions<Artifact = unknown, Output = unknown> extends ElementsFactoryOptions<Output>, StyledRegistryOptions {
   readonly createStyle: ElementsStyleCompiler<Artifact>
 }
 
-/** Builder returned by `elements.div.css`. */
-export interface StyledTagFactory<Artifact = unknown, Output = unknown> {
-  css(strings: TemplateStringsArray, ...values: readonly unknown[]): ElementsComponent
-  attrs(defaultProps: ElementsRecord): StyledTagFactory<Artifact, Output>
+/** Metadata exposed on generated styled components. */
+export interface StyledComponentMetadata<Artifact = unknown> {
+  readonly displayName?: string
+  readonly className: string
+  readonly artifact: Artifact
+  readonly target: unknown
+  readonly tag?: string
+  readonly registeredName?: string
 }
 
-/** Builder returned by `styled(element).css` or `styled(Component).css`. */
+/** Styled component with class/artifact/registry metadata. */
+export type StyledComponent<Props extends ElementsRecord = ElementsRecord, Artifact = unknown> = ElementsComponent<Props> & StyledComponentMetadata<Artifact> & {
+  register(name?: string, collision?: StyledRegistryCollision): StyledRegistrationStatus
+  unregister(): boolean
+  withComponent<TargetProps extends ElementsRecord = Props>(target: string | ElementsComponent<TargetProps>): StyledComponent<TargetProps, Artifact>
+  toString(): string
+}
+
+/** Named builder supports both `.css`` ` and direct template invocation. */
+export interface NamedStyledBuilder<Result = unknown> {
+  (strings: TemplateStringsArray, ...values: readonly unknown[]): Result
+  css(strings: TemplateStringsArray, ...values: readonly unknown[]): Result
+}
+
+/** Builder returned by `styled(element)` or `styled(Component)`. */
 export interface StyledBuilder<Result = unknown> {
   css(strings: TemplateStringsArray, ...values: readonly unknown[]): Result
+  named(name: string, options?: StyledComponentOptions): NamedStyledBuilder<Result>
+}
+
+/** Callable styled tag factory with backwards-compatible `.css` and `.attrs`. */
+export interface StyledTagFactory<Artifact = unknown, Output = unknown> {
+  (strings: TemplateStringsArray, ...values: readonly unknown[]): StyledComponent<ElementsRecord, Artifact>
+  (name: string, options?: StyledComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  css(strings: TemplateStringsArray, ...values: readonly unknown[]): StyledComponent<ElementsRecord, Artifact>
+  named(name: string, options?: StyledComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  attrs(defaultProps: StyledAttrs): StyledTagFactory<Artifact, Output>
 }
 
 /** Result of styling a real DOM element. */
@@ -115,10 +170,25 @@ export interface StyledDomResult<ElementType extends Element = Element, Artifact
   readonly className: string
 }
 
-/** Callable styled factory used by Cipó. */
-export interface StyledFactory<Artifact = unknown> {
+/** Convenience options for `styled.component(name, options)`. */
+export interface StyledNamedComponentOptions extends StyledComponentOptions {
+  readonly as?: string | ElementsComponent
+}
+
+/** Base callable styled factory contract. */
+export interface StyledFactoryBase<Artifact = unknown> {
   <ElementType extends Element>(target: ElementType): StyledBuilder<StyledDomResult<ElementType, Artifact>>
-  <Props extends ElementsRecord>(target: ElementsComponent<Props>): StyledBuilder<ElementsComponent<Props>>
+  <Props extends ElementsRecord>(target: ElementsComponent<Props>, name?: string): StyledBuilder<StyledComponent<Props, Artifact>>
   (target: string): StyledTagFactory<Artifact>
-  [tag: string]: unknown
+  component(name: string, options?: StyledNamedComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  connectRegistry(registry: ElementsComponentRegistry): number
+  disconnectRegistry(registry?: ElementsComponentRegistry): void
+  configureRegistry(options: StyledRegistryOptions): void
+  flushRegistry(): number
+  pendingComponents(): readonly string[]
+}
+
+/** Callable styled factory with strongly typed native HTML tag properties. */
+export type StyledFactory<Artifact = unknown> = StyledFactoryBase<Artifact> & {
+  readonly [Tag in HtmlTagName]: StyledTagFactory<Artifact>
 }
