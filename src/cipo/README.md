@@ -1364,3 +1364,15 @@ Cipo.configSheet('@tokens { spacing: 0.25rem; }');
 ### Merge order
 
 Configuration is applied in call order. A later `configure.css` call can override earlier `setup(...)` values, and a later `setup(...)` call can override CSS-first values. Theme tokens merge deeply, so small incremental config sheets are cheap and predictable.
+
+## Performance baselines
+
+Cipó benchmark output is normalized into `bench/cipo.json` and compared with the
+previous committed branch baseline by the root Performance Observatory:
+
+```bash
+pnpm bench:cipo
+```
+
+The report separates warm-cache identity hits from cold parse/transform/compile
+paths and uses a noise-aware threshold before labeling a change faster or slower.

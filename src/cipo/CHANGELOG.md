@@ -112,3 +112,8 @@
 - Fixed CSS-first object parsing so comma-separated font stacks and transition lists remain intact inside typed maps.
 - Moved slash protection, compact-block normalization, selector-list safety and native property guards into the primary compiler entry points.
 - Added a large typed-theme application stylesheet covering complex selectors, nested states, containers, media queries, dialogs, tables, forms, dashboards and design-system utilities.
+
+## Performance observatory integration
+
+- Unified Cipó's Vitest benchmark-mode output with the root branch baseline and PR comparison reporter.
+- Persisted warm and cold compiler measurements in `bench/cipo.json` for commit-to-commit regression tracking.
