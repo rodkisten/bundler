@@ -13,6 +13,7 @@ import { bindModelPart, createDirectiveController } from "./dom-directives";
 import { bindSpreadPart } from "./dom-spread";
 import {
   isClassMapDirective,
+  isComponent,
   isComponentRenderRequest,
   isDirective,
   isDomBag,
@@ -247,6 +248,14 @@ export function appendValue(
     return;
   }
 
+  if (isComponent(resolvedValue)) {
+    parentNode.insertBefore(
+      materializeComponent(resolvedValue()),
+      beforeNode,
+    );
+    return;
+  }
+
   if (isComponentRenderRequest(resolvedValue)) {
     parentNode.insertBefore(
       materializeComponent(resolvedValue as ComponentRenderRequest),
@@ -470,10 +479,10 @@ function bindComponentPart(
 
     applyParts(children, childParts, values);
 
-    const output = callComponentLike(componentValue, {
-      ...props,
-      children,
-    });
+    const output = callComponentLike(
+      componentValue,
+      children.hasChildNodes() ? { ...props, children } : props,
+    );
 
     childPart.set(output as RenderValue);
   };
@@ -759,6 +768,7 @@ function createChildPart(marker: Node): {
       }
 
       if (
+        isComponent(resolvedValue) ||
         isComponentRenderRequest(resolvedValue) ||
         isElementPayload(resolvedValue) ||
         isComponentPayload(resolvedValue) ||
