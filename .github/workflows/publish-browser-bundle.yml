@@ -46,6 +46,7 @@ env:
 
 jobs:
   guard:
+    name: '🛡️ Guard' 
     runs-on: ubuntu-24.04
 
     outputs:
@@ -141,6 +142,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   changes:
+    name: '📋 Check incoming changes'
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
@@ -201,6 +203,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   test:
+    name: '🧪 Run all tests'
     needs:
       - guard
       - changes
@@ -305,10 +308,10 @@ jobs:
           retention-days: 14
 
   build:
+    name: '👷🏼‍♂️ Build'
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
-
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
       GIST_ID: ${{ secrets.GIST_ID }}
@@ -363,7 +366,7 @@ jobs:
       #  run: pnpm publish:gist
 
       - name: Write build summary
-        if: ${{ github.action.branch == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+        if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
         run: |
           {
             echo "## 📦 Browser Bundle"
@@ -382,6 +385,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-pages:
+    name: "📟 Deploy to Github pages"
     needs:
       - guard
       - build
