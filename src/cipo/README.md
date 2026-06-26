@@ -1376,3 +1376,79 @@ pnpm bench:cipo
 
 The report separates warm-cache identity hits from cold parse/transform/compile
 paths and uses a noise-aware threshold before labeling a change faster or slower.
+
+## Named Cipó components registered in Fabrica
+
+Cipó's styled factory now auto-registers components that have an explicit name
+when a Fabrica registry exists. Anonymous styled components keep the existing
+behavior and are never registered implicitly.
+
+```ts
+import { styled } from '../cipo'
+import { html, render } from '../fabrica'
+
+const Button = styled.button('Button').css`
+  inline-flex
+  items-center
+  px: 4
+  py: 2
+  bg: $brand
+`
+
+render(root, html`
+  <Button type="button" onClick=${save}>Save</Button>
+`)
+```
+
+The normal `html` entrypoint performs a tiny static-chunk scan and only enables
+registered uppercase component parsing when it sees `<Uppercase...>`. Ordinary
+HTML templates remain on the original fast path. `jsx.html` remains fully
+supported.
+
+A shorter direct style form is also supported:
+
+```ts
+const Badge = styled.span('StatusBadge')`
+  px: 2
+  rounded: 999px
+`
+```
+
+### `Cipo.component()` facade
+
+```ts
+import { component } from '../cipo'
+
+const Card = component('SettingsCard', {
+  as: 'article',
+  attrs: (props) => ({
+    role: 'region',
+    'aria-label': props.label,
+  }),
+}).css`
+  grid
+  p: 4
+`
+```
+
+The same facade is available as `Cipo.component()` in the browser global.
+
+### Loading order and explicit connection
+
+Cipó can load before Fabrica. Named components are stored in a small pending Map
+and flushed when Fabrica installs, without intervals or DOM observers.
+
+```ts
+import {
+  connectFabrica,
+  configureFabricaRegistry,
+  pendingFabricaComponents,
+} from '../cipo'
+
+configureFabricaRegistry({ collision: 'replace' })
+connectFabrica(Fabrica)
+console.log(pendingFabricaComponents())
+```
+
+Named styled components expose `className`, `artifact`, `displayName`, `tag`,
+`registeredName`, `register()`, `unregister()` and `withComponent()`.
