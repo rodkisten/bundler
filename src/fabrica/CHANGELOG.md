@@ -3,6 +3,11 @@
 
 ## Next
 
+- Fixed compound attribute interpolation on DOM and component tags. Values such as `class="${base} ${tone}"` and `title="Open ${label}"` now retain every static and dynamic segment instead of dropping later values or leaking internal marker text into the DOM.
+- Component placeholders now distinguish exact raw props from compound string props, preserving objects, functions, signals, nodes and icon fragments only when the whole prop is a single interpolation.
+- Marker-only and whitespace-only component bodies no longer become phantom `DocumentFragment` children, preventing self-closing and false conditional branches from leaking fragments into label/title fallbacks.
+- Added focused template-compiler and nested toolbar-render tests covering reactive compound attributes, raw props, self-closing component boundaries, conditional children and marker leakage.
+
 - Fixed self-closing interpolated component tags with props, so `<${Button} label=${label} />` emits an explicit template boundary instead of swallowing following siblings.
 - Preserved author-provided camelCase dynamic component prop names such as `onClick`, `onPointerDown`, `selectedElement`, and `showCodePanel` through HTML template parsing.
 - Self-closing components now receive `children: undefined` instead of an empty `DocumentFragment`; paired component tags still receive their real fragment children.

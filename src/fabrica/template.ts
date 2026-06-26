@@ -137,7 +137,7 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       continue;
     }
 
-    const attributeName = readAttributeBindingName(chunk);
+    const attributeName = readAttributeBindingName(chunk) || readOpenAttributeBindingName(source);
     source += attributeName
       ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}${encodeURIComponent(attributeName)}${ATTR_NAME_MARKER_SUFFIX}`
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
@@ -266,6 +266,110 @@ export function isAttributePosition(chunk: string): boolean {
 export function readAttributeBindingName(chunk: string): string {
   const match = /([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
   return match?.[1] ?? "";
+}
+
+/**
+ * Reads the attribute whose value is still open at the end of generated source.
+ *
+ * @remarks
+ * `readAttributeBindingName()` handles the common first interpolation cheaply.
+ * This fallback is only used for compound values such as
+ * `class="${base} ${tone}"`, where later interpolations no longer have the
+ * attribute name in their immediate static chunk. Template compilation is
+ * cached, so this quote-aware scan never runs on DOM updates.
+ */
+function readOpenAttributeBindingName(source: string): string {
+  const tagStart = findOpenTagStart(source);
+  if (tagStart < 0) return "";
+
+  let index = tagStart + 1;
+  if (source[index] === "/") index += 1;
+
+  while (index < source.length && !/\s/.test(source[index] ?? "") && source[index] !== ">") index += 1;
+
+  while (index < source.length) {
+    while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
+    if (index >= source.length || source[index] === ">" || source[index] === "/") return "";
+
+    const nameStart = index;
+    while (index < source.length && !/[\s=/>]/.test(source[index] ?? "")) index += 1;
+    const name = source.slice(nameStart, index);
+
+    while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
+    if (source[index] !== "=") continue;
+
+    index += 1;
+    while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
+    if (index >= source.length) return name;
+
+    const quote = source[index];
+    if (quote === '"' || quote === "'") {
+      index += 1;
+      let escaped = false;
+
+      while (index < source.length) {
+        const char = source[index];
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === quote) {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+
+      if (index >= source.length && source[source.length - 1] !== quote) return name;
+      continue;
+    }
+
+    while (index < source.length && !/[\s>]/.test(source[index] ?? "")) index += 1;
+    if (index >= source.length) return name;
+  }
+
+  return "";
+}
+
+/** Finds the current opening tag while ignoring comments and quoted `>` text. */
+function findOpenTagStart(source: string): number {
+  let tagStart = -1;
+  let quote: '"' | "'" | null = null;
+  let inComment = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    if (inComment) {
+      if (source.startsWith("-->", index)) {
+        inComment = false;
+        index += 2;
+      }
+      continue;
+    }
+
+    if (source.startsWith("<!--", index)) {
+      inComment = true;
+      index += 3;
+      continue;
+    }
+
+    const char = source[index];
+    if (tagStart >= 0) {
+      if (quote) {
+        if (char === quote && source[index - 1] !== "\\") quote = null;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        continue;
+      }
+      if (char === ">") tagStart = -1;
+      continue;
+    }
+
+    if (char === "<" && /[A-Za-z/]/.test(source[index + 1] ?? "")) tagStart = index;
+  }
+
+  return tagStart;
 }
 
 /**
@@ -401,23 +505,26 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         continue;
       }
 
-      const marker = readAttributeMarker(attribute.value);
+      const markerState = readAttributeMarkers(attribute.value);
 
-      if (!marker) {
+      if (!markerState) {
         continue;
       }
 
       if (attribute.name === "data-fabrica-spread") {
-        parts.push({ type: "spread", index: marker.index, path: getNodePath(root, element) });
+        parts.push({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) });
         element.removeAttribute(attribute.name);
         continue;
       }
 
       parts.push({
         type: "attribute",
-        index: marker.index,
+        index: markerState.indices[0]!,
+        indices: markerState.indices,
+        strings: markerState.strings,
+        raw: markerState.raw,
         path: getNodePath(root, element),
-        name: marker.name || attribute.name,
+        name: markerState.name || attribute.name,
       });
       element.removeAttribute(attribute.name);
     }
@@ -460,37 +567,57 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
  * @param value - Attribute value.
  * @returns Marker index or -1.
  */
-function readAttributeMarker(value: string): { index: number; name: string } | null {
-  const start = value.indexOf(ATTR_MARKER_PREFIX);
-
-  if (start === -1) {
-    return null;
-  }
-
-  const indexStart = start + ATTR_MARKER_PREFIX.length;
-  const suffix = value.indexOf(ATTR_MARKER_SUFFIX, indexStart);
-
-  if (suffix === -1) {
-    return null;
-  }
-
-  const index = Number(value.slice(indexStart, suffix));
-  if (!Number.isFinite(index)) return null;
-
-  const nameStart = suffix + ATTR_MARKER_SUFFIX.length;
-  const nameEnd = value.indexOf(ATTR_NAME_MARKER_SUFFIX, nameStart);
-  const encodedName = nameEnd === -1 ? "" : value.slice(nameStart, nameEnd);
+function readAttributeMarkers(value: string): {
+  indices: number[];
+  strings: string[];
+  name: string;
+  raw: boolean;
+} | null {
+  const indices: number[] = [];
+  const strings: string[] = [];
   let name = "";
+  let cursor = 0;
 
-  if (encodedName) {
-    try {
-      name = decodeURIComponent(encodedName);
-    } catch {
-      name = encodedName;
+  while (cursor < value.length) {
+    const start = value.indexOf(ATTR_MARKER_PREFIX, cursor);
+    if (start === -1) break;
+
+    const indexStart = start + ATTR_MARKER_PREFIX.length;
+    const suffix = value.indexOf(ATTR_MARKER_SUFFIX, indexStart);
+    if (suffix === -1) break;
+
+    const interpolationIndex = Number(value.slice(indexStart, suffix));
+    if (!Number.isFinite(interpolationIndex)) {
+      cursor = suffix + ATTR_MARKER_SUFFIX.length;
+      continue;
     }
+
+    strings.push(value.slice(cursor, start));
+    indices.push(interpolationIndex);
+
+    let markerEnd = suffix + ATTR_MARKER_SUFFIX.length;
+    const nameEnd = value.indexOf(ATTR_NAME_MARKER_SUFFIX, markerEnd);
+
+    if (nameEnd !== -1) {
+      const encodedName = value.slice(markerEnd, nameEnd);
+      if (encodedName && !name) {
+        try {
+          name = decodeURIComponent(encodedName);
+        } catch {
+          name = encodedName;
+        }
+      }
+      markerEnd = nameEnd + ATTR_NAME_MARKER_SUFFIX.length;
+    }
+
+    cursor = markerEnd;
   }
 
-  return { index, name };
+  if (indices.length === 0) return null;
+
+  strings.push(value.slice(cursor));
+  const raw = indices.length === 1 && strings.length === 2 && strings[0] === "" && strings[1] === "";
+  return { indices, strings, name, raw };
 }
 
 /**

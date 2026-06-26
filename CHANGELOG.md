@@ -44,6 +44,9 @@
 
 ### Changed
 
+- Fabrica template attributes now compile all interpolations in a quoted or unquoted value as one binding. Compound DOM attributes and component props preserve prefixes, separators and suffixes while exact single-value props remain raw.
+- Fabrica component tags now ignore whitespace/comment-only child ranges, preventing phantom `DocumentFragment` children and `[object DocumentFragment]` text in nested button APIs.
+
 - Fabrica now normalizes self-closing interpolated component placeholders before browser parsing, preserves dynamic prop spelling, omits empty `children` fragments, and renders bare component references as zero-prop component requests.
 
 - `src/cipo/src/compiler.ts` is now a compatibility barrel over `src/cipo/src/compiler/*`; existing imports keep working while the implementation lives in smaller production modules.
@@ -70,8 +73,8 @@
 ### Validation
 
 - `npx tsc --noEmit` passed after installing project dependencies.
-- `npm run build --silent` passed and emitted updated IIFE/ESM bundles.
-- `npx vitest run` still has 2 pre-existing Cipó expectations failing around stylesheet insertion/alias output; these failures are unrelated to the Fabrica micro-JSX changes.
+- `npx vitest run` passed all 274 tests, including focused Fabrica compound-attribute and nested-component regression coverage.
+- `npm run build` passed and emitted updated IIFE/ESM bundles plus runtime benchmark output.
 
 ## Fabrica Elements bridge
 

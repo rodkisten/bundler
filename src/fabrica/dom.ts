@@ -76,7 +76,14 @@ const renderStates = new WeakMap<
 
 
 type DynamicComponentPropPart =
-  | { name: string; index: number; spread?: false }
+  | {
+      name: string;
+      index: number;
+      indices: number[];
+      strings: string[];
+      raw: boolean;
+      spread?: false;
+    }
   | { index: number; spread: true };
 
 /**
@@ -359,7 +366,13 @@ function applyParts(
         propParts.push({ index: part.index, spread: true });
         node.removeAttribute("data-fabrica-spread");
       } else {
-        propParts.push({ name: part.name, index: part.index });
+        propParts.push({
+          name: part.name,
+          index: part.index,
+          indices: part.indices,
+          strings: part.strings,
+          raw: part.raw,
+        });
         node.removeAttribute(part.name);
       }
 
@@ -387,7 +400,7 @@ function applyParts(
       bindAttributePart(
         resolved.node,
         resolved.part.name,
-        values[resolved.part.index],
+        createAttributeBindingValue(resolved.part, values),
       );
     } else if (resolved.part.type === "spread") {
       bindSpreadPart(resolved.node, values[resolved.part.index]);
@@ -481,7 +494,7 @@ function bindComponentPart(
 
     const output = callComponentLike(
       componentValue,
-      children.hasChildNodes() ? { ...props, children } : props,
+      hasMeaningfulComponentChildren(children) ? { ...props, children } : props,
     );
 
     childPart.set(output as RenderValue);
@@ -523,7 +536,14 @@ function hasReactiveComponentInputs(
     const value = values[part.index];
     if (hasReactiveValue(value)) return true;
 
-    if (part.spread && hasReactiveRecordValue(value)) return true;
+    if (part.spread) {
+      if (hasReactiveRecordValue(value)) return true;
+      continue;
+    }
+
+    for (let valueIndex = 0; valueIndex < part.indices.length; valueIndex += 1) {
+      if (hasReactiveValue(values[part.indices[valueIndex]!] as unknown)) return true;
+    }
   }
 
   return false;
@@ -541,6 +561,19 @@ function hasReactiveRecordValue(value: unknown): boolean {
   const record = value as Record<string, unknown>;
   for (const key in record) {
     if (hasReactiveValue(record[key])) return true;
+  }
+
+  return false;
+}
+
+function hasMeaningfulComponentChildren(fragment: DocumentFragment): boolean {
+  const children = fragment.childNodes;
+
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index];
+    if (!child) continue;
+    if (child.nodeType === Node.ELEMENT_NODE) return true;
+    if (child.nodeType === Node.TEXT_NODE && (child.nodeValue ?? "").trim()) return true;
   }
 
   return false;
@@ -598,10 +631,63 @@ function readDynamicComponentProps(
       continue;
     }
 
-    props[normalizeComponentPropName(prop.name)] = values[prop.index];
+    props[normalizeComponentPropName(prop.name)] = readComponentPropValue(prop, values);
   }
 
   return props;
+}
+
+function readComponentPropValue(
+  part: Exclude<DynamicComponentPropPart, { spread: true }>,
+  values: readonly RenderValue[],
+): unknown {
+  if (part.raw) return values[part.index];
+  return composeAttributeValue(part.indices, part.strings, values);
+}
+
+function createAttributeBindingValue(
+  part: Extract<TemplatePart, { type: "attribute" }>,
+  values: readonly RenderValue[],
+): RenderValue | undefined {
+  if (part.raw) return values[part.index];
+
+  for (let index = 0; index < part.indices.length; index += 1) {
+    if (hasReactiveValue(values[part.indices[index]!] as unknown)) {
+      return (() => composeAttributeValue(part.indices, part.strings, values)) as RenderValue;
+    }
+  }
+
+  return composeAttributeValue(part.indices, part.strings, values);
+}
+
+function composeAttributeValue(
+  indices: readonly number[],
+  strings: readonly string[],
+  values: readonly RenderValue[],
+): string {
+  let output = strings[0] ?? "";
+
+  for (let index = 0; index < indices.length; index += 1) {
+    output += stringifyAttributeSegment(readValue(values[indices[index]!]));
+    output += strings[index + 1] ?? "";
+  }
+
+  return output;
+}
+
+function stringifyAttributeSegment(value: unknown): string {
+  if (value == null || value === false) return "";
+  if (value === true) return "true";
+  if (isDomNode(value)) return value.textContent ?? "";
+  return String(value);
+}
+
+function normalizeStaticComponentPropName(name: string): string {
+  if (name === "classname") return "className";
+  if (name === "htmlfor") return "htmlFor";
+  if (name === "tabindex") return "tabIndex";
+  if (name === "readonly") return "readOnly";
+  return name;
 }
 
 function normalizeComponentPropName(name: string): string {
@@ -653,7 +739,7 @@ function readStaticComponentProps(
       continue;
     }
 
-    props[attribute.name] = attribute.value;
+    props[normalizeStaticComponentPropName(attribute.name)] = attribute.value;
   }
 
   return props;
