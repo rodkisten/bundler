@@ -79,3 +79,11 @@
 - Added `keyed`, `fragment`, `childrenToArray`, `slot`, and `memoView` helpers.
 - Re-exported Broto primitives from the Fabrica package and browser API.
 - Added focused feature tests for directives and event options.
+
+## Unreleased - benchmark observatory
+
+### Added
+
+- Added a Vitest benchmark-mode kitchen sink with manual `document.createElement` baselines for twelve major rendering paths.
+- Added a framework-neutral benchmark adapter contract with stable case identifiers for future renderer comparisons.
+- Added branch-level JSON baselines and Markdown performance reports through the root benchmark pipeline.
