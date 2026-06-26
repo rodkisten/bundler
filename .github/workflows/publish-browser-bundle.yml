@@ -356,13 +356,14 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+        if: ${{ github.ref_name == 'main' && github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
 
       #- name: Publish public Gist
       #  if: ${{ env.GIST_TOKEN != '' && env.GIST_ID != '' }}
       #  run: pnpm publish:gist
 
       - name: Write build summary
-        if: always()
+        if: ${{ github.action.branch == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
         run: |
           {
             echo "## 📦 Browser Bundle"
@@ -384,7 +385,7 @@ jobs:
     needs:
       - guard
       - build
-    if: ${{ github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    if: ${{ github.ref_name == 'main' || github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
 
     environment:
