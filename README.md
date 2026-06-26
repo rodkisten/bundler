@@ -345,3 +345,46 @@ Example output:
 | cipo.sheet.nested | 150 | varies | varies |
 | cipo.sheet.runtime-dsl | 120 | varies | varies |
 ```
+
+## ⚡ Performance Observatory
+
+The repository keeps noise-aware benchmark baselines in the root `bench/` directory:
+
+```txt
+bench/
+├── cipo.json
+├── fabrica.json
+├── README.md
+└── COMPARISON.md
+```
+
+Run the complete matrix locally:
+
+```bash
+pnpm bench
+```
+
+Run only one package:
+
+```bash
+pnpm bench:cipo
+pnpm bench:fabrica
+```
+
+Fabrica benchmarks pair every kitchen-sink rendering case with a manual
+`document.createElement` implementation. The adapter contract in
+`src/fabrica/tests/fabrica.bench-cases.ts` is intentionally framework-neutral,
+so React, Preact, Solid or another renderer can be added later without changing
+the historical case identifiers.
+
+On every push to a non-main branch, the **⚡ Performance Observatory** workflow:
+
+1. reads the previous committed JSON files as the baseline;
+2. runs Vitest benchmark mode for Cipó and Fabrica;
+3. creates a noise-aware current-versus-previous Markdown report;
+4. commits the refreshed `bench/` files back to the branch;
+5. creates or updates one visual PR comment with improvements, regressions and
+   Fabrica-versus-manual ratios.
+
+The report treats changes within the greater of 3% or the combined RME as
+stable, reducing false alarms from shared-runner noise.

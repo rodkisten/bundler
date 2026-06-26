@@ -11,16 +11,20 @@
   },
   "scripts": {
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
-    "build": "tsx scripts/build.ts && tsx scripts/benchmarks.ts",
+    "build": "tsx scripts/build.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
     "publish:gist": "tsx scripts/publish-gist.ts",
     "bench:all": "tsx scripts/benchmarks.ts",
-    "bench": "vitest bench",
-    "bench:cipo": "vitest bench src/cipo/tests/cipo.bench.ts",
-    "bench:cipo:run": "vitest bench src/cipo/tests/cipo.bench.ts --run && pnpm bench:cipo:memory",
-    "bench:cipo:memory": "node --expose-gc --import tsx scripts/cipo-memory-benchmark.ts"
+    "bench": "tsx scripts/benchmarks.ts",
+    "bench:cipo": "tsx scripts/benchmarks.ts --suite=cipo",
+    "bench:cipo:memory": "node --expose-gc --import tsx scripts/cipo-memory-benchmark.ts",
+    "build:with-bench": "pnpm build && pnpm bench:ci",
+    "bench:ci": "tsx scripts/benchmarks.ts",
+    "bench:fabrica": "tsx scripts/benchmarks.ts --suite=fabrica",
+    "bench:cipo:raw": "vitest bench src/cipo/tests/cipo.bench.ts --run",
+    "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run"
   },
   "devDependencies": {
     "@types/node": "25.9.1",

@@ -1,97 +1,178 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
-import { performance } from 'node:perf_hooks'
-import { DIST_DIR, ROOT_DIR } from './config'
-import { benchmark, reset, setup, sheet, atomic } from '../src/cipo/src/index'
+import process from 'node:process'
+import { ROOT_DIR } from './config'
+import { compareSnapshots, renderBenchmarkMarkdown } from './benchmark/report'
+import type {
+  BenchmarkSnapshot,
+  BenchmarkSuiteDefinition,
+  NormalizedBenchmark,
+  SuiteComparison,
+} from './benchmark/types'
 
-const OUT_DIR = path.join(ROOT_DIR, 'artifacts', 'benchmarks')
-const DIST_BENCHMARK_DIR = path.join(DIST_DIR, 'pipeline')
+const BENCH_DIR = path.join(ROOT_DIR, 'bench')
+const RAW_DIR = path.join(ROOT_DIR, '.bench-tmp')
+const VITEST_BIN = path.join(ROOT_DIR, 'node_modules', 'vitest', 'vitest.mjs')
 
-type BenchmarkRow = {
-  name: string
-  iterations: number
-  totalMs: number
-  averageMs: number
+const SUITES: readonly BenchmarkSuiteDefinition[] = Object.freeze([
+  {
+    id: 'cipo',
+    label: 'Cipó CSS runtime',
+    file: 'src/cipo/tests/cipo.bench.ts',
+    description: 'Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first configuration modes.',
+  },
+  {
+    id: 'fabrica',
+    label: 'Fabrica DOM runtime',
+    file: 'src/fabrica/tests/fabrica.bench.ts',
+    description: 'Kitchen-sink DOM rendering matrix compared with manual document.createElement baselines.',
+  },
+])
+
+type VitestBenchmarkJson = {
+  files?: Array<{
+    filepath?: string
+    groups?: Array<{
+      fullName?: string
+      benchmarks?: Array<Record<string, unknown>>
+    }>
+  }>
 }
 
 async function main(): Promise<void> {
-  await fs.mkdir(OUT_DIR, { recursive: true })
+  const selectedSuites = selectSuites(process.argv.slice(2))
+  await fs.mkdir(BENCH_DIR, { recursive: true })
+  await fs.rm(RAW_DIR, { recursive: true, force: true })
+  await fs.mkdir(RAW_DIR, { recursive: true })
 
-  reset()
-  setup({
-    prefix: 'bench',
-    minify: true,
-    layers: false,
-    rem: { enabled: true, baseFontSize: 16 },
-    theme: {
-      colors: { brand: '#f97316', panel: '#020617', ink: '#f8fafc' },
-      spacing: '0.25rem',
-      radius: { md: '12px', xl: '24px' },
-    },
+  const comparisons: SuiteComparison[] = []
+  for (let index = 0; index < selectedSuites.length; index += 1) {
+    const suite = selectedSuites[index]!
+    const baselinePath = path.join(BENCH_DIR, `${suite.id}.json`)
+    const previous = await readSnapshot(baselinePath)
+    const rawPath = path.join(RAW_DIR, `${suite.id}.vitest.json`)
+
+    runVitestSuite(suite, rawPath, previous ? baselinePath : null)
+
+    const raw = JSON.parse(await fs.readFile(rawPath, 'utf8')) as VitestBenchmarkJson
+    const current = normalizeSnapshot(suite, raw)
+    comparisons.push(compareSnapshots(suite, previous, current))
+    await fs.writeFile(baselinePath, `${JSON.stringify(current, null, 2)}\n`)
+  }
+
+  const markdown = renderBenchmarkMarkdown(comparisons)
+  await fs.writeFile(path.join(BENCH_DIR, 'README.md'), markdown)
+  await fs.writeFile(path.join(BENCH_DIR, 'COMPARISON.md'), markdown)
+  await fs.rm(RAW_DIR, { recursive: true, force: true })
+  process.stdout.write(`\n${markdown}\n`)
+}
+
+function selectSuites(args: readonly string[]): readonly BenchmarkSuiteDefinition[] {
+  const suiteArg = args.find((arg) => arg.startsWith('--suite='))
+  if (!suiteArg) return SUITES
+  const requested = new Set(suiteArg.slice('--suite='.length).split(',').map((value) => value.trim()).filter(Boolean))
+  const selected = SUITES.filter((suite) => requested.has(suite.id))
+  if (selected.length === 0) throw new Error(`Unknown benchmark suite: ${Array.from(requested).join(', ')}`)
+  return selected
+}
+
+function runVitestSuite(suite: BenchmarkSuiteDefinition, rawPath: string, _baselinePath: string | null): void {
+  const args = [
+    VITEST_BIN,
+    'bench',
+    suite.file,
+    '--run',
+    `--outputJson=${rawPath}`,
+  ]
+
+  const result = spawnSync(process.execPath, args, {
+    cwd: ROOT_DIR,
+    env: { ...process.env, FORCE_COLOR: process.env.FORCE_COLOR ?? '1' },
+    stdio: 'inherit',
   })
+  if (result.error) throw result.error
+  if (result.status !== 0) throw new Error(`Benchmark suite ${suite.id} failed with exit code ${result.status ?? 'unknown'}.`)
+}
 
-  const rows: BenchmarkRow[] = []
-  rows.push(toRow('cipo.atomic.basic', benchmark('px: 4\npy: 2\nbg: $brand\ncolor: color-amber-245', 250, 'atomic')))
-  rows.push(toRow('cipo.sheet.nested', benchmark('.card { bg: alpha($panel / 72%)\n border: 1px solid alpha($ink / 12%)\n x:hover { bg: alpha($brand / 20%) } x:md { px: 6 } }', 150, 'stylesheet')))
-
-  const runtimeSource = `
-    :root {
-      $dock(radius: 14px, size: (sm: 4px, md: 1rem))
-      $$iconWrapSize: 16px
-      $$iconSize: $$iconWrapSize - 1px
-      $$glass(c: color, b: length) {
-        py: *b
-        color-amber-245
-        bg-*c-235
+function normalizeSnapshot(suite: BenchmarkSuiteDefinition, raw: VitestBenchmarkJson): BenchmarkSnapshot {
+  const benchmarks: NormalizedBenchmark[] = []
+  const files = raw.files ?? []
+  for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+    const file = files[fileIndex]!
+    const groups = file.groups ?? []
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+      const group = groups[groupIndex]!
+      const groupName = normalizeGroupName(group.fullName ?? suite.label, suite.file)
+      const rows = group.benchmarks ?? []
+      for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+        const row = rows[rowIndex]!
+        const name = String(row.name ?? `benchmark-${rowIndex}`)
+        benchmarks.push({
+          id: `${groupName} > ${name}`,
+          group: groupName,
+          name,
+          hz: numberValue(row.hz),
+          meanMs: numberValue(row.mean ?? row.period),
+          minMs: numberValue(row.min),
+          maxMs: numberValue(row.max),
+          p75Ms: numberValue(row.p75),
+          p99Ms: numberValue(row.p99),
+          rme: numberValue(row.rme),
+          samples: numberValue(row.sampleCount ?? row.samples),
+        })
       }
     }
-    .card { glass(amber, 4) }
-  `
-
-  const startedAt = performance.now()
-  for (let index = 0; index < 120; index += 1) String(sheet.css([runtimeSource] as unknown as TemplateStringsArray))
-  const totalMs = performance.now() - startedAt
-  rows.push({ name: 'cipo.sheet.runtime-dsl', iterations: 120, totalMs, averageMs: totalMs / 120 })
-
-  const markdown = renderMarkdown(rows)
-  const json = JSON.stringify({ generatedAt: new Date().toISOString(), rows }, null, 2)
-
-  await fs.writeFile(path.join(OUT_DIR, 'benchmarks.json'), json)
-  await fs.writeFile(path.join(OUT_DIR, 'benchmarks.md'), markdown)
-
-  try {
-    await fs.mkdir(DIST_BENCHMARK_DIR, { recursive: true })
-    await fs.writeFile(path.join(DIST_BENCHMARK_DIR, 'benchmarks.json'), json)
-    await fs.writeFile(path.join(DIST_BENCHMARK_DIR, 'benchmarks.md'), markdown)
-  } catch {
-    // dist is created by the build script. Local benchmark runs should still succeed before build.
   }
 
-  console.log(markdown)
-}
-
-function toRow(name: string, timing: { iterations: number; totalMs: number; averageMs: number }): BenchmarkRow {
   return {
-    name,
-    iterations: timing.iterations,
-    totalMs: round(timing.totalMs),
-    averageMs: round(timing.averageMs),
+    schemaVersion: 1,
+    package: suite.id,
+    label: suite.label,
+    description: suite.description,
+    generatedAt: new Date().toISOString(),
+    commit: readCommit(),
+    branch: process.env.GITHUB_REF_NAME || process.env.BRANCH_NAME || 'local',
+    environment: {
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      cpu: os.cpus()[0]?.model ?? 'unknown',
+      ci: Boolean(process.env.CI),
+    },
+    benchmarks,
   }
 }
 
-function renderMarkdown(rows: readonly BenchmarkRow[]): string {
-  let output = '## ⚡ Runtime Benchmarks\n\n'
-  output += '| Benchmark | Iterations | Total ms | Avg ms |\n'
-  output += '| --- | ---: | ---: | ---: |\n'
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index]!
-    output += `| ${row.name} | ${row.iterations} | ${row.totalMs} | ${row.averageMs} |\n`
+async function readSnapshot(filePath: string): Promise<BenchmarkSnapshot | null> {
+  try {
+    const value = JSON.parse(await fs.readFile(filePath, 'utf8')) as BenchmarkSnapshot
+    return value?.schemaVersion === 1 && Array.isArray(value.benchmarks) ? value : null
+  } catch {
+    return null
   }
-  return output
 }
 
-function round(value: number): number {
-  return Math.round(value * 1000) / 1000
+function normalizeGroupName(value: string, benchmarkFile: string): string {
+  const normalized = value.replaceAll('\\', '/')
+  const fileName = benchmarkFile.replaceAll('\\', '/')
+  const marker = `${fileName} > `
+  const markerIndex = normalized.indexOf(marker)
+  return markerIndex >= 0 ? normalized.slice(markerIndex + marker.length) : normalized
 }
 
-void main()
+function numberValue(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (Array.isArray(value)) return value.length
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function readCommit(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA
+  const result = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT_DIR, encoding: 'utf8' })
+  return result.status === 0 ? result.stdout.trim() : 'unknown'
+}
+
+await main()

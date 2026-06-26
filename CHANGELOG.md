@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased - Performance observatory
+
+### Added
+
+- Added a Vitest/Tinybench Fabrica kitchen-sink benchmark matrix covering static rendering, complex interpolations, nested components, reactive updates, conditional components, spread props/events, keyed and virtual lists, portals, raw HTML and two-way bindings.
+- Added equivalent manual `document.createElement` baselines and a framework-neutral adapter contract for future React, Preact, Solid or other comparisons.
+- Added normalized root-level benchmark snapshots in `bench/cipo.json` and `bench/fabrica.json`, plus visual Markdown comparison reports.
+- Added a branch-push GitHub Actions workflow that refreshes benchmark baselines, commits them to the PR branch, uploads artifacts and maintains a single emoji-rich PR performance comment.
+
+### Changed
+
+- Unified Cipó and Fabrica benchmark execution behind `pnpm bench` / `pnpm bench:ci`.
+- Browser bundle builds now publish committed benchmark JSON and Markdown files as pipeline documentation instead of rerunning benchmarks inside the build command.
+
+
 ## 1.0.0
 
 - Added root-entry multi-build pipeline.

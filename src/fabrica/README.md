@@ -716,3 +716,20 @@ html`${state.user.name}`
 html`${state.view.user.name}`
 html`${() => state.user.name()}`
 ```
+
+## Performance benchmark matrix
+
+Fabrica ships a Vitest/Tinybench kitchen-sink benchmark suite at
+`tests/fabrica.bench.ts`. Every case is paired with an equivalent manual
+`document.createElement` implementation, including complex attribute
+interpolation, nested component props, fine-grained updates, conditional
+components, spread/event diffing, keyed lists, virtual lists, portals, raw HTML
+and two-way bindings.
+
+```bash
+pnpm bench:fabrica
+```
+
+The adapter contract in `tests/fabrica.bench-cases.ts` uses stable case IDs. A
+future React, Preact, Solid or other adapter only needs to implement
+`FabricaBenchmarkAdapter.run(caseId)` and join the adapter list.
