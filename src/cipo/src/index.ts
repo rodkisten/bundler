@@ -99,6 +99,16 @@ export const cipo = createCipoCallable()
 /** Styled-components-like alias for the callable Cipó component factory. */
 export const styled = cipo
 
+/** Named visual component facade backed by Fabrica Elements. */
+export const component = cipo.component
+
+/** Explicit registry bridge aliases for module and userscript integrations. */
+export const connectFabrica = cipo.connectRegistry
+export const disconnectFabrica = cipo.disconnectRegistry
+export const configureFabricaRegistry = cipo.configureRegistry
+export const flushFabricaRegistry = cipo.flushRegistry
+export const pendingFabricaComponents = cipo.pendingComponents
+
 Object.assign(cipo, {
   css,
   styled,
@@ -157,6 +167,12 @@ export function createBrowserGlobal() {
     cipo,
     css,
     styled,
+    component: cipo.component,
+    connectFabrica: cipo.connectRegistry,
+    disconnectFabrica: cipo.disconnectRegistry,
+    configureFabricaRegistry: cipo.configureRegistry,
+    flushFabricaRegistry: cipo.flushRegistry,
+    pendingFabricaComponents: cipo.pendingComponents,
     atomic,
     sheet,
     assertAtomicCssArtifact,
