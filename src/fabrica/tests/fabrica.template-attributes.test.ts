@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it } from "vitest";
-import { buildTemplateSource, compileParts } from "../template";
+import { buildTemplateSource, compileParts, hasNamedComponentTagSyntax } from "../template";
 import type { RenderValue } from "../types";
 
 function source(strings: TemplateStringsArray, ...values: RenderValue[]): string {
@@ -54,6 +54,17 @@ describe("Fabrica template attribute compiler", () => {
       strings: ["", ""],
       raw: true,
     });
+  });
+
+  it("detects uppercase named component syntax without flagging ordinary HTML", () => {
+    const named = ["<ToolbarButton>Save</ToolbarButton>"] as unknown as TemplateStringsArray;
+    const ordinary = ["<button>Save</button>"] as unknown as TemplateStringsArray;
+    Object.defineProperty(named, "raw", { value: named });
+    Object.defineProperty(ordinary, "raw", { value: ordinary });
+
+    expect(hasNamedComponentTagSyntax(named)).toBe(true);
+    expect(hasNamedComponentTagSyntax(ordinary)).toBe(false);
+    expect(hasNamedComponentTagSyntax(named)).toBe(true);
   });
 
   it("normalizes a self-closing component with compound props without creating child markers", () => {
