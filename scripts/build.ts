@@ -186,7 +186,7 @@ async function collectTestFiles(): Promise<TextFile[]> {
 async function collectPipelineFiles(): Promise<TextFile[]> {
   return walkTextFiles(ROOT_DIR, (relativePath) => {
     if (relativePath.startsWith("dist/")) return false;
-    return relativePath.startsWith(".github/workflows/") || relativePath === "package.json" || relativePath === "pnpm-workspace.yaml";
+    return relativePath.startsWith(".github/workflows/") || relativePath.startsWith("bench/") || relativePath === "package.json" || relativePath === "pnpm-workspace.yaml";
   });
 }
 
