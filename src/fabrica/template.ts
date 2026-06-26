@@ -6,6 +6,7 @@ import type { CompiledTemplate, RenderValue, TemplatePart } from "./types";
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const JSX_COMPONENT_NAME = "[A-Z][A-Za-z0-9_$.-]*";
+const ATTR_NAME_MARKER_SUFFIX = "__fabrica_attr_name_end__";
 
 /**
  * Gets a compiled template from cache or compiles a new one.
@@ -136,12 +137,14 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       continue;
     }
 
-    source += isAttributePosition(chunk)
-      ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}`
+    const attributeName = readAttributeBindingName(chunk);
+    source += attributeName
+      ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}${encodeURIComponent(attributeName)}${ATTR_NAME_MARKER_SUFFIX}`
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
-  return options.jsx ? transformMicroJsxChunk(source) : source;
+  const normalizedSource = normalizeInterpolatedComponentSelfClosingTags(source);
+  return options.jsx ? transformMicroJsxChunk(normalizedSource) : normalizedSource;
 }
 
 function isComponentTagValue(value: unknown): boolean {
@@ -245,7 +248,100 @@ function escapeComponentName(name: string): string {
  * @returns Whether the next value belongs to an attribute.
  */
 export function isAttributePosition(chunk: string): boolean {
-  return /(?:[.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk);
+  return readAttributeBindingName(chunk) !== "";
+}
+
+/**
+ * Reads the exact author-provided attribute or component prop name.
+ *
+ * @remarks
+ * HTML parsers lowercase attribute names, which used to turn component props
+ * such as `onClick` into `onclick`. The original spelling is encoded in the
+ * marker value and restored during part compilation, while normal DOM binding
+ * keeps the same behavior as before.
+ *
+ * @param chunk - Static chunk before an interpolation.
+ * @returns Original binding name or an empty string.
+ */
+export function readAttributeBindingName(chunk: string): string {
+  const match = /([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
+  return match?.[1] ?? "";
+}
+
+/**
+ * Converts HTML-ignored self-closing component placeholders into explicit
+ * `<template></template>` pairs.
+ *
+ * @remarks
+ * Browsers ignore the self-closing slash on non-void HTML elements. Without
+ * this normalization, `<${Component} prop=${value} />` swallows every following
+ * sibling into the first template element. The scanner is quote-aware and only
+ * touches Fabrica component placeholders, keeping ordinary HTML untouched.
+ *
+ * @param source - Marker-rich template source.
+ * @returns Source with explicit closing template tags.
+ */
+export function normalizeInterpolatedComponentSelfClosingTags(source: string): string {
+  let output = "";
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const start = source.indexOf("<template", cursor);
+
+    if (start < 0) {
+      output += source.slice(cursor);
+      break;
+    }
+
+    output += source.slice(cursor, start);
+
+    const close = findTagClose(source, start + 9);
+    if (close < 0) {
+      output += source.slice(start);
+      break;
+    }
+
+    const openingTag = source.slice(start, close + 1);
+    const isComponentPlaceholder =
+      openingTag.includes("data-fabrica-component=") ||
+      openingTag.includes("data-fabrica-component-name=") ||
+      openingTag.includes("data-fabrica-explicit-component=");
+
+    let slashIndex = close - 1;
+    while (slashIndex > start && /\s/.test(source[slashIndex] ?? "")) slashIndex -= 1;
+
+    if (isComponentPlaceholder && source[slashIndex] === "/") {
+      output += source.slice(start, slashIndex) + source.slice(slashIndex + 1, close + 1) + "</template>";
+    } else {
+      output += openingTag;
+    }
+
+    cursor = close + 1;
+  }
+
+  return output;
+}
+
+function findTagClose(source: string, start: number): number {
+  let quote: '"' | "'" | null = null;
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (quote) {
+      if (char === quote && source[index - 1] !== "\\") quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char === ">") return index;
+  }
+
+  return -1;
 }
 
 /**
@@ -305,19 +401,24 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         continue;
       }
 
-      const markerIndex = getAttributeMarkerIndex(attribute.value);
+      const marker = readAttributeMarker(attribute.value);
 
-      if (markerIndex === -1) {
+      if (!marker) {
         continue;
       }
 
       if (attribute.name === "data-fabrica-spread") {
-        parts.push({ type: "spread", index: markerIndex, path: getNodePath(root, element) });
+        parts.push({ type: "spread", index: marker.index, path: getNodePath(root, element) });
         element.removeAttribute(attribute.name);
         continue;
       }
 
-      parts.push({ type: "attribute", index: markerIndex, path: getNodePath(root, element), name: attribute.name });
+      parts.push({
+        type: "attribute",
+        index: marker.index,
+        path: getNodePath(root, element),
+        name: marker.name || attribute.name,
+      });
       element.removeAttribute(attribute.name);
     }
   }
@@ -359,14 +460,37 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
  * @param value - Attribute value.
  * @returns Marker index or -1.
  */
-function getAttributeMarkerIndex(value: string): number {
+function readAttributeMarker(value: string): { index: number; name: string } | null {
   const start = value.indexOf(ATTR_MARKER_PREFIX);
 
   if (start === -1) {
-    return -1;
+    return null;
   }
 
-  return Number(value.slice(start + ATTR_MARKER_PREFIX.length).split(ATTR_MARKER_SUFFIX)[0]);
+  const indexStart = start + ATTR_MARKER_PREFIX.length;
+  const suffix = value.indexOf(ATTR_MARKER_SUFFIX, indexStart);
+
+  if (suffix === -1) {
+    return null;
+  }
+
+  const index = Number(value.slice(indexStart, suffix));
+  if (!Number.isFinite(index)) return null;
+
+  const nameStart = suffix + ATTR_MARKER_SUFFIX.length;
+  const nameEnd = value.indexOf(ATTR_NAME_MARKER_SUFFIX, nameStart);
+  const encodedName = nameEnd === -1 ? "" : value.slice(nameStart, nameEnd);
+  let name = "";
+
+  if (encodedName) {
+    try {
+      name = decodeURIComponent(encodedName);
+    } catch {
+      name = encodedName;
+    }
+  }
+
+  return { index, name };
 }
 
 /**

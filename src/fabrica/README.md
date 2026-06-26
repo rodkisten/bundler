@@ -108,6 +108,48 @@ Output:
 <button type="submit" class="primary">Save</button>
 ```
 
+Self-closing interpolated component tags support any number of static and dynamic props without nesting or swallowing following siblings:
+
+```ts
+render(document.body, html`
+  <nav>
+    <${ToolbarButton} icon=${refreshIcon} label="Refresh" onClick=${refresh} />
+    <${ToolbarButton} icon=${pickerIcon} label="Pick" onClick=${startPicker} />
+  </nav>
+`);
+```
+
+Dynamic component prop spelling is preserved exactly, including camelCase names such as `onClick`, `onPointerDown`, `selectedElement`, and `showCodePanel`. A self-closing component receives no `children` prop; paired tags receive a `DocumentFragment` containing their actual children.
+
+## React-like conditional component rendering
+
+Falsy booleans and nullish values render nothing, so component requests can use the familiar boolean-and form without a full ternary:
+
+```ts
+render(document.body, html`
+  ${showDetails && DetailsPanel({ selected })}
+  ${showEmptyPanel && EmptyPanel}
+`);
+```
+
+Reactive conditions use a function so Broto can track the read and mount or dispose the component range automatically:
+
+```ts
+const open = signal(false);
+
+render(document.body, html`
+  ${() => open() && CodePanel({ selected, zen: true })}
+`);
+
+open.set(true);
+```
+
+Ternaries remain valid, including branches that return nested templates with self-closing component tags:
+
+```ts
+html`${codeZen ? html`<${CodePanel} selected=${selected} zen=${true} />` : ""}`;
+```
+
 ## Component events and spread props
 
 Component event attributes are normalized to `onX` props before the component factory runs. This keeps component authoring ergonomic while preserving Fabrica's DOM event syntax.
