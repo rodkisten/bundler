@@ -258,7 +258,14 @@ export type TemplatePart =
     }
   | {
       type: "attribute";
+      /** First interpolation index kept for compatibility and fast single-value bindings. */
       index: number;
+      /** All interpolation indexes that participate in this attribute value. */
+      indices: number[];
+      /** Static text segments around each interpolation. Length is indices.length + 1. */
+      strings: string[];
+      /** True when the entire attribute value is exactly one interpolation. */
+      raw: boolean;
       path: number[];
       name: string;
     }

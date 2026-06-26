@@ -121,6 +121,36 @@ render(document.body, html`
 
 Dynamic component prop spelling is preserved exactly, including camelCase names such as `onClick`, `onPointerDown`, `selectedElement`, and `showCodePanel`. A self-closing component receives no `children` prop; paired tags receive a `DocumentFragment` containing their actual children.
 
+Compound attributes and component props can contain multiple interpolations. Fabrica compiles them as one reactive binding, preserving all static text between values:
+
+```ts
+const tone = signal("neutral");
+const label = signal("Elements");
+
+render(document.body, html`
+  <button
+    class="ra-button ra-button-${tone}"
+    title="Open ${label} panel"
+  >
+    ${label}
+  </button>
+`);
+```
+
+For component tags, exact single-interpolation props remain raw. Objects, event functions, signals and renderable icon fragments are therefore passed by identity instead of being stringified. Compound props are intentionally composed as strings:
+
+```ts
+html`
+  <${ToolbarButton}
+    icon=${refreshIcon}
+    label="Refresh"
+    className="ra-button ra-button-${tone}"
+  />
+`;
+```
+
+Whitespace, internal boundary comments and false conditional children do not create a `children` prop. This prevents phantom `DocumentFragment` values from reaching button labels, titles or ARIA fallbacks.
+
 ## React-like conditional component rendering
 
 Falsy booleans and nullish values render nothing, so component requests can use the familiar boolean-and form without a full ternary:
