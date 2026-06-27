@@ -3,7 +3,7 @@ name: 📦 Publish browser bundle
 on:
   # Trigger only when a pull request is opened or synchronized
   pull_request:
-    types: [opened, synchronize, closed]
+    types: [opened]
   #push:
    # branches:
     #  - main
