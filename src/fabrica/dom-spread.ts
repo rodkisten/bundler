@@ -6,9 +6,13 @@ import { stringifyAttributeValue } from "./dom-payload";
 import { hasReactiveValue, readValue } from "./value";
 import type { RenderValue } from "./types";
 
+let spreadEventDiffVersion = 0;
+
 export type SpreadBindingState = {
   keys: Set<string>;
+  values: Map<string, unknown>;
   events: Map<string, EventListener>;
+  eventVersions: Map<string, number>;
   refCleanup: (() => void) | null;
 };
 
@@ -36,7 +40,7 @@ export function bindSpreadPart(node: Node, value: RenderValue | undefined): void
     return;
   }
 
-  let state: SpreadBindingState = { keys: new Set<string>(), events: new Map<string, EventListener>(), refCleanup: null };
+  let state: SpreadBindingState = createSpreadBindingState();
 
   const update = (): void => {
     state = applySpreadValue(node, readValue(value) as unknown, state);
@@ -54,33 +58,44 @@ export function bindSpreadPart(node: Node, value: RenderValue | undefined): void
 }
 
 export function applySpreadValue(element: Element, value: unknown, previous: SpreadBindingState): SpreadBindingState {
-  const next: SpreadBindingState = { keys: new Set<string>(), events: new Map<string, EventListener>(), refCleanup: previous.refCleanup };
-
   if (!value || typeof value !== "object") {
     cleanupSpreadState(element, previous);
-    return next;
+    previous.keys.clear();
+    previous.values.clear();
+    return previous;
   }
 
   const props = value as Record<string, unknown>;
+  const eventVersion = ++spreadEventDiffVersion;
 
   for (const key of previous.keys) {
     if (!(key in props)) {
       removeSpreadProperty(element, key, previous);
+      previous.values.delete(key);
+      previous.keys.delete(key);
     }
   }
 
   for (const key in props) {
-    next.keys.add(key);
-    applySpreadProperty(element, key, props[key], previous, next);
+    const propValue = props[key];
+    previous.keys.add(key);
+
+    if (canSkipSpreadProperty(key) && Object.is(previous.values.get(key), propValue)) {
+      continue;
+    }
+
+    previous.values.set(key, propValue);
+    applySpreadProperty(element, key, propValue, previous, previous, eventVersion);
   }
 
   for (const [eventName, listener] of previous.events) {
-    if (!next.events.has(eventName)) {
-      element.removeEventListener(eventName, listener);
-    }
+    if (previous.eventVersions.get(eventName) === eventVersion) continue;
+    element.removeEventListener(eventName, listener);
+    previous.events.delete(eventName);
+    previous.eventVersions.delete(eventName);
   }
 
-  return next;
+  return previous;
 }
 
 export function cleanupSpreadState(element: Element, state: SpreadBindingState): void {
@@ -89,6 +104,9 @@ export function cleanupSpreadState(element: Element, state: SpreadBindingState):
   }
 
   state.events.clear();
+  state.eventVersions.clear();
+  state.values.clear();
+  state.keys.clear();
   state.refCleanup?.();
   state.refCleanup = null;
 }
@@ -99,6 +117,7 @@ export function applySpreadProperty(
   propValue: unknown,
   previous: SpreadBindingState,
   next: SpreadBindingState,
+  eventVersion = spreadEventDiffVersion,
 ): void {
   if (key === "children") {
     return;
@@ -149,17 +168,17 @@ export function applySpreadProperty(
 
   if (key === "on" && propValue && typeof propValue === "object") {
     const events = propValue as Record<string, unknown>;
-    for (const eventName in events) setSpreadEvent(element, eventName, events[eventName], previous, next);
+    for (const eventName in events) setSpreadEvent(element, eventName, events[eventName], previous, next, eventVersion);
     return;
   }
 
   if (key.startsWith("@")) {
-    setSpreadEvent(element, key.slice(1), propValue, previous, next);
+    setSpreadEvent(element, key.slice(1), propValue, previous, next, eventVersion);
     return;
   }
 
   if (key.startsWith("on") && typeof propValue === "function") {
-    setSpreadEvent(element, key.slice(2).toLowerCase(), propValue, previous, next);
+    setSpreadEvent(element, key.slice(2).toLowerCase(), propValue, previous, next, eventVersion);
     return;
   }
 
@@ -172,12 +191,16 @@ export function setSpreadEvent(
   listener: unknown,
   previous: SpreadBindingState,
   next: SpreadBindingState,
+  eventVersion = spreadEventDiffVersion,
 ): void {
-  const eventName = rawEventName.split(".", 1)[0] || rawEventName;
+  const dotIndex = rawEventName.indexOf(".");
+  const eventName = dotIndex < 0 ? rawEventName : rawEventName.slice(0, dotIndex);
   const previousListener = previous.events.get(eventName);
 
   if (typeof listener !== "function") {
     if (previousListener) element.removeEventListener(eventName, previousListener);
+    next.events.delete(eventName);
+    next.eventVersions.delete(eventName);
     return;
   }
 
@@ -189,6 +212,21 @@ export function setSpreadEvent(
   }
 
   next.events.set(eventName, nextListener);
+  next.eventVersions.set(eventName, eventVersion);
+}
+
+function createSpreadBindingState(): SpreadBindingState {
+  return {
+    keys: new Set<string>(),
+    values: new Map<string, unknown>(),
+    events: new Map<string, EventListener>(),
+    eventVersions: new Map<string, number>(),
+    refCleanup: null,
+  };
+}
+
+function canSkipSpreadProperty(key: string): boolean {
+  return key !== "ref" && key !== "attrs" && key !== "dataset" && key !== "on" && !key.startsWith("@") && !(key.startsWith("on") && key.length > 2);
 }
 
 export function removeSpreadProperty(element: Element, key: string, previous: SpreadBindingState): void {
@@ -213,6 +251,7 @@ export function removeSpreadProperty(element: Element, key: string, previous: Sp
     const listener = previous.events.get(eventName);
     if (listener) element.removeEventListener(eventName, listener);
     previous.events.delete(eventName);
+    previous.eventVersions.delete(eventName);
     return;
   }
 
