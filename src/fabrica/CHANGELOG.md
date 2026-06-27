@@ -1,8 +1,20 @@
 # Fábrica Changelog
 
+## Next - Instance registries and portable components
+
+- Added `Fabrica.create()`, `Fabrica.getOrCreate()`, `Fabrica.createRegistry()` and instance-bound `html`, `render`, `mount`, `hydrate` and `component` APIs.
+- Added live shared registries, isolated registries, snapshots and copy-on-write fork registries with a one-`Map.get()` common resolution path.
+- Added `defineComponent()` for portable unregistered definitions, `instance.use()` for components/packs, and `createComponentPack()` with namespaces and include/exclude filters.
+- Added component context access to `ctx.html`, `ctx.jsx`, `ctx.component`, `ctx.registry`, `ctx.instance` and the stable component name.
+- Deprecated explicit `registerComponent(name, component)`, registry `registerComponent()` and implicit `component(function Name(){})` registration. Compatibility behavior remains and warnings are deduplicated per realm.
+- Captured Fabrica runtime context inside reactive child parts and component-tag effects so delayed updates keep resolving against the instance that mounted them.
+- Added instance, shared-registry, fork, pack, portability and deprecation tests plus benchmark cases for hot registry resolution and instance-local named rendering.
+
+
 
 ## Next
 
+- Optimized component-name normalization and inherited-definition registration on hot registry paths, with cycle-safe parent graphs and zero duplicate overlay entries for identical inherited definitions.
 - Fixed compound attribute interpolation on DOM and component tags. Values such as `class="${base} ${tone}"` and `title="Open ${label}"` now retain every static and dynamic segment instead of dropping later values or leaking internal marker text into the DOM.
 - Component placeholders now distinguish exact raw props from compound string props, preserving objects, functions, signals, nodes and icon fragments only when the whole prop is a single interpolation.
 - Marker-only and whitespace-only component bodies no longer become phantom `DocumentFragment` children, preventing self-closing and false conditional branches from leaking fragments into label/title fallbacks.

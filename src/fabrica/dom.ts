@@ -48,7 +48,12 @@ import {
   resolvePath,
 } from "./template";
 import { hasReactiveValue, readValue } from "./value";
-import { materializeComponent, resolveComponent } from "./component";
+import { materializeComponent } from "./component";
+import {
+  getCurrentFabricaRuntime,
+  runWithCurrentFabricaRuntime,
+  runWithFabricaRuntime,
+} from "./runtime-context";
 import type {
   ComponentPayload,
   ComponentRenderRequest,
@@ -102,14 +107,15 @@ export function html(
   strings: TemplateStringsArray,
   ...values: RenderValue[]
 ): DocumentFragment {
-  const compiled = getCompiledTemplate(strings, values);
-  const fragment = compiled.template.content.cloneNode(
-    true,
-  ) as DocumentFragment;
+  return runWithCurrentFabricaRuntime(() => {
+    const compiled = getCompiledTemplate(strings, values);
+    const fragment = compiled.template.content.cloneNode(
+      true,
+    ) as DocumentFragment;
 
-  applyParts(fragment, compiled.parts, values);
-
-  return fragment;
+    applyParts(fragment, compiled.parts, values);
+    return fragment;
+  });
 }
 
 /**
@@ -129,14 +135,15 @@ export function html(
   strings: TemplateStringsArray,
   ...values: RenderValue[]
 ): DocumentFragment {
-  const compiled = getCompiledJsxTemplate(strings, values);
-  const fragment = compiled.template.content.cloneNode(
-    true,
-  ) as DocumentFragment;
+  return runWithCurrentFabricaRuntime(() => {
+    const compiled = getCompiledJsxTemplate(strings, values);
+    const fragment = compiled.template.content.cloneNode(
+      true,
+    ) as DocumentFragment;
 
-  applyParts(fragment, compiled.parts, values);
-
-  return fragment;
+    applyParts(fragment, compiled.parts, values);
+    return fragment;
+  });
 };
 
 /** JSX-friendly namespace for `jsx.html` authoring. */
@@ -161,30 +168,31 @@ export function render(
   container: Element | DocumentFragment | ShadowRoot,
   value: RenderValue,
 ): () => void {
-  let state = renderStates.get(container);
+  return runWithCurrentFabricaRuntime(() => {
+    let state = renderStates.get(container);
 
-  if (!state) {
-    disposeTree(container);
-    container.replaceChildren();
+    if (!state) {
+      disposeTree(container);
+      container.replaceChildren();
 
-    const marker = document.createComment("fabrica:render");
-    container.appendChild(marker);
+      const marker = document.createComment("fabrica:render");
+      container.appendChild(marker);
 
-    const part = createChildPart(marker);
-    const dispose = (): void => {
-      disposeRange(part.start, part.end);
-      removeRange(part.start, part.end);
-      renderStates.delete(container);
-    };
+      const part = createChildPart(marker);
+      const dispose = (): void => {
+        disposeRange(part.start, part.end);
+        removeRange(part.start, part.end);
+        renderStates.delete(container);
+      };
 
-    state = { part, dispose };
-    renderStates.set(container, state);
-  }
+      state = { part, dispose };
+      renderStates.set(container, state);
+    }
 
-  debugState.reconciliations += 1;
-  state.part.set(value);
-
-  return state.dispose;
+    debugState.reconciliations += 1;
+    state.part.set(value);
+    return state.dispose;
+  });
 }
 
 /**
@@ -204,8 +212,10 @@ export function hydrate(
   container: Element | DocumentFragment | ShadowRoot,
   value: RenderValue,
 ): () => void {
-  if (!container.firstChild) return render(container, value);
-  return mount(container, value);
+  return runWithCurrentFabricaRuntime(() => {
+    if (!container.firstChild) return render(container, value);
+    return mount(container, value);
+  });
 }
 
 /**
@@ -216,17 +226,19 @@ export function hydrate(
  * @returns Dispose callback.
  */
 export function mount(container: Node, value: RenderValue): () => void {
-  const start = document.createComment("fabrica:mount:start");
-  const end = document.createComment("fabrica:mount:end");
+  return runWithCurrentFabricaRuntime(() => {
+    const start = document.createComment("fabrica:mount:start");
+    const end = document.createComment("fabrica:mount:end");
 
-  container.appendChild(start);
-  appendValue(container, value);
-  container.appendChild(end);
+    container.appendChild(start);
+    appendValue(container, value);
+    container.appendChild(end);
 
-  return () => {
-    disposeRange(start, end);
-    removeRange(start, end);
-  };
+    return () => {
+      disposeRange(start, end);
+      removeRange(start, end);
+    };
+  });
 }
 
 /**
@@ -424,6 +436,7 @@ function applyParts(
  * @param value - Runtime value.
  */
 function bindChildPart(marker: Node, value: RenderValue | undefined): void {
+  const runtime = getCurrentFabricaRuntime();
   const part = createChildPart(marker);
   const owner = createOwner({ parent: getOwner(), name: "fabrica.childPart" });
 
@@ -433,7 +446,9 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
     const dispose = runWithOwner(owner, () =>
       effect(
         () => {
-          part.set(readValue(value) as RenderValue);
+          runWithFabricaRuntime(runtime, () => {
+            part.set(readValue(value) as RenderValue);
+          });
         },
         { name: "fabrica.childBinding" },
       ),
@@ -443,7 +458,9 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
     return;
   }
 
-  runWithOwner(owner, () => part.set(value));
+  runWithOwner(owner, () => {
+    runWithFabricaRuntime(runtime, () => part.set(value));
+  });
 }
 
 
@@ -465,8 +482,13 @@ function bindComponentPart(
     return;
   }
 
+  const runtime = getCurrentFabricaRuntime();
   const componentName = part?.name || readComponentName(node);
-  const componentValue = typeof value === "function" ? value : componentName ? resolveComponent(componentName) : undefined;
+  const componentValue = typeof value === "function"
+    ? value
+    : componentName
+      ? runtime.registry.resolve(componentName)
+      : undefined;
   const marker = document.createComment(componentName ? `fabrica:component-tag:${componentName}` : "fabrica:component-tag");
 
   node.parentNode?.insertBefore(marker, node);
@@ -483,21 +505,23 @@ function bindComponentPart(
   registerCleanup(childPart.start, () => disposeOwner(owner));
 
   const renderComponent = (): void => {
-    const props = {
-      ...readStaticComponentProps(node),
-      ...readDynamicComponentProps(dynamicPropParts, values),
-    };
-    const children = node.content.cloneNode(true) as DocumentFragment;
-    const childParts = compileParts(children);
+    runWithFabricaRuntime(runtime, () => {
+      const props = {
+        ...readStaticComponentProps(node),
+        ...readDynamicComponentProps(dynamicPropParts, values),
+      };
+      const children = node.content.cloneNode(true) as DocumentFragment;
+      const childParts = compileParts(children);
 
-    applyParts(children, childParts, values);
+      applyParts(children, childParts, values);
 
-    const output = callComponentLike(
-      componentValue,
-      hasMeaningfulComponentChildren(children) ? { ...props, children } : props,
-    );
+      const output = callComponentLike(
+        componentValue,
+        hasMeaningfulComponentChildren(children) ? { ...props, children } : props,
+      );
 
-    childPart.set(output as RenderValue);
+      childPart.set(output as RenderValue);
+    });
   };
 
   if (hasReactiveComponentInputs(dynamicPropParts, values)) {
@@ -765,6 +789,7 @@ function createChildPart(marker: Node): {
   let textNode: Text | null = null;
   let currentNode: Node | null = null;
   let directiveController: DirectiveController | null = null;
+  const runtime = getCurrentFabricaRuntime();
 
   if (parentNode) {
     parentNode.insertBefore(start, marker);
@@ -772,10 +797,7 @@ function createChildPart(marker: Node): {
     parentNode.removeChild(marker);
   }
 
-  return {
-    start,
-    end,
-    set(value: RenderValue | undefined): void {
+  const setValue = (value: RenderValue | undefined): void => {
       debugState.updates += 1;
 
       const resolvedValue = readValue(value) as RenderValue;
@@ -900,6 +922,13 @@ function createChildPart(marker: Node): {
       currentType = "text";
       currentText = nextText;
       currentNode = textNode;
+  };
+
+  return {
+    start,
+    end,
+    set(value: RenderValue | undefined): void {
+      runWithFabricaRuntime(runtime, () => setValue(value));
     },
   };
 }
