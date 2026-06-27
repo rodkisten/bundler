@@ -1,6 +1,6 @@
 import { DEFAULT_BASE_FONT_SIZE } from './constants'
 import { clearJitCaches, runtime } from './runtime'
-import type { CipoConfig, CipoJitConfig, CipoRemConfig, RuntimeConfig } from './types'
+import type { CipoConfig, CipoDebugConfig, CipoJitConfig, CipoRemConfig, RuntimeConfig } from './types'
 import { theme } from './theme'
 import { configureCss } from './config-css'
 
@@ -18,13 +18,15 @@ import { configureCss } from './config-css'
  */
 export function configure(config: CipoConfig): void {
   const current = runtime.config
+  const nextDebug = normalizeDebugConfig(config.debug, current.debugOptions)
   const nextRem = normalizeRemConfig(config.rem, config.baseFontSize, current.rem)
   const nextJit = normalizeJitConfig(config.jit, current.jit)
   const nextBreakpoints = mergeBreakpoints(current.breakpoints, config.breakpoints)
 
   const next: RuntimeConfig = {
     prefix: config.prefix ?? current.prefix,
-    debug: config.debug ?? current.debug,
+    debug: nextDebug.enabled,
+    debugOptions: nextDebug,
     important: config.important ?? current.important,
     adapter: config.adapter ?? current.adapter,
     darkSelector: config.darkSelector ?? current.darkSelector,
@@ -58,6 +60,46 @@ export function setup(config: CipoConfig): void {
 }
 
 Object.assign(setup, { css: configureCss })
+
+
+function normalizeDebugConfig(
+  debug: boolean | CipoDebugConfig | undefined,
+  current: Required<CipoDebugConfig>,
+): Required<CipoDebugConfig> {
+  if (debug === undefined) return current
+
+  if (typeof debug === 'boolean') {
+    const readableClassNames = debug ? true : current.readableClassNames
+    if (debug === current.enabled && readableClassNames === current.readableClassNames) return current
+    return {
+      enabled: debug,
+      readableClassNames,
+      maxClassLabelLength: current.maxClassLabelLength,
+      includeContext: current.includeContext,
+    }
+  }
+
+  const enabled = debug.enabled ?? current.enabled
+  const readableClassNames = debug.readableClassNames ?? (enabled ? true : current.readableClassNames)
+  const maxClassLabelLength = clampDebugLabelLength(debug.maxClassLabelLength ?? current.maxClassLabelLength)
+  const includeContext = debug.includeContext ?? current.includeContext
+
+  if (
+    enabled === current.enabled &&
+    readableClassNames === current.readableClassNames &&
+    maxClassLabelLength === current.maxClassLabelLength &&
+    includeContext === current.includeContext
+  ) {
+    return current
+  }
+
+  return { enabled, readableClassNames, maxClassLabelLength, includeContext }
+}
+
+function clampDebugLabelLength(value: number): number {
+  if (!Number.isFinite(value)) return 72
+  return Math.min(160, Math.max(24, Math.trunc(value)))
+}
 
 function normalizeRemConfig(
   rem: boolean | CipoRemConfig | undefined,
@@ -120,6 +162,7 @@ function sameRuntimeConfig(left: RuntimeConfig, right: RuntimeConfig): boolean {
   return (
     left.prefix === right.prefix &&
     left.debug === right.debug &&
+    left.debugOptions === right.debugOptions &&
     left.important === right.important &&
     Object.is(left.adapter, right.adapter) &&
     left.darkSelector === right.darkSelector &&

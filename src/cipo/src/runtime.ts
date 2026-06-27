@@ -20,6 +20,12 @@ export const runtime: RuntimeState = {
   config: {
     prefix: DEFAULT_PREFIX,
     debug: true,
+    debugOptions: {
+      enabled: true,
+      readableClassNames: true,
+      maxClassLabelLength: 72,
+      includeContext: true,
+    },
     important: false,
     adapter: 'dom',
     darkSelector: '[data-theme="dark"]',

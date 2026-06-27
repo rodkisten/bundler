@@ -151,6 +151,21 @@ export interface CipoJitConfig {
   readonly debug?: boolean;
 }
 
+/**
+ * Developer-facing debug configuration.
+ *
+ * @remarks
+ * `debug: true` remains fully backwards-compatible and enables readable atomic
+ * class names by default. A structured object allows production tooling to keep
+ * debug diagnostics enabled while independently controlling class-name verbosity.
+ */
+export interface CipoDebugConfig {
+  readonly enabled?: boolean;
+  readonly readableClassNames?: boolean;
+  readonly maxClassLabelLength?: number;
+  readonly includeContext?: boolean;
+}
+
 export interface CipoOutputConfig {
   readonly minify?: boolean;
   readonly layers?: boolean;
@@ -159,7 +174,7 @@ export interface CipoOutputConfig {
 
 export interface CipoConfig {
   readonly prefix?: string;
-  readonly debug?: boolean;
+  readonly debug?: boolean | CipoDebugConfig;
   readonly important?: boolean;
   readonly adapter?: CipoAdapterName | CipoAdapter;
   readonly darkSelector?: string;
@@ -382,7 +397,21 @@ export type CipoTarget =
   | CipoComponent
   | ((...args: never[]) => unknown);
 
-export interface CipoStyledBuilder<Result = unknown> {
+export type CipoStyledInput<Props extends CipoRecord = CipoRecord> =
+  | CipoCssResult
+  | string
+  | false
+  | null
+  | undefined
+  | readonly CipoStyledInput<Props>[]
+  | ((props: Props) => CipoStyledInput<Props>);
+
+export interface CipoStyledBuilder<Props extends CipoRecord = CipoRecord, Result = unknown> {
+  (
+    strings: TemplateStringsArray,
+    ...values: readonly CipoCssInterpolation[]
+  ): Result;
+  (input: CipoStyledInput<Props>): Result;
   css(
     strings: TemplateStringsArray,
     ...values: readonly CipoCssInterpolation[]
@@ -390,6 +419,11 @@ export interface CipoStyledBuilder<Result = unknown> {
 }
 
 export interface CipoStyledTagFactory {
+  (
+    strings: TemplateStringsArray,
+    ...values: readonly CipoCssInterpolation[]
+  ): CipoComponent;
+  (input: Exclude<CipoStyledInput, string>): CipoComponent;
   css(
     strings: TemplateStringsArray,
     ...values: readonly CipoCssInterpolation[]
@@ -399,7 +433,8 @@ export interface CipoStyledTagFactory {
 
 export interface CipoDomStyledResult<ElementType extends Element = Element> {
   readonly element: ElementType;
-  readonly artifact: CipoCssArtifact;
+  readonly artifact: CipoCssResult | readonly CipoCssResult[] | undefined;
+  readonly artifacts: readonly CipoCssResult[];
   readonly className: string;
 }
 
@@ -443,6 +478,7 @@ export interface CipoInjectStyleOptions {
 export interface RuntimeConfig {
   prefix: string;
   debug: boolean;
+  debugOptions: Required<CipoDebugConfig>;
   important: boolean;
   adapter: CipoAdapterName | CipoAdapter;
   darkSelector: string;
