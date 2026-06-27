@@ -1367,15 +1367,23 @@ Configuration is applied in call order. A later `configure.css` call can overrid
 
 ## Performance baselines
 
-Cipó benchmark output is normalized into `bench/cipo.json` and compared with the
-previous committed branch baseline by the root Performance Observatory:
+Cipó benchmark output is stored in `bench/cipo.json` together with complete
+runner metadata, repeated-round measurements and the baseline/current source
+commits:
 
 ```bash
 pnpm bench:cipo
 ```
 
-The report separates warm-cache identity hits from cold parse/transform/compile
-paths and uses a noise-aware threshold before labeling a change faster or slower.
+The branch workflow runs baseline and current on the same GitHub runner,
+alternates order across three rounds and aggregates by median. Warm-cache,
+cold-compile and class-name cases remain separate groups. The synthetic
+`String.raw` control is shown in the report but excluded from Cipó's package-wide
+geometric mean.
+
+A result is labeled faster or slower only when it exceeds the larger of the
+minimum 3% threshold, combined Tinybench RME and cross-round variation.
+Excessively noisy measurements are marked unstable and should be rerun.
 
 ## Named Cipó components registered in Fabrica
 
