@@ -233,7 +233,7 @@ describe("Fábrica kitchen sink: Fabrica Elements and Cipó styled integration",
     expect(button).toBeTruthy();
     expect(button.type).toBe("button");
     expect(button.dataset.kind).toBe("styled");
-    expect(button.className).toContain("fx-a-");
+    expect(button.className).toContain("fx-padding-inline-");
     expect(textOf(button)).toBe("Save");
 
     button.click();
