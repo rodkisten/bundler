@@ -1540,3 +1540,31 @@ Static artifacts are exposed through `component.artifact` and
 `component.dynamicStyles === true`. Registration, `attrs`, polymorphic `as`,
 `withComponent()`, collision policies and delayed Fabrica connection continue to
 use the same named-component lifecycle.
+
+## Instance-scoped styled factories
+
+When an application uses more than one Fabrica instance, create one Cipó styled
+factory per registry instead of reconnecting the global `styled` bridge:
+
+```ts
+const shell = Fabrica.getOrCreate('@rod/alerta')
+const sandbox = Fabrica.create({ name: 'sandbox' })
+
+const shellStyled = Cipo.createStyled({ fabrica: shell })
+const sandboxStyled = Cipo.createStyled({ fabrica: sandbox })
+
+const ShellButton = shellStyled.button('Button')`
+  inline-flex
+  px: 3
+`
+
+const SandboxButton = sandboxStyled.button('Button')`
+  grid
+  place-items: center
+`
+```
+
+`createStyled()` keeps its own tag cache, pending-registration queue and registry
+bridge while sharing Cipó's compiler and atomic CSS caches. Named components are
+registered through the new `registry.register()` fast path, so Fabrica's legacy
+`registerComponent()` deprecation warning is not triggered.

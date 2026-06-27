@@ -1,3 +1,9 @@
+## Instance-scoped styled registries
+
+- Added `createStyled({ fabrica | registry })` for independent styled factories bound to separate Fabrica instances.
+- Styled registry bridges now unwrap `instance.registry` and prefer the modern `register/resolve/unregister` path before legacy component-registry aliases.
+- Added integration coverage proving identical styled component names can coexist in isolated Fabrica instances.
+
 # Changelog
 
 ## Debug-readable atomic names and polymorphic styled inputs
