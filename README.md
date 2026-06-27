@@ -346,48 +346,68 @@ Example output:
 | cipo.sheet.runtime-dsl | 120 | varies | varies |
 ```
 
-## ⚡ Performance Observatory
+## ⚡ Reliable Performance Observatory
 
-The repository keeps noise-aware benchmark baselines in the root `bench/` directory:
+The repository keeps versioned benchmark evidence in the root `bench/`
+directory:
 
 ```txt
 bench/
 ├── cipo.json
 ├── fabrica.json
+├── runner.json
 ├── README.md
 └── COMPARISON.md
 ```
 
-Run the complete matrix locally:
+### Local commands
 
 ```bash
+# Fast local smoke run, one revision and one round
 pnpm bench
-```
 
-Run only one package:
+# Three-round local median, useful before pushing
+pnpm bench:reliable
 
-```bash
+# One package only
 pnpm bench:cipo
 pnpm bench:fabrica
 ```
 
-Fabrica benchmarks pair every kitchen-sink rendering case with a manual
-`document.createElement` implementation. The adapter contract in
-`src/fabrica/tests/fabrica.bench-cases.ts` is intentionally framework-neutral,
-so React, Preact, Solid or another renderer can be added later without changing
-the historical case identifiers.
+The branch workflow uses a stricter same-runner A/B protocol:
 
-On every push to a non-main branch, the **⚡ Performance Observatory** workflow:
+1. finds the previous benchmark-relevant source commit, skipping benchmark-only bot commits;
+2. creates a detached Git worktree for that baseline;
+3. installs baseline and current dependencies with the same Node and pnpm versions;
+4. runs baseline/current in alternating order for three rounds by default;
+5. aggregates every case by median and stores cross-round MAD variation;
+6. normalizes Fabrica results against the matching manual control in both revisions;
+7. records Node, V8, Vitest, pnpm, kernel, CPU, memory and GitHub runner metadata;
+8. writes `bench/*.json` and the visual Markdown comparison;
+9. commits those files back to the PR branch and updates one PR comment.
 
-1. reads the previous committed JSON files as the baseline;
-2. runs Vitest benchmark mode for Cipó and Fabrica;
-3. creates a noise-aware current-versus-previous Markdown report;
-4. commits the refreshed `bench/` files back to the branch;
-5. creates or updates one visual PR comment with improvements, regressions and
-   Fabrica-versus-manual ratios.
+The generated commit cannot create an infinite loop. The workflow does not
+listen to `bench/**`, generated commits carry a dedicated marker, and a final
+bot-author guard refuses to benchmark that marker commit.
 
-The report treats changes within the greater of 3% or the combined RME as
-stable, reducing false alarms from shared-runner noise.
+### Reliable interpretation
+
+`bench/fabrica.json` stores both raw throughput change and normalized change.
+For a case such as `static-tree`, normalized change is calculated from:
+
+```txt
+(current Fabrica / current manual) / (baseline Fabrica / baseline manual) - 1
+```
+
+This removes much of the host-speed drift that previously made manual and
+Fabrica cases appear to improve together. Manual controls and Cipó's
+`baseline:` microbenchmarks are excluded from package-wide geometric means.
+Measurements with excessive Tinybench RME or cross-round variation are marked
+`unstable` instead of being presented as a regression or improvement.
+
+Fabrica's adapter contract remains framework-neutral. React, Preact, Solid or
+another renderer can be added to `src/fabrica/tests/fabrica.bench-cases.ts`
+without changing historical case identifiers.
 
 ## 🌿 Named Cipó + Fabrica components
 
