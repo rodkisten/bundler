@@ -1,4 +1,5 @@
 export * from './important'
+export * from './atomic-class-name'
 export * from './selector-compile'
 export * from './declaration-compile'
 export * from './at-rules'
