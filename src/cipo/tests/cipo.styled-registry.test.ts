@@ -42,7 +42,7 @@ describe('Cipó styled components and Fabrica registry', () => {
 
     const button = host.querySelector('button') as HTMLButtonElement
     expect(button.textContent).toBe('Save')
-    expect(button.className).toContain('registry-a-')
+    expect(button.className).toContain('registry-padding-inline-')
     button.click()
     expect(onClick).toHaveBeenCalledTimes(1)
   })

@@ -73,7 +73,7 @@ describe("Cipó next kitchen sink", () => {
   it("keeps the classic css tagged template API", () => {
     const card = css`color:red;`;
 
-    expect(String(card)).toContain("test-a-");
+    expect(String(card)).toMatch(/^test-color-red-[a-z0-9]+$/);
     expect(getCssText()).toContain("color:red");
   });
 

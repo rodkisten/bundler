@@ -4,12 +4,15 @@ import { invalidateCssConfigApplications } from '../src/config-css'
 import { clearPolymorphicTemplateCache } from '../src/css'
 import { clearPolymorphicDetectionCache } from '../src/compiler/detect-mode'
 import { clearJitCaches } from '../src/runtime'
+import { createAtomicClassName } from '../src/compiler/atomic-class-name'
+import { createAtomicRuleId } from '../src/compiler/selector-compile'
 import {
   ATOMIC_CASE,
   CONFIG_CASE,
   INLINE_CASE,
   SHEET_CASE,
   setupBenchCipo,
+  setupReadableClassBenchCipo,
 } from './cipo.bench-cases'
 
 function clearCompileColdPath(): void {
@@ -101,5 +104,36 @@ describe('Cipó cold-path benchmarks', () => {
     clearPolymorphicColdPath()
     invalidateCssConfigApplications({ clearPlans: true })
     css`${CONFIG_CASE}`
+  })
+})
+
+
+describe('Cipó atomic class-name benchmarks', () => {
+  const context = { breakpoint: 'md', pseudo: ':hover' } as const
+  const ruleId = createAtomicRuleId('background-attachment', 'fixed', context)
+
+  describe('compact production naming', () => {
+    beforeEach(setupBenchCipo)
+
+    bench('class name: compact prefix-a-hash', () => {
+      createAtomicClassName('background-attachment', 'fixed', context, ruleId)
+    })
+  })
+
+  describe('readable debug naming', () => {
+    beforeEach(setupReadableClassBenchCipo)
+
+    bench('class name: readable property-value-context-hash', () => {
+      createAtomicClassName('background-attachment', 'fixed', context, ruleId)
+    })
+
+    bench('class name: privacy redaction and truncation', () => {
+      createAtomicClassName(
+        'background-image',
+        'url("https://private.example/token/image.png")',
+        context,
+        createAtomicRuleId('background-image', 'url("https://private.example/token/image.png")', context),
+      )
+    })
   })
 })
