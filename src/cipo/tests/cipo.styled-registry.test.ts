@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import Fabrica, { clearComponents, html, render, resolveComponent } from '../../fabrica'
-import { reset, setup, styled } from '../src/index'
+import Fabrica, { clearComponents, createFabrica, html, render, resolveComponent } from '../../fabrica'
+import { createStyled, reset, setup, styled } from '../src/index'
 
 let host: HTMLDivElement
 
@@ -76,5 +76,27 @@ describe('Cipó styled components and Fabrica registry', () => {
     expect(resolveComponent('StatusBadge')).toBeUndefined()
     expect(Badge.register()).toBe('registered')
     expect(resolveComponent('StatusBadge')).toBe(Badge)
+  })
+
+  it('creates independent styled factories for isolated Fabrica instances', () => {
+    const first = createFabrica({ name: 'styled-first' })
+    const second = createFabrica({ name: 'styled-second' })
+    const firstStyled = createStyled({ fabrica: first })
+    const secondStyled = createStyled({ fabrica: second })
+
+    const FirstButton = firstStyled.button('ScopedButton').css`display:inline-flex;`
+    const SecondButton = secondStyled.button('ScopedButton').css`display:grid;`
+
+    expect(first.resolveComponent('ScopedButton')).toBe(FirstButton)
+    expect(second.resolveComponent('ScopedButton')).toBe(SecondButton)
+    expect(first.resolveComponent('ScopedButton')).not.toBe(second.resolveComponent('ScopedButton'))
+
+    const firstHost = document.createElement('div')
+    const secondHost = document.createElement('div')
+    first.render(firstHost, first.html`<ScopedButton>one</ScopedButton>`)
+    second.render(secondHost, second.html`<ScopedButton>two</ScopedButton>`)
+
+    expect(firstHost.querySelector('button')?.textContent).toBe('one')
+    expect(secondHost.querySelector('button')?.textContent).toBe('two')
   })
 })
