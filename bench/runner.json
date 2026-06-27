@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-27T20:42:24.018Z",
+  "baselineCommit": null,
+  "currentCommit": "unknown",
+  "branch": "local",
+  "runner": {
+    "collectedAt": "2026-06-27T20:42:23.913Z",
+    "node": "v22.16.0",
+    "v8": "12.4.254.21-node.26",
+    "pnpm": "unknown",
+    "vitest": "4.1.8",
+    "platform": "linux",
+    "release": "4.4.0",
+    "arch": "x64",
+    "cpuModel": "unknown",
+    "cpuCount": 56,
+    "cpuSpeedMHz": 0,
+    "totalMemoryBytes": 4294967296,
+    "freeMemoryBytes": 3321643008,
+    "loadAverage": [
+      0,
+      0,
+      0
+    ],
+    "uptimeSeconds": 2301.07,
+    "ci": true,
+    "runnerName": "local",
+    "runnerOs": "linux",
+    "runnerArch": "x64",
+    "runnerEnvironment": "ci",
+    "repository": "",
+    "workflow": "",
+    "job": "",
+    "runId": "",
+    "runAttempt": "",
+    "eventName": ""
+  },
+  "methodology": {
+    "mode": "single",
+    "rounds": 1,
+    "aggregation": "median",
+    "runOrder": [
+      {
+        "round": 1,
+        "side": "current",
+        "position": 1
+      }
+    ],
+    "sameRunner": false,
+    "minimumChangePercent": 3,
+    "unstableNoisePercent": 15,
+    "pairedControlNormalization": true,
+    "notes": [
+      "Baseline and current revisions run on the same worker and Node process version.",
+      "Execution order alternates by round to reduce thermal, cache and host-load bias.",
+      "Repeated measurements are aggregated by median; cross-round MAD is stored per benchmark.",
+      "Fabrica deltas are normalized against the matching manual control before scoring.",
+      "Manual controls and baseline microbenchmarks are excluded from package-wide geometric means."
+    ]
+  },
+  "suites": [
+    {
+      "id": "cipo",
+      "normalizedGeometricMeanPercent": 0.004585545400725977,
+      "absoluteGeometricMeanPercent": 0.004585545400725977,
+      "faster": 2,
+      "slower": 2,
+      "stable": 13,
+      "unstable": 0,
+      "controls": 1,
+      "added": 0,
+      "removed": 0
+    },
+    {
+      "id": "fabrica",
+      "normalizedGeometricMeanPercent": null,
+      "absoluteGeometricMeanPercent": null,
+      "faster": 0,
+      "slower": 0,
+      "stable": 0,
+      "unstable": 0,
+      "controls": 0,
+      "added": 44,
+      "removed": 0
+    }
+  ]
+}
