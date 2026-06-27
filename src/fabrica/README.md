@@ -929,22 +929,35 @@ instance.registry.register("Button", component);
 
 ## Performance benchmark matrix
 
-Fabrica ships a Vitest/Tinybench kitchen-sink benchmark suite at
-`tests/fabrica.bench.ts`. Every case is paired with an equivalent manual
-`document.createElement` implementation, including complex attribute
-interpolation, nested component props, fine-grained updates, conditional
-components, spread/event diffing, keyed lists, virtual lists, portals, raw HTML,
-two-way bindings, isolated named rendering, live shared registries, portable
-pack installation, forked copy-on-write resolution, preferred named-component
-registration and realm-wide `getOrCreate()` reuse.
+Fabrica ships a Vitest/Tinybench kitchen-sink matrix at
+`tests/fabrica.bench.ts`. Rendering cases are paired with semantically matched
+manual DOM controls, while registry and instance microbenchmarks use explicit
+manual control paths.
 
 ```bash
 pnpm bench:fabrica
 ```
 
+The reliable branch workflow does not compare two unrelated GitHub runners. It
+checks out the previous benchmark-relevant commit into a worktree and runs both
+revisions on the same machine in alternating order:
+
+```txt
+round 1: baseline → current
+round 2: current → baseline
+round 3: baseline → current
+```
+
+Results are aggregated by median. Each row records Tinybench RME, cross-round
+median absolute deviation, sample counts and every individual round. For
+Fabrica adapters, the primary delta is normalized against the paired manual
+control from the same revision. Raw throughput remains available separately.
+
 The adapter contract in `tests/fabrica.bench-cases.ts` uses stable case IDs. A
 future React, Preact, Solid or other adapter only needs to implement
-`FabricaBenchmarkAdapter.run(caseId)` and join the adapter list.
+`FabricaBenchmarkAdapter.run(caseId)` and join the adapter list. The integrity
+test executes every case/adapter pair once outside benchmark mode so broken
+fixtures fail in ordinary CI.
 
 ## Named styled components in the registry
 

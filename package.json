@@ -16,15 +16,17 @@
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
     "publish:gist": "tsx scripts/publish-gist.ts",
-    "bench:all": "tsx scripts/benchmarks.ts",
-    "bench": "tsx scripts/benchmarks.ts",
-    "bench:cipo": "tsx scripts/benchmarks.ts --suite=cipo",
+    "bench:all": "tsx scripts/benchmarks.ts --mode=single --rounds=1",
+    "bench": "tsx scripts/benchmarks.ts --mode=single --rounds=1",
+    "bench:cipo": "tsx scripts/benchmarks.ts --mode=single --suite=cipo --rounds=1",
     "bench:cipo:memory": "node --expose-gc --import tsx scripts/cipo-memory-benchmark.ts",
     "build:with-bench": "pnpm build && pnpm bench:ci",
-    "bench:ci": "tsx scripts/benchmarks.ts",
-    "bench:fabrica": "tsx scripts/benchmarks.ts --suite=fabrica",
+    "bench:ci": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
+    "bench:fabrica": "tsx scripts/benchmarks.ts --mode=single --suite=fabrica --rounds=1",
     "bench:cipo:raw": "vitest bench src/cipo/tests/cipo.bench.ts --run",
-    "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run"
+    "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run",
+    "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
+    "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3"
   },
   "devDependencies": {
     "@types/node": "25.9.1",

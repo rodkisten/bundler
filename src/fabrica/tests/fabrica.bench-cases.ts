@@ -211,6 +211,13 @@ const RegistryStyledButton = cipoStyledButton('BenchmarkRegistryButton', { colli
   bg: $brand
 `
 const manualNamedRegistry = new Map<string, (props: Record<string, unknown>) => Element>()
+manualNamedRegistry.set('BenchmarkRegistryButton', (props) => {
+  const button = document.createElement('button')
+  button.type = props.type === 'submit' || props.type === 'reset' ? props.type : 'button'
+  button.className = 'bench-registry-button'
+  button.textContent = String(props.children || '')
+  return button
+})
 const artifactBase = assertAtomicCssArtifact(cipoCss`display:inline-flex;align-items:center;gap:8px;`)
 const artifactDanger = assertAtomicCssArtifact(cipoCss`color:$brand;`)
 const ArtifactStyledButton = cipoStyled.button('BenchmarkArtifactButton', { collision: 'replace' })(artifactBase)
@@ -567,11 +574,30 @@ function createRows(count: number): Array<{ id: number; label: string }> {
 function manualKeyedListUpdate(): void {
   const host = createHost()
   const list = document.createElement('ul')
-  host.append(list)
   const rows = createRows(60)
-  list.replaceChildren(...rows.map(createManualRow))
+  const keyedNodes = new Map<number, HTMLLIElement>()
+  const initialFragment = document.createDocumentFragment()
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]!
+    const node = createManualRow(row)
+    keyedNodes.set(row.id, node)
+    initialFragment.append(node)
+  }
+
+  list.append(initialFragment)
+  host.append(list)
   const next = rows.map((row) => row.id % 11 === 0 ? { ...row, label: `${row.label}!` } : row).reverse()
-  list.replaceChildren(...next.map(createManualRow))
+  const updateFragment = document.createDocumentFragment()
+
+  for (let index = 0; index < next.length; index += 1) {
+    const row = next[index]!
+    const node = keyedNodes.get(row.id)!
+    if (node.textContent !== row.label) node.textContent = row.label
+    updateFragment.append(node)
+  }
+
+  list.append(updateFragment)
   host.replaceChildren()
 }
 
@@ -597,10 +623,32 @@ function createManualRow(row: { id: number; label: string }): HTMLLIElement {
 function manualVirtualListWindow(): void {
   const host = createHost()
   const scroller = document.createElement('div')
-  scroller.style.overflow = 'auto'
-  scroller.style.maxHeight = '240px'
+  const spacer = document.createElement('div')
+  const window = document.createElement('div')
   const rows = createRows(1000)
-  for (let index = 0; index < 24; index += 1) scroller.append(createManualRow(rows[index]!))
+  const itemHeight = 20
+  const viewportHeight = 240
+  const overscan = 4
+  const visibleCount = Math.ceil(viewportHeight / itemHeight) + overscan * 2
+
+  scroller.style.position = 'relative'
+  scroller.style.overflow = 'auto'
+  scroller.style.height = `${viewportHeight}px`
+  spacer.style.height = `${rows.length * itemHeight}px`
+  window.style.position = 'absolute'
+  window.style.inset = '0 0 auto 0'
+  window.style.transform = 'translateY(0px)'
+
+  for (let index = 0; index < visibleCount; index += 1) {
+    const row = rows[index]!
+    const item = document.createElement('div')
+    item.dataset.id = String(row.id)
+    item.style.height = `${itemHeight}px`
+    item.textContent = row.label
+    window.append(item)
+  }
+
+  scroller.append(spacer, window)
   host.append(scroller)
   host.replaceChildren()
 }
@@ -683,13 +731,6 @@ function fabricaTwoWayBind(): void {
 
 function manualNamedStyledRegistry(): void {
   const host = createHost()
-  manualNamedRegistry.set('BenchmarkRegistryButton', (props) => {
-    const button = document.createElement('button')
-    button.type = props.type === 'submit' || props.type === 'reset' ? props.type : 'button'
-    button.className = 'bench-registry-button'
-    button.textContent = String(props.children || '')
-    return button
-  })
   const factory = manualNamedRegistry.get('BenchmarkRegistryButton')!
   host.append(factory({ type: 'button', children: 'Save' }))
   host.replaceChildren()
@@ -710,6 +751,12 @@ function manualStyledComponentRegistration(): void {
     button.textContent = String(props.children || '')
     return button
   }
+
+  Object.defineProperties(component, {
+    displayName: { value: name },
+    registryName: { value: name },
+    className: { value: className },
+  })
   manualNamedRegistry.set(name, component)
   manualNamedRegistry.delete(name)
 }

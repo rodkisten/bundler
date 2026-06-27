@@ -111,3 +111,9 @@
 ### Performance
 
 - Added manual-versus-Fabrica benchmark cases for named styled registry rendering and styled component registration/unregistration.
+
+## Reliable benchmark protocol
+
+- Added same-runner baseline/current comparison with alternating order, median aggregation and per-row cross-round variation.
+- Fabrica performance scoring now normalizes each adapter against its paired manual control and excludes controls from the overall score.
+- Added fixture integrity coverage and semantically closer manual keyed/virtual list controls.

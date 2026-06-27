@@ -140,3 +140,9 @@
 - Added polling-free delayed-load queuing for Cipó-before-Fabrica bundle order.
 - Added explicit `connectFabrica`, `disconnectFabrica`, `configureFabricaRegistry`, `flushFabricaRegistry` and `pendingFabricaComponents` exports.
 - Added component metadata, polymorphic `as`, attrs resolvers, collision policies, focused integration tests and benchmark cases.
+
+## Reliable benchmark protocol
+
+- Added same-runner baseline/current comparison, alternating rounds, median aggregation and full runner metadata.
+- Synthetic `String.raw` controls remain visible but no longer influence Cipó's overall geometric mean.
+- Noisy runs are marked unstable using Tinybench RME plus cross-round variation.

@@ -22,7 +22,7 @@ const BENCH_OPTIONS = {
  * added without multiplying worker lifecycles. Stable benchmark names continue
  * to encode both the case and adapter IDs for JSON history and reports.
  */
-describe('Fabrica comparison matrix', () => {
+describe('Fabrica paired benchmark matrix', () => {
   for (let caseIndex = 0; caseIndex < FABRICA_BENCHMARK_CASES.length; caseIndex += 1) {
     const benchmarkCase = FABRICA_BENCHMARK_CASES[caseIndex]!
 

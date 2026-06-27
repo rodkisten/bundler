@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased - reliable same-runner benchmarks
+
+### Added
+
+- Added a same-runner A/B benchmark orchestrator that checks out the previous benchmark-relevant commit, alternates baseline/current order and aggregates repeated rounds by median.
+- Added complete runner fingerprints, individual round measurements, cross-round MAD variation and schema-v2 benchmark JSON files in `bench/`.
+- Added normalized Fabrica deltas based on paired manual controls so host-speed drift no longer inflates package scores.
+- Added benchmark statistics tests, report normalization tests and an ordinary Vitest integrity test that executes every Fabrica benchmark adapter/case pair.
+- Added a dedicated branch workflow that commits benchmark reports, updates one PR comment, uploads evidence and refuses stale branch writes.
+
+### Changed
+
+- Benchmark package-wide geometric means now exclude manual controls and synthetic baseline microbenchmarks.
+- High-noise cases are reported as unstable instead of faster or slower.
+- Keyed-list and virtual-list manual fixtures now perform semantically closer keyed reuse and window/spacer work.
+- The browser bundle workflow consumes committed benchmark evidence instead of rerunning a noisy single-revision benchmark twice.
+
+### Reliability
+
+- Prevented benchmark commit loops through path filtering, a generated-commit marker and a bot-author guard.
+- Added a remote branch freshness check before the workflow commits results, preventing stale reports after a newer push.
+
+
 ## Unreleased - Fabrica instances and portable components
 
 ### Added
