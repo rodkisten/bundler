@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased - readable atomic names and polymorphic styled artifacts
+
+### Added
+
+- Added deterministic, declaration-shaped Cipó atomic class names in debug mode, including optional breakpoint/pseudo/context labels, configurable truncation and privacy redaction.
+- Added polymorphic styled inputs for Cipó/Fabrica Elements: precompiled `css` artifacts, nested arrays, conditional branches and prop-driven resolver functions.
+- Added artifact-kind routing so atomic results merge classes, inline results compose into `style`, and stylesheet results inject once.
+- Added focused unit coverage and benchmark cases for compact/readable atomic naming and styled artifact rendering/composition.
+
+### Changed
+
+- Cipó keeps compact `prefix-a-hash` classes outside debug mode while debug labels retain the same stable rule hash instead of introducing random UUIDs.
+- The Performance Observatory now tracks readable-name overhead and artifact-driven styled rendering in the committed Cipó/Fabrica benchmark baselines.
+
 ## Unreleased - named styled registry bridge
 
 ### Added
