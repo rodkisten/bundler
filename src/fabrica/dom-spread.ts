@@ -10,9 +10,18 @@ let spreadEventDiffVersion = 0;
 
 export type SpreadBindingState = {
   keys: Set<string>;
-  values: Map<string, unknown>;
+  /**
+   * Last applied raw values. Optional for compatibility with older tests and
+   * external callers that created the state object manually before the diff
+   * cache existed. `ensureSpreadBindingState` upgrades it in-place.
+   */
+  values?: Map<string, unknown>;
   events: Map<string, EventListener>;
-  eventVersions: Map<string, number>;
+  /**
+   * Per-event diff version. Optional for compatibility with older manually
+   * created states. `ensureSpreadBindingState` upgrades it in-place.
+   */
+  eventVersions?: Map<string, number>;
   refCleanup: (() => void) | null;
 };
 
@@ -58,10 +67,12 @@ export function bindSpreadPart(node: Node, value: RenderValue | undefined): void
 }
 
 export function applySpreadValue(element: Element, value: unknown, previous: SpreadBindingState): SpreadBindingState {
+  previous = ensureSpreadBindingState(previous);
+
   if (!value || typeof value !== "object") {
     cleanupSpreadState(element, previous);
     previous.keys.clear();
-    previous.values.clear();
+    previous.values!.clear();
     return previous;
   }
 
@@ -71,7 +82,7 @@ export function applySpreadValue(element: Element, value: unknown, previous: Spr
   for (const key of previous.keys) {
     if (!(key in props)) {
       removeSpreadProperty(element, key, previous);
-      previous.values.delete(key);
+      previous.values!.delete(key);
       previous.keys.delete(key);
     }
   }
@@ -80,32 +91,34 @@ export function applySpreadValue(element: Element, value: unknown, previous: Spr
     const propValue = props[key];
     previous.keys.add(key);
 
-    if (canSkipSpreadProperty(key) && Object.is(previous.values.get(key), propValue)) {
+    if (canSkipSpreadProperty(key) && Object.is(previous.values!.get(key), propValue)) {
       continue;
     }
 
-    previous.values.set(key, propValue);
+    previous.values!.set(key, propValue);
     applySpreadProperty(element, key, propValue, previous, previous, eventVersion);
   }
 
   for (const [eventName, listener] of previous.events) {
-    if (previous.eventVersions.get(eventName) === eventVersion) continue;
+    if (previous.eventVersions!.get(eventName) === eventVersion) continue;
     element.removeEventListener(eventName, listener);
     previous.events.delete(eventName);
-    previous.eventVersions.delete(eventName);
+    previous.eventVersions?.delete(eventName);
   }
 
   return previous;
 }
 
 export function cleanupSpreadState(element: Element, state: SpreadBindingState): void {
+  state = ensureSpreadBindingState(state);
+
   for (const [eventName, listener] of state.events) {
     element.removeEventListener(eventName, listener);
   }
 
   state.events.clear();
-  state.eventVersions.clear();
-  state.values.clear();
+  state.eventVersions!.clear();
+  state.values!.clear();
   state.keys.clear();
   state.refCleanup?.();
   state.refCleanup = null;
@@ -200,7 +213,7 @@ export function setSpreadEvent(
   if (typeof listener !== "function") {
     if (previousListener) element.removeEventListener(eventName, previousListener);
     next.events.delete(eventName);
-    next.eventVersions.delete(eventName);
+    next.eventVersions!.delete(eventName);
     return;
   }
 
@@ -212,7 +225,7 @@ export function setSpreadEvent(
   }
 
   next.events.set(eventName, nextListener);
-  next.eventVersions.set(eventName, eventVersion);
+  next.eventVersions!.set(eventName, eventVersion);
 }
 
 function createSpreadBindingState(): SpreadBindingState {
@@ -223,6 +236,12 @@ function createSpreadBindingState(): SpreadBindingState {
     eventVersions: new Map<string, number>(),
     refCleanup: null,
   };
+}
+
+function ensureSpreadBindingState(state: SpreadBindingState): SpreadBindingState {
+  state.values ??= new Map<string, unknown>();
+  state.eventVersions ??= new Map<string, number>();
+  return state;
 }
 
 function canSkipSpreadProperty(key: string): boolean {
@@ -251,7 +270,7 @@ export function removeSpreadProperty(element: Element, key: string, previous: Sp
     const listener = previous.events.get(eventName);
     if (listener) element.removeEventListener(eventName, listener);
     previous.events.delete(eventName);
-    previous.eventVersions.delete(eventName);
+    previous.eventVersions?.delete(eventName);
     return;
   }
 

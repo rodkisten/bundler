@@ -533,7 +533,9 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
 
   while (walker.nextNode()) {
     const element = walker.currentNode as Element;
-    for (let index = element.attributes.length - 1; index >= 0; index -= 1) {
+    const attributesToRemove: string[] = [];
+
+    for (let index = 0; index < element.attributes.length; index += 1) {
       const attribute = element.attributes[index];
 
       if (!attribute) {
@@ -546,9 +548,10 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         continue;
       }
 
+      attributesToRemove.push(attribute.name);
+
       if (attribute.name === "data-fabrica-spread") {
         parts.push(withPartMeta({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) }, parts.length));
-        element.removeAttribute(attribute.name);
         continue;
       }
 
@@ -561,7 +564,10 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         path: getNodePath(root, element),
         name: markerState.name || attribute.name,
       }, parts.length));
-      element.removeAttribute(attribute.name);
+    }
+
+    for (let index = 0; index < attributesToRemove.length; index += 1) {
+      element.removeAttribute(attributesToRemove[index]!);
     }
   }
 }
