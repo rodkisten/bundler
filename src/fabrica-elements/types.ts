@@ -119,8 +119,16 @@ export interface ElementsFactory<Output = unknown> {
 
 /** Structural Fabrica-compatible registry contract. */
 export interface ElementsComponentRegistry {
-  registerComponent(name: string, component: ElementsComponent): unknown
+  /** Preferred instance-local registry surface. */
+  registry?: ElementsComponentRegistry
+  register?(name: string, component: ElementsComponent, options?: { collision?: string }): unknown
+  unregister?(name: string): boolean
+  resolve?(name: string): unknown
+  /** @deprecated Compatibility bridge for older Fabrica globals. */
+  registerComponent?(name: string, component: ElementsComponent): unknown
+  /** @deprecated Compatibility bridge for older Fabrica globals. */
   unregisterComponent?(name: string): boolean
+  /** @deprecated Compatibility bridge for older Fabrica globals. */
   resolveComponent?(name: string): unknown
 }
 

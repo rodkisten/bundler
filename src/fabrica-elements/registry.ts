@@ -58,18 +58,20 @@ export class StyledRegistryBridge {
       autoRegister: options.autoRegister ?? this.#options.autoRegister,
       collision: options.collision ?? this.#options.collision,
     }
-    if (options.registry && typeof options.registry !== 'function') this.#explicitRegistry = options.registry
+    if (options.registry && typeof options.registry !== 'function') this.#explicitRegistry = unwrapRegistry(options.registry)
     this.flush()
   }
 
   connect(registry: ElementsComponentRegistry): number {
-    assertRegistry(registry)
-    this.#explicitRegistry = registry
+    const resolved = unwrapRegistry(registry)
+    assertRegistry(resolved)
+    this.#explicitRegistry = resolved
     return this.flush()
   }
 
   disconnect(registry?: ElementsComponentRegistry): void {
-    if (!registry || this.#explicitRegistry === registry) this.#explicitRegistry = undefined
+    const resolved = registry ? unwrapRegistry(registry) : undefined
+    if (!resolved || this.#explicitRegistry === resolved) this.#explicitRegistry = undefined
   }
 
   register(
@@ -98,7 +100,7 @@ export class StyledRegistryBridge {
     const normalizedName = normalizeName(name)
     this.#pending.delete(normalizedName)
     const registry = this.resolveRegistry()
-    return Boolean(normalizedName && registry?.unregisterComponent?.(normalizedName))
+    return Boolean(normalizedName && registry && unregisterNamedComponent(registry, normalizedName))
   }
 
   flush(): number {
@@ -136,7 +138,7 @@ export class StyledRegistryBridge {
     if (this.#explicitRegistry) return this.#explicitRegistry
     const configured = this.#options.registry
     if (configured) {
-      const registry = typeof configured === 'function' ? configured() : configured
+      const registry = unwrapRegistry(typeof configured === 'function' ? configured() : configured)
       if (registry) return registry
     }
     return resolveGlobalFabricaRegistry()
@@ -153,22 +155,24 @@ export class StyledRegistryBridge {
 
 /** Announces a registry to every independently created styled factory bridge. */
 export function notifyFabricaRegistryReady(registry: ElementsComponentRegistry): void {
-  assertRegistry(registry)
+  const resolved = unwrapRegistry(registry)
+  assertRegistry(resolved)
   const listeners = getRegistryListeners()
   const callbacks = Array.from(listeners)
-  for (let index = 0; index < callbacks.length; index += 1) callbacks[index]?.(registry)
+  for (let index = 0; index < callbacks.length; index += 1) callbacks[index]?.(resolved)
 
   const target = resolveEventTarget()
   const CustomEventConstructor = (globalThis as typeof globalThis & { CustomEvent?: typeof CustomEvent }).CustomEvent
   if (target && typeof CustomEventConstructor === 'function') {
-    target.dispatchEvent(new CustomEventConstructor(FABRICA_REGISTRY_READY_EVENT, { detail: registry }))
+    target.dispatchEvent(new CustomEventConstructor(FABRICA_REGISTRY_READY_EVENT, { detail: resolved }))
   }
 }
 
 /** Returns a structural global Fabrica registry when its bundle is installed. */
 export function resolveGlobalFabricaRegistry(): ElementsComponentRegistry | undefined {
   const candidate = (globalThis as typeof globalThis & { Fabrica?: unknown }).Fabrica
-  return isRegistry(candidate) ? candidate : undefined
+  const resolved = unwrapRegistry(candidate)
+  return isRegistry(resolved) ? resolved : undefined
 }
 
 function subscribeRegistryReady(listener: RegistryListener): () => void {
@@ -198,9 +202,9 @@ function registerIntoRegistry(
   collision: StyledRegistryCollision,
   warn: (message: string) => void,
 ): StyledRegistrationStatus {
-  const existing = registry.resolveComponent?.(name)
+  const existing = resolveRegisteredComponent(registry, name)
   if (!existing) {
-    registry.registerComponent(name, component)
+    registerNamedComponent(registry, name, component, collision)
     return 'registered'
   }
   if (existing === component) return 'existing'
@@ -214,8 +218,8 @@ function registerIntoRegistry(
     return 'ignored'
   }
 
-  registry.unregisterComponent?.(name)
-  registry.registerComponent(name, component)
+  unregisterNamedComponent(registry, name)
+  registerNamedComponent(registry, name, component, collision)
   return 'replaced'
 }
 
@@ -232,14 +236,50 @@ function normalizeName(name: string): string {
   return String(name || '').trim()
 }
 
+function unwrapRegistry(value: unknown): ElementsComponentRegistry | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as ElementsComponentRegistry
+  if (candidate.registry && candidate.registry !== candidate) return unwrapRegistry(candidate.registry)
+  return candidate
+}
+
+function resolveRegisteredComponent(registry: ElementsComponentRegistry, name: string): unknown {
+  return registry.resolve?.(name) ?? registry.resolveComponent?.(name)
+}
+
+function registerNamedComponent(
+  registry: ElementsComponentRegistry,
+  name: string,
+  component: ElementsComponent,
+  collision: StyledRegistryCollision,
+): unknown {
+  if (typeof registry.register === 'function') {
+    const mappedCollision = collision === 'ignore' ? 'keep' : collision
+    return registry.register(name, component, { collision: mappedCollision })
+  }
+  return registry.registerComponent?.(name, component)
+}
+
+function unregisterNamedComponent(registry: ElementsComponentRegistry, name: string): boolean {
+  if (typeof registry.unregister === 'function') return registry.unregister(name)
+  return registry.unregisterComponent?.(name) ?? false
+}
+
 function assertRegistry(value: unknown): asserts value is ElementsComponentRegistry {
   if (!isRegistry(value)) {
-    throw new TypeError('[Fabrica Elements] Registry must expose registerComponent(name, component).')
+    throw new TypeError('[Fabrica Elements] Registry must expose register()/resolve() or legacy registerComponent()/resolveComponent().')
   }
 }
 
 function isRegistry(value: unknown): value is ElementsComponentRegistry {
-  return Boolean(value && typeof value === 'object' && typeof (value as ElementsComponentRegistry).registerComponent === 'function')
+  if (!value || typeof value !== 'object') return false
+  const registry = unwrapRegistry(value)
+  return Boolean(
+    registry && (
+      (typeof registry.register === 'function' && typeof registry.resolve === 'function') ||
+      (typeof registry.registerComponent === 'function' && typeof registry.resolveComponent === 'function')
+    )
+  )
 }
 
 function resolveEventTarget(): EventTarget | undefined {
