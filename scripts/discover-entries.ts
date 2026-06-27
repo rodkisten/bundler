@@ -15,9 +15,11 @@ export async function discoverRootEntries(): Promise<RootEntry[]> {
     if (!ENTRY_EXTENSIONS.has(extension)) continue;
     if (dirent.name.endsWith(".d.ts")) continue;
 
+    const name = dirent.name.slice(0, -extension.length);
+    if (DEFAULT_IGNORED_ROOT_ENTRIES.has(name)) continue;
+
     const absolutePath = path.join(SRC_DIR, dirent.name);
     const source = await fs.readFile(absolutePath, "utf8");
-    const name = dirent.name.slice(0, -extension.length);
     const fallbackGlobal = name === "index" ? DEFAULT_GLOBAL_NAMESPACE : toPascalCase(name);
     const tool = parseToolMetadata(source, {
       name,
