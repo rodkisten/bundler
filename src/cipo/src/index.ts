@@ -6,7 +6,7 @@
  * @description Browser-first atomic CSS runtime and semantic CSS DSL bundled as a standalone browser global.
  */
 import { STYLE_ELEMENT_ID } from './constants'
-import { createCipoCallable } from './adapters'
+import { createCipoCallable, type CipoStyledFactoryOptions } from './adapters'
 import { installBuiltInAliases } from './aliases'
 import { configure, setup } from './config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
@@ -96,7 +96,12 @@ export function reset(): void {
 
 export const cipo = createCipoCallable()
 
-/** Styled-components-like alias for the callable Cipó component factory. */
+/** Creates an independent styled factory bound to a Fabrica instance/registry. */
+export function createStyled(options: CipoStyledFactoryOptions = {}) {
+  return createCipoCallable(options)
+}
+
+/** Styled-components-like alias for the default callable Cipó component factory. */
 export const styled = cipo
 
 /** Named visual component facade backed by Fabrica Elements. */
@@ -112,6 +117,7 @@ export const pendingFabricaComponents = cipo.pendingComponents
 Object.assign(cipo, {
   css,
   styled,
+  createStyled,
   atomic,
   sheet,
   assertAtomicCssArtifact,
@@ -167,6 +173,7 @@ export function createBrowserGlobal() {
     cipo,
     css,
     styled,
+    createStyled,
     component: cipo.component,
     connectFabrica: cipo.connectRegistry,
     disconnectFabrica: cipo.disconnectRegistry,

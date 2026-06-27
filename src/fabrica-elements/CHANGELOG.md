@@ -1,3 +1,9 @@
+## Instance registry bridge
+
+- Added structural support for Fabrica instances exposing `registry` and for modern `register/resolve/unregister` registry methods.
+- Registry connection now unwraps instance registries and avoids deprecated Fabrica registration aliases on the hot path.
+- Preserved legacy `registerComponent/resolveComponent` compatibility for external adapters.
+
 # Fabrica Elements Changelog
 
 ## Polymorphic styled input pass

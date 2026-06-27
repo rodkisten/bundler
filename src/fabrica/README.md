@@ -65,7 +65,7 @@ When `count.set(1)` runs, only the text node is updated.
 Input:
 
 ```ts
-const Button = component(function Button(props) {
+const Button = component("Button", function Button(props) {
   return html`
     <button type=${props.type ?? "button"} class=${props.class}>
       ${props.children}
@@ -187,7 +187,7 @@ Component event attributes are normalized to `onX` props before the component fa
 Input:
 
 ```ts
-const Button = component(function Button({ children, ...props }) {
+const Button = component("Button", function Button({ children, ...props }) {
   return html`<button ...${props}>${children}</button>`;
 });
 
@@ -244,13 +244,13 @@ Output after update:
 
 ## Micro-JSX string component tags
 
-`html.jsx` enables uppercase component tags inside template strings without Babel, TSX, or a virtual DOM. Components are resolved from a registry. `component(function Name(){})` registers itself automatically under `Name`; minified or anonymous components can be registered manually.
+`html.jsx` enables uppercase component tags inside template strings without Babel, TSX, or a virtual DOM. Components are resolved from the current Fabrica instance registry. The primary API is explicit and minifier-safe:
 
 Input:
 
 ```ts
-const Dock = component(function Dock(props) {
-  return html`<button type="button">${props.label}</button>`;
+const Dock = component("Dock", (props, ctx) => {
+  return ctx.html`<button type="button">${props.label}</button>`;
 });
 
 render(
@@ -292,16 +292,23 @@ If a component cannot be resolved, Fabrica renders a visible error element inste
 </fabrica-component-error>
 ```
 
-Manual registry aliases:
+Portable aliases use `defineComponent()` plus `instance.use()`:
 
 ```ts
-const TinyDock = component(function Dock() {
-  return html`<button>Dock</button>`;
+const TinyDock = defineComponent("TinyDock", (_props, ctx) => {
+  return ctx.html`<button>Dock</button>`;
 });
 
-registerComponent("TinyDock", TinyDock);
-render(document.body, html.jsx`<TinyDock />`);
+const app = Fabrica.create({ name: "docs" });
+app.use(TinyDock);
+app.render(document.body, app.html`<TinyDock />`);
 ```
+
+> ⚠️ `registerComponent(name, component)` and implicit
+> `component(function Name(){})` registration are deprecated compatibility
+> paths. They still work and emit one migration warning per realm. Prefer
+> `component("Name", factory)`, `defineComponent()` plus `instance.use()`, or
+> `instance.registry.register()`.
 
 ## Dynamic children inside component tags
 
@@ -339,7 +346,7 @@ Output after update:
 Input:
 
 ```ts
-const Clock = component(function Clock(_props, ctx) {
+const Clock = component("Clock", function Clock(_props, ctx) {
   const now = ctx.signal(Date.now());
 
   ctx.onMount(() => {
@@ -366,7 +373,7 @@ When the component range is removed, interval cleanup and unmount cleanup run.
 Input:
 
 ```ts
-const Profile = component(function Profile(props, ctx) {
+const Profile = component("Profile", function Profile(props, ctx) {
   const profile = ctx.resource(
     (abort, id) => fetch(`/users/${id}`, { signal: abort }).then((response) => response.json()),
     { source: () => props.id, cacheKey: (id) => `user:${id}`, retries: 1 },
@@ -402,12 +409,12 @@ Input:
 ```ts
 const Theme = createContext("dark", "Theme");
 
-const Provider = component(function Provider(props, ctx) {
+const Provider = component("Provider", function Provider(props, ctx) {
   ctx.provide(Theme, "forest");
   return html`${props.children}`;
 });
 
-const Consumer = component(function Consumer(_props, ctx) {
+const Consumer = component("Consumer", function Consumer(_props, ctx) {
   const theme = ctx.useContext(Theme);
   return html`<p>${theme}</p>`;
 });
@@ -430,7 +437,7 @@ Output:
 Input:
 
 ```ts
-const Risky = component(function Risky() {
+const Risky = component("Risky", function Risky() {
   throw new Error("boom");
 });
 
@@ -453,7 +460,7 @@ Boundaries catch synchronous render errors plus Broto owner errors from effects,
 Input:
 
 ```ts
-const FocusInput = component(function FocusInput(_props, ctx) {
+const FocusInput = component("FocusInput", function FocusInput(_props, ctx) {
   return html`<input ${ctx.ref((node) => (node as HTMLInputElement).focus())}>`;
 });
 ```
@@ -523,7 +530,12 @@ Output shape:
 html`...`
 render(target, value)
 mount(target, value)
-component(factory)
+component("Name", factory)
+defineComponent("Name", factory)
+create({ name?, registry?, isolated? })
+getOrCreate(key, options?)
+createRegistry(options?)
+createComponentPack(name, components)
 boundary(options)
 createContext(defaultValue, description?)
 provide(context, value)
@@ -717,14 +729,214 @@ html`${state.view.user.name}`
 html`${() => state.user.name()}`
 ```
 
+## Instances, registries and portable components
+
+Fabrica now separates the renderer instance from the component registry. This
+lets userscripts share one complete runtime, share only a design-system
+registry, inherit components with local overrides, or stay completely isolated.
+
+### Reuse exactly one instance across scripts
+
+```ts
+const app = Fabrica.getOrCreate("@rod/alerta", {
+  name: "Alerta",
+});
+```
+
+Every script that calls the same key receives the same realm-wide instance:
+
+```ts
+const storageApp = Fabrica.getOrCreate("@rod/alerta");
+
+storageApp === app;
+// true
+```
+
+The shared instance includes its registry, template/runtime bindings and
+instance-bound `html`, `render`, `component` and lifecycle context.
+
+### Create a new isolated instance
+
+```ts
+const sandbox = Fabrica.create({
+  name: "sandbox",
+});
+
+sandbox.component("Button", (_props, ctx) => {
+  return ctx.html`<button>Sandbox</button>`;
+});
+```
+
+A component with the same name in the default instance does not collide with
+`sandbox`. Passing `isolated: true` always creates a fresh empty registry, even
+when a `registry` option is also present.
+
+### Different renderers, one live registry
+
+```ts
+const registry = Fabrica.createRegistry({
+  name: "alerta-ui",
+});
+
+const shell = Fabrica.create({
+  name: "shell",
+  registry,
+});
+
+const storage = Fabrica.create({
+  name: "storage",
+  registry,
+});
+
+shell.component("Button", (props, ctx) => {
+  return ctx.html`<button>${props.children}</button>`;
+});
+
+storage.html`<Button>Save</Button>`;
+```
+
+The hot path is one `Map.get()`. Shared registries do not clone component
+functions or template caches.
+
+### Fork modes
+
+```ts
+const reference = shell.fork({
+  name: "reference",
+  registry: "reference",
+});
+
+const snapshot = shell.fork({
+  name: "snapshot",
+  registry: "snapshot",
+});
+
+const plugin = shell.fork({
+  name: "storage-plugin",
+  registry: "fork",
+});
+
+const isolated = shell.fork({
+  name: "isolated",
+  registry: "isolated",
+});
+```
+
+| Mode | Behavior |
+| --- | --- |
+| `reference` | Uses the exact same live registry object. |
+| `snapshot` | Copies the currently visible entries once. |
+| `fork` | Copy-on-write overlay. Reads inherit from the parent; local registrations override without mutating it. |
+| `isolated` | Starts with an empty registry. |
+
+### Portable component definitions
+
+Use `defineComponent()` when a component will be installed into more than one
+instance. The factory receives the materializing instance through `ctx`:
+
+```ts
+const Button = Fabrica.defineComponent(
+  "Button",
+  (props, ctx) => ctx.html`
+    <button @click=${props.onClick}>
+      ${props.children}
+    </button>
+  `,
+);
+
+shell.use(Button);
+sandbox.use(Button);
+```
+
+Portable factories should prefer:
+
+```ts
+ctx.html;
+ctx.jsx;
+ctx.component;
+ctx.registry;
+ctx.instance;
+```
+
+This avoids accidentally closing over another instance's `html` or registry.
+
+### Component packs
+
+```ts
+const AlertaUI = Fabrica.createComponentPack("AlertaUI", {
+  Button,
+  Modal,
+  Input,
+});
+
+storage.use(AlertaUI);
+
+sandbox.use(AlertaUI, {
+  namespace: "Sandbox",
+  include: ["Button", "Input"],
+});
+```
+
+The namespace example installs `SandboxButton` and `SandboxInput` without
+wrapping or cloning the underlying functions.
+
+### Cipó styled per Fabrica instance
+
+The default `Cipo.styled` factory can still connect to the default Fabrica. For
+multiple isolated registries, create one styled bridge per instance:
+
+```ts
+const shellStyled = Cipo.createStyled({
+  fabrica: shell,
+});
+
+const sandboxStyled = Cipo.createStyled({
+  fabrica: sandbox,
+});
+
+const ShellButton = shellStyled.button("Button")`
+  inline-flex
+  px: 3
+`;
+
+const SandboxButton = sandboxStyled.button("Button")`
+  grid
+  place-items: center
+`;
+```
+
+Both components can use the registry name `Button` because each styled factory
+is attached to a different Fabrica registry.
+
+### Deprecated compatibility APIs
+
+The following forms remain functional for migration only:
+
+```ts
+registerComponent("Button", Button);
+component(function Button() {});
+registry.registerComponent("Button", Button);
+```
+
+Each deprecated registration path emits a deduplicated `console.warn`. New code
+should use:
+
+```ts
+component("Button", factory);
+instance.use(definition);
+instance.registry.register("Button", component);
+```
+
 ## Performance benchmark matrix
 
 Fabrica ships a Vitest/Tinybench kitchen-sink benchmark suite at
 `tests/fabrica.bench.ts`. Every case is paired with an equivalent manual
 `document.createElement` implementation, including complex attribute
 interpolation, nested component props, fine-grained updates, conditional
-components, spread/event diffing, keyed lists, virtual lists, portals, raw HTML
-and two-way bindings.
+components, spread/event diffing, keyed lists, virtual lists, portals, raw HTML,
+two-way bindings, isolated named rendering, live shared registries, portable
+pack installation, forked copy-on-write resolution, preferred named-component
+registration and realm-wide `getOrCreate()` reuse.
 
 ```bash
 pnpm bench:fabrica
@@ -755,6 +967,7 @@ Normal `html` only activates registered uppercase component parsing when a
 static template chunk contains an uppercase tag. `jsx.html` remains the explicit
 micro-JSX namespace and behaves identically for named components.
 
-Registry collision behavior is owned by the styled factory. Fabrica keeps its
-existing `registerComponent`, `resolveComponent`, `unregisterComponent` and
-`clearComponents` APIs unchanged.
+Registry collision behavior is owned by the styled factory. New integrations
+should connect Cipó to `instance.registry` or use `Cipo.createStyled({ fabrica:
+instance })`. The legacy `registerComponent()` surface remains available with a
+deduplicated deprecation warning.

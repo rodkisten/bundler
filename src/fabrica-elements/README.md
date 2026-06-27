@@ -291,3 +291,23 @@ contains every statically resolved artifact in insertion order, and
 `dynamicStyles` tells diagnostics whether the style plan has a props-time path.
 Class names, inline style values and registry metadata continue to compose with
 caller props through the normal shared prop pipeline.
+
+## Fabrica instance registries
+
+The registry bridge understands both a Fabrica instance and its explicit
+`instance.registry` object:
+
+```ts
+const app = Fabrica.create({ name: 'storage' })
+
+const styled = createStyledFactory({
+  registry: app,
+  autoRegister: true,
+  createStyle,
+})
+```
+
+The bridge unwraps `app.registry` and prefers the modern
+`register()/resolve()/unregister()` methods. Legacy
+`registerComponent()/resolveComponent()` registries remain structurally
+supported for third-party adapters.

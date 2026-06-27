@@ -5,6 +5,11 @@ import {
   bind,
   classMap,
   component,
+  createComponentPack,
+  createFabrica,
+  createRegistry,
+  defineComponent,
+  getOrCreateFabrica,
   html,
   portal,
   rawHtml,
@@ -49,6 +54,12 @@ export type FabricaBenchmarkCaseId =
   | 'styled-component-registration'
   | 'styled-artifact-render'
   | 'styled-artifact-composition'
+  | 'instance-named-render'
+  | 'shared-registry-resolution'
+  | 'portable-definition-install'
+  | 'forked-registry-resolution'
+  | 'named-component-definition'
+  | 'named-instance-reuse'
 
 export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.freeze([
   {
@@ -131,6 +142,36 @@ export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.f
     label: 'Styled artifact array/function composition',
     description: 'Composes static artifacts with a prop-driven conditional artifact and creates the resulting element.',
   },
+  {
+    id: 'instance-named-render',
+    label: 'Instance-local named render',
+    description: 'Resolves and renders an uppercase component tag through an isolated Fabrica instance.',
+  },
+  {
+    id: 'shared-registry-resolution',
+    label: 'Shared registry hot resolution',
+    description: 'Performs repeated hot Map-backed component lookups shared by two renderer instances.',
+  },
+  {
+    id: 'portable-definition-install',
+    label: 'Portable component pack install',
+    description: 'Installs a reusable component pack into a fresh isolated instance registry.',
+  },
+  {
+    id: 'forked-registry-resolution',
+    label: 'Forked registry lookup',
+    description: 'Resolves inherited components and one local override through a copy-on-write registry.',
+  },
+  {
+    id: 'named-component-definition',
+    label: 'Named component definition and registration',
+    description: 'Creates and removes a component through the preferred component(name, factory) API.',
+  },
+  {
+    id: 'named-instance-reuse',
+    label: 'Realm-wide instance reuse',
+    description: 'Retrieves an existing cross-script instance through getOrCreate without rebuilding its registry.',
+  },
 ])
 
 const ToolbarButton = component<{
@@ -179,6 +220,34 @@ const ArtifactComposedButton = cipoStyled.button('BenchmarkArtifactComposed', { 
 ])
 let styledRegistrationId = 0
 
+const instanceRenderRuntime = createFabrica({ name: 'benchmark-instance-render' })
+instanceRenderRuntime.component('InstanceBadge', (_props, ctx) => ctx.html`<span>instance</span>`)
+const sharedRegistry = createRegistry({ name: 'benchmark-shared' })
+const sharedRegistryWriter = createFabrica({ name: 'benchmark-writer', registry: sharedRegistry })
+const sharedRegistryReader = createFabrica({ name: 'benchmark-reader', registry: sharedRegistry })
+sharedRegistryWriter.component('SharedHot', (_props, ctx) => ctx.html`<span>shared</span>`)
+const portableOne = defineComponent('PortableOne', (_props, ctx) => ctx.html`<i>one</i>`)
+const portableTwo = defineComponent('PortableTwo', (_props, ctx) => ctx.html`<i>two</i>`)
+const portablePack = createComponentPack('BenchmarkPortablePack', {
+  PortableOne: portableOne,
+  PortableTwo: portableTwo,
+})
+const forkParent = createFabrica({ name: 'benchmark-fork-parent' })
+forkParent.component('InheritedHot', (_props, ctx) => ctx.html`<span>parent</span>`)
+const forkRuntime = forkParent.fork({ name: 'benchmark-fork', registry: 'fork' })
+forkRuntime.component('LocalHot', (_props, ctx) => ctx.html`<span>local</span>`)
+const manualInstanceRegistry = new Map<string, () => HTMLElement>([
+  ['InstanceBadge', () => document.createElement('span')],
+])
+const manualSharedRegistry = new Map<string, unknown>([['SharedHot', () => undefined]])
+const manualForkParent = new Map<string, unknown>([['InheritedHot', () => undefined]])
+const manualForkOwn = new Map<string, unknown>([['LocalHot', () => undefined]])
+const definitionRuntime = createFabrica({ name: 'benchmark-component-definition' })
+const manualDefinitionRegistry = new Map<string, unknown>()
+const manualNamedInstances = new Map<string, unknown>([['@bench/reuse', {}]])
+getOrCreateFabrica('@bench/reuse', { name: 'benchmark-reuse' })
+let componentDefinitionId = 0
+
 export const manualCreateElementAdapter: FabricaBenchmarkAdapter = {
   id: 'manual.createElement',
   label: 'Manual document.createElement',
@@ -218,6 +287,12 @@ function runManualCase(caseId: FabricaBenchmarkCaseId): void {
     case 'styled-component-registration': return manualStyledComponentRegistration()
     case 'styled-artifact-render': return manualStyledArtifactRender()
     case 'styled-artifact-composition': return manualStyledArtifactComposition()
+    case 'instance-named-render': return manualInstanceNamedRender()
+    case 'shared-registry-resolution': return manualSharedRegistryResolution()
+    case 'portable-definition-install': return manualPortableDefinitionInstall()
+    case 'forked-registry-resolution': return manualForkedRegistryResolution()
+    case 'named-component-definition': return manualNamedComponentDefinition()
+    case 'named-instance-reuse': return manualNamedInstanceReuse()
   }
 }
 
@@ -239,6 +314,12 @@ function runFabricaCase(caseId: FabricaBenchmarkCaseId): void {
     case 'styled-component-registration': return fabricaStyledComponentRegistration()
     case 'styled-artifact-render': return fabricaStyledArtifactRender()
     case 'styled-artifact-composition': return fabricaStyledArtifactComposition()
+    case 'instance-named-render': return fabricaInstanceNamedRender()
+    case 'shared-registry-resolution': return fabricaSharedRegistryResolution()
+    case 'portable-definition-install': return fabricaPortableDefinitionInstall()
+    case 'forked-registry-resolution': return fabricaForkedRegistryResolution()
+    case 'named-component-definition': return fabricaNamedComponentDefinition()
+    case 'named-instance-reuse': return fabricaNamedInstanceReuse()
   }
 }
 
@@ -666,6 +747,77 @@ function manualStyledArtifactComposition(): void {
 function fabricaStyledArtifactComposition(): void {
   const button = ArtifactComposedButton({ danger: true, children: 'Delete' }) as Element
   button.remove()
+}
+
+function manualInstanceNamedRender(): void {
+  const host = createHost()
+  const factory = manualInstanceRegistry.get('InstanceBadge')!
+  const node = factory()
+  node.textContent = 'instance'
+  host.append(node)
+  host.replaceChildren()
+}
+
+function fabricaInstanceNamedRender(): void {
+  const host = createHost()
+  const dispose = instanceRenderRuntime.render(host, instanceRenderRuntime.html`<InstanceBadge />`)
+  dispose()
+}
+
+function manualSharedRegistryResolution(): void {
+  for (let index = 0; index < 100; index += 1) manualSharedRegistry.get('SharedHot')
+}
+
+function fabricaSharedRegistryResolution(): void {
+  for (let index = 0; index < 100; index += 1) sharedRegistryReader.resolveComponent('SharedHot')
+}
+
+function manualPortableDefinitionInstall(): void {
+  const registry = new Map<string, unknown>()
+  registry.set('PortableOne', portableOne)
+  registry.set('PortableTwo', portableTwo)
+  registry.clear()
+}
+
+function fabricaPortableDefinitionInstall(): void {
+  const runtime = createFabrica({ name: 'benchmark-pack-run' })
+  runtime.use(portablePack)
+  runtime.clearComponents()
+}
+
+function manualForkedRegistryResolution(): void {
+  for (let index = 0; index < 50; index += 1) {
+    manualForkOwn.get('LocalHot') ?? manualForkParent.get('LocalHot')
+    manualForkOwn.get('InheritedHot') ?? manualForkParent.get('InheritedHot')
+  }
+}
+
+function fabricaForkedRegistryResolution(): void {
+  for (let index = 0; index < 50; index += 1) {
+    forkRuntime.resolveComponent('LocalHot')
+    forkRuntime.resolveComponent('InheritedHot')
+  }
+}
+
+function manualNamedComponentDefinition(): void {
+  const name = `ManualDefinition${++componentDefinitionId}`
+  const factory = () => undefined
+  manualDefinitionRegistry.set(name, factory)
+  manualDefinitionRegistry.delete(name)
+}
+
+function fabricaNamedComponentDefinition(): void {
+  const name = `FabricaDefinition${++componentDefinitionId}`
+  definitionRuntime.component(name, (_props, ctx) => ctx.html`<span></span>`)
+  definitionRuntime.registry.unregister(name)
+}
+
+function manualNamedInstanceReuse(): void {
+  for (let index = 0; index < 100; index += 1) manualNamedInstances.get('@bench/reuse')
+}
+
+function fabricaNamedInstanceReuse(): void {
+  for (let index = 0; index < 100; index += 1) getOrCreateFabrica('@bench/reuse')
 }
 
 void RegistryStyledButton

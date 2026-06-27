@@ -1143,8 +1143,11 @@ describe("Fábrica kitchen sink: public API, globals and debug", () => {
 
     expect(Object.isFrozen(api)).toBe(true);
     expect(api.html).toBeTypeOf("function");
-    expect(api.render).toBe(render);
-    expect(api.mount).toBe(mount);
+    expect(api.render).toBeTypeOf("function");
+    expect(api.mount).toBeTypeOf("function");
+    expect(api.render).not.toBe(render);
+    expect(api.mount).not.toBe(mount);
+    expect(api.registry).toBeDefined();
     expect(api.$).toBe($);
     expect(api.css).toBe(css);
     expect(api.elements).toBe(elements);

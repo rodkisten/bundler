@@ -172,8 +172,106 @@ export type VirtualRepeatDirective<Item, Key extends PropertyKey> = Directive & 
 /** All supported map directives. */
 export type MapDirective = ClassMapDirective | StyleMapDirective;
 
+/** Registry collision policy used by instance and pack installation APIs. */
+export type RegistryCollision = "replace" | "keep" | "warn" | "error";
+
+/** Open component-like function accepted by registries and adapters. */
+export type ComponentLike = Component<any> | ((props?: any) => unknown);
+
+/** Registration options shared by registries, instances and packs. */
+export type RegistryRegistrationOptions = {
+  collision?: RegistryCollision;
+  onWarning?: (message: string) => void;
+};
+
+/** Construction options for a component registry. */
+export type ComponentRegistryOptions = {
+  name?: string;
+  parent?: ComponentRegistry;
+  entries?: Iterable<readonly [string, ComponentLike]>;
+};
+
+/** Instance-local component registry contract. */
+export type ComponentRegistry = {
+  readonly name: string;
+  readonly size: number;
+  readonly version: number;
+  readonly parent?: ComponentRegistry;
+  register<T extends ComponentLike>(name: string, component: T, options?: RegistryRegistrationOptions): T;
+  unregister(name: string): boolean;
+  resolve(name: string): ComponentLike | undefined;
+  has(name: string, ownOnly?: boolean): boolean;
+  list(options?: { inherited?: boolean }): Map<string, ComponentLike>;
+  clear(options?: { inherited?: boolean }): void;
+  import(source: ComponentRegistry, options?: RegistryRegistrationOptions & { namespace?: string }): number;
+  fork(name?: string): ComponentRegistry;
+  snapshot(name?: string): ComponentRegistry;
+  setParent(parent: ComponentRegistry | undefined): void;
+  /** @deprecated Use `register()`. */
+  registerComponent<T extends ComponentLike>(name: string, component: T): T;
+  /** @deprecated Use `unregister()`. */
+  unregisterComponent(name: string): boolean;
+  /** @deprecated Use `resolve()`. */
+  resolveComponent(name: string): ComponentLike | undefined;
+  /** @deprecated Use `list()`. */
+  listComponents(): Map<string, ComponentLike>;
+  /** @deprecated Use `clear()`. */
+  clearComponents(): void;
+};
+
+/** Named reusable group of portable component definitions. */
+export type ComponentPack = {
+  readonly __kind: "componentPack";
+  readonly name: string;
+  readonly components: ReadonlyMap<string, ComponentLike>;
+};
+
+/** Options accepted by `instance.use()`. */
+export type ComponentUseOptions = RegistryRegistrationOptions & {
+  name?: string;
+  namespace?: string;
+  include?: readonly string[];
+  exclude?: readonly string[];
+};
+
+/** Registry sharing mode used by forks/imports. */
+export type RegistryImportMode = "reference" | "snapshot" | "fork" | "isolated";
+
+/** Fabrica instance construction options. */
+export type FabricaInstanceOptions = {
+  name?: string;
+  registry?: ComponentRegistry;
+  isolated?: boolean;
+  attachDollar?: boolean;
+};
+
+/** Internal render runtime captured by reactive DOM parts. */
+export type FabricaRuntimeContext = {
+  readonly id: string;
+  readonly name: string;
+  registry: ComponentRegistry;
+  api?: unknown;
+};
+
+/** Component definition options. */
+export type ComponentDefinitionOptions = RegistryRegistrationOptions & {
+  register?: boolean;
+};
+
 /** Component context. */
 export type ComponentContext = {
+  /** Stable component name used by diagnostics and portable definitions. */
+  name: string;
+  /** Fabrica instance that materialized this component. */
+  instance: unknown;
+  /** Instance-local registry used by named component tags. */
+  registry: ComponentRegistry;
+  /** Instance-bound template tag. */
+  html: ((strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment) & { jsx?: (strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment };
+  /** Instance-bound JSX namespace. */
+  jsx: { html: (strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment };
+  /** Instance-bound component factory. */
+  component: <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions) => Component<Props>;
   /** Component owner created by Broto. */
   owner: Owner;
   /** Stable component id useful for labels, aria and debug output. */
@@ -208,6 +306,12 @@ export type ComponentChildren = RenderValue | readonly RenderValue[];
 /** Component props accepted by open component surfaces. */
 export type ComponentProps = Record<string, unknown>;
 
+/** Reusable component setup function. */
+export type ComponentFactory<Props extends object = ComponentProps> = (
+  props: Props & { children?: ComponentChildren },
+  context: ComponentContext,
+) => RenderValue;
+
 /** A deferred component invocation used by component tags and direct composition. */
 export type ComponentRenderRequest<Props extends object = ComponentProps> = {
   readonly __kind: "componentRender";
@@ -219,7 +323,11 @@ export type ComponentRenderRequest<Props extends object = ComponentProps> = {
 export type Component<Props extends object = ComponentProps> = ((props?: Props & { children?: ComponentChildren }) => ComponentRenderRequest<Props>) & {
   readonly __kind: "component";
   readonly displayName?: string;
-  readonly factory?: (props: Props & { children?: ComponentChildren }, context: ComponentContext) => RenderValue;
+  readonly registryName?: string;
+  readonly portable?: boolean;
+  readonly factory?: ComponentFactory<Props>;
+  register(target?: unknown, options?: ComponentUseOptions): Component<Props>;
+  unregister(target?: unknown, name?: string): boolean;
 };
 
 /** Plain element payload emitted by framework adapters such as Cipó payload mode. */
