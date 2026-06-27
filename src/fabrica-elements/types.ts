@@ -46,16 +46,44 @@ export interface ElementsStyleArtifact {
   readonly className: string
 }
 
-/** Result returned by a style compiler callback. */
+/** Result returned by a style compiler or artifact resolver callback. */
 export interface ElementsResolvedStyle<Artifact = unknown> {
   readonly className: string
-  readonly artifact: Artifact
+  readonly artifact?: Artifact
+  readonly style?: unknown
 }
 
-/** Style compiler used by styled factories. */
+/**
+ * Polymorphic style definition accepted by styled builders.
+ *
+ * @remarks
+ * Fabrica Elements deliberately treats artifacts structurally. Cipó supplies the
+ * resolver that understands atomic, inline and stylesheet artifacts, while other
+ * compilers can provide their own resolver without adding a hard dependency.
+ */
+export type ElementsStyleInput<
+  Props extends ElementsRecord = ElementsRecord,
+  Artifact = unknown,
+> =
+  | Artifact
+  | ElementsResolvedStyle<Artifact>
+  | string
+  | false
+  | null
+  | undefined
+  | readonly ElementsStyleInput<Props, Artifact>[]
+  | ((props: Props) => ElementsStyleInput<Props, Artifact>)
+
+/** Style compiler used by tagged-template styled factories. */
 export type ElementsStyleCompiler<Artifact = unknown> = (
   strings: TemplateStringsArray,
   values: readonly unknown[],
+) => ElementsResolvedStyle<Artifact>
+
+/** Resolves a non-template artifact or string into styled output metadata. */
+export type ElementsStyleResolver<Artifact = unknown> = (
+  input: unknown,
+  props: ElementsRecord,
 ) => ElementsResolvedStyle<Artifact>
 
 /** Adapter implementation used by element/styled factories. */
@@ -122,13 +150,20 @@ export interface StyledComponentOptions<Props extends ElementsRecord = ElementsR
 /** Options for styled factories. */
 export interface StyledFactoryOptions<Artifact = unknown, Output = unknown> extends ElementsFactoryOptions<Output>, StyledRegistryOptions {
   readonly createStyle: ElementsStyleCompiler<Artifact>
+  readonly resolveStyle?: ElementsStyleResolver<Artifact>
 }
 
 /** Metadata exposed on generated styled components. */
 export interface StyledComponentMetadata<Artifact = unknown> {
   readonly displayName?: string
+  /** Static class list known when the component is created. */
   readonly className: string
-  readonly artifact: Artifact
+  /** First static artifact, or all static artifacts when composed. */
+  readonly artifact: Artifact | readonly Artifact[] | undefined
+  /** Every static artifact resolved before render. */
+  readonly artifacts: readonly Artifact[]
+  /** Whether one or more prop-driven style functions run during render. */
+  readonly dynamicStyles: boolean
   readonly target: unknown
   readonly tag?: string
   readonly registeredName?: string
@@ -142,31 +177,44 @@ export type StyledComponent<Props extends ElementsRecord = ElementsRecord, Artif
   toString(): string
 }
 
-/** Named builder supports both `.css`` ` and direct template invocation. */
-export interface NamedStyledBuilder<Result = unknown> {
+/** Named builder supports templates, artifacts, arrays and prop-driven styles. */
+export interface NamedStyledBuilder<
+  Props extends ElementsRecord = ElementsRecord,
+  Artifact = unknown,
+  Result = unknown,
+> {
   (strings: TemplateStringsArray, ...values: readonly unknown[]): Result
+  (input: ElementsStyleInput<Props, Artifact>): Result
   css(strings: TemplateStringsArray, ...values: readonly unknown[]): Result
 }
 
 /** Builder returned by `styled(element)` or `styled(Component)`. */
-export interface StyledBuilder<Result = unknown> {
+export interface StyledBuilder<
+  Props extends ElementsRecord = ElementsRecord,
+  Artifact = unknown,
+  Result = unknown,
+> {
+  (strings: TemplateStringsArray, ...values: readonly unknown[]): Result
+  (input: ElementsStyleInput<Props, Artifact>): Result
   css(strings: TemplateStringsArray, ...values: readonly unknown[]): Result
-  named(name: string, options?: StyledComponentOptions): NamedStyledBuilder<Result>
+  named(name: string, options?: StyledComponentOptions<Props>): NamedStyledBuilder<Props, Artifact, Result>
 }
 
 /** Callable styled tag factory with backwards-compatible `.css` and `.attrs`. */
 export interface StyledTagFactory<Artifact = unknown, Output = unknown> {
   (strings: TemplateStringsArray, ...values: readonly unknown[]): StyledComponent<ElementsRecord, Artifact>
-  (name: string, options?: StyledComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  (input: Exclude<ElementsStyleInput<ElementsRecord, Artifact>, string>): StyledComponent<ElementsRecord, Artifact>
+  (name: string, options?: StyledComponentOptions): NamedStyledBuilder<ElementsRecord, Artifact, StyledComponent<ElementsRecord, Artifact>>
   css(strings: TemplateStringsArray, ...values: readonly unknown[]): StyledComponent<ElementsRecord, Artifact>
-  named(name: string, options?: StyledComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  named(name: string, options?: StyledComponentOptions): NamedStyledBuilder<ElementsRecord, Artifact, StyledComponent<ElementsRecord, Artifact>>
   attrs(defaultProps: StyledAttrs): StyledTagFactory<Artifact, Output>
 }
 
 /** Result of styling a real DOM element. */
 export interface StyledDomResult<ElementType extends Element = Element, Artifact = unknown> {
   readonly element: ElementType
-  readonly artifact: Artifact
+  readonly artifact: Artifact | readonly Artifact[] | undefined
+  readonly artifacts: readonly Artifact[]
   readonly className: string
 }
 
@@ -177,10 +225,10 @@ export interface StyledNamedComponentOptions extends StyledComponentOptions {
 
 /** Base callable styled factory contract. */
 export interface StyledFactoryBase<Artifact = unknown> {
-  <ElementType extends Element>(target: ElementType): StyledBuilder<StyledDomResult<ElementType, Artifact>>
-  <Props extends ElementsRecord>(target: ElementsComponent<Props>, name?: string): StyledBuilder<StyledComponent<Props, Artifact>>
+  <ElementType extends Element>(target: ElementType): StyledBuilder<ElementsRecord, Artifact, StyledDomResult<ElementType, Artifact>>
+  <Props extends ElementsRecord>(target: ElementsComponent<Props>, name?: string): StyledBuilder<Props, Artifact, StyledComponent<Props, Artifact>>
   (target: string): StyledTagFactory<Artifact>
-  component(name: string, options?: StyledNamedComponentOptions): NamedStyledBuilder<StyledComponent<ElementsRecord, Artifact>>
+  component(name: string, options?: StyledNamedComponentOptions): NamedStyledBuilder<ElementsRecord, Artifact, StyledComponent<ElementsRecord, Artifact>>
   connectRegistry(registry: ElementsComponentRegistry): number
   disconnectRegistry(registry?: ElementsComponentRegistry): void
   configureRegistry(options: StyledRegistryOptions): void
