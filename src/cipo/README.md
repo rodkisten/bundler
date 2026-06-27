@@ -1452,3 +1452,91 @@ console.log(pendingFabricaComponents())
 
 Named styled components expose `className`, `artifact`, `displayName`, `tag`,
 `registeredName`, `register()`, `unregister()` and `withComponent()`.
+
+## Debug-readable deterministic atomic classes
+
+Readable names can be enabled through the backwards-compatible `debug` option:
+
+```ts
+setup({
+  prefix: 'app',
+  debug: {
+    enabled: true,
+    readableClassNames: true,
+    maxClassLabelLength: 72,
+    includeContext: true,
+  },
+})
+
+css`
+  background-attachment: fixed;
+  x:md:hover { color: $brand; }
+`
+```
+
+Typical output:
+
+```txt
+app-background-attachment-fixed-k3x9q7
+app-md-hover-color-var-app-colors-brand-p8w2z1
+```
+
+The final segment is the existing deterministic atomic-rule hash, not a random
+UUID. The readable prefix is diagnostic decoration, while the hash remains the
+canonical identity for cache reuse and deduplication. `debug: false` keeps the
+compact production format `app-a-k3x9q7`.
+
+Safety rules applied to readable labels:
+
+- URL, `data:` and `blob:` payloads are replaced by neutral labels;
+- quoted user content is not copied into class names;
+- labels are normalized to lowercase class-safe segments;
+- oversized values are truncated while the stable hash is retained;
+- breakpoint, pseudo, dark, supports, container and layer contexts can be
+  included or disabled with `includeContext`.
+
+## Styled builders consuming polymorphic `css` results
+
+The styled bridge accepts precompiled polymorphic artifacts in addition to the
+existing tagged-template syntax:
+
+```ts
+const brandCss = css`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`
+
+const Brand = styled.div('Brand')(brandCss)
+```
+
+Supported inputs are recursive and composable:
+
+```ts
+const base = css`display:inline-flex; align-items:center;`
+const rounded = css`border-radius:999px;`
+
+const Action = styled.button('Action')((props) => [
+  base,
+  rounded,
+  props.danger && css`color:$danger;`,
+  props.disabled && inline.css`opacity:.5; cursor:not-allowed;`,
+])
+```
+
+The resolver dispatches artifacts by kind:
+
+| Artifact | Styled behavior |
+| --- | --- |
+| `cipo.css` | merges generated atomic/scope classes |
+| `cipo.inline-css` | composes the declaration text into `style` |
+| `cipo.stylesheet` | injects the stylesheet once |
+| arrays/functions | resolves recursively with the current props |
+| `false`, `null`, `undefined` | skips the branch |
+
+Static artifacts are exposed through `component.artifact` and
+`component.artifacts`. Components with prop-dependent inputs expose
+`component.dynamicStyles === true`. Registration, `attrs`, polymorphic `as`,
+`withComponent()`, collision policies and delayed Fabrica connection continue to
+use the same named-component lifecycle.

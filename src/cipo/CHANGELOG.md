@@ -1,5 +1,14 @@
 # Changelog
 
+## Debug-readable atomic names and polymorphic styled inputs
+
+- Added `debug.enabled`, `debug.readableClassNames`, `debug.maxClassLabelLength` and `debug.includeContext` configuration while preserving boolean `debug` compatibility.
+- Atomic class names now use resolved property/value/context labels in debug mode and retain the existing deterministic rule hash for cache and snapshot stability.
+- Added URL, data/blob and quoted-content redaction plus bounded label normalization.
+- Styled builders now accept polymorphic `css` artifacts, arrays, false/null branches and props resolver functions.
+- Added atomic, inline and stylesheet artifact routing through the Fabrica Elements adapter.
+- Added focused tests and benchmark coverage for readable labels, compact production labels, redaction and artifact-driven styled components.
+
 ## 1.1.0
 
 - Preserved the previous Cipó API.
