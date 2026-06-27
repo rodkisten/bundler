@@ -140,7 +140,7 @@ Fábrica now supports deep component composition and ownership-aware rendering.
 Input:
 
 ```ts
-const Button = Fabrica.component(function Button(props) {
+const Button = Fabrica.component("Button", function Button(props) {
   return Fabrica.html`
     <button class=${props.class}>
       ${props.children}
@@ -170,7 +170,7 @@ Fábrica now has a tiny JSX-like syntax inside template strings. It is still bro
 Input:
 
 ```ts
-const Dock = Fabrica.component(function Dock() {
+const Dock = Fabrica.component("Dock", function Dock() {
   return Fabrica.html`<button>Open</button>`;
 });
 
@@ -200,7 +200,7 @@ Unregistered components render a visible `<fabrica-component-error>` fallback, w
 Input:
 
 ```ts
-const Profile = Fabrica.component(function Profile(props, ctx) {
+const Profile = Fabrica.component("Profile", function Profile(props, ctx) {
   const profile = ctx.resource(
     (abort, id) => fetch(`/users/${id}`, { signal: abort }).then((r) => r.json()),
     { source: () => props.id, cacheKey: (id) => `user:${id}`, retries: 1 },
@@ -492,3 +492,29 @@ Atomic artifacts contribute classes, inline artifacts compose into `style`, and
 stylesheet artifacts are injected once. Named components keep Fabrica registry
 metadata and remain usable as `<Button>` without passing the function to
 `html`.
+
+## 🏭 Fabrica instances and portable component registries
+
+Fabrica supports isolated renderers, realm-wide reusable instances, shared live
+registries, copy-on-write forks and portable component packs:
+
+```ts
+const alerta = Fabrica.getOrCreate('@rod/alerta')
+const registry = Fabrica.createRegistry({ name: 'alerta-ui' })
+const shell = Fabrica.create({ name: 'shell', registry })
+const storage = Fabrica.create({ name: 'storage', registry })
+
+const Button = Fabrica.defineComponent('Button', (props, ctx) =>
+  ctx.html`<button>${props.children}</button>`,
+)
+
+shell.use(Button)
+storage.html`<Button>Save</Button>`
+```
+
+The preferred component API is `component("Name", factory)`. Legacy explicit
+`registerComponent()` and implicit `component(function Name(){})` registration
+still work, emit one migration warning, and are documented as deprecated.
+
+Use `Cipo.createStyled({ fabrica: instance })` when each Fabrica instance needs
+its own named styled-component registry.

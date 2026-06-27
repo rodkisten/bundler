@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased - Fabrica instances and portable components
+
+### Added
+
+- Added named reusable Fabrica instances through `Fabrica.getOrCreate(key)` and fully isolated instances through `Fabrica.create()`.
+- Added shared, snapshot, copy-on-write fork and isolated component registry modes.
+- Added portable `defineComponent()` definitions, `instance.use()`, component packs, namespaces and instance-aware component context helpers.
+- Added `Cipo.createStyled({ fabrica })` for instance-scoped named styled components.
+- Added regression tests and benchmark coverage for instance-local named rendering, shared registry lookup, component-pack installation, forked lookup, preferred named-component registration and realm-wide instance reuse.
+- Added the `⚡ Performance Observatory` branch workflow, which creates missing baselines, commits updated root `bench/` snapshots and maintains one visual PR comparison comment.
+
+### Deprecated
+
+- Deprecated explicit `registerComponent(name, component)`, registry `registerComponent()` and implicit function-name component registration. All remain operational with one deduplicated migration warning.
+
+### Performance
+
+- Kept the normal registry resolution path to one local `Map.get()`; fork registries add at most one parent lookup.
+- Shared registries reuse component functions and global template compilation caches instead of cloning definitions or compiler state.
+
+
 ## Unreleased - readable atomic names and polymorphic styled artifacts
 
 ### Added
