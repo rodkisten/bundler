@@ -1,4 +1,4 @@
-import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledTagFactory } from '../../fabrica-elements'
+import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledRegistryCollision, type StyledTagFactory } from '../../fabrica-elements'
 import type { CipoComponent, CipoCssInterpolation, CipoCssResult, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from './types'
 import { assertAtomicCssArtifact, css } from './css'
 import { runtime } from './runtime'
@@ -32,17 +32,32 @@ import { insertCss } from './injection'
  */
 export type CipoCallableRuntime = StyledFactory<CipoCssResult>
 
+/** Options for a styled factory bound to one Fabrica instance/registry. */
+export type CipoStyledFactoryOptions = {
+  readonly fabrica?: ElementsComponentRegistry
+  readonly registry?: ElementsComponentRegistry
+  readonly autoRegister?: boolean
+  readonly collision?: StyledRegistryCollision
+  readonly onWarning?: (message: string) => void
+}
 
 /**
  * Creates Cipó's styled-component-compatible callable API.
  *
+ * @remarks
+ * Each factory owns an independent registry bridge and tag cache. Passing a
+ * Fabrica instance binds named styled components to that instance's registry
+ * without mutating the default global styled factory.
+ *
  * @returns Cipó callable API.
  */
-export function createCipoCallable(): CipoCallableRuntime {
+export function createCipoCallable(options: CipoStyledFactoryOptions = {}): CipoCallableRuntime {
   const factory = createStyledFactory<CipoCssResult>({
     adapter: resolveElementsAdapter,
-    autoRegister: true,
-    collision: 'warn',
+    autoRegister: options.autoRegister ?? true,
+    collision: options.collision ?? 'warn',
+    registry: options.registry ?? options.fabrica,
+    onWarning: options.onWarning,
     createStyle(strings, values) {
       const artifact = assertAtomicCssArtifact(css(strings, ...(values as readonly CipoCssInterpolation[])))
       return { artifact, className: artifact.className }
