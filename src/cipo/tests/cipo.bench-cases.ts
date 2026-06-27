@@ -59,6 +59,19 @@ export function setupBenchCipo(): void {
   })
 }
 
+
+export function setupReadableClassBenchCipo(): void {
+  setupBenchCipo()
+  setup({
+    debug: {
+      enabled: true,
+      readableClassNames: true,
+      maxClassLabelLength: 72,
+      includeContext: true,
+    },
+  })
+}
+
 export const ATOMIC_CASE = `
   px: 4
   py: 2

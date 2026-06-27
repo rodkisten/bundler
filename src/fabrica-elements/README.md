@@ -242,3 +242,52 @@ const ToolbarButton = styled(Button).named('ToolbarButton').css`
 
 The original prop contract is preserved and the generated class is merged
 through the active adapter.
+
+## Polymorphic style inputs and compiler artifacts
+
+A styled factory can opt into artifact-aware resolution with `resolveStyle`.
+This keeps Fabrica Elements compiler-neutral while allowing Cipó, or another
+future compiler, to classify its own output:
+
+```ts
+const styled = createStyledFactory({
+  createStyle(strings, values) {
+    return compileTemplate(strings, values)
+  },
+  resolveStyle(input, props) {
+    return compilerAdapter.resolve(input, props)
+  },
+})
+```
+
+Builders accept templates, artifacts, arrays, conditional branches and
+prop-driven functions:
+
+```ts
+const Card = styled.article('Card')(compiledCardArtifact)
+
+const Button = styled.button('Button')((props) => [
+  baseArtifact,
+  props.rounded && roundedArtifact,
+  props.tone === 'danger' && dangerArtifact,
+])
+```
+
+Style input recursion is bounded to protect against self-returning resolver
+functions. Static artifacts are resolved once when the component is created;
+only prop-dependent functions are revisited during rendering.
+
+Metadata is intentionally explicit:
+
+```ts
+Button.className
+Button.artifact
+Button.artifacts
+Button.dynamicStyles
+```
+
+`artifact` preserves the single-artifact compatibility shape. `artifacts`
+contains every statically resolved artifact in insertion order, and
+`dynamicStyles` tells diagnostics whether the style plan has a props-time path.
+Class names, inline style values and registry metadata continue to compose with
+caller props through the normal shared prop pipeline.

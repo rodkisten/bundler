@@ -14,7 +14,7 @@ import {
   virtualRepeat,
 } from '../index'
 import type { RenderValue } from '../types'
-import { reset as resetCipo, setup as setupCipo, styled as cipoStyled } from '../../cipo/src/index'
+import { assertAtomicCssArtifact, css as cipoCss, reset as resetCipo, setup as setupCipo, styled as cipoStyled } from '../../cipo/src/index'
 import type { StyledTagFactory } from '../../fabrica-elements'
 
 export type FabricaBenchmarkAdapter = {
@@ -47,6 +47,8 @@ export type FabricaBenchmarkCaseId =
   | 'two-way-bind'
   | 'named-styled-registry'
   | 'styled-component-registration'
+  | 'styled-artifact-render'
+  | 'styled-artifact-composition'
 
 export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.freeze([
   {
@@ -119,6 +121,16 @@ export const FABRICA_BENCHMARK_CASES: readonly FabricaBenchmarkCase[] = Object.f
     label: 'Styled component registration',
     description: 'Compiles a warm styled template, decorates metadata, registers and unregisters a named component.',
   },
+  {
+    id: 'styled-artifact-render',
+    label: 'Precompiled styled artifact render',
+    description: 'Renders a named styled component created from a precompiled polymorphic css artifact.',
+  },
+  {
+    id: 'styled-artifact-composition',
+    label: 'Styled artifact array/function composition',
+    description: 'Composes static artifacts with a prop-driven conditional artifact and creates the resulting element.',
+  },
 ])
 
 const ToolbarButton = component<{
@@ -158,6 +170,13 @@ const RegistryStyledButton = cipoStyledButton('BenchmarkRegistryButton', { colli
   bg: $brand
 `
 const manualNamedRegistry = new Map<string, (props: Record<string, unknown>) => Element>()
+const artifactBase = assertAtomicCssArtifact(cipoCss`display:inline-flex;align-items:center;gap:8px;`)
+const artifactDanger = assertAtomicCssArtifact(cipoCss`color:$brand;`)
+const ArtifactStyledButton = cipoStyled.button('BenchmarkArtifactButton', { collision: 'replace' })(artifactBase)
+const ArtifactComposedButton = cipoStyled.button('BenchmarkArtifactComposed', { collision: 'replace' })([
+  artifactBase,
+  (props) => Boolean(props.danger) && artifactDanger,
+])
 let styledRegistrationId = 0
 
 export const manualCreateElementAdapter: FabricaBenchmarkAdapter = {
@@ -197,6 +216,8 @@ function runManualCase(caseId: FabricaBenchmarkCaseId): void {
     case 'two-way-bind': return manualTwoWayBind()
     case 'named-styled-registry': return manualNamedStyledRegistry()
     case 'styled-component-registration': return manualStyledComponentRegistration()
+    case 'styled-artifact-render': return manualStyledArtifactRender()
+    case 'styled-artifact-composition': return manualStyledArtifactComposition()
   }
 }
 
@@ -216,6 +237,8 @@ function runFabricaCase(caseId: FabricaBenchmarkCaseId): void {
     case 'two-way-bind': return fabricaTwoWayBind()
     case 'named-styled-registry': return fabricaNamedStyledRegistry()
     case 'styled-component-registration': return fabricaStyledComponentRegistration()
+    case 'styled-artifact-render': return fabricaStyledArtifactRender()
+    case 'styled-artifact-composition': return fabricaStyledArtifactComposition()
   }
 }
 
@@ -617,6 +640,32 @@ function fabricaStyledComponentRegistration(): void {
     bg: $brand
   `
   Styled.unregister()
+}
+
+
+
+function manualStyledArtifactRender(): void {
+  const button = document.createElement('button')
+  button.className = artifactBase.className
+  button.textContent = 'Brand'
+  button.remove()
+}
+
+function fabricaStyledArtifactRender(): void {
+  const button = ArtifactStyledButton({ children: 'Brand' }) as Element
+  button.remove()
+}
+
+function manualStyledArtifactComposition(): void {
+  const button = document.createElement('button')
+  button.className = `${artifactBase.className} ${artifactDanger.className}`
+  button.textContent = 'Delete'
+  button.remove()
+}
+
+function fabricaStyledArtifactComposition(): void {
+  const button = ArtifactComposedButton({ danger: true, children: 'Delete' }) as Element
+  button.remove()
 }
 
 void RegistryStyledButton

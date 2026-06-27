@@ -32,7 +32,7 @@ describe("Cipó polymorphic css entry point", () => {
     expect(isAtomicCssArtifact(result)).toBe(true);
     if (!isAtomicCssArtifact(result))
       throw new Error("Expected atomic artifact");
-    expect(String(result)).toContain("poly-a-");
+    expect(String(result)).toContain("poly-padding-inline-");
     expect(result.compiledCss).toContain("padding-inline");
     expect(result.compiledCss).toContain("background:var(--poly-colors-brand)");
   });

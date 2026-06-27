@@ -406,3 +406,89 @@ Fabrica.render(root, Fabrica.html`
 
 The bridge is load-order safe, polling-free, collision-configurable and exposed
 through the reusable Fabrica Elements styled factory.
+
+## 🔎 Readable Cipó atomic classes in debug mode
+
+Cipó can expose declaration-shaped atomic class names while debugging without
+changing atomic identity or cache behavior:
+
+```ts
+Cipo.setup({
+  debug: {
+    enabled: true,
+    readableClassNames: true,
+    maxClassLabelLength: 72,
+    includeContext: true,
+  },
+})
+
+Cipo.css`
+  background-attachment: fixed;
+  align-items: center;
+`
+```
+
+Development output is deterministic and readable:
+
+```txt
+cipo-background-attachment-fixed-<stable-hash>
+cipo-align-items-center-<stable-hash>
+```
+
+Production or explicit compact mode keeps the historical shape:
+
+```ts
+Cipo.setup({ debug: false })
+// cipo-a-<stable-hash>
+```
+
+The suffix deliberately uses Cipó's stable rule hash rather than a random UUID.
+That preserves deduplication, snapshots, reproducible diagnostics and cache
+identity. URLs, data/blob payloads and quoted strings are redacted from the
+readable label before it reaches the DOM.
+
+## 🧬 Polymorphic `css` artifacts in the styled API
+
+Named styled builders accept the same Cipó artifact returned by the polymorphic
+`css` entrypoint:
+
+```ts
+const brandStyles = css`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`
+
+const Brand = styled.div('Brand')(brandStyles)
+```
+
+Both authoring forms remain equivalent:
+
+```ts
+const DirectBrand = styled.div('DirectBrand')`
+  display: flex;
+`
+
+const ArtifactBrand = styled.div('ArtifactBrand')(css`
+  display: flex;
+`)
+```
+
+The resolver also accepts arrays, false/null branches and prop functions:
+
+```ts
+const base = css`display:inline-flex; align-items:center;`
+const danger = css`color:$danger;`
+
+const Button = styled.button('Button')((props) => [
+  base,
+  props.danger && danger,
+  props.compact && css`padding:4px;`,
+])
+```
+
+Atomic artifacts contribute classes, inline artifacts compose into `style`, and
+stylesheet artifacts are injected once. Named components keep Fabrica registry
+metadata and remain usable as `<Button>` without passing the function to
+`html`.

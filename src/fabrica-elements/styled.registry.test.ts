@@ -152,3 +152,53 @@ describe('Fabrica Elements named styled registry', () => {
     expect(node.getAttribute('role')).toBe('region')
   })
 })
+
+describe('Fabrica Elements polymorphic style inputs', () => {
+  type Artifact = { id: string; className: string }
+
+  function createArtifactFactory() {
+    return createStyledFactory<Artifact>({
+      adapter: 'dom',
+      createStyle() {
+        const artifact = { id: 'template', className: 'template-class' }
+        return { className: artifact.className, artifact }
+      },
+      resolveStyle(input) {
+        const artifact = input as Artifact
+        return { className: artifact.className, artifact }
+      },
+    })
+  }
+
+  it('resolves static artifacts, arrays and prop-driven conditional artifacts', () => {
+    const styled = createArtifactFactory()
+    const base = { id: 'base', className: 'base-class' }
+    const danger = { id: 'danger', className: 'danger-class' }
+    const Button = styled.button('ArtifactButton')([
+      base,
+      (props) => Boolean(props.danger) && danger,
+    ])
+
+    expect(Button.className).toBe('base-class')
+    expect(Button.artifact).toBe(base)
+    expect(Button.artifacts).toEqual([base])
+    expect(Button.dynamicStyles).toBe(true)
+
+    const safe = Button({ children: 'Safe' }) as HTMLButtonElement
+    const destructive = Button({ danger: true, children: 'Delete' }) as HTMLButtonElement
+    expect(safe.className).toBe('base-class')
+    expect(destructive.className).toBe('base-class danger-class')
+  })
+
+  it('styles an existing DOM element from a precompiled artifact', () => {
+    const styled = createArtifactFactory()
+    const element = document.createElement('div')
+    const artifact = { id: 'existing', className: 'existing-class' }
+    const result = styled(element)(artifact)
+
+    expect(result.element).toBe(element)
+    expect(result.className).toBe('existing-class')
+    expect(result.artifact).toBe(artifact)
+    expect(element.className).toBe('existing-class')
+  })
+})

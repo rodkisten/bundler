@@ -3,6 +3,7 @@ import type { CipoAtomicRule, CipoDeclarationNode, CipoRuleContext } from '../ty
 import { createDeclaration, hashString } from '../utils'
 import { addImportant } from './important'
 import { compileSelector, createAtomicRuleId, wrapContext } from './selector-compile'
+import { createAtomicClassName } from './atomic-class-name'
 
 /** Creates or reuses an atomic rule for a declaration/context pair. */
 export function createAtomicRule(declaration: CipoDeclarationNode, context: CipoRuleContext): CipoAtomicRule {
@@ -13,7 +14,7 @@ export function createAtomicRule(declaration: CipoDeclarationNode, context: Cipo
 
   const atom: CipoAtomicRule = {
     id,
-    className: `${runtime.config.prefix}-a-${hashString(id)}`,
+    className: createAtomicClassName(declaration.property, value, context, id),
     property: declaration.property,
     value,
     context,

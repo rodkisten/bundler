@@ -184,6 +184,11 @@ export function appendChildren(element: Element, children: unknown): void {
 }
 
 function applyStyle(element: HTMLElement, value: unknown): void {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) applyStyle(element, value[index])
+    return
+  }
+
   if (typeof value === 'string') {
     element.setAttribute('style', value)
     return

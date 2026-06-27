@@ -1,7 +1,7 @@
 <!-- rod-benchmark-report -->
 # ⚡ Performance Observatory
 
-> Commit `unknown` · generated 2026-06-26T19:13:56.818Z · higher ops/sec is better.
+> Commit `baseline` · generated 2026-06-27T13:17:04.197Z · higher ops/sec is better.
 
 Benchmarks run through **Vitest benchmark mode / Tinybench**. Changes inside the combined statistical noise floor are marked stable rather than celebrated as tiny, glittery lies. 🧪
 
@@ -9,46 +9,53 @@ Benchmarks run through **Vitest benchmark mode / Tinybench**. Changes inside the
 
 | Package | Overall | Faster | Slower | Stable | Added | Removed |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 🌿 **Cipó CSS runtime** | 🌿 +0.04% | 2 | 3 | 10 | 0 | 0 |
-| 🏭 **Fabrica DOM runtime** | 🌿 +0.26% | 6 | 7 | 15 | 0 | 0 |
+| 🌿 **Cipó CSS runtime** | 🌿 -1.15% | 4 | 8 | 6 | 0 | 0 |
+| 🏭 **Fabrica DOM runtime** | 🐢 -4.83% | 3 | 10 | 19 | 0 | 0 |
 
 ## 🌿 Cipó CSS runtime
 
 Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first configuration modes.
 
-**Overall geometric mean:** +0.04%
+**Overall geometric mean:** -1.15%
 
 ### 🚀 Fastest improvements
 
-1. **warm atomic.css.withImportant** · +8.43% ops/sec
-2. **cold css: atomic detection + compile** · +6.84% ops/sec
+1. **cold css: sheet detection + compile** · +19.54% ops/sec
+2. **cold css: atomic detection + compile** · +16.56% ops/sec
+3. **cold sheet.css: transform parse compile** · +13.07% ops/sec
+4. **class name: privacy redaction and truncation** · +4.20% ops/sec
 
 ### 🐢 Largest regressions
 
-1. **warm css: polymorphic atomic identity hit** · -9.28% ops/sec
-2. **warm atomic.css: classic atomic compile** · -5.03% ops/sec
-3. **cold atomic.css: transform parse compile** · -4.80% ops/sec
+1. **cold atomic.css: transform parse compile** · -12.95% ops/sec
+2. **warm sheet.css: nested sheet runtime DSL** · -12.53% ops/sec
+3. **warm css: polymorphic sheet identity hit** · -10.89% ops/sec
+4. **warm inline.css: inline style compile** · -10.04% ops/sec
+5. **warm css: prepared configure plan hit** · -8.91% ops/sec
 
 <details>
 <summary><strong>📊 All benchmark deltas</strong></summary>
 
 | Status | Benchmark | Previous ops/s | Current ops/s | Δ ops/s | Mean ms | RME |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 🌿 | baseline: String.raw tiny css | 4,389,287 | 4,332,479 | -1.29% | 0.00023 | ±0.59% |
-| 🐢 | warm atomic.css: classic atomic compile | 508,805 | 483,195 | -5.03% | 0.00207 | ±0.45% |
-| 🐢 | warm css: polymorphic atomic identity hit | 1,835,217 | 1,664,886 | -9.28% | 0.00060 | ±0.44% |
-| 🌿 | warm inline.css: inline style compile | 520,118 | 505,373 | -2.83% | 0.00198 | ±0.53% |
-| 🌿 | warm atomic.css: aliases helpers comments variants | 280,722 | 281,954 | +0.44% | 0.00355 | ±0.47% |
-| 🌿 | warm sheet.css: nested sheet runtime DSL | 186,891 | 191,444 | +2.44% | 0.00522 | ±0.38% |
-| 🌿 | warm css: polymorphic sheet identity hit | 829,621 | 834,456 | +0.58% | 0.00120 | ±0.43% |
-| 🌿 | warm css: prepared configure plan hit | 5,386,130 | 5,455,847 | +1.29% | 0.00018 | ±5.01% |
-| 🌿 | warm sheet.css.withImportant | 184,041 | 183,722 | -0.17% | 0.00544 | ±0.41% |
-| 🚀 | warm atomic.css.withImportant | 261,016 | 283,023 | +8.43% | 0.00353 | ±0.43% |
-| 🐢 | cold atomic.css: transform parse compile | 3,357 | 3,195 | -4.80% | 0.31294 | ±2.31% |
-| 🌿 | cold sheet.css: transform parse compile | 2,726 | 2,718 | -0.29% | 0.36787 | ±4.23% |
-| 🚀 | cold css: atomic detection + compile | 3,027 | 3,233 | +6.84% | 0.30927 | ±2.21% |
-| 🌿 | cold css: sheet detection + compile | 2,681 | 2,804 | +4.58% | 0.35668 | ±2.19% |
-| 🌿 | cold css: configure parse + normalized apply | 17,320 | 17,515 | +1.13% | 0.05709 | ±2.20% |
+| 🐢 | baseline: String.raw tiny css | 2,176,034 | 2,107,633 | -3.14% | 0.00047 | ±0.77% |
+| 🌿 | warm atomic.css: classic atomic compile | 279,465 | 273,222 | -2.23% | 0.00366 | ±0.58% |
+| 🐢 | warm css: polymorphic atomic identity hit | 1,028,671 | 994,104 | -3.36% | 0.00101 | ±0.63% |
+| 🐢 | warm inline.css: inline style compile | 266,769 | 239,981 | -10.04% | 0.00417 | ±4.06% |
+| 🐢 | warm atomic.css: aliases helpers comments variants | 158,845 | 150,105 | -5.50% | 0.00666 | ±0.83% |
+| 🐢 | warm sheet.css: nested sheet runtime DSL | 104,940 | 91,791 | -12.53% | 0.01089 | ±1.14% |
+| 🐢 | warm css: polymorphic sheet identity hit | 482,180 | 429,663 | -10.89% | 0.00233 | ±1.17% |
+| 🐢 | warm css: prepared configure plan hit | 3,062,292 | 2,789,381 | -8.91% | 0.00036 | ±3.75% |
+| 🌿 | warm sheet.css.withImportant | 108,064 | 106,901 | -1.08% | 0.00935 | ±0.73% |
+| 🌿 | warm atomic.css.withImportant | 160,616 | 157,094 | -2.19% | 0.00637 | ±0.78% |
+| 🐢 | cold atomic.css: transform parse compile | 1,402 | 1,221 | -12.95% | 0.81914 | ±17.44% |
+| 🚀 | cold sheet.css: transform parse compile | 1,342 | 1,517 | +13.07% | 0.65913 | ±4.11% |
+| 🚀 | cold css: atomic detection + compile | 1,215 | 1,416 | +16.56% | 0.70633 | ±2.40% |
+| 🚀 | cold css: sheet detection + compile | 1,313 | 1,570 | +19.54% | 0.63710 | ±2.50% |
+| 🌿 | cold css: configure parse + normalized apply | 7,785 | 8,242 | +5.87% | 0.12133 | ±3.25% |
+| 🌿 | class name: compact prefix-a-hash | 140,616 | 140,367 | -0.18% | 0.00712 | ±1.21% |
+| 🌿 | class name: readable property-value-context-hash | 141,561 | 142,542 | +0.69% | 0.00702 | ±0.71% |
+| 🚀 | class name: privacy redaction and truncation | 106,816 | 111,300 | +4.20% | 0.00898 | ±0.66% |
 
 </details>
 
@@ -56,90 +63,96 @@ Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first con
 
 Kitchen-sink DOM rendering matrix compared with manual document.createElement baselines.
 
-**Overall geometric mean:** +0.26%
+**Overall geometric mean:** -4.83%
 
 ### 🚀 Fastest improvements
 
-1. **keyed-list-update :: fabrica.html** · +34.87% ops/sec
-2. **named-styled-registry :: fabrica.html** · +13.63% ops/sec
-3. **portal-mount :: fabrica.html** · +12.77% ops/sec
-4. **portal-mount :: manual.createElement** · +12.09% ops/sec
-5. **reactive-text :: fabrica.html** · +10.76% ops/sec
+1. **virtual-list-window :: fabrica.html** · +34.59% ops/sec
+2. **styled-component-registration :: fabrica.html** · +13.18% ops/sec
+3. **complex-attributes :: fabrica.html** · +5.09% ops/sec
 
 ### 🐢 Largest regressions
 
-1. **complex-attributes :: fabrica.html** · -19.27% ops/sec
-2. **static-tree :: fabrica.html** · -19.26% ops/sec
-3. **styled-component-registration :: manual.createElement** · -11.40% ops/sec
-4. **virtual-list-window :: manual.createElement** · -8.34% ops/sec
-5. **named-styled-registry :: manual.createElement** · -6.08% ops/sec
+1. **portal-mount :: manual.createElement** · -29.23% ops/sec
+2. **reactive-text :: fabrica.html** · -25.23% ops/sec
+3. **reactive-class-style :: manual.createElement** · -22.98% ops/sec
+4. **reactive-text :: manual.createElement** · -20.65% ops/sec
+5. **reactive-class-style :: fabrica.html** · -19.65% ops/sec
 
 ### 🥊 Current framework race
 
 | Case | Adapter | Ops/s | Versus manual |
 | --- | --- | ---: | ---: |
-| static-tree | manual.createElement | 23,891 | baseline |
-| static-tree | fabrica.html | 7,334 | 🐢 3.26× slower |
-| complex-attributes | manual.createElement | 43,361 | baseline |
-| complex-attributes | fabrica.html | 7,858 | 🐢 5.52× slower |
-| nested-components | manual.createElement | 11,976 | baseline |
-| nested-components | fabrica.html | 866 | 🐢 13.83× slower |
-| reactive-text | manual.createElement | 75,493 | baseline |
-| reactive-text | fabrica.html | 12,568 | 🐢 6.01× slower |
-| reactive-class-style | manual.createElement | 10,827 | baseline |
-| reactive-class-style | fabrica.html | 4,116 | 🐢 2.63× slower |
-| conditional-component | manual.createElement | 10,090 | baseline |
-| conditional-component | fabrica.html | 1,743 | 🐢 5.79× slower |
-| spread-props-events | manual.createElement | 42,644 | baseline |
-| spread-props-events | fabrica.html | 12,063 | 🐢 3.54× slower |
-| keyed-list-update | manual.createElement | 864 | baseline |
-| keyed-list-update | fabrica.html | 106 | 🐢 8.14× slower |
-| virtual-list-window | manual.createElement | 4,503 | baseline |
-| virtual-list-window | fabrica.html | 560 | 🐢 8.05× slower |
-| portal-mount | manual.createElement | 65,919 | baseline |
-| portal-mount | fabrica.html | 10,719 | 🐢 6.15× slower |
-| raw-html | manual.createElement | 19,915 | baseline |
-| raw-html | fabrica.html | 6,978 | 🐢 2.85× slower |
-| two-way-bind | manual.createElement | 73,856 | baseline |
-| two-way-bind | fabrica.html | 14,872 | 🐢 4.97× slower |
-| named-styled-registry | manual.createElement | 76,145 | baseline |
-| named-styled-registry | fabrica.html | 8,691 | 🐢 8.76× slower |
-| styled-component-registration | manual.createElement | 3,254,241 | baseline |
-| styled-component-registration | fabrica.html | 194,652 | 🐢 16.72× slower |
+| static-tree | manual.createElement | 10,208 | baseline |
+| static-tree | fabrica.html | 4,089 | 🐢 2.50× slower |
+| complex-attributes | manual.createElement | 16,766 | baseline |
+| complex-attributes | fabrica.html | 3,529 | 🐢 4.75× slower |
+| nested-components | manual.createElement | 6,059 | baseline |
+| nested-components | fabrica.html | 370 | 🐢 16.38× slower |
+| reactive-text | manual.createElement | 28,878 | baseline |
+| reactive-text | fabrica.html | 4,116 | 🐢 7.02× slower |
+| reactive-class-style | manual.createElement | 3,936 | baseline |
+| reactive-class-style | fabrica.html | 1,518 | 🐢 2.59× slower |
+| conditional-component | manual.createElement | 5,152 | baseline |
+| conditional-component | fabrica.html | 803 | 🐢 6.42× slower |
+| spread-props-events | manual.createElement | 16,628 | baseline |
+| spread-props-events | fabrica.html | 3,863 | 🐢 4.30× slower |
+| keyed-list-update | manual.createElement | 429 | baseline |
+| keyed-list-update | fabrica.html | 62 | 🐢 6.88× slower |
+| virtual-list-window | manual.createElement | 2,326 | baseline |
+| virtual-list-window | fabrica.html | 351 | 🐢 6.62× slower |
+| portal-mount | manual.createElement | 24,466 | baseline |
+| portal-mount | fabrica.html | 5,560 | 🐢 4.40× slower |
+| raw-html | manual.createElement | 8,478 | baseline |
+| raw-html | fabrica.html | 4,365 | 🐢 1.94× slower |
+| two-way-bind | manual.createElement | 33,707 | baseline |
+| two-way-bind | fabrica.html | 6,153 | 🐢 5.48× slower |
+| named-styled-registry | manual.createElement | 40,230 | baseline |
+| named-styled-registry | fabrica.html | 4,253 | 🐢 9.46× slower |
+| styled-component-registration | manual.createElement | 2,091,446 | baseline |
+| styled-component-registration | fabrica.html | 99,840 | 🐢 20.95× slower |
+| styled-artifact-render | manual.createElement | 96,458 | baseline |
+| styled-artifact-render | fabrica.html | 59,851 | 🐢 1.61× slower |
+| styled-artifact-composition | manual.createElement | 82,165 | baseline |
+| styled-artifact-composition | fabrica.html | 43,031 | 🐢 1.91× slower |
 
 <details>
 <summary><strong>📊 All benchmark deltas</strong></summary>
 
 | Status | Benchmark | Previous ops/s | Current ops/s | Δ ops/s | Mean ms | RME |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 🌿 | static-tree :: manual.createElement | 23,336 | 23,891 | +2.38% | 0.04186 | ±1.61% |
-| 🌿 | complex-attributes :: manual.createElement | 42,332 | 43,361 | +2.43% | 0.02306 | ±1.28% |
-| 🌿 | nested-components :: manual.createElement | 11,829 | 11,976 | +1.24% | 0.08350 | ±1.29% |
-| 🌿 | reactive-text :: manual.createElement | 74,033 | 75,493 | +1.97% | 0.01325 | ±1.15% |
-| 🌿 | reactive-class-style :: manual.createElement | 10,954 | 10,827 | -1.16% | 0.09236 | ±1.31% |
-| 🚀 | conditional-component :: manual.createElement | 9,759 | 10,090 | +3.39% | 0.09911 | ±1.15% |
-| 🌿 | spread-props-events :: manual.createElement | 43,393 | 42,644 | -1.73% | 0.02345 | ±1.44% |
-| 🌿 | keyed-list-update :: manual.createElement | 861 | 864 | +0.32% | 1.15763 | ±2.22% |
-| 🐢 | virtual-list-window :: manual.createElement | 4,913 | 4,503 | -8.34% | 0.22207 | ±2.06% |
-| 🚀 | portal-mount :: manual.createElement | 58,808 | 65,919 | +12.09% | 0.01517 | ±1.22% |
-| 🐢 | raw-html :: manual.createElement | 20,818 | 19,915 | -4.34% | 0.05021 | ±1.66% |
-| 🐢 | two-way-bind :: manual.createElement | 76,475 | 73,856 | -3.42% | 0.01354 | ±1.27% |
-| 🐢 | named-styled-registry :: manual.createElement | 81,073 | 76,145 | -6.08% | 0.01313 | ±1.41% |
-| 🐢 | styled-component-registration :: manual.createElement | 3,672,816 | 3,254,241 | -11.40% | 0.00031 | ±3.30% |
-| 🐢 | static-tree :: fabrica.html | 9,083 | 7,334 | -19.26% | 0.13635 | ±2.12% |
-| 🐢 | complex-attributes :: fabrica.html | 9,734 | 7,858 | -19.27% | 0.12726 | ±2.38% |
-| 🌿 | nested-components :: fabrica.html | 966 | 866 | -10.36% | 1.15497 | ±5.38% |
-| 🚀 | reactive-text :: fabrica.html | 11,347 | 12,568 | +10.76% | 0.07957 | ±4.46% |
-| 🌿 | reactive-class-style :: fabrica.html | 4,263 | 4,116 | -3.45% | 0.24294 | ±3.88% |
-| 🌿 | conditional-component :: fabrica.html | 1,702 | 1,743 | +2.41% | 0.57367 | ±3.09% |
-| 🌿 | spread-props-events :: fabrica.html | 11,027 | 12,063 | +9.40% | 0.08290 | ±5.74% |
-| 🚀 | keyed-list-update :: fabrica.html | 79 | 106 | +34.87% | 9.41788 | ±4.53% |
-| 🌿 | virtual-list-window :: fabrica.html | 558 | 560 | +0.24% | 1.78700 | ±12.76% |
-| 🚀 | portal-mount :: fabrica.html | 9,506 | 10,719 | +12.77% | 0.09329 | ±6.03% |
-| 🌿 | raw-html :: fabrica.html | 7,260 | 6,978 | -3.87% | 0.14330 | ±2.39% |
-| 🌿 | two-way-bind :: fabrica.html | 13,369 | 14,872 | +11.24% | 0.06724 | ±5.40% |
-| 🚀 | named-styled-registry :: fabrica.html | 7,648 | 8,691 | +13.63% | 0.11506 | ±2.33% |
-| 🌿 | styled-component-registration :: fabrica.html | 201,980 | 194,652 | -3.63% | 0.00514 | ±9.12% |
+| 🌿 | static-tree :: manual.createElement | 10,038 | 10,208 | +1.69% | 0.09796 | ±2.23% |
+| 🌿 | static-tree :: fabrica.html | 4,221 | 4,089 | -3.12% | 0.24454 | ±2.07% |
+| 🌿 | complex-attributes :: manual.createElement | 16,920 | 16,766 | -0.91% | 0.05964 | ±1.92% |
+| 🚀 | complex-attributes :: fabrica.html | 3,358 | 3,529 | +5.09% | 0.28333 | ±2.18% |
+| 🌿 | nested-components :: manual.createElement | 6,055 | 6,059 | +0.07% | 0.16505 | ±1.79% |
+| 🐢 | nested-components :: fabrica.html | 436 | 370 | -15.23% | 2.70366 | ±8.76% |
+| 🐢 | reactive-text :: manual.createElement | 36,396 | 28,878 | -20.65% | 0.03463 | ±2.29% |
+| 🐢 | reactive-text :: fabrica.html | 5,504 | 4,116 | -25.23% | 0.24298 | ±9.78% |
+| 🐢 | reactive-class-style :: manual.createElement | 5,110 | 3,936 | -22.98% | 0.25405 | ±2.60% |
+| 🐢 | reactive-class-style :: fabrica.html | 1,890 | 1,518 | -19.65% | 0.65868 | ±4.94% |
+| 🌿 | conditional-component :: manual.createElement | 5,025 | 5,152 | +2.52% | 0.19412 | ±1.59% |
+| 🌿 | conditional-component :: fabrica.html | 830 | 803 | -3.27% | 1.24574 | ±4.00% |
+| 🐢 | spread-props-events :: manual.createElement | 17,763 | 16,628 | -6.39% | 0.06014 | ±2.26% |
+| 🌿 | spread-props-events :: fabrica.html | 3,747 | 3,863 | +3.10% | 0.25885 | ±5.98% |
+| 🌿 | keyed-list-update :: manual.createElement | 435 | 429 | -1.51% | 2.33141 | ±3.08% |
+| 🌿 | keyed-list-update :: fabrica.html | 63 | 62 | -1.17% | 16.04300 | ±4.88% |
+| 🌿 | virtual-list-window :: manual.createElement | 2,377 | 2,326 | -2.12% | 0.42987 | ±2.14% |
+| 🚀 | virtual-list-window :: fabrica.html | 261 | 351 | +34.59% | 2.84532 | ±10.63% |
+| 🐢 | portal-mount :: manual.createElement | 34,572 | 24,466 | -29.23% | 0.04087 | ±26.88% |
+| 🌿 | portal-mount :: fabrica.html | 6,156 | 5,560 | -9.68% | 0.17986 | ±6.55% |
+| 🌿 | raw-html :: manual.createElement | 8,771 | 8,478 | -3.35% | 0.11796 | ±2.63% |
+| 🌿 | raw-html :: fabrica.html | 4,485 | 4,365 | -2.69% | 0.22911 | ±2.82% |
+| 🐢 | two-way-bind :: manual.createElement | 35,984 | 33,707 | -6.33% | 0.02967 | ±2.46% |
+| 🌿 | two-way-bind :: fabrica.html | 5,833 | 6,153 | +5.49% | 0.16251 | ±6.23% |
+| 🌿 | named-styled-registry :: manual.createElement | 40,555 | 40,230 | -0.80% | 0.02486 | ±2.19% |
+| 🌿 | named-styled-registry :: fabrica.html | 4,265 | 4,253 | -0.27% | 0.23511 | ±2.55% |
+| 🌿 | styled-component-registration :: manual.createElement | 2,053,105 | 2,091,446 | +1.87% | 0.00048 | ±3.96% |
+| 🚀 | styled-component-registration :: fabrica.html | 88,216 | 99,840 | +13.18% | 0.01002 | ±7.65% |
+| 🌿 | styled-artifact-render :: manual.createElement | 96,300 | 96,458 | +0.16% | 0.01037 | ±2.36% |
+| 🐢 | styled-artifact-render :: fabrica.html | 64,412 | 59,851 | -7.08% | 0.01671 | ±3.04% |
+| 🐢 | styled-artifact-composition :: manual.createElement | 93,304 | 82,165 | -11.94% | 0.01217 | ±3.38% |
+| 🌿 | styled-artifact-composition :: fabrica.html | 45,645 | 43,031 | -5.73% | 0.02324 | ±3.55% |
 
 </details>
 

@@ -1,5 +1,19 @@
 # Fabrica Elements Changelog
 
+## Polymorphic styled input pass
+
+### Added
+
+- Added compiler-neutral style inputs for precompiled artifacts, nested arrays, conditional values and prop resolver functions.
+- Added the optional `resolveStyle(input, props)` adapter contract for artifact-kind-specific class, inline style and injection behavior.
+- Added `artifacts` and `dynamicStyles` styled metadata while preserving the existing single `artifact` compatibility field.
+- Added bounded recursive resolution and focused generic adapter tests.
+
+### Changed
+
+- Static style artifacts resolve once during styled component construction; only prop-dependent functions execute during rendering.
+- Existing DOM element builders and wrapped components now accept artifact inputs through the same builder contract.
+
 ## Next
 
 ### Added

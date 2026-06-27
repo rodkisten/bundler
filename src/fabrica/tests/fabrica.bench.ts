@@ -4,7 +4,6 @@ import { bench, describe } from 'vitest'
 import {
   FABRICA_BENCHMARK_ADAPTERS,
   FABRICA_BENCHMARK_CASES,
-  type FabricaBenchmarkAdapter,
 } from './fabrica.bench-cases'
 
 const BENCH_OPTIONS = {
@@ -14,22 +13,24 @@ const BENCH_OPTIONS = {
 } as const
 
 /**
- * Registers the full Fabrica rendering matrix for one adapter.
+ * Registers one flat comparison matrix instead of one suite per adapter.
  *
- * To compare another framework later, implement FabricaBenchmarkAdapter and
- * append it to the array below. Stable case IDs keep historical JSON compatible.
+ * @remarks
+ * Vitest benchmark mode can retain JSDOM worker state while moving between
+ * multiple top-level benchmark groups. Keeping all adapters in one group makes
+ * the runner deterministic and allows future React/Preact/Solid adapters to be
+ * added without multiplying worker lifecycles. Stable benchmark names continue
+ * to encode both the case and adapter IDs for JSON history and reports.
  */
-function registerAdapterBenchmarks(adapter: FabricaBenchmarkAdapter): void {
-  describe(adapter.label, () => {
-    for (let index = 0; index < FABRICA_BENCHMARK_CASES.length; index += 1) {
-      const benchmarkCase = FABRICA_BENCHMARK_CASES[index]!
+describe('Fabrica comparison matrix', () => {
+  for (let caseIndex = 0; caseIndex < FABRICA_BENCHMARK_CASES.length; caseIndex += 1) {
+    const benchmarkCase = FABRICA_BENCHMARK_CASES[caseIndex]!
+
+    for (let adapterIndex = 0; adapterIndex < FABRICA_BENCHMARK_ADAPTERS.length; adapterIndex += 1) {
+      const adapter = FABRICA_BENCHMARK_ADAPTERS[adapterIndex]!
       bench(`${benchmarkCase.id} :: ${adapter.id}`, () => {
         adapter.run(benchmarkCase.id)
       }, BENCH_OPTIONS)
     }
-  })
-}
-
-for (let index = 0; index < FABRICA_BENCHMARK_ADAPTERS.length; index += 1) {
-  registerAdapterBenchmarks(FABRICA_BENCHMARK_ADAPTERS[index]!)
-}
+  }
+})
