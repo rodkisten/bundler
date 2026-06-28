@@ -43,12 +43,12 @@ await fs.mkdir(path.join(DIST_DIR, "assets"), {
 });
 
 await fs.copyFile(
-  path.resolve("docs/docs.css"),
+  path.resolve("scripts/docs/docs.css"),
   path.join(DIST_DIR, "assets/docs.css"),
 );
 
 await fs.copyFile(
-  path.resolve("docs/docs-client.js"),
+  path.resolve("scripts/docs/docs-client.js"),
   path.join(DIST_DIR, "assets/docs-client.js"),
 );
 }
@@ -295,4 +295,9 @@ function toPosix(value: string): string {
   return value.split(path.sep).join("/");
 }
 
-await main();
+try {
+  await main();
+} catch(e: unknown) {
+  console.log(e);
+  throw new Error(e);
+}
