@@ -97,6 +97,18 @@
 - Added optional Gist publishing.
 - Added JSX/TSX support through esbuild.
 
+## Unreleased - Fabrica Runtime v2 performance plan
+
+### Changed
+
+- Fabrica now precompiles component dynamic props into the template part plan, removing per-render component path `Set`/`Map` bookkeeping while preserving the existing component tag API.
+- Fabrica component registries now include a versioned last-lookup cache for repeated named component resolution.
+- Fabrica keyed repeat now uses a Longest Increasing Subsequence reorder pass to minimize DOM moves for keyed updates.
+
+### Documentation
+
+- Expanded the Fabrica README with the Runtime v2 execution model, cache invalidation rules and benchmark-focused optimization notes.
+
 ## Unreleased
 
 ### Added

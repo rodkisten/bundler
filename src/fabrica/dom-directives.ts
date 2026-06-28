@@ -514,8 +514,12 @@ function updateRepeat(
     return updateIndexedRepeat(start, end, records, directive, items);
   }
 
+  const parent = end.parentNode;
+  if (!parent) return items.length > 0;
+
   const version = ++repeatDiffVersion;
-  let cursor: Node | null = start.nextSibling;
+  const nextRecords: RepeatRecord[] = new Array(items.length);
+  const oldIndexes: number[] = new Array(items.length);
 
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
@@ -525,7 +529,9 @@ function updateRepeat(
     if (!record) {
       record = createRepeatRecord(item, index, key, directive.render);
       records.set(key, record);
+      oldIndexes[index] = -1;
     } else {
+      oldIndexes[index] = record.order ?? index;
       batch(() => {
         record!.item.set(item);
         record!.index.set(index);
@@ -534,15 +540,7 @@ function updateRepeat(
     }
 
     record.version = version;
-
-    if (record.fragment) {
-      end.parentNode?.insertBefore(record.fragment, cursor ?? end);
-      record.fragment = null;
-    } else if (record.start !== cursor) {
-      moveRangeBefore(record.start, record.end, cursor ?? end);
-    }
-
-    cursor = record.end.nextSibling;
+    nextRecords[index] = record;
   }
 
   const staleKeys: PropertyKey[] = [];
@@ -553,9 +551,66 @@ function updateRepeat(
     staleKeys[staleKeys.length] = key;
   }
 
-  for (let index = 0; index < staleKeys.length; index += 1) records.delete(staleKeys[index]);
+  for (let index = 0; index < staleKeys.length; index += 1) {
+    records.delete(staleKeys[index]);
+  }
+
+  const stableIndexes = longestIncreasingSubsequence(oldIndexes);
+  let stableCursor = stableIndexes.length - 1;
+  let anchor: Node = end;
+
+  for (let index = nextRecords.length - 1; index >= 0; index -= 1) {
+    const record = nextRecords[index]!;
+    record.order = index;
+
+    if (record.fragment) {
+      parent.insertBefore(record.fragment, anchor);
+      record.fragment = null;
+    } else if (oldIndexes[index] === -1) {
+      moveRangeBefore(record.start, record.end, anchor);
+    } else if (stableCursor >= 0 && stableIndexes[stableCursor] === index) {
+      stableCursor -= 1;
+    } else if (record.end.nextSibling !== anchor) {
+      moveRangeBefore(record.start, record.end, anchor);
+    }
+
+    anchor = record.start;
+  }
 
   return items.length > 0;
+}
+
+function longestIncreasingSubsequence(values: readonly number[]): number[] {
+  const predecessors = new Array<number>(values.length);
+  const result: number[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]!;
+    if (value < 0) continue;
+
+    let low = 0;
+    let high = result.length;
+
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (values[result[middle]!]! < value) low = middle + 1;
+      else high = middle;
+    }
+
+    if (low > 0) predecessors[index] = result[low - 1]!;
+    result[low] = index;
+  }
+
+  let cursor = result.length;
+  let index = result[cursor - 1];
+  const sequence = new Array<number>(cursor);
+
+  while (cursor-- > 0 && index !== undefined) {
+    sequence[cursor] = index;
+    index = predecessors[index];
+  }
+
+  return sequence;
 }
 
 /**
@@ -590,6 +645,7 @@ function updateAppendOnlyRepeat(
     if (!record) {
       record = createRepeatRecord(item, index, key, directive.render);
       records.set(key, record);
+      record.order = index;
       end.parentNode?.insertBefore(record.fragment as DocumentFragment, end);
       record.fragment = null;
       continue;
@@ -600,6 +656,7 @@ function updateAppendOnlyRepeat(
       record.index.set(index);
       record.key.set(key);
     });
+    record.order = index;
   }
 
   if (records.size > items.length) {
@@ -644,6 +701,7 @@ function updateIndexedRepeat(
     if (!record) {
       record = createRepeatRecord(item, index, key, directive.render);
       records.set(key, record);
+      record.order = index;
       end.parentNode?.insertBefore(record.fragment as DocumentFragment, end);
       record.fragment = null;
       continue;
@@ -654,6 +712,7 @@ function updateIndexedRepeat(
       record.index.set(index);
       record.key.set(key);
     });
+    record.order = index;
   }
 
   if (records.size > items.length) {

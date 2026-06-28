@@ -67,6 +67,77 @@ render(root, html`
 
 The goal is not to change how authors write Fábrica. The goal is to make the engine do less work after the template has already told us what the page looks like.
 
+
+## Runtime v2 execution plan
+
+Fabrica's public API still returns real `DocumentFragment` values from `html` and `jsx.html`. That compatibility is intentional: userscripts, DOM bags, adapters and test fixtures can continue appending or inspecting fragments directly. Runtime v2 therefore focuses on removing repeated work that can be removed without changing that contract.
+
+### Compile-time work
+
+The template compiler now owns more of the hot-path planning:
+
+- Component placeholders know their static props.
+- Component placeholders know their dynamic prop parts.
+- Dynamic component attributes and spreads are marked as component-owned parts, so normal DOM binding skips them directly.
+- Component children are compiled once into ordered child-part plans.
+- Part ordering is stored on the compiled template, so render never sorts parts.
+
+This turns component tags from a runtime discovery problem into a precompiled execution problem. A template like this:
+
+```ts
+html`
+  <${Button}
+    className="action action-${tone}"
+    @click=${save}
+    ...${buttonProps}
+  >
+    ${label}
+  </${Button}>
+`;
+```
+
+compiles a component prop plan equivalent to:
+
+```txt
+component Button
+  static props: none
+  dynamic props:
+    className -> compound attribute value
+    onClick -> raw event function
+    spread -> raw object merge
+  children:
+    ordered child parts
+```
+
+The render pass no longer builds a `Set` of component paths or a `Map` of prop parts to rediscover this relationship.
+
+### Registry hot path
+
+Named component lookups now have two tiers:
+
+1. Local `Map.get()` for ordinary own definitions.
+2. Versioned last-lookup cache for repeated own, inherited and missing names.
+
+Every mutation invalidates the cache by bumping the registry version. Forked and shared registries keep copy-on-write behavior, but repeated named tags such as `<Panel />` avoid paying the full normalization and parent-resolution cost on each render.
+
+### Keyed repeat diff
+
+`repeat()` keeps the same API, but the default keyed strategy now uses a Longest Increasing Subsequence pass. The algorithm keeps the longest already-correct visual subsequence in place and moves only the ranges that actually need to move.
+
+That matters for real UI patterns:
+
+- table sorting
+- drag reorder
+- filter restoration
+- virtual windows
+- timeline insertion
+
+The dedicated `append-only` and `indexed` strategies remain available for workloads that can skip keyed reordering entirely.
+
+### What remains intentionally API-compatible
+
+The current API returns materialized `DocumentFragment` objects. A more radical Lit-style lazy `TemplateResult` would allow even more update reuse, but it would change observable behavior for code that expects `html``...`` instanceof DocumentFragment`. Runtime v2 therefore keeps compatibility and targets the biggest safe wins first: component planning, registry caching, raw HTML caching, ordered parts and minimal keyed moves.
+
 ## Basic fine-grained rendering
 
 Input:

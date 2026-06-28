@@ -1,6 +1,6 @@
 import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
 import { debugState } from "./debug";
-import type { CompiledTemplate, RenderValue, TemplatePart } from "./types";
+import type { CompiledTemplate, ComponentPropPart, RenderValue, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
@@ -595,18 +595,52 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
     const orderedChildParts = childParts.length > 1
       ? childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path))
       : childParts;
+    const componentPath = getNodePath(root, element);
+    const componentPathKey = createPathKey(componentPath);
+    const dynamicPropParts = compileDynamicComponentProps(componentPathKey, parts);
 
     parts.push(withPartMeta({
       type: "component",
       index: componentIndex,
-      path: getNodePath(root, element),
+      path: componentPath,
       name: rawName || undefined,
       staticProps: compileStaticComponentProps(element),
       childParts,
       orderedChildParts,
       hasChildComponents: childParts.some((childPart) => childPart.type === "component"),
+      dynamicPropParts,
+      hasDynamicPropParts: dynamicPropParts.length > 0,
     }, parts.length));
   }
+}
+
+
+function compileDynamicComponentProps(pathKey: string, parts: TemplatePart[]): ComponentPropPart[] {
+  const output: ComponentPropPart[] = [];
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    if (!part || part.pathKey !== pathKey) continue;
+
+    if (part.type === "spread") {
+      part.componentProp = true;
+      output[output.length] = { index: part.index, spread: true };
+      continue;
+    }
+
+    if (part.type === "attribute") {
+      part.componentProp = true;
+      output[output.length] = {
+        name: part.name,
+        index: part.index,
+        indices: part.indices,
+        strings: part.strings,
+        raw: part.raw,
+      };
+    }
+  }
+
+  return output;
 }
 
 function compileStaticComponentProps(template: HTMLTemplateElement): Record<string, unknown> | undefined {
