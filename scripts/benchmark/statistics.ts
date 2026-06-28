@@ -27,3 +27,21 @@ export function geometricMeanPercent(ratios: readonly number[]): number | null {
   if (valid.length === 0) return null
   return (Math.exp(valid.reduce((sum, ratio) => sum + Math.log(ratio), 0) / valid.length) - 1) * 100
 }
+
+/** Population standard deviation, used only for benchmark diagnostics. */
+export function standardDeviation(values: readonly number[]): number {
+  const valid = values.filter(Number.isFinite)
+  if (valid.length === 0) return 0
+  const mean = valid.reduce((sum, value) => sum + value, 0) / valid.length
+  const variance = valid.reduce((sum, value) => sum + (value - mean) ** 2, 0) / valid.length
+  return Math.sqrt(variance)
+}
+
+/** Coefficient of variation as percentage. */
+export function coefficientOfVariationPercent(values: readonly number[]): number {
+  const valid = values.filter(Number.isFinite)
+  if (valid.length === 0) return 0
+  const mean = valid.reduce((sum, value) => sum + value, 0) / valid.length
+  if (mean <= 0) return 0
+  return (standardDeviation(valid) / mean) * 100
+}

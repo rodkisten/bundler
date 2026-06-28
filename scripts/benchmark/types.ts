@@ -83,6 +83,9 @@ export type NormalizedBenchmark = {
   readonly samples: number
   readonly rounds: number
   readonly runVariationPercent: number
+  readonly standardDeviationHz: number
+  readonly coefficientOfVariationPercent: number
+  readonly sparkline: string
   readonly measurements: readonly BenchmarkRoundMeasurement[]
 }
 

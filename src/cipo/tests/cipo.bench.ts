@@ -6,6 +6,7 @@ import { clearPolymorphicDetectionCache } from '../src/compiler/detect-mode'
 import { clearJitCaches } from '../src/runtime'
 import { createAtomicClassName } from '../src/compiler/atomic-class-name'
 import { createAtomicRuleId } from '../src/compiler/selector-compile'
+import { compile as stylisCompile, serialize as stylisSerialize, stringify as stylisStringify } from 'stylis'
 import {
   ATOMIC_CASE,
   CONFIG_CASE,
@@ -135,5 +136,43 @@ describe('Cipó atomic class-name benchmarks', () => {
         createAtomicRuleId('background-image', 'url("https://private.example/token/image.png")', context),
       )
     })
+  })
+})
+
+
+describe('Cipó competitor benchmarks: Stylis', () => {
+  const stylisSheet = `
+    .card {
+      background: rgb(17 17 17 / .72);
+      border: 1px solid rgb(255 255 255 / .12);
+      backdrop-filter: blur(18px);
+      padding-inline: 1rem;
+      padding-block: .5rem;
+    }
+
+    .card .card-inner {
+      display: flex;
+      gap: 8px;
+      color: #f97316;
+      box-shadow: 0 16px 40px rgb(0 0 0 / .22);
+    }
+
+    .card:hover {
+      background: rgb(249 115 22 / .72);
+    }
+
+    @media (min-width: 720px) {
+      .card {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  `
+
+  bench('stylis: nested stylesheet compile', () => {
+    stylisSerialize(stylisCompile(stylisSheet), stylisStringify)
+  })
+
+  bench('stylis: tiny declaration compile', () => {
+    stylisSerialize(stylisCompile('.x{color:red;}'), stylisStringify)
   })
 })
