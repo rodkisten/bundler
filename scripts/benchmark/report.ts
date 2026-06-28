@@ -238,14 +238,14 @@ function renderSuite(comparison: SuiteComparison): string {
   if (frameworkRace) output += frameworkRace
 
   output += '<details>\n<summary><strong>📊 All benchmark deltas</strong></summary>\n\n'
-  output += '| Status | Benchmark | Baseline ops/s | Current ops/s | Absolute Δ | Normalized Δ | Noise floor | Confidence | Mean ms | Round variation |\n'
-  output += '| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |\n'
+  output += '| Status | Benchmark | Baseline ops/s | Current ops/s | Absolute Δ | Normalized Δ | Noise floor | Confidence | Mean ms | CV | Round variation | Sparkline |\n'
+  output += '| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |\n'
 
   const deltaById = new Map(comparison.deltas.map((delta) => [delta.id, delta]))
   for (let index = 0; index < comparison.current.benchmarks.length; index += 1) {
     const row = comparison.current.benchmarks[index]!
     const delta = deltaById.get(row.id)
-    output += `| ${delta ? statusEmoji(delta.status) : '🆕'} | ${escapeTable(row.name)} | ${delta ? formatNumber(delta.previousHz) : '—'} | ${formatNumber(row.hz)} | ${delta ? formatSignedPercent(delta.absoluteHzDeltaPercent) : 'baseline'} | ${delta?.normalizedHzDeltaPercent == null ? '—' : formatSignedPercent(delta.normalizedHzDeltaPercent)} | ${delta ? `${formatNumber(delta.noiseFloorPercent, 2)}%` : '—'} | ${delta?.confidence ?? '—'} | ${formatNumber(row.meanMs, 5)} | ${formatNumber(row.runVariationPercent, 2)}% |\n`
+    output += `| ${delta ? statusEmoji(delta.status) : '🆕'} | ${escapeTable(row.name)} | ${delta ? formatNumber(delta.previousHz) : '—'} | ${formatNumber(row.hz)} | ${delta ? formatSignedPercent(delta.absoluteHzDeltaPercent) : 'baseline'} | ${delta?.normalizedHzDeltaPercent == null ? '—' : formatSignedPercent(delta.normalizedHzDeltaPercent)} | ${delta ? `${formatNumber(delta.noiseFloorPercent, 2)}%` : '—'} | ${delta?.confidence ?? '—'} | ${formatNumber(row.meanMs, 5)} | ${formatNumber(row.coefficientOfVariationPercent, 2)}% | ${formatNumber(row.runVariationPercent, 2)}% | ${escapeTable(row.sparkline || '▁')} |\n`
   }
 
   output += '\n</details>\n\n'
