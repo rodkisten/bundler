@@ -37,6 +37,20 @@ export async function main(): Promise<void> {
 
   await fs.writeFile(path.join(DIST_DIR, "manifest.json"), JSON.stringify({ ...manifest, examples }, null, 2));
   await fs.writeFile(path.join(DIST_DIR, "index.html"), createIndexHtml({ entries, outputs, namespace: GLOBAL_NAMESPACE, examples, docs, sources, tests, pipelines }));
+
+await fs.mkdir(path.join(DIST_DIR, "assets"), {
+  recursive: true,
+});
+
+await fs.copyFile(
+  path.resolve("docs/docs.css"),
+  path.join(DIST_DIR, "assets/docs.css"),
+);
+
+await fs.copyFile(
+  path.resolve("docs/docs-client.js"),
+  path.join(DIST_DIR, "assets/docs-client.js"),
+);
 }
 
 async function buildEntry(entry: RootEntry): Promise<string[]> {
@@ -52,7 +66,7 @@ async function buildEntry(entry: RootEntry): Promise<string[]> {
     charset: "utf8",
     logLevel: "info",
     metafile: SHOULD_WRITE_META,
-    banner: { js: banner },
+    //banner: { js: banner },
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
@@ -66,8 +80,8 @@ async function buildEntry(entry: RootEntry): Promise<string[]> {
   const results = await Promise.all([
     build({ ...baseOptions, format: "iife", globalName: entry.globalName, outfile: normalIife, minify: false }),
     build({ ...baseOptions, format: "iife", globalName: entry.globalName, outfile: minIife, minify: true }),
-    build({ ...baseOptions, format: "esm", outfile: normalEsm, minify: false }),
-    build({ ...baseOptions, format: "esm", outfile: minEsm, minify: true }),
+   // build({ ...baseOptions, format: "esm", outfile: normalEsm, minify: false }),
+   // build({ ...baseOptions, format: "esm", outfile: minEsm, minify: true }),
   ]);
 
   if (SHOULD_WRITE_META) {
