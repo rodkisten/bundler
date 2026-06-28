@@ -60,6 +60,10 @@ render(root, html`
 
 ### Hot paths optimized
 
+- Fresh root renders of `DocumentFragment` values mount directly instead of paying for a generic child range controller.
+- Static attribute, property, boolean and conditional class bindings write directly without allocating effect/update closures.
+- String `class` and `style` bindings use `className` and `style.cssText` for the browser's fastest common path.
+- Slotless component tags reuse static props directly and skip child-fragment cloning.
 - Stateless components no longer schedule an empty mount microtask.
 - Repeated `rawHtml()` strings use a bounded template cache and clone trusted content.
 - Inherited registry lookups are cached behind the local registry fast path.
@@ -138,6 +142,37 @@ The dedicated `append-only` and `indexed` strategies remain available for worklo
 ### What remains intentionally API-compatible
 
 The current API returns materialized `DocumentFragment` objects. A more radical Lit-style lazy `TemplateResult` would allow even more update reuse, but it would change observable behavior for code that expects `html``...`` instanceof DocumentFragment`. Runtime v2 therefore keeps compatibility and targets the biggest safe wins first: component planning, registry caching, raw HTML caching, ordered parts and minimal keyed moves.
+
+
+### Root render fast path
+
+`html()` still returns a real `DocumentFragment`, but `render()` now recognizes that common shape:
+
+```ts
+const dispose = render(root, html`<section>${title}</section>`);
+```
+
+On a fresh root, Fábrica mounts the fragment directly. That avoids creating an extra render marker, a `ChildPart`, two range markers and one generic value classification pass. The returned dispose function still calls `disposeTree(root)` before clearing the container, so events, owners and reactive effects installed inside the fragment are released.
+
+Repeated renders into the same root remain compatible. If the root was previously mounted through the direct path and receives another fragment, the old tree is disposed and the new fragment is installed directly. If the root receives a directive, primitive, array or other dynamic value, Fábrica falls back to the stable `ChildPart` reconciliation path.
+
+### Static binding instructions
+
+The renderer now splits static and reactive bindings before creating an effect. Static bindings are the majority case in benchmark fixtures and generated documentation pages:
+
+```ts
+html`<button class="button-${tone}" .disabled=${false}>Save</button>`
+```
+
+For values that are not Broto signals/functions, Fábrica writes the DOM immediately:
+
+- `class` -> `element.className`
+- `style` -> `HTMLElement.style.cssText`
+- `.property` -> direct property assignment
+- `?boolean` -> direct set/remove
+- normal attributes -> `setAttribute()`
+
+Reactive values keep the previous owned-effect model, including previous-value guards and `classMap()` / `styleMap()` diff state.
 
 ## Basic fine-grained rendering
 
