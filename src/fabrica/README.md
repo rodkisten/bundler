@@ -32,6 +32,41 @@ Fabrica
  └── hydration
 ```
 
+## Runtime performance model
+
+Fábrica now uses a more aggressive compiled runtime plan while keeping the public API stable. The main rule is simple: work that can be discovered once during template compilation should not be repeated during render.
+
+### What is compiled once
+
+- Template DOM shape and dynamic part paths.
+- Component placeholder metadata.
+- Static component props.
+- Captured component children parts.
+- Ordered child part plans for component slots.
+
+This means component tags such as the following keep their ergonomic API while avoiding repeated slot compilation on every render:
+
+```ts
+const Button = component("Button", (props, ctx) => ctx.html`
+  <button class=${props.className}>${props.children}</button>
+`);
+
+render(root, html`
+  <${Button} className="primary">
+    Save
+  </${Button}>
+`);
+```
+
+### Hot paths optimized
+
+- Stateless components no longer schedule an empty mount microtask.
+- Repeated `rawHtml()` strings use a bounded template cache and clone trusted content.
+- Inherited registry lookups are cached behind the local registry fast path.
+- `getOrCreateFabrica()` keeps a realm-local map reference for repeated named instance reuse.
+
+The goal is not to change how authors write Fábrica. The goal is to make the engine do less work after the template has already told us what the page looks like.
+
 ## Basic fine-grained rendering
 
 Input:

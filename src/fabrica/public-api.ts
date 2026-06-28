@@ -53,6 +53,7 @@ import type {
 
 const INSTANCE_MAP = Symbol.for("rod.fabrica.instances");
 const INSTANCE_COUNTER = Symbol.for("rod.fabrica.instance-counter");
+let cachedGlobalInstances: Map<string, FabricaApi> | null = null;
 
 type GlobalInstanceState = typeof globalThis & Record<PropertyKey, unknown>;
 
@@ -175,8 +176,34 @@ export function getOrCreateFabrica(
   key: string,
   options: FabricaInstanceOptions = {},
 ): FabricaApi {
-  const normalizedKey = String(key || "").trim();
+  const normalizedKey = normalizeInstanceKey(key);
   if (!normalizedKey) throw new Error("[Fabrica] getOrCreate() needs a non-empty key.");
+
+  const instances = getGlobalInstanceMap();
+  const existing = instances.get(normalizedKey);
+  if (existing) return existing;
+
+  const created = createFabricaApi({
+    ...options,
+    name: options.name || normalizedKey,
+  });
+  instances.set(normalizedKey, created);
+  return created;
+}
+
+function normalizeInstanceKey(key: string): string {
+  if (typeof key === "string") {
+    const length = key.length;
+    if (length > 0 && key.charCodeAt(0) > 32 && key.charCodeAt(length - 1) > 32) {
+      return key;
+    }
+  }
+
+  return String(key || "").trim();
+}
+
+function getGlobalInstanceMap(): Map<string, FabricaApi> {
+  if (cachedGlobalInstances) return cachedGlobalInstances;
 
   const target = globalThis as GlobalInstanceState;
   let instances = target[INSTANCE_MAP] as Map<string, FabricaApi> | undefined;
@@ -190,15 +217,8 @@ export function getOrCreateFabrica(
     });
   }
 
-  const existing = instances.get(normalizedKey);
-  if (existing) return existing;
-
-  const created = createFabricaApi({
-    ...options,
-    name: options.name || normalizedKey,
-  });
-  instances.set(normalizedKey, created);
-  return created;
+  cachedGlobalInstances = instances;
+  return instances;
 }
 
 /** Creates the default singleton used by package-level compatibility exports. */

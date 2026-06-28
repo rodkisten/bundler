@@ -319,20 +319,22 @@ export function materializeComponent<Props extends object>(
     mountCallbacks.length = 0;
   });
 
-  queueMicrotask(() => {
-    if (!start.isConnected) return;
+  if (mountCallbacks.length > 0) {
+    queueMicrotask(() => {
+      if (!start.isConnected) return;
 
-    for (let index = 0; index < mountCallbacks.length; index += 1) {
-      try {
-        const cleanup = runWithFabricaRuntime(runtime, () => mountCallbacks[index]?.());
-        if (typeof cleanup === "function") registerCleanup(start, cleanup);
-      } catch (error) {
-        handleOwnerError(error, null);
+      for (let index = 0; index < mountCallbacks.length; index += 1) {
+        try {
+          const cleanup = runWithFabricaRuntime(runtime, () => mountCallbacks[index]?.());
+          if (typeof cleanup === "function") registerCleanup(start, cleanup);
+        } catch (error) {
+          handleOwnerError(error, null);
+        }
       }
-    }
 
-    mountCallbacks.length = 0;
-  });
+      mountCallbacks.length = 0;
+    });
+  }
 
   return fragment;
 }

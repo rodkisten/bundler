@@ -149,3 +149,26 @@ export function moveRangeBefore(start: Node, end: Node, before: Node): void {
 
   parentNode.insertBefore(fragment, before);
 }
+
+
+/**
+ * Appends an inclusive node range to a fragment, preserving node identity.
+ *
+ * @param start - Inclusive range start.
+ * @param end - Inclusive range end.
+ * @param fragment - Destination fragment.
+ */
+export function appendRangeToFragment(start: Node, end: Node, fragment: DocumentFragment): void {
+  let current: Node | null = start;
+
+  while (current) {
+    const next: Node | null = current.nextSibling;
+    fragment.append(current);
+
+    if (current === end) {
+      break;
+    }
+
+    current = next;
+  }
+}

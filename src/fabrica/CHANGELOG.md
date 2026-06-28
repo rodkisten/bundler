@@ -1,5 +1,15 @@
 # Fábrica Changelog
 
+## Next - Runtime turbo pass
+
+- Added a compiled component slot plan. Component placeholders now precompile their captured child parts, ordered child parts and static props during template compilation instead of recompiling and rereading attributes on every render.
+- Skipped lifecycle microtask scheduling for components that do not register `onMount()`, removing one queued job from the common stateless component path.
+- Added bounded trusted raw HTML template caching so repeated `rawHtml()` payloads clone cached template content instead of reparsing the same string each render.
+- Added an inherited-registry lookup cache that only participates when a lookup misses the local registry and needs a parent registry. Local component resolution keeps the original one-`Map.get()` hot path.
+- Added realm-local instance map caching for `getOrCreateFabrica()` so repeated named instance reuse avoids repeated symbol/global property lookups.
+- Preserved all public APIs and existing component, directive, registry and render semantics.
+- Verified with `tsc --noEmit`, the full Vitest suite, Fabrica-focused tests and the docs build in the local sandbox.
+
 ## Next - Instance registries and portable components
 
 - Added `Fabrica.create()`, `Fabrica.getOrCreate()`, `Fabrica.createRegistry()` and instance-bound `html`, `render`, `mount`, `hydrate` and `component` APIs.
