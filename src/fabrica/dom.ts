@@ -55,6 +55,7 @@ import {
 } from "./runtime-context";
 import type {
   ComponentPayload,
+  ComponentPropPart,
   ComponentRenderRequest,
   Directive,
   ElementPayload,
@@ -81,20 +82,9 @@ const renderStates = new WeakMap<
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
 
-type DynamicComponentNamedPropPart = {
-  name: string;
-  index: number;
-  indices: number[];
-  strings: string[];
-  raw: boolean;
-  spread?: false;
-};
+type DynamicComponentPropPart = ComponentPropPart;
 
-type DynamicComponentSpreadPropPart = { index: number; spread: true };
-
-type DynamicComponentPropPart = DynamicComponentNamedPropPart | DynamicComponentSpreadPropPart;
-
-function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part is DynamicComponentSpreadPropPart {
+function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part is Extract<ComponentPropPart, { spread: true }> {
   return "spread" in part && part.spread === true;
 }
 
@@ -363,54 +353,18 @@ function applyParts(
   fragment: DocumentFragment,
   parts: readonly TemplatePart[],
   values: readonly RenderValue[],
-  hasComponents = false,
+  _hasComponents = false,
 ): void {
-  const componentPathSet = hasComponents ? new Set<string>() : null;
-  const componentPropParts = hasComponents ? new Map<string, DynamicComponentPropPart[]>() : null;
-
-  if (componentPathSet) {
-    for (let index = 0; index < parts.length; index += 1) {
-      const part = parts[index];
-      if (part?.type === "component") componentPathSet.add(part.pathKey);
-    }
-  }
-
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index];
     if (!part) continue;
 
-    const node = resolvePath(fragment, part.path);
-    if (!node) continue;
-
-    if (
-      componentPathSet &&
-      componentPropParts &&
-      (part.type === "attribute" || part.type === "spread") &&
-      componentPathSet.has(part.pathKey) &&
-      node instanceof HTMLTemplateElement
-    ) {
-      let propParts = componentPropParts.get(part.pathKey);
-      if (!propParts) {
-        propParts = [];
-        componentPropParts.set(part.pathKey, propParts);
-      }
-
-      if (part.type === "spread") {
-        propParts[propParts.length] = { index: part.index, spread: true };
-        node.removeAttribute("data-fabrica-spread");
-      } else {
-        propParts[propParts.length] = {
-          name: part.name,
-          index: part.index,
-          indices: part.indices,
-          strings: part.strings,
-          raw: part.raw,
-        };
-        node.removeAttribute(part.name);
-      }
-
+    if ((part.type === "attribute" || part.type === "spread") && part.componentProp) {
       continue;
     }
+
+    const node = resolvePath(fragment, part.path);
+    if (!node) continue;
 
     if (part.type === "child") {
       bindChildPart(node, values[part.index]);
@@ -424,7 +378,7 @@ function applyParts(
         part.index >= 0 ? values[part.index] : undefined,
         values,
         part,
-        componentPropParts?.get(part.pathKey) ?? [],
+        part.dynamicPropParts ?? [],
       );
     }
   }
@@ -673,7 +627,7 @@ function readDynamicComponentProps(
 }
 
 function readComponentPropValue(
-  part: DynamicComponentNamedPropPart,
+  part: Extract<ComponentPropPart, { spread?: false }>,
   values: readonly RenderValue[],
 ): unknown {
   if (part.raw) return values[part.index];

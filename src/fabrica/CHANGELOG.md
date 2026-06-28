@@ -1,5 +1,14 @@
 # Fábrica Changelog
 
+## Next - Runtime v2 execution plan
+
+- Added a precompiled component dynamic-prop plan. Attributes and spreads that belong to component placeholders are now detected during template compilation, marked as component-owned parts, and passed directly to the component binder. The hot render path no longer builds a component path `Set`, no longer allocates a prop `Map`, and no longer reclassifies placeholder attributes every render.
+- Added a registry L1 lookup cache for repeated named component resolution. Local registry hits, inherited hits and misses now remember the last normalized name together with the registry version, while all mutation APIs still invalidate the cache safely.
+- Replaced the generic keyed repeat reorder pass with an LIS-based diff. Stable rows stay in place, new rows are inserted once, stale rows are removed once, and only non-LIS ranges are moved. This targets the keyed-list and virtual-list benchmarks without changing `repeat()` or `virtualRepeat()` APIs.
+- Added per-record visual order metadata used by the keyed diff, append-only strategy and indexed strategy.
+- Kept the public `html`, `jsx.html`, `render`, `repeat`, component registry and directive APIs unchanged.
+- Documented the Runtime v2 performance model, including which work is now compile-time and which architectural targets remain future-safe without breaking the current DocumentFragment-returning API.
+
 ## Next - Runtime turbo pass
 
 - Added a compiled component slot plan. Component placeholders now precompile their captured child parts, ordered child parts and static props during template compilation instead of recompiling and rereading attributes on every render.

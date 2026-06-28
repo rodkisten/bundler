@@ -358,6 +358,20 @@ export type CssLikeArtifact = {
 export type RenderablePayload = ElementPayload | ComponentPayload;
 
 /** Template part compiled from an HTML template. */
+export type ComponentPropPart =
+  | {
+      name: string;
+      index: number;
+      indices: number[];
+      strings: string[];
+      raw: boolean;
+      spread?: false;
+    }
+  | {
+      index: number;
+      spread: true;
+    };
+
 export type TemplatePart =
   | {
       type: "child";
@@ -365,6 +379,8 @@ export type TemplatePart =
       path: number[];
       pathKey: string;
       order: number;
+      /** True when this spread is consumed as a component prop. */
+      componentProp?: boolean;
     }
   | {
       type: "attribute";
@@ -380,6 +396,8 @@ export type TemplatePart =
       pathKey: string;
       order: number;
       name: string;
+      /** True when this dynamic attribute is consumed as a component prop. */
+      componentProp?: boolean;
     }
   | {
       type: "spread";
@@ -387,6 +405,8 @@ export type TemplatePart =
       path: number[];
       pathKey: string;
       order: number;
+      /** True when this spread is consumed as a component prop. */
+      componentProp?: boolean;
     }
   | {
       type: "component";
@@ -403,6 +423,10 @@ export type TemplatePart =
       orderedChildParts?: TemplatePart[];
       /** Whether component placeholders exist inside captured component children. */
       hasChildComponents?: boolean;
+      /** Precompiled dynamic prop readers captured from attributes on this component placeholder. */
+      dynamicPropParts?: ComponentPropPart[];
+      /** Whether any dynamic component prop can read a signal/reactive expression. */
+      hasDynamicPropParts?: boolean;
     };
 
 /** Cached compiled template. */
@@ -441,6 +465,8 @@ export type RepeatRecord = {
   fragment: DocumentFragment | null;
   /** Diff generation used by repeat to remove stale records without allocating next-key sets. */
   version?: number;
+  /** Previous visual index used by the keyed LIS diff to minimize DOM moves. */
+  order?: number;
 };
 
 /** DOM bag options. */

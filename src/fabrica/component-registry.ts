@@ -43,6 +43,9 @@ export class FabricaComponentRegistry implements ComponentRegistry {
   readonly #resolveCache = new Map<string, { version: number; value: ComponentLike | undefined }>();
   #parent: ComponentRegistry | undefined;
   #version = 0;
+  #lastResolveName = "";
+  #lastResolveVersion = -1;
+  #lastResolveValue: ComponentLike | undefined;
   readonly name: string;
 
   constructor(options: ComponentRegistryOptions = {}) {
@@ -113,6 +116,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
       this.#components.set(normalized, component);
       this.#version += 1;
       this.#resolveCache.clear();
+      this.#clearLastResolve();
     }
 
     return component;
@@ -123,6 +127,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (removed) {
       this.#version += 1;
       this.#resolveCache.clear();
+      this.#clearLastResolve();
     }
     return removed;
   }
@@ -131,18 +136,33 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     const normalized = normalizeComponentName(name);
     if (!normalized) return undefined;
 
+    const version = this.version;
+    if (this.#lastResolveName === normalized && this.#lastResolveVersion === version) {
+      return this.#lastResolveValue;
+    }
+
     const own = this.#components.get(normalized);
-    if (own) return own;
+    if (own) {
+      this.#rememberResolve(normalized, version, own);
+      return own;
+    }
 
     const parent = this.#parent;
-    if (!parent) return undefined;
+    if (!parent) {
+      this.#rememberResolve(normalized, version, undefined);
+      return undefined;
+    }
 
-    const version = parent.version;
+    const parentVersion = parent.version;
     const cached = this.#resolveCache.get(normalized);
-    if (cached && cached.version === version) return cached.value;
+    if (cached && cached.version === parentVersion) {
+      this.#rememberResolve(normalized, version, cached.value);
+      return cached.value;
+    }
 
     const value = parent.resolve(normalized);
-    this.#resolveCache.set(normalized, { version, value });
+    this.#resolveCache.set(normalized, { version: parentVersion, value });
+    this.#rememberResolve(normalized, version, value);
     return value;
   }
 
@@ -166,6 +186,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
       this.#components.clear();
       this.#version += 1;
       this.#resolveCache.clear();
+      this.#clearLastResolve();
     }
     if (options.inherited) this.#parent?.clear({ inherited: true });
   }
@@ -209,6 +230,19 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     this.#parent = parent;
     this.#version += 1;
     this.#resolveCache.clear();
+    this.#clearLastResolve();
+  }
+
+  #rememberResolve(name: string, version: number, value: ComponentLike | undefined): void {
+    this.#lastResolveName = name;
+    this.#lastResolveVersion = version;
+    this.#lastResolveValue = value;
+  }
+
+  #clearLastResolve(): void {
+    this.#lastResolveName = "";
+    this.#lastResolveVersion = -1;
+    this.#lastResolveValue = undefined;
   }
 
   /** @deprecated Use `registry.register(name, component)` or `instance.use(component)`. */
