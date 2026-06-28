@@ -29,8 +29,8 @@
 
   --broto-accent: #d8c7a1;
   --broto-accent-2: #f0e5c9;
-  --broto-soft: rgb(216 199 161 / .14);
-  --broto-line: rgb(216 199 161 / .38);
+  --broto-soft: rgb(87 64 191 / .14); /*rgb(216 199 161 / .14);*/
+  --broto-line: rgb(87 64 191 / .38);
 
   --fabrica-accent: #c76b3d;
   --fabrica-accent-2: #f0a070;
