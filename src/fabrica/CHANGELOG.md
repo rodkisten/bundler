@@ -1,5 +1,23 @@
 # Fábrica Changelog
 
+
+## Unreleased - forked registry and repeat hot-path repair
+
+### Fixed
+
+- Restored the forked registry fast path after the first Runtime v2 cache pass made inherited lookups pay the combined parent-version cost on every resolution.
+- Split registry lookup caching into local/shared and inherited/forked paths so local component hits remain one `Map.get()` while inherited hits and misses are cached against the parent epoch.
+
+### Performance
+
+- Batched large keyed repeat reshuffles through one `DocumentFragment` move when the LIS shows that most ranges changed position. This keeps the public `repeat()` API unchanged while reducing DOM mutation storms for reversals, table sorts and drag-reorder style workloads.
+- Kept the existing LIS path for small shuffles, append-only updates and mostly-stable lists so ordinary keyed updates still avoid unnecessary full-range moves.
+
+### Documentation
+
+- Documented the separated registry cache paths and the batched keyed-repeat fallback in the Fabrica README.
+
+
 ## Next - Runtime v2 execution plan
 
 - Added a precompiled component dynamic-prop plan. Attributes and spreads that belong to component placeholders are now detected during template compilation, marked as component-owned parts, and passed directly to the component binder. The hot render path no longer builds a component path `Set`, no longer allocates a prop `Map`, and no longer reclassifies placeholder attributes every render.

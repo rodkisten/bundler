@@ -113,16 +113,17 @@ The render pass no longer builds a `Set` of component paths or a `Map` of prop p
 
 ### Registry hot path
 
-Named component lookups now have two tiers:
+Named component lookups now have separate hot paths for shared and forked registries:
 
-1. Local `Map.get()` for ordinary own definitions.
-2. Versioned last-lookup cache for repeated own, inherited and missing names.
+1. Local/shared registries use a one-entry L1 cache and otherwise fall through to a single local `Map.get()`.
+2. Forked registries check the local map first and cache inherited hits and misses against the parent registry epoch.
+3. The public `version` getter still reflects parent changes, but `resolve()` no longer recomputes the combined version for every local lookup.
 
-Every mutation invalidates the cache by bumping the registry version. Forked and shared registries keep copy-on-write behavior, but repeated named tags such as `<Panel />` avoid paying the full normalization and parent-resolution cost on each render.
+Every mutation invalidates the local and inherited caches by bumping the registry version. Forked and shared registries keep copy-on-write behavior, but hot lookups avoid the previous parent-version bookkeeping regression that made inherited registries slower than the manual `own.get(name) ?? parent.get(name)` control.
 
 ### Keyed repeat diff
 
-`repeat()` keeps the same API, but the default keyed strategy now uses a Longest Increasing Subsequence pass. The algorithm keeps the longest already-correct visual subsequence in place and moves only the ranges that actually need to move.
+`repeat()` keeps the same API, but the default keyed strategy now uses a Longest Increasing Subsequence pass. The algorithm keeps the longest already-correct visual subsequence in place and moves only the ranges that actually need to move. When the LIS says most rows moved, such as full reversals and table sorts, Fábrica switches to a single `DocumentFragment` range reorder so the browser receives one batched insertion instead of dozens of tiny moves.
 
 That matters for real UI patterns:
 

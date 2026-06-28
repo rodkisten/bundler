@@ -1,5 +1,5 @@
 import { batch, effect, signal } from "../broto/reactivity";
-import { clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "./dom-cleanup";
+import { appendRangeToFragment, clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "./dom-cleanup";
 import { debugState } from "./debug";
 import { appendValue, mount } from "./dom";
 import { hasReactiveValue, readValue } from "./value";
@@ -556,6 +556,28 @@ function updateRepeat(
   }
 
   const stableIndexes = longestIncreasingSubsequence(oldIndexes);
+
+  // Reversals and large reshuffles are faster as one fragment move than as many
+  // tiny `insertBefore()` calls. The benchmark's keyed-list case reverses the
+  // whole list, which makes the LIS intentionally tiny; batching the ranges
+  // avoids a storm of DOM mutations while keeping node identity and effects.
+  const shouldBatchReorder = nextRecords.length > 16 && stableIndexes.length * 2 < nextRecords.length;
+  if (shouldBatchReorder) {
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < nextRecords.length; index += 1) {
+      const record = nextRecords[index]!;
+      record.order = index;
+      if (record.fragment) {
+        fragment.append(record.fragment);
+        record.fragment = null;
+      } else {
+        appendRangeToFragment(record.start, record.end, fragment);
+      }
+    }
+    parent.insertBefore(fragment, end);
+    return items.length > 0;
+  }
+
   let stableCursor = stableIndexes.length - 1;
   let anchor: Node = end;
 

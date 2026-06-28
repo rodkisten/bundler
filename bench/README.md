@@ -1,7 +1,7 @@
 <!-- rod-benchmark-report -->
 # ⚡ Performance Observatory
 
-> Current `f5b691fe` · baseline `82153946` · generated 2026-06-28T11:41:39.234Z.
+> Current `5fcacd37` · baseline `ada7ae91` · generated 2026-06-28T12:05:31.836Z.
 
 The report compares both revisions on the **same runner**, alternates execution order, aggregates repeated rounds by median, and normalizes Fabrica against its paired manual control. Tiny benchmark confetti stays in the drawer. 🧪
 
@@ -9,10 +9,10 @@ The report compares both revisions on the **same runner**, alternates execution 
 
 | Field | Value |
 | --- | --- |
-| Runner | GitHub Actions 1000004931 · Linux · X64 |
+| Runner | GitHub Actions 1000004932 · Linux · X64 |
 | CPU | AMD EPYC 7763 64-Core Processor · 4 logical cores · 0 MHz |
 | Runtime | Node v24.17.0 · V8 13.6.233.17-node.49 · pnpm 11.5.1 · Vitest 4.1.8 |
-| Memory | 15.61 GB total · 14.15 GB free at capture |
+| Memory | 15.61 GB total · 14.12 GB free at capture |
 | Method | 3 round(s) · median · same runner A/B |
 | Run order | R1:baseline → R1:current → R2:current → R2:baseline → R3:baseline → R3:current |
 
@@ -20,19 +20,19 @@ The report compares both revisions on the **same runner**, alternates execution 
 
 | Package | Normalized overall | Absolute overall | Faster | Slower | Stable | Unstable | Controls | Added | Removed |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 🌿 **Cipó CSS runtime** | 🌿 +0.41% | +0.41% | 1 | 0 | 18 | 0 | 1 | 0 | 0 |
-| 🏭 **Fabrica DOM runtime** | 🌿 -0.15% | -0.70% | 2 | 3 | 36 | 3 | 22 | 0 | 0 |
+| 🌿 **Cipó CSS runtime** | 🌿 +0.11% | +0.11% | 1 | 0 | 18 | 0 | 1 | 0 | 0 |
+| 🏭 **Fabrica DOM runtime** | 🌿 +1.53% | +2.67% | 4 | 2 | 35 | 3 | 22 | 0 | 0 |
 
 ## 🌿 Cipó CSS runtime
 
 Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first configuration modes.
 
-**Normalized geometric mean:** +0.41%  
-**Raw geometric mean:** +0.41%
+**Normalized geometric mean:** +0.11%  
+**Raw geometric mean:** +0.11%
 
 ### 🚀 Fastest reliable improvements
 
-1. **warm css: prepared configure plan hit** · +7.17% raw · high confidence
+1. **cold atomic.css: transform parse compile** · +4.41% raw · high confidence
 
 ### 🐢 Largest reliable regressions
 
@@ -43,26 +43,26 @@ _None outside the reliability threshold._
 
 | Status | Benchmark | Baseline ops/s | Current ops/s | Absolute Δ | Normalized Δ | Noise floor | Confidence | Mean ms | CV | Round variation | Sparkline |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
-| 🌿 | class name: compact prefix-a-hash | 189,692 | 189,571 | -0.06% | — | 3.00% | high | 0.00528 | 0.71% | 0.37% | ▃▁█ |
-| 🌿 | class name: privacy redaction and truncation | 147,261 | 146,799 | -0.31% | — | 3.00% | high | 0.00681 | 3.10% | 1.25% | ▁▇█ |
-| 🌿 | class name: readable property-value-context-hash | 190,430 | 189,632 | -0.42% | — | 3.00% | high | 0.00527 | 0.65% | 0.02% | ▁▁█ |
-| 🌿 | cold atomic.css: transform parse compile | 2,171 | 2,197 | +1.20% | — | 3.51% | high | 0.45522 | 0.95% | 0.87% | ▅▁█ |
-| 🌿 | cold css: atomic detection + compile | 2,272 | 2,271 | -0.03% | — | 3.14% | high | 0.44033 | 0.65% | 0.68% | ▁█▅ |
-| 🌿 | cold css: configure parse + normalized apply | 11,417 | 11,552 | +1.18% | — | 4.82% | high | 0.08657 | 1.94% | 0.29% | ▁██ |
-| 🌿 | cold css: sheet detection + compile | 2,510 | 2,514 | +0.12% | — | 3.00% | high | 0.39785 | 0.85% | 0.93% | ▁█▄ |
-| 🌿 | cold sheet.css: transform parse compile | 2,521 | 2,532 | +0.46% | — | 3.00% | high | 0.39488 | 0.27% | 0.02% | ▁█▁ |
-| 🌿 | stylis: nested stylesheet compile | 77,286 | 77,595 | +0.40% | — | 3.00% | high | 0.01289 | 0.07% | 0.08% | ▅█▁ |
-| 🌿 | stylis: tiny declaration compile | 1,561,967 | 1,562,125 | +0.01% | — | 3.00% | high | 0.00064 | 0.34% | 0.14% | ▂▁█ |
-| 🧭 | baseline: String.raw tiny css | 3,293,933 | 3,252,507 | -1.26% | — | 3.00% | high | 0.00031 | 1.21% | 0.92% | ▆▁█ |
-| 🌿 | warm atomic.css: aliases helpers comments variants | 248,030 | 248,276 | +0.10% | — | 3.00% | high | 0.00403 | 1.09% | 0.50% | ▇█▁ |
-| 🌿 | warm atomic.css: classic atomic compile | 425,661 | 415,472 | -2.39% | — | 3.00% | high | 0.00241 | 1.50% | 1.40% | ▁▄█ |
-| 🌿 | warm atomic.css.withImportant | 246,952 | 247,791 | +0.34% | — | 3.00% | high | 0.00404 | 0.29% | 0.29% | ▁▄█ |
-| 🌿 | warm css: polymorphic atomic identity hit | 1,507,735 | 1,510,886 | +0.21% | — | 3.00% | high | 0.00066 | 0.85% | 0.01% | ▁▁█ |
-| 🌿 | warm css: polymorphic sheet identity hit | 718,284 | 713,617 | -0.65% | — | 3.00% | high | 0.00140 | 0.55% | 0.03% | █▁▁ |
-| 🚀 | warm css: prepared configure plan hit | 4,602,490 | 4,932,345 | +7.17% | — | 3.00% | high | 0.00020 | 1.52% | 1.28% | ▁▆█ |
-| 🌿 | warm inline.css: inline style compile | 416,928 | 421,617 | +1.12% | — | 3.00% | high | 0.00237 | 0.59% | 0.60% | ▁█▅ |
-| 🌿 | warm sheet.css: nested sheet runtime DSL | 165,346 | 165,473 | +0.08% | — | 3.00% | high | 0.00604 | 0.23% | 0.01% | █▁█ |
-| 🌿 | warm sheet.css.withImportant | 165,344 | 164,460 | -0.53% | — | 3.00% | high | 0.00608 | 0.12% | 0.12% | ▁▄█ |
+| 🌿 | class name: compact prefix-a-hash | 186,161 | 185,755 | -0.22% | — | 3.00% | high | 0.00538 | 0.91% | 0.58% | █▁▆ |
+| 🌿 | class name: privacy redaction and truncation | 145,090 | 143,005 | -1.44% | — | 3.00% | high | 0.00699 | 1.05% | 0.62% | █▁▃ |
+| 🌿 | class name: readable property-value-context-hash | 187,187 | 185,463 | -0.92% | — | 3.00% | high | 0.00539 | 0.84% | 0.86% | █▁▄ |
+| 🚀 | cold atomic.css: transform parse compile | 2,066 | 2,158 | +4.41% | — | 3.50% | high | 0.46347 | 0.33% | 0.32% | █▁▅ |
+| 🌿 | cold css: atomic detection + compile | 2,225 | 2,236 | +0.47% | — | 3.31% | high | 0.44729 | 0.58% | 0.03% | ▁██ |
+| 🌿 | cold css: configure parse + normalized apply | 11,092 | 11,299 | +1.87% | — | 4.88% | high | 0.08851 | 2.45% | 0.02% | ▁██ |
+| 🌿 | cold css: sheet detection + compile | 2,441 | 2,490 | +2.01% | — | 3.00% | high | 0.40158 | 0.35% | 0.39% | ▄▁█ |
+| 🌿 | cold sheet.css: transform parse compile | 2,523 | 2,468 | -2.16% | — | 3.21% | high | 0.40519 | 0.59% | 0.64% | █▅▁ |
+| 🌿 | stylis: nested stylesheet compile | 76,586 | 77,546 | +1.25% | — | 3.00% | high | 0.01290 | 0.50% | 0.07% | █▁█ |
+| 🌿 | stylis: tiny declaration compile | 1,526,185 | 1,535,270 | +0.60% | — | 3.00% | high | 0.00065 | 1.01% | 1.15% | █▅▁ |
+| 🧭 | baseline: String.raw tiny css | 3,217,426 | 3,140,904 | -2.38% | — | 3.00% | high | 0.00032 | 2.08% | 2.19% | ▁█▅ |
+| 🌿 | warm atomic.css: aliases helpers comments variants | 243,503 | 238,359 | -2.11% | — | 3.00% | high | 0.00420 | 0.57% | 0.07% | ▁▁█ |
+| 🌿 | warm atomic.css: classic atomic compile | 418,101 | 412,402 | -1.36% | — | 3.00% | high | 0.00242 | 2.09% | 2.16% | ▁▅█ |
+| 🌿 | warm atomic.css.withImportant | 242,175 | 243,759 | +0.65% | — | 3.00% | high | 0.00410 | 0.44% | 0.51% | ▁▄█ |
+| 🌿 | warm css: polymorphic atomic identity hit | 1,464,291 | 1,471,412 | +0.49% | — | 3.00% | high | 0.00068 | 1.86% | 0.27% | ▁▁█ |
+| 🌿 | warm css: polymorphic sheet identity hit | 705,408 | 707,899 | +0.35% | — | 3.00% | high | 0.00141 | 1.34% | 1.23% | ▁▅█ |
+| 🌿 | warm css: prepared configure plan hit | 4,762,148 | 4,731,369 | -0.65% | — | 3.00% | high | 0.00021 | 2.72% | 1.11% | ▁▂█ |
+| 🌿 | warm inline.css: inline style compile | 412,886 | 410,788 | -0.51% | — | 3.00% | high | 0.00243 | 0.59% | 0.03% | ▁▁█ |
+| 🌿 | warm sheet.css: nested sheet runtime DSL | 163,856 | 163,083 | -0.47% | — | 3.00% | high | 0.00613 | 0.23% | 0.01% | ▁▁█ |
+| 🌿 | warm sheet.css.withImportant | 162,868 | 163,039 | +0.11% | — | 3.00% | high | 0.00613 | 0.21% | 0.08% | ▁▂█ |
 
 </details>
 
@@ -70,168 +70,169 @@ _None outside the reliability threshold._
 
 Kitchen-sink DOM rendering and runtime API matrix with paired manual controls.
 
-**Normalized geometric mean:** -0.15%  
-**Raw geometric mean:** -0.70%
+**Normalized geometric mean:** +1.53%  
+**Raw geometric mean:** +2.67%
 
 ### 🚀 Fastest reliable improvements
 
-1. **shared-registry-resolution :: fabrica.html** · +36.35% normalized · high confidence
-2. **virtual-list-window :: lit.html** · +4.71% normalized · high confidence
+1. **forked-registry-resolution :: fabrica.html** · +114.23% normalized · high confidence
+2. **shared-registry-resolution :: fabrica.html** · +8.87% normalized · high confidence
+3. **reactive-class-style :: lit.html** · +4.30% normalized · high confidence
+4. **styled-artifact-composition :: lit.html** · +3.19% normalized · high confidence
 
 ### 🐢 Largest reliable regressions
 
-1. **forked-registry-resolution :: fabrica.html** · -46.25% normalized · high confidence
-2. **named-styled-registry :: lit.html** · -3.19% normalized · high confidence
-3. **complex-attributes :: lit.html** · -3.06% normalized · high confidence
+1. **styled-artifact-render :: fabrica.html** · -3.88% normalized · high confidence
+2. **static-tree :: lit.html** · -3.66% normalized · high confidence
 
 ### ⚠️ Noisy cases to rerun
 
 1. **portable-definition-install :: fabrica.html** · 25.00% noise floor
-2. **styled-component-registration :: fabrica.html** · 20.62% noise floor
-3. **virtual-list-window :: fabrica.html** · 18.48% noise floor
+2. **styled-component-registration :: fabrica.html** · 20.87% noise floor
+3. **virtual-list-window :: fabrica.html** · 18.98% noise floor
 
 ### 🥊 Current paired controls
 
 | Case | Adapter | Ops/s | Efficiency versus manual |
 | --- | --- | ---: | ---: |
-| complex-attributes | manual.createElement | 24,222 | control |
-| complex-attributes | fabrica.html | 4,984 | 20.58% of manual throughput |
-| complex-attributes | lit.html | 12,307 | 50.81% of manual throughput |
-| conditional-component | manual.createElement | 7,483 | control |
-| conditional-component | fabrica.html | 1,121 | 14.98% of manual throughput |
-| conditional-component | lit.html | 4,808 | 64.25% of manual throughput |
-| forked-registry-resolution | manual.createElement | 1,786,518 | control |
-| forked-registry-resolution | fabrica.html | 319,794 | 17.90% of manual throughput |
-| forked-registry-resolution | lit.html | 13,979,026 | 782.47% of manual throughput |
-| instance-named-render | manual.createElement | 79,298 | control |
-| instance-named-render | fabrica.html | 6,550 | 8.26% of manual throughput |
-| instance-named-render | lit.html | 43,184 | 54.46% of manual throughput |
-| keyed-list-update | manual.createElement | 879 | control |
-| keyed-list-update | fabrica.html | 97 | 10.99% of manual throughput |
-| keyed-list-update | lit.html | 495 | 56.30% of manual throughput |
-| named-component-definition | manual.createElement | 3,921,818 | control |
-| named-component-definition | fabrica.html | 398,554 | 10.16% of manual throughput |
-| named-component-definition | lit.html | 3,404,522 | 86.81% of manual throughput |
-| named-instance-reuse | manual.createElement | 10,507,842 | control |
-| named-instance-reuse | fabrica.html | 314,568 | 2.99% of manual throughput |
-| named-instance-reuse | lit.html | 14,541,960 | 138.39% of manual throughput |
-| named-styled-registry | manual.createElement | 60,604 | control |
-| named-styled-registry | fabrica.html | 6,969 | 11.50% of manual throughput |
-| named-styled-registry | lit.html | 38,929 | 64.23% of manual throughput |
-| nested-components | manual.createElement | 8,948 | control |
-| nested-components | fabrica.html | 821 | 9.18% of manual throughput |
-| nested-components | lit.html | 4,295 | 48.00% of manual throughput |
-| portable-definition-install | manual.createElement | 6,732,436 | control |
-| portable-definition-install | fabrica.html | 152,263 | 2.26% of manual throughput |
-| portable-definition-install | lit.html | 9,895,934 | 146.99% of manual throughput |
-| portal-mount | manual.createElement | 50,276 | control |
-| portal-mount | fabrica.html | 8,267 | 16.44% of manual throughput |
-| portal-mount | lit.html | 19,824 | 39.43% of manual throughput |
-| raw-html | manual.createElement | 13,988 | control |
-| raw-html | fabrica.html | 8,383 | 59.93% of manual throughput |
-| raw-html | lit.html | 9,760 | 69.77% of manual throughput |
-| reactive-class-style | manual.createElement | 7,390 | control |
-| reactive-class-style | fabrica.html | 2,726 | 36.89% of manual throughput |
-| reactive-class-style | lit.html | 6,411 | 86.75% of manual throughput |
-| reactive-text | manual.createElement | 56,669 | control |
-| reactive-text | fabrica.html | 7,538 | 13.30% of manual throughput |
-| reactive-text | lit.html | 16,188 | 28.57% of manual throughput |
-| shared-registry-resolution | manual.createElement | 10,487,483 | control |
-| shared-registry-resolution | fabrica.html | 1,048,737 | 10.00% of manual throughput |
-| shared-registry-resolution | lit.html | 15,260,944 | 145.52% of manual throughput |
-| spread-props-events | manual.createElement | 22,576 | control |
-| spread-props-events | fabrica.html | 5,897 | 26.12% of manual throughput |
-| spread-props-events | lit.html | 8,329 | 36.89% of manual throughput |
-| static-tree | manual.createElement | 14,626 | control |
-| static-tree | fabrica.html | 6,138 | 41.97% of manual throughput |
-| static-tree | lit.html | 12,913 | 88.28% of manual throughput |
-| styled-artifact-composition | manual.createElement | 153,065 | control |
-| styled-artifact-composition | fabrica.html | 72,806 | 47.57% of manual throughput |
-| styled-artifact-composition | lit.html | 36,093 | 23.58% of manual throughput |
-| styled-artifact-render | manual.createElement | 152,975 | control |
-| styled-artifact-render | fabrica.html | 99,301 | 64.91% of manual throughput |
-| styled-artifact-render | lit.html | 38,981 | 25.48% of manual throughput |
-| styled-component-registration | manual.createElement | 811,518 | control |
-| styled-component-registration | fabrica.html | 128,248 | 15.80% of manual throughput |
-| styled-component-registration | lit.html | 2,499,408 | 307.99% of manual throughput |
-| two-way-bind | manual.createElement | 41,553 | control |
-| two-way-bind | fabrica.html | 8,540 | 20.55% of manual throughput |
-| two-way-bind | lit.html | 13,182 | 31.72% of manual throughput |
-| virtual-list-window | manual.createElement | 2,197 | control |
-| virtual-list-window | fabrica.html | 544 | 24.75% of manual throughput |
-| virtual-list-window | lit.html | 1,149 | 52.28% of manual throughput |
+| complex-attributes | manual.createElement | 23,610 | control |
+| complex-attributes | fabrica.html | 4,677 | 19.81% of manual throughput |
+| complex-attributes | lit.html | 12,054 | 51.05% of manual throughput |
+| conditional-component | manual.createElement | 7,467 | control |
+| conditional-component | fabrica.html | 1,065 | 14.26% of manual throughput |
+| conditional-component | lit.html | 4,738 | 63.45% of manual throughput |
+| forked-registry-resolution | manual.createElement | 1,782,515 | control |
+| forked-registry-resolution | fabrica.html | 715,199 | 40.12% of manual throughput |
+| forked-registry-resolution | lit.html | 13,939,270 | 782.00% of manual throughput |
+| instance-named-render | manual.createElement | 79,736 | control |
+| instance-named-render | fabrica.html | 6,386 | 8.01% of manual throughput |
+| instance-named-render | lit.html | 42,635 | 53.47% of manual throughput |
+| keyed-list-update | manual.createElement | 865 | control |
+| keyed-list-update | fabrica.html | 105 | 12.08% of manual throughput |
+| keyed-list-update | lit.html | 491 | 56.68% of manual throughput |
+| named-component-definition | manual.createElement | 3,880,382 | control |
+| named-component-definition | fabrica.html | 390,092 | 10.05% of manual throughput |
+| named-component-definition | lit.html | 3,308,718 | 85.27% of manual throughput |
+| named-instance-reuse | manual.createElement | 10,756,724 | control |
+| named-instance-reuse | fabrica.html | 320,430 | 2.98% of manual throughput |
+| named-instance-reuse | lit.html | 14,533,197 | 135.11% of manual throughput |
+| named-styled-registry | manual.createElement | 60,303 | control |
+| named-styled-registry | fabrica.html | 6,876 | 11.40% of manual throughput |
+| named-styled-registry | lit.html | 39,226 | 65.05% of manual throughput |
+| nested-components | manual.createElement | 8,786 | control |
+| nested-components | fabrica.html | 808 | 9.20% of manual throughput |
+| nested-components | lit.html | 4,314 | 49.10% of manual throughput |
+| portable-definition-install | manual.createElement | 6,849,675 | control |
+| portable-definition-install | fabrica.html | 147,949 | 2.16% of manual throughput |
+| portable-definition-install | lit.html | 9,966,118 | 145.50% of manual throughput |
+| portal-mount | manual.createElement | 49,977 | control |
+| portal-mount | fabrica.html | 7,866 | 15.74% of manual throughput |
+| portal-mount | lit.html | 19,317 | 38.65% of manual throughput |
+| raw-html | manual.createElement | 14,019 | control |
+| raw-html | fabrica.html | 8,283 | 59.08% of manual throughput |
+| raw-html | lit.html | 9,637 | 68.74% of manual throughput |
+| reactive-class-style | manual.createElement | 7,045 | control |
+| reactive-class-style | fabrica.html | 2,638 | 37.45% of manual throughput |
+| reactive-class-style | lit.html | 6,361 | 90.29% of manual throughput |
+| reactive-text | manual.createElement | 56,149 | control |
+| reactive-text | fabrica.html | 7,428 | 13.23% of manual throughput |
+| reactive-text | lit.html | 16,250 | 28.94% of manual throughput |
+| shared-registry-resolution | manual.createElement | 10,356,119 | control |
+| shared-registry-resolution | fabrica.html | 1,120,886 | 10.82% of manual throughput |
+| shared-registry-resolution | lit.html | 14,836,581 | 143.26% of manual throughput |
+| spread-props-events | manual.createElement | 21,739 | control |
+| spread-props-events | fabrica.html | 5,810 | 26.72% of manual throughput |
+| spread-props-events | lit.html | 8,302 | 38.19% of manual throughput |
+| static-tree | manual.createElement | 13,982 | control |
+| static-tree | fabrica.html | 5,715 | 40.87% of manual throughput |
+| static-tree | lit.html | 12,365 | 88.44% of manual throughput |
+| styled-artifact-composition | manual.createElement | 152,391 | control |
+| styled-artifact-composition | fabrica.html | 72,144 | 47.34% of manual throughput |
+| styled-artifact-composition | lit.html | 36,235 | 23.78% of manual throughput |
+| styled-artifact-render | manual.createElement | 151,178 | control |
+| styled-artifact-render | fabrica.html | 98,197 | 64.95% of manual throughput |
+| styled-artifact-render | lit.html | 39,275 | 25.98% of manual throughput |
+| styled-component-registration | manual.createElement | 791,116 | control |
+| styled-component-registration | fabrica.html | 123,541 | 15.62% of manual throughput |
+| styled-component-registration | lit.html | 2,436,813 | 308.02% of manual throughput |
+| two-way-bind | manual.createElement | 42,289 | control |
+| two-way-bind | fabrica.html | 8,433 | 19.94% of manual throughput |
+| two-way-bind | lit.html | 13,013 | 30.77% of manual throughput |
+| virtual-list-window | manual.createElement | 2,186 | control |
+| virtual-list-window | fabrica.html | 544 | 24.90% of manual throughput |
+| virtual-list-window | lit.html | 1,115 | 51.03% of manual throughput |
 
 <details>
 <summary><strong>📊 All benchmark deltas</strong></summary>
 
 | Status | Benchmark | Baseline ops/s | Current ops/s | Absolute Δ | Normalized Δ | Noise floor | Confidence | Mean ms | CV | Round variation | Sparkline |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
-| 🌿 | complex-attributes :: fabrica.html | 5,008 | 4,984 | -0.47% | -0.90% | 3.00% | high | 0.20064 | 1.86% | 1.65% | ▁▅█ |
-| 🐢 | complex-attributes :: lit.html | 12,641 | 12,307 | -2.64% | -3.06% | 3.00% | high | 0.08125 | 1.23% | 0.15% | ▁█▁ |
-| 🧭 | complex-attributes :: manual.createElement | 24,119 | 24,222 | +0.42% | — | 3.00% | high | 0.04129 | 0.62% | 0.28% | █▇▁ |
-| 🌿 | conditional-component :: fabrica.html | 1,095 | 1,121 | +2.32% | +1.97% | 3.03% | high | 0.89218 | 1.25% | 0.47% | ▁▇█ |
-| 🌿 | conditional-component :: lit.html | 4,906 | 4,808 | -2.00% | -2.34% | 3.00% | high | 0.20798 | 2.51% | 1.22% | █▁▇ |
-| 🧭 | conditional-component :: manual.createElement | 7,457 | 7,483 | +0.35% | — | 3.00% | high | 0.13364 | 0.96% | 0.55% | █▁▃ |
-| 🐢 | forked-registry-resolution :: fabrica.html | 599,377 | 319,794 | -46.65% | -46.25% | 3.00% | high | 0.00313 | 0.59% | 0.09% | ▁██ |
-| 🌿 | forked-registry-resolution :: lit.html | 13,978,544 | 13,979,026 | +0.00% | +0.74% | 3.00% | high | 0.00007 | 2.02% | 0.79% | ▁▂█ |
-| 🧭 | forked-registry-resolution :: manual.createElement | 1,799,607 | 1,786,518 | -0.73% | — | 3.00% | high | 0.00056 | 2.68% | 1.30% | ▁▇█ |
-| 🌿 | instance-named-render :: fabrica.html | 6,447 | 6,550 | +1.59% | +2.68% | 3.00% | high | 0.15268 | 0.39% | 0.31% | █▆▁ |
-| 🌿 | instance-named-render :: lit.html | 43,527 | 43,184 | -0.79% | +0.28% | 3.00% | high | 0.02316 | 2.02% | 1.83% | █▁▄ |
-| 🧭 | instance-named-render :: manual.createElement | 80,151 | 79,298 | -1.06% | — | 3.00% | high | 0.01261 | 2.44% | 2.61% | █▁▄ |
-| 🌿 | keyed-list-update :: fabrica.html | 95 | 97 | +1.91% | +2.87% | 11.77% | medium | 10.35626 | 0.81% | 0.96% | █▅▁ |
-| 🌿 | keyed-list-update :: lit.html | 501 | 495 | -1.19% | -0.26% | 4.30% | high | 2.02136 | 0.15% | 0.15% | ▁▅█ |
-| 🧭 | keyed-list-update :: manual.createElement | 887 | 879 | -0.94% | — | 3.00% | high | 1.13804 | 1.23% | 0.99% | █▃▁ |
-| 🌿 | named-component-definition :: fabrica.html | 397,789 | 398,554 | +0.19% | -1.67% | 3.22% | high | 0.00251 | 0.56% | 0.34% | █▁▆ |
-| 🌿 | named-component-definition :: lit.html | 3,255,371 | 3,404,522 | +4.58% | +2.64% | 3.47% | high | 0.00029 | 7.27% | 3.47% | ▂█▁ |
-| 🧭 | named-component-definition :: manual.createElement | 3,848,883 | 3,921,818 | +1.89% | — | 3.00% | high | 0.00025 | 14.30% | 1.22% | █▁█ |
-| 🌿 | named-instance-reuse :: fabrica.html | 321,711 | 314,568 | -2.22% | -1.89% | 3.00% | high | 0.00318 | 0.92% | 0.08% | ▁█▁ |
-| 🌿 | named-instance-reuse :: lit.html | 14,696,221 | 14,541,960 | -1.05% | -0.72% | 3.97% | high | 0.00007 | 2.81% | 0.28% | ▁▁█ |
-| 🧭 | named-instance-reuse :: manual.createElement | 10,543,226 | 10,507,842 | -0.34% | — | 3.00% | high | 0.00010 | 2.01% | 0.87% | ▁▂█ |
-| 🌿 | named-styled-registry :: fabrica.html | 7,095 | 6,969 | -1.77% | -1.56% | 3.00% | high | 0.14348 | 1.46% | 1.68% | ▁▄█ |
-| 🐢 | named-styled-registry :: lit.html | 40,294 | 38,929 | -3.39% | -3.19% | 3.00% | high | 0.02569 | 1.48% | 0.60% | █▁▂ |
-| 🧭 | named-styled-registry :: manual.createElement | 60,730 | 60,604 | -0.21% | — | 3.00% | high | 0.01650 | 1.56% | 1.58% | █▁▅ |
-| 🌿 | nested-components :: fabrica.html | 802 | 821 | +2.40% | +3.72% | 14.41% | medium | 1.21793 | 0.70% | 0.18% | █▁▇ |
-| 🌿 | nested-components :: lit.html | 4,408 | 4,295 | -2.56% | -1.31% | 3.00% | high | 0.23282 | 0.92% | 0.87% | ▁█▅ |
-| 🧭 | nested-components :: manual.createElement | 9,063 | 8,948 | -1.27% | — | 3.00% | high | 0.11176 | 0.31% | 0.06% | ▇█▁ |
-| ⚠️ | portable-definition-install :: fabrica.html | 150,675 | 152,263 | +1.05% | +2.01% | 25.00% | low | 0.00657 | 3.01% | 2.77% | █▄▁ |
-| 🌿 | portable-definition-install :: lit.html | 9,985,560 | 9,895,934 | -0.90% | +0.04% | 3.00% | high | 0.00010 | 2.34% | 0.96% | █▁▇ |
-| 🧭 | portable-definition-install :: manual.createElement | 6,796,188 | 6,732,436 | -0.94% | — | 3.00% | high | 0.00015 | 0.71% | 0.65% | ▁█▄ |
-| 🌿 | portal-mount :: fabrica.html | 8,049 | 8,267 | +2.71% | +5.48% | 7.20% | medium | 0.12096 | 0.84% | 1.02% | █▁▄ |
-| 🌿 | portal-mount :: lit.html | 19,942 | 19,824 | -0.59% | +2.08% | 3.00% | high | 0.05044 | 1.64% | 1.82% | █▄▁ |
-| 🧭 | portal-mount :: manual.createElement | 51,631 | 50,276 | -2.62% | — | 3.00% | high | 0.01989 | 2.07% | 0.81% | █▁▂ |
-| 🌿 | raw-html :: fabrica.html | 8,404 | 8,383 | -0.25% | +0.43% | 3.00% | high | 0.11929 | 0.33% | 0.02% | █▁▁ |
-| 🌿 | raw-html :: lit.html | 9,612 | 9,760 | +1.54% | +2.24% | 3.00% | high | 0.10246 | 1.74% | 1.96% | ▅█▁ |
-| 🧭 | raw-html :: manual.createElement | 14,084 | 13,988 | -0.68% | — | 3.00% | high | 0.07149 | 0.98% | 0.38% | ▂█▁ |
-| 🌿 | reactive-class-style :: fabrica.html | 2,644 | 2,726 | +3.09% | +3.22% | 4.76% | high | 0.36685 | 0.88% | 0.69% | ▁█▆ |
-| 🌿 | reactive-class-style :: lit.html | 6,232 | 6,411 | +2.87% | +3.00% | 3.00% | high | 0.15599 | 1.94% | 0.34% | ▇█▁ |
-| 🧭 | reactive-class-style :: manual.createElement | 7,398 | 7,390 | -0.12% | — | 3.00% | high | 0.13533 | 0.59% | 0.65% | ▄▁█ |
-| 🌿 | reactive-text :: fabrica.html | 7,402 | 7,538 | +1.84% | +2.38% | 8.85% | medium | 0.13265 | 1.22% | 1.44% | █▄▁ |
-| 🌿 | reactive-text :: lit.html | 16,414 | 16,188 | -1.38% | -0.85% | 4.76% | high | 0.06177 | 5.89% | 4.76% | █▆▁ |
-| 🧭 | reactive-text :: manual.createElement | 56,968 | 56,669 | -0.53% | — | 3.00% | high | 0.01765 | 0.84% | 0.10% | █▁▁ |
-| 🚀 | shared-registry-resolution :: fabrica.html | 771,254 | 1,048,737 | +35.98% | +36.35% | 3.00% | high | 0.00095 | 0.21% | 0.24% | █▄▁ |
-| 🌿 | shared-registry-resolution :: lit.html | 15,073,781 | 15,260,944 | +1.24% | +1.52% | 3.68% | high | 0.00007 | 1.71% | 0.08% | █▁█ |
-| 🧭 | shared-registry-resolution :: manual.createElement | 10,516,219 | 10,487,483 | -0.27% | — | 3.00% | high | 0.00010 | 1.69% | 0.74% | ▁█▂ |
-| 🌿 | spread-props-events :: fabrica.html | 5,869 | 5,897 | +0.46% | -0.03% | 8.78% | medium | 0.16959 | 0.83% | 0.98% | ▄█▁ |
-| 🌿 | spread-props-events :: lit.html | 8,639 | 8,329 | -3.59% | -4.06% | 12.78% | medium | 0.12006 | 2.30% | 0.96% | ▇█▁ |
-| 🧭 | spread-props-events :: manual.createElement | 22,466 | 22,576 | +0.49% | — | 3.00% | high | 0.04429 | 0.34% | 0.38% | █▁▅ |
-| 🌿 | static-tree :: fabrica.html | 5,944 | 6,138 | +3.26% | +2.13% | 3.32% | high | 0.16291 | 1.87% | 0.45% | ▇█▁ |
-| 🌿 | static-tree :: lit.html | 12,939 | 12,913 | -0.20% | -1.30% | 3.32% | high | 0.07744 | 1.81% | 1.86% | ▄█▁ |
-| 🧭 | static-tree :: manual.createElement | 14,466 | 14,626 | +1.11% | — | 3.32% | high | 0.06837 | 4.28% | 3.32% | █▆▁ |
-| 🌿 | styled-artifact-composition :: fabrica.html | 73,955 | 72,806 | -1.55% | -0.30% | 3.00% | high | 0.01374 | 0.51% | 0.48% | █▄▁ |
-| 🌿 | styled-artifact-composition :: lit.html | 37,029 | 36,093 | -2.53% | -1.29% | 3.00% | high | 0.02771 | 0.83% | 0.63% | █▆▁ |
-| 🧭 | styled-artifact-composition :: manual.createElement | 155,014 | 153,065 | -1.26% | — | 3.00% | high | 0.00653 | 1.64% | 1.53% | █▄▁ |
-| 🌿 | styled-artifact-render :: fabrica.html | 99,248 | 99,301 | +0.05% | +1.64% | 3.00% | high | 0.01007 | 1.77% | 1.48% | █▁▃ |
-| 🌿 | styled-artifact-render :: lit.html | 39,839 | 38,981 | -2.15% | -0.61% | 3.00% | high | 0.02565 | 2.15% | 0.45% | █▁▂ |
-| 🧭 | styled-artifact-render :: manual.createElement | 155,395 | 152,975 | -1.56% | — | 3.00% | high | 0.00654 | 1.51% | 0.81% | █▃▁ |
-| ⚠️ | styled-component-registration :: fabrica.html | 122,783 | 128,248 | +4.45% | +2.86% | 20.62% | low | 0.00780 | 2.50% | 0.00% | █▁█ |
-| 🌿 | styled-component-registration :: lit.html | 2,458,392 | 2,499,408 | +1.67% | +0.12% | 3.00% | high | 0.00040 | 1.10% | 1.16% | ▅█▁ |
-| 🧭 | styled-component-registration :: manual.createElement | 799,151 | 811,518 | +1.55% | — | 3.00% | high | 0.00123 | 0.93% | 0.79% | █▁▆ |
-| 🌿 | two-way-bind :: fabrica.html | 8,374 | 8,540 | +1.98% | +4.64% | 14.48% | medium | 0.11710 | 2.14% | 0.96% | █▇▁ |
-| 🌿 | two-way-bind :: lit.html | 13,131 | 13,182 | +0.39% | +3.01% | 17.51% | medium | 0.07586 | 1.79% | 1.55% | █▃▁ |
-| 🧭 | two-way-bind :: manual.createElement | 42,635 | 41,553 | -2.54% | — | 12.45% | medium | 0.02407 | 1.98% | 1.55% | ▃▁█ |
-| ⚠️ | virtual-list-window :: fabrica.html | 535 | 544 | +1.75% | +5.35% | 18.48% | low | 1.83872 | 2.36% | 0.49% | █▂▁ |
-| 🚀 | virtual-list-window :: lit.html | 1,136 | 1,149 | +1.13% | +4.71% | 3.15% | high | 0.87056 | 0.47% | 0.41% | █▄▁ |
-| 🧭 | virtual-list-window :: manual.createElement | 2,275 | 2,197 | -3.42% | — | 3.00% | high | 0.45515 | 1.95% | 2.33% | ▁█▅ |
+| 🌿 | complex-attributes :: fabrica.html | 4,782 | 4,677 | -2.18% | -2.34% | 3.00% | high | 0.21380 | 0.74% | 0.38% | ▁█▃ |
+| 🌿 | complex-attributes :: lit.html | 11,948 | 12,054 | +0.89% | +0.72% | 3.00% | high | 0.08296 | 1.13% | 0.91% | █▃▁ |
+| 🧭 | complex-attributes :: manual.createElement | 23,572 | 23,610 | +0.16% | — | 3.00% | high | 0.04235 | 0.52% | 0.07% | ▁██ |
+| 🌿 | conditional-component :: fabrica.html | 1,069 | 1,065 | -0.35% | -2.90% | 3.06% | high | 0.93918 | 1.54% | 0.87% | ▃█▁ |
+| 🌿 | conditional-component :: lit.html | 4,728 | 4,738 | +0.20% | -2.36% | 3.00% | high | 0.21106 | 1.19% | 0.68% | ▁█▃ |
+| 🧭 | conditional-component :: manual.createElement | 7,276 | 7,467 | +2.63% | — | 3.00% | high | 0.13393 | 0.71% | 0.26% | █▇▁ |
+| 🚀 | forked-registry-resolution :: fabrica.html | 330,438 | 715,199 | +116.44% | +114.23% | 3.00% | high | 0.00140 | 1.93% | 0.91% | ▂▁█ |
+| 🌿 | forked-registry-resolution :: lit.html | 13,770,075 | 13,939,270 | +1.23% | +0.19% | 3.00% | high | 0.00007 | 1.34% | 1.55% | ▁█▄ |
+| 🧭 | forked-registry-resolution :: manual.createElement | 1,764,304 | 1,782,515 | +1.03% | — | 3.00% | high | 0.00056 | 3.51% | 2.76% | ▁█▆ |
+| 🌿 | instance-named-render :: fabrica.html | 6,240 | 6,386 | +2.33% | +1.88% | 3.00% | high | 0.15659 | 0.68% | 0.68% | █▄▁ |
+| 🌿 | instance-named-render :: lit.html | 41,968 | 42,635 | +1.59% | +1.14% | 3.00% | high | 0.02345 | 1.01% | 0.69% | █▆▁ |
+| 🧭 | instance-named-render :: manual.createElement | 79,385 | 79,736 | +0.44% | — | 3.00% | high | 0.01254 | 1.37% | 1.00% | █▆▁ |
+| 🌿 | keyed-list-update :: fabrica.html | 95 | 105 | +9.77% | +7.98% | 12.71% | medium | 9.56655 | 1.96% | 1.14% | ▁█▆ |
+| 🌿 | keyed-list-update :: lit.html | 502 | 491 | -2.25% | -3.83% | 4.63% | high | 2.03858 | 1.78% | 0.43% | ▇█▁ |
+| 🧭 | keyed-list-update :: manual.createElement | 851 | 865 | +1.65% | — | 3.52% | high | 1.15545 | 1.07% | 0.11% | ██▁ |
+| 🌿 | named-component-definition :: fabrica.html | 388,652 | 390,092 | +0.37% | -1.86% | 3.00% | high | 0.00256 | 0.86% | 0.01% | █▁█ |
+| 🌿 | named-component-definition :: lit.html | 3,336,182 | 3,308,718 | -0.82% | -3.03% | 3.08% | high | 0.00030 | 8.53% | 0.79% | ▁█▁ |
+| 🧭 | named-component-definition :: manual.createElement | 3,794,020 | 3,880,382 | +2.28% | — | 3.00% | high | 0.00026 | 0.47% | 0.45% | ▅█▁ |
+| 🌿 | named-instance-reuse :: fabrica.html | 316,187 | 320,430 | +1.34% | -1.24% | 3.85% | high | 0.00312 | 0.55% | 0.36% | █▁▆ |
+| 🌿 | named-instance-reuse :: lit.html | 14,602,560 | 14,533,197 | -0.48% | -3.01% | 3.85% | high | 0.00007 | 1.53% | 1.49% | ▁█▅ |
+| 🧭 | named-instance-reuse :: manual.createElement | 10,483,020 | 10,756,724 | +2.61% | — | 3.85% | high | 0.00009 | 2.26% | 1.45% | ▆█▁ |
+| 🌿 | named-styled-registry :: fabrica.html | 6,731 | 6,876 | +2.15% | -0.95% | 3.00% | high | 0.14544 | 1.34% | 0.94% | ▃▁█ |
+| 🌿 | named-styled-registry :: lit.html | 38,195 | 39,226 | +2.70% | -0.42% | 3.00% | high | 0.02549 | 1.29% | 0.88% | ▆█▁ |
+| 🧭 | named-styled-registry :: manual.createElement | 58,472 | 60,303 | +3.13% | — | 3.00% | high | 0.01658 | 1.00% | 1.00% | █▄▁ |
+| 🌿 | nested-components :: fabrica.html | 805 | 808 | +0.44% | -0.24% | 14.75% | medium | 1.23727 | 1.61% | 0.25% | ▁██ |
+| 🌿 | nested-components :: lit.html | 4,250 | 4,314 | +1.50% | +0.82% | 3.00% | high | 0.23183 | 1.80% | 0.85% | ▇█▁ |
+| 🧭 | nested-components :: manual.createElement | 8,727 | 8,786 | +0.67% | — | 3.00% | high | 0.11381 | 1.35% | 1.36% | ▅█▁ |
+| ⚠️ | portable-definition-install :: fabrica.html | 155,586 | 147,949 | -4.91% | -6.08% | 25.00% | low | 0.00676 | 0.30% | 0.25% | █▁▃ |
+| 🌿 | portable-definition-install :: lit.html | 9,817,554 | 9,966,118 | +1.51% | +0.27% | 3.36% | high | 0.00010 | 0.75% | 0.45% | ▁█▆ |
+| 🧭 | portable-definition-install :: manual.createElement | 6,765,574 | 6,849,675 | +1.24% | — | 3.00% | high | 0.00015 | 1.91% | 2.26% | ▄▁█ |
+| 🌿 | portal-mount :: fabrica.html | 7,868 | 7,866 | -0.03% | -0.96% | 7.59% | medium | 0.12713 | 0.64% | 0.40% | ▃█▁ |
+| 🌿 | portal-mount :: lit.html | 19,676 | 19,317 | -1.82% | -2.74% | 3.00% | high | 0.05177 | 1.23% | 0.90% | █▃▁ |
+| 🧭 | portal-mount :: manual.createElement | 49,510 | 49,977 | +0.94% | — | 3.00% | high | 0.02001 | 1.47% | 0.64% | ▁█▂ |
+| 🌿 | raw-html :: fabrica.html | 8,107 | 8,283 | +2.17% | +1.51% | 3.00% | high | 0.12073 | 1.00% | 0.86% | █▆▁ |
+| 🌿 | raw-html :: lit.html | 9,598 | 9,637 | +0.40% | -0.25% | 3.00% | high | 0.10377 | 1.05% | 0.90% | █▆▁ |
+| 🧭 | raw-html :: manual.createElement | 13,928 | 14,019 | +0.65% | — | 3.00% | high | 0.07133 | 0.95% | 0.45% | ▇▁█ |
+| 🌿 | reactive-class-style :: fabrica.html | 2,686 | 2,638 | -1.79% | +0.32% | 4.85% | high | 0.37903 | 2.58% | 1.40% | ▆█▁ |
+| 🚀 | reactive-class-style :: lit.html | 6,229 | 6,361 | +2.11% | +4.30% | 3.00% | high | 0.15722 | 0.81% | 0.84% | ▅▁█ |
+| 🧭 | reactive-class-style :: manual.createElement | 7,196 | 7,045 | -2.10% | — | 3.00% | high | 0.14195 | 1.93% | 2.27% | ▄▁█ |
+| 🌿 | reactive-text :: fabrica.html | 7,203 | 7,428 | +3.12% | +2.79% | 8.83% | medium | 0.13463 | 0.29% | 0.00% | █▁█ |
+| 🌿 | reactive-text :: lit.html | 16,446 | 16,250 | -1.19% | -1.50% | 3.00% | high | 0.06154 | 2.07% | 0.93% | ▁█▂ |
+| 🧭 | reactive-text :: manual.createElement | 55,973 | 56,149 | +0.31% | — | 3.00% | high | 0.01781 | 0.85% | 0.92% | ▅█▁ |
+| 🚀 | shared-registry-resolution :: fabrica.html | 1,045,079 | 1,120,886 | +7.25% | +8.87% | 3.21% | high | 0.00089 | 0.14% | 0.13% | ▄█▁ |
+| 🌿 | shared-registry-resolution :: lit.html | 14,947,907 | 14,836,581 | -0.74% | +0.75% | 3.21% | high | 0.00007 | 0.28% | 0.23% | ▁█▃ |
+| 🧭 | shared-registry-resolution :: manual.createElement | 10,511,766 | 10,356,119 | -1.48% | — | 3.21% | high | 0.00010 | 5.57% | 3.21% | █▁▆ |
+| 🌿 | spread-props-events :: fabrica.html | 5,836 | 5,810 | -0.45% | -2.85% | 8.44% | medium | 0.17213 | 1.74% | 0.38% | ▂█▁ |
+| 🌿 | spread-props-events :: lit.html | 8,269 | 8,302 | +0.41% | -2.02% | 13.08% | medium | 0.12045 | 2.35% | 0.95% | ▁█▇ |
+| 🧭 | spread-props-events :: manual.createElement | 21,213 | 21,739 | +2.48% | — | 3.00% | high | 0.04600 | 0.84% | 0.15% | █▁▂ |
+| 🌿 | static-tree :: fabrica.html | 5,822 | 5,715 | -1.83% | -2.98% | 3.38% | high | 0.17498 | 1.43% | 0.33% | █▁▂ |
+| 🐢 | static-tree :: lit.html | 12,686 | 12,365 | -2.53% | -3.66% | 3.00% | high | 0.08087 | 0.88% | 0.26% | ▂█▁ |
+| 🧭 | static-tree :: manual.createElement | 13,819 | 13,982 | +1.18% | — | 3.00% | high | 0.07152 | 2.01% | 0.60% | ▇█▁ |
+| 🌿 | styled-artifact-composition :: fabrica.html | 71,328 | 72,144 | +1.15% | +1.52% | 3.00% | high | 0.01386 | 0.96% | 0.42% | ▁█▂ |
+| 🚀 | styled-artifact-composition :: lit.html | 35,245 | 36,235 | +2.81% | +3.19% | 3.00% | high | 0.02760 | 0.56% | 0.47% | █▆▁ |
+| 🧭 | styled-artifact-composition :: manual.createElement | 152,959 | 152,391 | -0.37% | — | 3.00% | high | 0.00656 | 0.49% | 0.46% | ▅█▁ |
+| 🐢 | styled-artifact-render :: fabrica.html | 99,821 | 98,197 | -1.63% | -3.88% | 3.00% | high | 0.01018 | 0.36% | 0.34% | ▁▅█ |
+| 🌿 | styled-artifact-render :: lit.html | 38,461 | 39,275 | +2.12% | -0.22% | 3.00% | high | 0.02546 | 5.43% | 0.80% | ██▁ |
+| 🧭 | styled-artifact-render :: manual.createElement | 147,717 | 151,178 | +2.34% | — | 3.00% | high | 0.00661 | 0.76% | 0.73% | ▄█▁ |
+| ⚠️ | styled-component-registration :: fabrica.html | 122,105 | 123,541 | +1.18% | +0.52% | 20.87% | low | 0.00809 | 2.55% | 3.03% | █▅▁ |
+| 🌿 | styled-component-registration :: lit.html | 2,385,690 | 2,436,813 | +2.14% | +1.48% | 3.00% | high | 0.00041 | 0.26% | 0.25% | ▁█▄ |
+| 🧭 | styled-component-registration :: manual.createElement | 786,016 | 791,116 | +0.65% | — | 3.00% | high | 0.00126 | 0.53% | 0.34% | ▆▁█ |
+| 🌿 | two-way-bind :: fabrica.html | 8,212 | 8,433 | +2.70% | -0.81% | 17.23% | medium | 0.11858 | 2.16% | 0.96% | ▁█▇ |
+| 🌿 | two-way-bind :: lit.html | 13,022 | 13,013 | -0.07% | -3.48% | 19.58% | medium | 0.07685 | 0.51% | 0.47% | ▁█▅ |
+| 🧭 | two-way-bind :: manual.createElement | 40,844 | 42,289 | +3.54% | — | 15.49% | medium | 0.02365 | 1.31% | 0.77% | ▁█▃ |
+| ⚠️ | virtual-list-window :: fabrica.html | 545 | 544 | -0.07% | -0.29% | 18.98% | low | 1.83744 | 1.83% | 1.83% | ▄█▁ |
+| 🌿 | virtual-list-window :: lit.html | 1,141 | 1,115 | -2.27% | -2.49% | 3.00% | high | 0.89647 | 2.48% | 2.95% | ▄█▁ |
+| 🧭 | virtual-list-window :: manual.createElement | 2,181 | 2,186 | +0.23% | — | 3.00% | high | 0.45744 | 1.14% | 0.79% | ▃█▁ |
 
 </details>
 
