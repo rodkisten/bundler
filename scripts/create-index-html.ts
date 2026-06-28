@@ -8,6 +8,8 @@ export type {
   CodePageInput,
   GeneratedCodePage,
   GeneratedDoc,
+  BenchmarkSummary,
   LandingInput,
   MarkdownPageInput,
+  PackageTheme,
 } from "./docs/html-templates";
