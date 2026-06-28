@@ -582,7 +582,7 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
   const templates = root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]");
 
   for (let index = 0; index < templates.length; index += 1) {
-    const element = templates[index];
+    const element = templates[index] as HTMLTemplateElement;
     const rawIndex = element.getAttribute("data-fabrica-component");
     const rawName = element.getAttribute("data-fabrica-component-name") || element.getAttribute("name") || "";
     const componentIndex = rawIndex == null ? -1 : Number(rawIndex);
@@ -591,13 +591,53 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
       continue;
     }
 
+    const childParts = compileParts(element.content);
+    const orderedChildParts = childParts.length > 1
+      ? childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path))
+      : childParts;
+
     parts.push(withPartMeta({
       type: "component",
       index: componentIndex,
       path: getNodePath(root, element),
       name: rawName || undefined,
+      staticProps: compileStaticComponentProps(element),
+      childParts,
+      orderedChildParts,
+      hasChildComponents: childParts.some((childPart) => childPart.type === "component"),
     }, parts.length));
   }
+}
+
+function compileStaticComponentProps(template: HTMLTemplateElement): Record<string, unknown> | undefined {
+  let props: Record<string, unknown> | null = null;
+
+  for (let index = 0; index < template.attributes.length; index += 1) {
+    const attribute = template.attributes[index];
+
+    if (
+      !attribute ||
+      attribute.name === "data-fabrica-component" ||
+      attribute.name === "data-fabrica-component-name" ||
+      attribute.name === "data-fabrica-explicit-component" ||
+      attribute.name === "name"
+    ) {
+      continue;
+    }
+
+    props ??= {};
+    props[normalizeStaticComponentPropName(attribute.name)] = attribute.value;
+  }
+
+  return props ?? undefined;
+}
+
+function normalizeStaticComponentPropName(name: string): string {
+  if (name === "classname") return "className";
+  if (name === "htmlfor") return "htmlFor";
+  if (name === "tabindex") return "tabIndex";
+  if (name === "readonly") return "readOnly";
+  return name;
 }
 
 /**

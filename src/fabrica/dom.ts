@@ -41,7 +41,6 @@ import {
   runWithOwner,
 } from "../broto/owner";
 import {
-  comparePathsReverse,
   compileParts,
   getCompiledJsxTemplate,
   getCompiledTemplate,
@@ -79,6 +78,8 @@ const renderStates = new WeakMap<
   { part: ReturnType<typeof createChildPart>; dispose: () => void }
 >();
 
+const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
+const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
 
 type DynamicComponentNamedPropPart = {
   name: string;
@@ -318,9 +319,7 @@ export function appendValue(
   }
 
   if (isRawHtml(resolvedValue)) {
-    const template = document.createElement("template");
-    template.innerHTML = resolvedValue.value;
-    parentNode.insertBefore(template.content, beforeNode);
+    parentNode.insertBefore(cloneRawHtmlContent(resolvedValue.value), beforeNode);
     return;
   }
 
@@ -333,6 +332,24 @@ export function appendValue(
     document.createTextNode(String(resolvedValue)),
     beforeNode,
   );
+}
+
+function cloneRawHtmlContent(value: string): DocumentFragment {
+  let template = rawHtmlTemplateCache.get(value);
+
+  if (!template) {
+    template = document.createElement("template");
+    template.innerHTML = value;
+
+    if (rawHtmlTemplateCache.size >= RAW_HTML_TEMPLATE_CACHE_LIMIT) {
+      const firstKey = rawHtmlTemplateCache.keys().next().value as string | undefined;
+      if (firstKey !== undefined) rawHtmlTemplateCache.delete(firstKey);
+    }
+
+    rawHtmlTemplateCache.set(value, template);
+  }
+
+  return template.content.cloneNode(true) as DocumentFragment;
 }
 
 /**
@@ -490,18 +507,23 @@ function bindComponentPart(
 
   const renderComponent = (): void => {
     runWithFabricaRuntime(runtime, () => {
-      const props = {
-        ...readStaticComponentProps(node),
-        ...readDynamicComponentProps(dynamicPropParts, values),
-      };
+      const staticProps = part?.staticProps;
+      const dynamicProps = dynamicPropParts.length > 0
+        ? readDynamicComponentProps(dynamicPropParts, values)
+        : null;
+      const props = dynamicProps
+        ? { ...(staticProps ?? null), ...dynamicProps }
+        : staticProps
+          ? { ...staticProps }
+          : {};
       const children = node.content.cloneNode(true) as DocumentFragment;
-      const childParts = compileParts(children);
+      const childParts = part?.orderedChildParts ?? compileParts(children);
 
       applyParts(
         children,
-        childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path)),
+        childParts,
         values,
-        childParts.some((childPart) => childPart.type === "component"),
+        part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
       );
 
       const output = callComponentLike(
@@ -855,9 +877,7 @@ function createChildPart(marker: Node): {
         }
 
         clearRange(start, end);
-        const template = document.createElement("template");
-        template.innerHTML = resolvedValue.value;
-        appendValue(end.parentNode, template.content, end);
+        end.parentNode?.insertBefore(cloneRawHtmlContent(resolvedValue.value), end);
         currentType = "raw";
         currentText = resolvedValue.value;
         textNode = null;

@@ -40,6 +40,7 @@ export function isRegisteredComponentName(name: unknown): boolean {
  */
 export class FabricaComponentRegistry implements ComponentRegistry {
   readonly #components = new Map<string, ComponentLike>();
+  readonly #resolveCache = new Map<string, { version: number; value: ComponentLike | undefined }>();
   #parent: ComponentRegistry | undefined;
   #version = 0;
   readonly name: string;
@@ -111,6 +112,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#components.get(normalized) !== component) {
       this.#components.set(normalized, component);
       this.#version += 1;
+      this.#resolveCache.clear();
     }
 
     return component;
@@ -118,13 +120,30 @@ export class FabricaComponentRegistry implements ComponentRegistry {
 
   unregister(name: string): boolean {
     const removed = this.#components.delete(normalizeComponentName(name));
-    if (removed) this.#version += 1;
+    if (removed) {
+      this.#version += 1;
+      this.#resolveCache.clear();
+    }
     return removed;
   }
 
   resolve(name: string): ComponentLike | undefined {
     const normalized = normalizeComponentName(name);
-    return this.#components.get(normalized) ?? this.#parent?.resolve(normalized);
+    if (!normalized) return undefined;
+
+    const own = this.#components.get(normalized);
+    if (own) return own;
+
+    const parent = this.#parent;
+    if (!parent) return undefined;
+
+    const version = parent.version;
+    const cached = this.#resolveCache.get(normalized);
+    if (cached && cached.version === version) return cached.value;
+
+    const value = parent.resolve(normalized);
+    this.#resolveCache.set(normalized, { version, value });
+    return value;
   }
 
   has(name: string, ownOnly = false): boolean {
@@ -146,6 +165,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#components.size > 0) {
       this.#components.clear();
       this.#version += 1;
+      this.#resolveCache.clear();
     }
     if (options.inherited) this.#parent?.clear({ inherited: true });
   }
@@ -188,6 +208,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#parent === parent) return;
     this.#parent = parent;
     this.#version += 1;
+    this.#resolveCache.clear();
   }
 
   /** @deprecated Use `registry.register(name, component)` or `instance.use(component)`. */

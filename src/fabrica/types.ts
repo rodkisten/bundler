@@ -395,6 +395,14 @@ export type TemplatePart =
       pathKey: string;
       order: number;
       name?: string;
+      /** Static props compiled once from the component placeholder attributes. */
+      staticProps?: Record<string, unknown>;
+      /** Precompiled dynamic parts for children captured inside the component slot. */
+      childParts?: TemplatePart[];
+      /** Child parts already ordered deepest/right-most first for hot runtime application. */
+      orderedChildParts?: TemplatePart[];
+      /** Whether component placeholders exist inside captured component children. */
+      hasChildComponents?: boolean;
     };
 
 /** Cached compiled template. */
