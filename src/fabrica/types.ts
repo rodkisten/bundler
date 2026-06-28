@@ -423,6 +423,8 @@ export type TemplatePart =
       orderedChildParts?: TemplatePart[];
       /** Whether component placeholders exist inside captured component children. */
       hasChildComponents?: boolean;
+      /** Whether captured children contain user-visible static nodes/text before dynamic parts run. */
+      hasStaticChildren?: boolean;
       /** Precompiled dynamic prop readers captured from attributes on this component placeholder. */
       dynamicPropParts?: ComponentPropPart[];
       /** Whether any dynamic component prop can read a signal/reactive expression. */

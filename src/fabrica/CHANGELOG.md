@@ -1,6 +1,19 @@
 # Fábrica Changelog
 
 
+## Unreleased - Runtime v2 root and attribute instruction pass
+
+### Performance
+
+- Added a direct root-render fast path for materialized `DocumentFragment` values. `render(host, html`...`)` now mounts the compiled fragment directly on fresh or previously-direct roots instead of routing through the generic `ChildPart` range controller. Disposal still walks the mounted tree, runs registered cleanups and clears the host.
+- Added static attribute/property/boolean/class fast paths. Non-reactive bindings now write directly without allocating an update closure, previous-value sentinel or effect wrapper. Reactive bindings keep the existing fine-grained effect path.
+- Specialized `class` and `style` string writes to `className` and `style.cssText` for hot complex-attribute templates. Directive-based `classMap()` and `styleMap()` continue to use their diffing helpers.
+- Added component child presence metadata at template compile time so component invocation avoids cloning and scanning empty slots. Static props can now be reused directly for slotless components.
+
+### Documentation
+
+- Documented the Runtime v2 root-render fast path, static binding instructions and remaining compatibility boundary around `html()` returning real `DocumentFragment` objects.
+
 ## Unreleased - forked registry and repeat hot-path repair
 
 ### Fixed

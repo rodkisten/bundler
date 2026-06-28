@@ -74,10 +74,11 @@ import type {
 } from "./types";
 
 /** Persistent root render parts keyed by container. */
-const renderStates = new WeakMap<
-  Node,
-  { part: ReturnType<typeof createChildPart>; dispose: () => void }
->();
+type RootRenderState =
+  | { kind: "part"; part: ReturnType<typeof createChildPart>; dispose: () => void }
+  | { kind: "direct"; dispose: () => void };
+
+const renderStates = new WeakMap<Node, RootRenderState>();
 
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
@@ -166,9 +167,42 @@ export function render(
   value: RenderValue,
 ): () => void {
   return runWithCurrentFabricaRuntime(() => {
+    const resolvedValue = readValue(value) as RenderValue;
     let state = renderStates.get(container);
 
-    if (!state) {
+    /**
+     * Runtime v2 fast root path.
+     *
+     * `html``...`` already returns a fully materialized DocumentFragment whose
+     * compiled parts, reactive effects and event listeners were installed while
+     * the fragment was cloned. For the common root-render shape
+     * `render(host, html`...`)`, routing that fragment through a generic
+     * ChildPart adds two comment markers, a range clear and another render-value
+     * classification pass. Fresh containers can mount the fragment directly and
+     * still dispose correctly through `disposeTree(container)`.
+     *
+     * Existing containers keep the stable ChildPart path so repeated renders,
+     * directives and non-fragment values preserve the old reconciliation API.
+     */
+    if ((!state || state.kind === "direct") && resolvedValue instanceof DocumentFragment) {
+      state?.dispose();
+      disposeTree(container);
+      container.replaceChildren(resolvedValue);
+      debugState.reconciliations += 1;
+
+      const dispose = (): void => {
+        disposeTree(container);
+        container.replaceChildren();
+        renderStates.delete(container);
+      };
+
+      state = { kind: "direct", dispose };
+      renderStates.set(container, state);
+      return dispose;
+    }
+
+    if (!state || state.kind === "direct") {
+      state?.dispose();
       disposeTree(container);
       container.replaceChildren();
 
@@ -182,12 +216,16 @@ export function render(
         renderStates.delete(container);
       };
 
-      state = { part, dispose };
+      state = { kind: "part", part, dispose };
       renderStates.set(container, state);
     }
 
+    if (state.kind !== "part") {
+      return state.dispose;
+    }
+
     debugState.reconciliations += 1;
-    state.part.set(value);
+    state.part.set(resolvedValue);
     return state.dispose;
   });
 }
@@ -465,24 +503,31 @@ function bindComponentPart(
       const dynamicProps = dynamicPropParts.length > 0
         ? readDynamicComponentProps(dynamicPropParts, values)
         : null;
+      const hasCompiledChildren = Boolean(part?.hasStaticChildren || (part?.orderedChildParts?.length ?? 0) > 0);
       const props = dynamicProps
         ? { ...(staticProps ?? null), ...dynamicProps }
-        : staticProps
-          ? { ...staticProps }
-          : {};
-      const children = node.content.cloneNode(true) as DocumentFragment;
-      const childParts = part?.orderedChildParts ?? compileParts(children);
+        : hasCompiledChildren
+          ? staticProps
+            ? { ...staticProps }
+            : {}
+          : staticProps ?? {};
+      let children: DocumentFragment | null = null;
 
-      applyParts(
-        children,
-        childParts,
-        values,
-        part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
-      );
+      if (hasCompiledChildren) {
+        children = node.content.cloneNode(true) as DocumentFragment;
+        const childParts = part?.orderedChildParts ?? compileParts(children);
+
+        applyParts(
+          children,
+          childParts,
+          values,
+          part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
+        );
+      }
 
       const output = callComponentLike(
         componentValue,
-        hasMeaningfulComponentChildren(children) ? { ...props, children } : props,
+        children && (part?.hasStaticChildren || hasMeaningfulComponentChildren(children)) ? { ...props, children } : props,
       );
 
       childPart.set(output as RenderValue);
@@ -956,6 +1001,19 @@ function bindPlainAttributePart(
   name: string,
   value: RenderValue | undefined,
 ): void {
+  /**
+   * Static attribute fast path.
+   *
+   * Most benchmark and docs templates bind plain strings/numbers. Creating an
+   * update closure, a previous-value sentinel and then immediately executing it
+   * costs more than the DOM write itself for simple attributes. Reactive values
+   * still use the old closure/effect path below.
+   */
+  if (!hasReactiveValue(value)) {
+    applyPlainAttributeValue(element, name, readValue(value));
+    return;
+  }
+
   let previous: unknown = Symbol("initial");
   let mapState:
     | ReturnType<typeof applyClassMap>
@@ -980,20 +1038,52 @@ function bindPlainAttributePart(
     }
 
     previous = next;
+    applyPlainAttributeValue(element, name, next);
+  };
 
-    if (next == null || next === false) {
-      element.removeAttribute(name);
+  const dispose = effect(update);
+  registerCleanup(element, dispose);
+}
+
+function applyPlainAttributeValue(element: Element, name: string, next: unknown): void {
+  if (isClassMapDirective(next) && name === "class") {
+    applyClassMap(element, next.value, null);
+    return;
+  }
+
+  if (isStyleMapDirective(next) && name === "style") {
+    applyStyleMap(element, next.value, null);
+    return;
+  }
+
+  if (next == null || next === false) {
+    if (name === "class") {
+      (element as HTMLElement).className = "";
       return;
     }
 
-    element.setAttribute(name, stringifyAttributeValue(name, next));
-  };
+    if (name === "style" && element instanceof HTMLElement) {
+      element.style.cssText = "";
+      return;
+    }
 
-  const dispose = hasReactiveValue(value) ? effect(update) : (update(), null);
-
-  if (dispose) {
-    registerCleanup(element, dispose);
+    element.removeAttribute(name);
+    return;
   }
+
+  const stringValue = stringifyAttributeValue(name, next);
+
+  if (name === "class") {
+    (element as HTMLElement).className = stringValue;
+    return;
+  }
+
+  if (name === "style" && element instanceof HTMLElement) {
+    element.style.cssText = stringValue;
+    return;
+  }
+
+  element.setAttribute(name, stringValue);
 }
 
 function bindPropertyPart(
@@ -1001,6 +1091,11 @@ function bindPropertyPart(
   name: string,
   value: RenderValue | undefined,
 ): void {
+  if (!hasReactiveValue(value)) {
+    (element as unknown as Record<string, unknown>)[name] = readValue(value);
+    return;
+  }
+
   let previous: unknown = Symbol("initial");
 
   const update = (): void => {
@@ -1014,11 +1109,8 @@ function bindPropertyPart(
     (element as unknown as Record<string, unknown>)[name] = next;
   };
 
-  const dispose = hasReactiveValue(value) ? effect(update) : (update(), null);
-
-  if (dispose) {
-    registerCleanup(element, dispose);
-  }
+  const dispose = effect(update);
+  registerCleanup(element, dispose);
 }
 
 function bindBooleanAttributePart(
@@ -1026,6 +1118,12 @@ function bindBooleanAttributePart(
   name: string,
   value: RenderValue | undefined,
 ): void {
+  if (!hasReactiveValue(value)) {
+    if (Boolean(readValue(value))) element.setAttribute(name, "");
+    else element.removeAttribute(name);
+    return;
+  }
+
   let previous: boolean | null = null;
 
   const update = (): void => {
@@ -1044,11 +1142,8 @@ function bindBooleanAttributePart(
     }
   };
 
-  const dispose = hasReactiveValue(value) ? effect(update) : (update(), null);
-
-  if (dispose) {
-    registerCleanup(element, dispose);
-  }
+  const dispose = effect(update);
+  registerCleanup(element, dispose);
 }
 
 function bindConditionalClassPart(
@@ -1056,6 +1151,11 @@ function bindConditionalClassPart(
   className: string,
   value: RenderValue | undefined,
 ): void {
+  if (!hasReactiveValue(value)) {
+    element.classList.toggle(className, Boolean(readValue(value)));
+    return;
+  }
+
   let previous: boolean | null = null;
 
   const update = (): void => {
@@ -1069,11 +1169,8 @@ function bindConditionalClassPart(
     element.classList.toggle(className, next);
   };
 
-  const dispose = hasReactiveValue(value) ? effect(update) : (update(), null);
-
-  if (dispose) {
-    registerCleanup(element, dispose);
-  }
+  const dispose = effect(update);
+  registerCleanup(element, dispose);
 }
 
 

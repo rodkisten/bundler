@@ -608,12 +608,26 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
       childParts,
       orderedChildParts,
       hasChildComponents: childParts.some((childPart) => childPart.type === "component"),
+      hasStaticChildren: hasMeaningfulStaticChildren(element.content),
       dynamicPropParts,
       hasDynamicPropParts: dynamicPropParts.length > 0,
     }, parts.length));
   }
 }
 
+
+function hasMeaningfulStaticChildren(fragment: DocumentFragment): boolean {
+  const children = fragment.childNodes;
+
+  for (let index = 0; index < children.length; index += 1) {
+    const child = children[index];
+    if (!child) continue;
+    if (child.nodeType === Node.ELEMENT_NODE) return true;
+    if (child.nodeType === Node.TEXT_NODE && (child.nodeValue ?? "").trim()) return true;
+  }
+
+  return false;
+}
 
 function compileDynamicComponentProps(pathKey: string, parts: TemplatePart[]): ComponentPropPart[] {
   const output: ComponentPropPart[] = [];
