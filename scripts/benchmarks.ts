@@ -255,6 +255,26 @@ function createRunOrder(mode: CliOptions['mode'], rounds: number): BenchmarkMeth
   return output
 }
 
+async function readValidJsonWithRetry<T>(
+  filePath: string,
+  attempts = 40,
+  delayMs = 100,
+): Promise<T | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const text = await fs.readFile(filePath, "utf8");
+
+      if (text.trim().length > 0) {
+        return JSON.parse(text) as T;
+      }
+    } catch {}
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return null;
+}
+
 async function runVitestSuites(
   root: string,
   suites: readonly BenchmarkSuiteDefinition[],
@@ -396,11 +416,14 @@ async function runVitestProcess(input: {
       finish(new Error(`Benchmark ${input.label} timed out after ${PROCESS_TIMEOUT_MS}ms.\n${output}`))
     }, PROCESS_TIMEOUT_MS)
 
+
+
+    
     child.once('error', (error) => {
       finish(new Error(`Benchmark ${input.label} failed to execute.`, { cause: error }))
     })
 
-    child.once('exit', (code, signal) => {
+    /*child.once('exit', (code, signal) => {
       if (reportReady) {
         finish()
         return
@@ -408,7 +431,20 @@ async function runVitestProcess(input: {
       finish(new Error(
         `Benchmark ${input.label} exited before producing valid JSON with code ${code ?? 'unknown'}${signal ? ` or signal ${signal}` : ''}.\n${output}`,
       ))
-    })
+    })*/
+
+    child.once("close", async (code) => {
+      const report = await readValidJsonWithRetry(reportPath, 40, 100);
+
+      if (!report) {
+        finish(new Error(
+          `Benchmark ${label} exited before producing valid JSON with code ${code}.`
+        ));
+        return;
+      }
+
+      finish(null, report);
+    });
   })
 }
 
