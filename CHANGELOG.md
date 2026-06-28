@@ -1,5 +1,23 @@
 # Changelog
 
+
+## Unreleased - forked registry and repeat hot-path repair
+
+### Fixed
+
+- Restored the forked registry fast path after the first Runtime v2 cache pass made inherited lookups pay the combined parent-version cost on every resolution.
+- Split registry lookup caching into local/shared and inherited/forked paths so local component hits remain one `Map.get()` while inherited hits and misses are cached against the parent epoch.
+
+### Performance
+
+- Batched large keyed repeat reshuffles through one `DocumentFragment` move when the LIS shows that most ranges changed position. This keeps the public `repeat()` API unchanged while reducing DOM mutation storms for reversals, table sorts and drag-reorder style workloads.
+- Kept the existing LIS path for small shuffles, append-only updates and mostly-stable lists so ordinary keyed updates still avoid unnecessary full-range moves.
+
+### Documentation
+
+- Documented the separated registry cache paths and the batched keyed-repeat fallback in the Fabrica README.
+
+
 ## Unreleased - reliable same-runner benchmarks
 
 ### Added
