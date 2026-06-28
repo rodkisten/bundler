@@ -27,6 +27,8 @@ const DEFAULT_ROUNDS = 1
 const DEFAULT_COMPARE_ROUNDS = 3
 const MAX_ROUNDS = 7
 const PROCESS_TIMEOUT_MS = 12 * 60 * 1000
+const REPORT_RETRY_ATTEMPTS = 60
+const REPORT_RETRY_DELAY_MS = 100
 
 const NOTES = Object.freeze([
   'Baseline and current revisions run on the same worker and Node process version.',
@@ -76,6 +78,7 @@ async function main(): Promise<void> {
   const runner = collectRunnerMetadata(options.currentRoot)
   const generatedAt = new Date().toISOString()
   const runOrder = createRunOrder(options.mode, options.rounds)
+
   const methodology: BenchmarkMethodology = {
     mode: options.mode === 'compare' ? 'same-runner-ab' : 'single',
     rounds: options.rounds,
@@ -89,14 +92,17 @@ async function main(): Promise<void> {
   }
 
   const roundResults: RoundResult[] = []
+
   for (let index = 0; index < runOrder.length; index += 1) {
     const entry = runOrder[index]!
     const root = entry.side === 'baseline'
       ? options.baselineRoot
       : options.currentRoot
+
     if (!root) continue
 
     process.stdout.write(`\n⚡ Round ${entry.round}/${options.rounds} · ${entry.side} · ${root}\n`)
+
     const raw = await runVitestSuites(
       root,
       options.suites,
@@ -104,12 +110,15 @@ async function main(): Promise<void> {
       entry.round,
       entry.position,
     )
+
     roundResults.push({ ...entry, root, raw })
   }
 
   const comparisons: SuiteComparison[] = []
+
   for (let suiteIndex = 0; suiteIndex < options.suites.length; suiteIndex += 1) {
     const suite = options.suites[suiteIndex]!
+
     const current = aggregateSuiteSnapshot({
       suite,
       side: 'current',
@@ -123,6 +132,7 @@ async function main(): Promise<void> {
     })
 
     let previous: BenchmarkSnapshot | null = null
+
     if (options.mode === 'compare' && options.baselineRoot && options.baselineCommit) {
       previous = aggregateSuiteSnapshot({
         suite,
@@ -141,6 +151,7 @@ async function main(): Promise<void> {
 
     const comparison = compareSnapshots(suite, previous, current)
     comparisons.push(comparison)
+
     const reportFile = createBenchmarkReportFile(comparison)
     await fs.writeFile(
       path.join(BENCH_DIR, `${suite.id}.json`),
@@ -150,18 +161,23 @@ async function main(): Promise<void> {
 
   const selectedIds = new Set(comparisons.map((comparison) => comparison.suite.id))
   const preservedComparisons: SuiteComparison[] = []
+
   for (let index = 0; index < BENCHMARK_SUITES.length; index += 1) {
     const suite = BENCHMARK_SUITES[index]!
+
     if (selectedIds.has(suite.id)) continue
+
     const preserved = await readStoredComparison(path.join(BENCH_DIR, `${suite.id}.json`))
     if (preserved) preservedComparisons.push(preserved)
   }
+
   const allComparisons = BENCHMARK_SUITES
     .map((suite) => comparisons.find((item) => item.suite.id === suite.id)
       ?? preservedComparisons.find((item) => item.suite.id === suite.id))
     .filter((comparison): comparison is SuiteComparison => Boolean(comparison))
 
   const markdown = renderBenchmarkMarkdown(allComparisons)
+
   await fs.writeFile(path.join(BENCH_DIR, 'README.md'), markdown)
   await fs.writeFile(path.join(BENCH_DIR, 'COMPARISON.md'), markdown)
   await fs.writeFile(path.join(BENCH_DIR, 'runner.json'), `${JSON.stringify({
@@ -193,12 +209,15 @@ async function main(): Promise<void> {
 function parseOptions(args: readonly string[]): CliOptions {
   const mode = readArgument(args, 'mode') === 'compare' ? 'compare' : 'single'
   const suiteValue = readArgument(args, 'suite')
+
   const requested = suiteValue
     ? new Set(suiteValue.split(',').map((value) => value.trim()).filter(Boolean))
     : null
+
   const suites = requested
     ? BENCHMARK_SUITES.filter((suite) => requested.has(suite.id))
     : BENCHMARK_SUITES
+
   if (suites.length === 0) {
     throw new Error(`Unknown benchmark suite: ${Array.from(requested ?? []).join(', ')}`)
   }
@@ -206,9 +225,14 @@ function parseOptions(args: readonly string[]): CliOptions {
   const currentRoot = path.resolve(readArgument(args, 'current-root') || ROOT_DIR)
   const baselineRootValue = readArgument(args, 'baseline-root')
   const baselineRoot = baselineRootValue ? path.resolve(baselineRootValue) : null
-  const requestedRounds = Number(readArgument(args, 'rounds') || (mode === 'compare' ? DEFAULT_COMPARE_ROUNDS : DEFAULT_ROUNDS))
+
+  const requestedRounds = Number(
+    readArgument(args, 'rounds') || (mode === 'compare' ? DEFAULT_COMPARE_ROUNDS : DEFAULT_ROUNDS),
+  )
+
   const rounds = Math.max(1, Math.min(MAX_ROUNDS, Math.trunc(requestedRounds) || 1))
   const currentCommit = readArgument(args, 'current-commit') || readCommit(currentRoot)
+
   const baselineCommit = mode === 'compare'
     ? readArgument(args, 'baseline-commit') || (baselineRoot ? readCommit(baselineRoot) : null)
     : null
@@ -216,6 +240,7 @@ function parseOptions(args: readonly string[]): CliOptions {
   if (mode === 'compare' && !baselineRoot) {
     throw new Error('Compare mode requires --baseline-root=<path>.')
   }
+
   if (mode === 'compare' && !baselineCommit) {
     throw new Error('Compare mode requires a resolvable baseline commit.')
   }
@@ -239,6 +264,7 @@ function readArgument(args: readonly string[], name: string): string | null {
 
 function createRunOrder(mode: CliOptions['mode'], rounds: number): BenchmarkMethodology['runOrder'] {
   const output: Array<{ round: number; side: Side; position: number }> = []
+
   for (let round = 1; round <= rounds; round += 1) {
     if (mode === 'single') {
       output.push({ round, side: 'current', position: 1 })
@@ -248,10 +274,12 @@ function createRunOrder(mode: CliOptions['mode'], rounds: number): BenchmarkMeth
     const sides: readonly Side[] = round % 2 === 1
       ? ['baseline', 'current']
       : ['current', 'baseline']
+
     for (let position = 0; position < sides.length; position += 1) {
       output.push({ round, side: sides[position]!, position: position + 1 })
     }
   }
+
   return output
 }
 
@@ -266,6 +294,7 @@ async function runVitestSuites(
   await assertFile(vitestBin, `Vitest is not installed in ${root}.`)
 
   const merged: VitestBenchmarkJson = { files: [] }
+
   for (let suiteIndex = 0; suiteIndex < suites.length; suiteIndex += 1) {
     const suite = suites[suiteIndex]!
     await assertFile(path.join(root, suite.file), `Missing benchmark file ${suite.file} in ${root}.`)
@@ -274,7 +303,9 @@ async function runVitestSuites(
       RAW_DIR,
       `${side}-round-${round}-position-${position}-${suite.id}.vitest.json`,
     )
+
     const logPath = `${rawPath}.log`
+
     const args = [
       vitestBin,
       'bench',
@@ -287,6 +318,7 @@ async function runVitestSuites(
     ]
 
     process.stdout.write(`\n⚙️  ${side}:round-${round}:${suite.id}\n`)
+
     const output = await runVitestProcess({
       label: `${side}:round-${round}:${suite.id}`,
       root,
@@ -299,15 +331,27 @@ async function runVitestSuites(
         ROD_BENCHMARK_SUITE: suite.id,
       },
     })
+
     await fs.writeFile(logPath, output)
 
     const completed = output
       .split(/\r?\n/)
       .filter((line) => line.includes('Benchmark report written') || /^\s*[✓✔]/u.test(line))
       .slice(-3)
-    if (completed.length) process.stdout.write(`${completed.join('\n')}\n`)
 
-    const raw = JSON.parse(await fs.readFile(rawPath, 'utf8')) as VitestBenchmarkJson
+    if (completed.length) {
+      process.stdout.write(`${completed.join('\n')}\n`)
+    }
+
+    const raw = await readValidBenchmarkJson(rawPath, {
+      attempts: REPORT_RETRY_ATTEMPTS,
+      delayMs: REPORT_RETRY_DELAY_MS,
+    })
+
+    if (!raw) {
+      throw new Error(`Benchmark ${side}:round-${round}:${suite.id} finished but ${rawPath} did not contain valid JSON.\n${output}`)
+    }
+
     merged.files!.push(...(raw.files ?? []))
   }
 
@@ -342,73 +386,159 @@ async function runVitestProcess(input: {
     let settled = false
     let reportReady = false
     let naturalExitTimer: NodeJS.Timeout | null = null
+    let reportPoll: NodeJS.Timeout | null = null
+    let timeout: NodeJS.Timeout | null = null
+
     const appendOutput = (chunk: Buffer | string): void => {
       output += String(chunk)
+
       if (output.length > 64 * 1024 * 1024) {
         output = output.slice(-32 * 1024 * 1024)
       }
     }
-    child.stdout?.on('data', appendOutput)
-    child.stderr?.on('data', appendOutput)
 
     const finish = (error?: Error): void => {
       if (settled) return
+
       settled = true
-      clearInterval(reportPoll)
-      clearTimeout(timeout)
+
+      if (reportPoll) clearInterval(reportPoll)
+      if (timeout) clearTimeout(timeout)
       if (naturalExitTimer) clearTimeout(naturalExitTimer)
+
       if (error) reject(error)
       else resolve(output)
     }
 
     const stopProcessGroup = (signal: NodeJS.Signals): void => {
       if (!child.pid || child.exitCode !== null) return
+
       try {
         if (process.platform !== 'win32') process.kill(-child.pid, signal)
         else child.kill(signal)
       } catch {}
     }
 
-    const reportPoll = setInterval(async () => {
+    child.stdout?.on('data', appendOutput)
+    child.stderr?.on('data', appendOutput)
+
+    reportPoll = setInterval(async () => {
       if (settled || reportReady) return
-      try {
-        const text = await fs.readFile(input.rawPath, 'utf8')
-        const parsed = JSON.parse(text) as VitestBenchmarkJson
-        if (!Array.isArray(parsed.files) || parsed.files.length === 0) return
-        reportReady = true
 
-        if (child.exitCode !== null) {
-          finish()
-          return
-        }
+      const report = await readValidBenchmarkJson(input.rawPath, {
+        attempts: 1,
+        delayMs: 0,
+      })
 
-        naturalExitTimer = setTimeout(() => {
-          stopProcessGroup('SIGTERM')
-          setTimeout(() => stopProcessGroup('SIGKILL'), 2_000).unref()
-          finish()
-        }, 1_000)
-      } catch {}
+      if (!report) return
+
+      reportReady = true
+
+      if (child.exitCode !== null || child.signalCode !== null) {
+        finish()
+        return
+      }
+
+      naturalExitTimer = setTimeout(() => {
+        stopProcessGroup('SIGTERM')
+
+        setTimeout(() => {
+          stopProcessGroup('SIGKILL')
+        }, 2_000).unref()
+
+        finish()
+      }, 1_000)
+
+      naturalExitTimer.unref()
     }, 100)
 
-    const timeout = setTimeout(() => {
+    reportPoll.unref()
+
+    timeout = setTimeout(() => {
       stopProcessGroup('SIGTERM')
-      setTimeout(() => stopProcessGroup('SIGKILL'), 2_000).unref()
+
+      setTimeout(() => {
+        stopProcessGroup('SIGKILL')
+      }, 2_000).unref()
+
       finish(new Error(`Benchmark ${input.label} timed out after ${PROCESS_TIMEOUT_MS}ms.\n${output}`))
     }, PROCESS_TIMEOUT_MS)
+
+    timeout.unref()
 
     child.once('error', (error) => {
       finish(new Error(`Benchmark ${input.label} failed to execute.`, { cause: error }))
     })
 
-    child.once('exit', (code, signal) => {
-      if (reportReady) {
+    child.once('close', async (code, signal) => {
+      const report = await readValidBenchmarkJson(input.rawPath, {
+        attempts: REPORT_RETRY_ATTEMPTS,
+        delayMs: REPORT_RETRY_DELAY_MS,
+      })
+
+      if (report) {
         finish()
         return
       }
+
       finish(new Error(
         `Benchmark ${input.label} exited before producing valid JSON with code ${code ?? 'unknown'}${signal ? ` or signal ${signal}` : ''}.\n${output}`,
       ))
     })
+  })
+}
+
+async function readValidBenchmarkJson(
+  filePath: string,
+  options: {
+    attempts: number
+    delayMs: number
+  },
+): Promise<VitestBenchmarkJson | null> {
+  for (let attempt = 0; attempt < options.attempts; attempt += 1) {
+    try {
+      const text = await fs.readFile(filePath, 'utf8')
+      const trimmed = text.trim()
+
+      if (trimmed.length > 0) {
+        const parsed = JSON.parse(trimmed) as VitestBenchmarkJson
+
+        if (isValidBenchmarkJson(parsed)) {
+          return parsed
+        }
+      }
+    } catch {}
+
+    if (options.delayMs > 0 && attempt < options.attempts - 1) {
+      await sleep(options.delayMs)
+    }
+  }
+
+  return null
+}
+
+function isValidBenchmarkJson(value: VitestBenchmarkJson | null | undefined): value is VitestBenchmarkJson {
+  if (!value || !Array.isArray(value.files) || value.files.length === 0) {
+    return false
+  }
+
+  for (let fileIndex = 0; fileIndex < value.files.length; fileIndex += 1) {
+    const file = value.files[fileIndex]
+    if (!file || !Array.isArray(file.groups)) continue
+
+    for (let groupIndex = 0; groupIndex < file.groups.length; groupIndex += 1) {
+      const group = file.groups[groupIndex]
+      if (!group || !Array.isArray(group.benchmarks)) continue
+      if (group.benchmarks.length > 0) return true
+    }
+  }
+
+  return false
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
   })
 }
 
@@ -430,13 +560,16 @@ function aggregateSuiteSnapshot(input: {
     const run = matchingRuns[runIndex]!
     const suiteRaw = filterVitestBenchmarkJson(run.raw, input.suite.file)
     const rows = normalizeRound(input.suite, suiteRaw, run.round, run.position)
+
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       const row = rows[rowIndex]!
       let bucket = measurementsById.get(row.id)
+
       if (!bucket) {
         bucket = { group: row.group, name: row.name, values: [] }
         measurementsById.set(row.id, bucket)
       }
+
       bucket.values.push(row.measurement)
     }
   }
@@ -480,17 +613,21 @@ function normalizeRound(
     name: string
     measurement: BenchmarkRoundMeasurement
   }> = []
+
   const files = raw.files ?? []
 
   for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
     const groups = files[fileIndex]!.groups ?? []
+
     for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
       const group = groups[groupIndex]!
       const groupName = normalizeGroupName(group.fullName ?? suite.label, suite.file)
       const rows = group.benchmarks ?? []
+
       for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
         const row = rows[rowIndex]!
         const name = String(row.name ?? `benchmark-${rowIndex}`)
+
         output.push({
           id: `${groupName} > ${name}`,
           group: groupName,
@@ -511,6 +648,7 @@ function normalizeRound(
       }
     }
   }
+
   return output
 }
 
@@ -520,6 +658,7 @@ function aggregateBenchmark(
 ): NormalizedBenchmark {
   const values = bucket.values.slice().sort((left, right) => left.round - right.round)
   const hzValues = values.map((value) => value.hz)
+
   return {
     id,
     group: bucket.group,
@@ -540,6 +679,7 @@ function aggregateBenchmark(
 
 function filterVitestBenchmarkJson(raw: VitestBenchmarkJson, benchmarkFile: string): VitestBenchmarkJson {
   const expected = benchmarkFile.replaceAll('\\', '/')
+
   return {
     files: (raw.files ?? []).filter((file) => {
       const filepath = (file.filepath ?? '').replaceAll('\\', '/')
@@ -553,6 +693,7 @@ function normalizeGroupName(value: string, benchmarkFile: string): string {
   const fileName = benchmarkFile.replaceAll('\\', '/')
   const marker = `${fileName} > `
   const markerIndex = normalized.indexOf(marker)
+
   return markerIndex >= 0 ? normalized.slice(markerIndex + marker.length) : normalized
 }
 
@@ -563,7 +704,11 @@ async function readStoredCurrentSnapshot(filePath: string): Promise<BenchmarkSna
       current?: BenchmarkSnapshot
       benchmarks?: NormalizedBenchmark[]
     }
-    if (value.schemaVersion === 2 && value.current?.schemaVersion === 2) return value.current
+
+    if (value.schemaVersion === 2 && value.current?.schemaVersion === 2) {
+      return value.current
+    }
+
     return null
   } catch {
     return null
@@ -579,7 +724,11 @@ async function readStoredComparison(filePath: string): Promise<SuiteComparison |
       current?: BenchmarkSnapshot
       comparison?: Omit<SuiteComparison, 'suite' | 'previous' | 'current'>
     }
-    if (report.schemaVersion !== 2 || !report.suite || !report.current || !report.comparison) return null
+
+    if (report.schemaVersion !== 2 || !report.suite || !report.current || !report.comparison) {
+      return null
+    }
+
     return {
       suite: report.suite,
       previous: report.baseline ?? null,
@@ -593,6 +742,7 @@ async function readStoredComparison(filePath: string): Promise<SuiteComparison |
 
 function collectRunnerMetadata(root: string): BenchmarkRunnerMetadata {
   const cpus = os.cpus()
+
   return {
     collectedAt: new Date().toISOString(),
     node: process.version,
@@ -630,9 +780,14 @@ function commandVersion(command: string, args: readonly string[], root: string):
 
 function packageVersion(filePath: string): string {
   try {
-    const result = spawnSync(process.execPath, ['-e', `process.stdout.write(require(${JSON.stringify(filePath)}).version)`], {
-      encoding: 'utf8',
-    })
+    const result = spawnSync(
+      process.execPath,
+      ['-e', `process.stdout.write(require(${JSON.stringify(filePath)}).version)`],
+      {
+        encoding: 'utf8',
+      },
+    )
+
     return result.status === 0 ? result.stdout.trim() : 'unknown'
   } catch {
     return 'unknown'
@@ -641,13 +796,19 @@ function packageVersion(filePath: string): string {
 
 function readCommit(root: string): string {
   if (root === ROOT_DIR && process.env.GITHUB_SHA) return process.env.GITHUB_SHA
-  const result = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' })
+
+  const result = spawnSync('git', ['rev-parse', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+
   return result.status === 0 ? result.stdout.trim() : 'unknown'
 }
 
 function numberValue(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (Array.isArray(value)) return value.length
+
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : 0
 }
@@ -657,6 +818,7 @@ async function assertFile(filePath: string, message: string): Promise<void> {
     const stat = await fs.stat(filePath)
     if (stat.isFile()) return
   } catch {}
+
   throw new Error(message)
 }
 

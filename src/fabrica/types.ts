@@ -363,6 +363,8 @@ export type TemplatePart =
       type: "child";
       index: number;
       path: number[];
+      pathKey: string;
+      order: number;
     }
   | {
       type: "attribute";
@@ -375,17 +377,23 @@ export type TemplatePart =
       /** True when the entire attribute value is exactly one interpolation. */
       raw: boolean;
       path: number[];
+      pathKey: string;
+      order: number;
       name: string;
     }
   | {
       type: "spread";
       index: number;
       path: number[];
+      pathKey: string;
+      order: number;
     }
   | {
       type: "component";
       index: number;
       path: number[];
+      pathKey: string;
+      order: number;
       name?: string;
     };
 
@@ -393,6 +401,10 @@ export type TemplatePart =
 export type CompiledTemplate = {
   template: HTMLTemplateElement;
   parts: TemplatePart[];
+  /** Parts ordered deepest/right-most first so runtime never sorts in hot render paths. */
+  orderedParts: TemplatePart[];
+  /** Whether component placeholders exist. Lets simple templates skip component prop bookkeeping. */
+  hasComponents: boolean;
 };
 
 /** Event modifiers parsed from @click.prevent.passive syntax. */
@@ -419,6 +431,8 @@ export type RepeatRecord = {
   start: Comment;
   end: Comment;
   fragment: DocumentFragment | null;
+  /** Diff generation used by repeat to remove stale records without allocating next-key sets. */
+  version?: number;
 };
 
 /** DOM bag options. */

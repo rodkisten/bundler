@@ -5,6 +5,8 @@ import { appendValue, mount } from "./dom";
 import { hasReactiveValue, readValue } from "./value";
 import type { BindDirective, Directive, DirectiveController, KeyedDirective, PortalDirective, RenderValue, RepeatDirective, RepeatRecord, SuspenseDirective, VirtualRepeatDirective, WhenDirective } from "./types";
 
+let repeatDiffVersion = 0;
+
 export function createDirectiveController(
   start: Comment,
   end: Comment,
@@ -512,33 +514,31 @@ function updateRepeat(
     return updateIndexedRepeat(start, end, records, directive, items);
   }
 
-  const nextKeys = new Set<PropertyKey>();
+  const version = ++repeatDiffVersion;
   let cursor: Node | null = start.nextSibling;
 
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
     const key = directive.key(item, index);
-
-    nextKeys.add(key);
-
     let record = records.get(key);
 
     if (!record) {
       record = createRepeatRecord(item, index, key, directive.render);
       records.set(key, record);
     } else {
-      const existing = record;
       batch(() => {
-        existing.item.set(item);
-        existing.index.set(index);
-        existing.key.set(key);
+        record!.item.set(item);
+        record!.index.set(index);
+        record!.key.set(key);
       });
     }
+
+    record.version = version;
 
     if (record.fragment) {
       end.parentNode?.insertBefore(record.fragment, cursor ?? end);
       record.fragment = null;
-    } else {
+    } else if (record.start !== cursor) {
       moveRangeBefore(record.start, record.end, cursor ?? end);
     }
 
@@ -547,7 +547,7 @@ function updateRepeat(
 
   const staleKeys: PropertyKey[] = [];
   for (const [key, record] of records) {
-    if (nextKeys.has(key)) continue;
+    if (record.version === version) continue;
     disposeRange(record.start, record.end);
     removeRange(record.start, record.end);
     staleKeys[staleKeys.length] = key;

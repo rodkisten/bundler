@@ -80,16 +80,22 @@ const renderStates = new WeakMap<
 >();
 
 
-type DynamicComponentPropPart =
-  | {
-      name: string;
-      index: number;
-      indices: number[];
-      strings: string[];
-      raw: boolean;
-      spread?: false;
-    }
-  | { index: number; spread: true };
+type DynamicComponentNamedPropPart = {
+  name: string;
+  index: number;
+  indices: number[];
+  strings: string[];
+  raw: boolean;
+  spread?: false;
+};
+
+type DynamicComponentSpreadPropPart = { index: number; spread: true };
+
+type DynamicComponentPropPart = DynamicComponentNamedPropPart | DynamicComponentSpreadPropPart;
+
+function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part is DynamicComponentSpreadPropPart {
+  return "spread" in part && part.spread === true;
+}
 
 /**
  * Creates DOM from a tagged template.
@@ -113,7 +119,7 @@ export function html(
       true,
     ) as DocumentFragment;
 
-    applyParts(fragment, compiled.parts, values);
+    applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
     return fragment;
   });
 }
@@ -141,7 +147,7 @@ export function html(
       true,
     ) as DocumentFragment;
 
-    applyParts(fragment, compiled.parts, values);
+    applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
     return fragment;
   });
 };
@@ -340,90 +346,68 @@ function applyParts(
   fragment: DocumentFragment,
   parts: readonly TemplatePart[],
   values: readonly RenderValue[],
+  hasComponents = false,
 ): void {
-  const resolvedParts: Array<{ part: TemplatePart; node: Node }> = [];
-  const componentPathSet = new Set<string>();
-  const componentPropParts = new Map<string, DynamicComponentPropPart[]>();
+  const componentPathSet = hasComponents ? new Set<string>() : null;
+  const componentPropParts = hasComponents ? new Map<string, DynamicComponentPropPart[]>() : null;
 
-  for (let index = 0; index < parts.length; index += 1) {
-    const part = parts[index];
-
-    if (!part) {
-      continue;
-    }
-
-    if (part.type === "component") {
-      componentPathSet.add(part.path.join("."));
+  if (componentPathSet) {
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+      if (part?.type === "component") componentPathSet.add(part.pathKey);
     }
   }
 
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index];
-
-    if (!part) {
-      continue;
-    }
+    if (!part) continue;
 
     const node = resolvePath(fragment, part.path);
+    if (!node) continue;
 
-    if (!node) {
-      continue;
-    }
-
-    if ((part.type === "attribute" || part.type === "spread") && componentPathSet.has(part.path.join(".")) && node instanceof HTMLTemplateElement) {
-      const key = part.path.join(".");
-      const propParts = componentPropParts.get(key) ?? [];
+    if (
+      componentPathSet &&
+      componentPropParts &&
+      (part.type === "attribute" || part.type === "spread") &&
+      componentPathSet.has(part.pathKey) &&
+      node instanceof HTMLTemplateElement
+    ) {
+      let propParts = componentPropParts.get(part.pathKey);
+      if (!propParts) {
+        propParts = [];
+        componentPropParts.set(part.pathKey, propParts);
+      }
 
       if (part.type === "spread") {
-        propParts.push({ index: part.index, spread: true });
+        propParts[propParts.length] = { index: part.index, spread: true };
         node.removeAttribute("data-fabrica-spread");
       } else {
-        propParts.push({
+        propParts[propParts.length] = {
           name: part.name,
           index: part.index,
           indices: part.indices,
           strings: part.strings,
           raw: part.raw,
-        });
+        };
         node.removeAttribute(part.name);
       }
 
-      componentPropParts.set(key, propParts);
       continue;
     }
 
-    resolvedParts.push({ part, node });
-  }
-
-  resolvedParts.sort((left, right) =>
-    comparePathsReverse(left.part.path, right.part.path),
-  );
-
-  for (let index = 0; index < resolvedParts.length; index += 1) {
-    const resolved = resolvedParts[index];
-
-    if (!resolved) {
-      continue;
-    }
-
-    if (resolved.part.type === "child") {
-      bindChildPart(resolved.node, values[resolved.part.index]);
-    } else if (resolved.part.type === "attribute") {
-      bindAttributePart(
-        resolved.node,
-        resolved.part.name,
-        createAttributeBindingValue(resolved.part, values),
-      );
-    } else if (resolved.part.type === "spread") {
-      bindSpreadPart(resolved.node, values[resolved.part.index]);
+    if (part.type === "child") {
+      bindChildPart(node, values[part.index]);
+    } else if (part.type === "attribute") {
+      bindAttributePart(node, part.name, createAttributeBindingValue(part, values));
+    } else if (part.type === "spread") {
+      bindSpreadPart(node, values[part.index]);
     } else {
-      const key = resolved.part.path.join(".");
       bindComponentPart(
-        resolved.node,
-        resolved.part.index >= 0 ? values[resolved.part.index] : undefined,
+        node,
+        part.index >= 0 ? values[part.index] : undefined,
         values,
-        resolved.part,
-        componentPropParts.get(key) ?? [],
+        part,
+        componentPropParts?.get(part.pathKey) ?? [],
       );
     }
   }
@@ -513,7 +497,12 @@ function bindComponentPart(
       const children = node.content.cloneNode(true) as DocumentFragment;
       const childParts = compileParts(children);
 
-      applyParts(children, childParts, values);
+      applyParts(
+        children,
+        childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path)),
+        values,
+        childParts.some((childPart) => childPart.type === "component"),
+      );
 
       const output = callComponentLike(
         componentValue,
@@ -560,7 +549,7 @@ function hasReactiveComponentInputs(
     const value = values[part.index];
     if (hasReactiveValue(value)) return true;
 
-    if (part.spread) {
+    if (isDynamicComponentSpreadPropPart(part)) {
       if (hasReactiveRecordValue(value)) return true;
       continue;
     }
@@ -650,7 +639,7 @@ function readDynamicComponentProps(
       continue;
     }
 
-    if (prop.spread) {
+    if (isDynamicComponentSpreadPropPart(prop)) {
       mergeSpreadProps(props, readValue(values[prop.index]) as unknown);
       continue;
     }
@@ -662,7 +651,7 @@ function readDynamicComponentProps(
 }
 
 function readComponentPropValue(
-  part: Exclude<DynamicComponentPropPart, { spread: true }>,
+  part: DynamicComponentNamedPropPart,
   values: readonly RenderValue[],
 ): unknown {
   if (part.raw) return values[part.index];
@@ -723,7 +712,8 @@ function normalizeComponentPropName(name: string): string {
 }
 
 function eventAttributeToPropName(rawName: string): string {
-  const eventName = rawName.split(".", 1)[0] || rawName;
+  const dotIndex = rawName.indexOf(".");
+  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
   return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
 }
 
@@ -918,7 +908,7 @@ function createChildPart(marker: Node): {
 
       clearRange(start, end);
       textNode = document.createTextNode(nextText);
-      appendValue(end.parentNode, textNode, end);
+      end.parentNode?.insertBefore(textNode, end);
       currentType = "text";
       currentText = nextText;
       currentNode = textNode;

@@ -7,6 +7,7 @@ import type { EventBindingConfig, RenderValue } from "./types";
 /** Roots that already have a delegated listener for each event. */
 const delegatedEvents = new WeakMap<EventTarget, Set<string>>();
 const delegatedHandledEvents = new WeakMap<Event, Set<string>>();
+const parsedEventCache = new Map<string, EventBindingConfig>();
 
 /**
  * Binds an event listener with modifiers.
@@ -76,21 +77,44 @@ export function bindEvent(element: Element, rawName: string, value: RenderValue)
  * @returns Parsed event config.
  */
 export function parseEventName(rawName: string): EventBindingConfig {
-  const parts = rawName.split(".");
-  const name = parts.shift() || rawName;
-  const modifiers = new Set(parts);
+  const cached = parsedEventCache.get(rawName);
+  if (cached) {
+    return { ...cached, options: { ...cached.options } };
+  }
 
-  return {
+  let dotIndex = rawName.indexOf(".");
+  const name = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
+  let prevent = false;
+  let stop = false;
+  let delegate = false;
+  let once = false;
+  let passive = false;
+  let capture = false;
+
+  while (dotIndex >= 0) {
+    const nextDotIndex = rawName.indexOf(".", dotIndex + 1);
+    const modifier = rawName.slice(dotIndex + 1, nextDotIndex < 0 ? rawName.length : nextDotIndex);
+
+    if (modifier === "prevent") prevent = true;
+    else if (modifier === "stop") stop = true;
+    else if (modifier === "delegate") delegate = true;
+    else if (modifier === "once") once = true;
+    else if (modifier === "passive") passive = true;
+    else if (modifier === "capture") capture = true;
+
+    dotIndex = nextDotIndex;
+  }
+
+  const config = {
     name,
-    prevent: modifiers.has("prevent"),
-    stop: modifiers.has("stop"),
-    delegate: modifiers.has("delegate"),
-    options: {
-      once: modifiers.has("once"),
-      passive: modifiers.has("passive"),
-      capture: modifiers.has("capture"),
-    },
+    prevent,
+    stop,
+    delegate,
+    options: { once, passive, capture },
   };
+
+  parsedEventCache.set(rawName, config);
+  return { ...config, options: { ...config.options } };
 }
 
 /**

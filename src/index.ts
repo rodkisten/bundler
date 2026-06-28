@@ -9,4 +9,3 @@ export * as Broto from "./broto";
 export * as Cipo from "./cipo";
 export * as Fabrica from "./fabrica";
 export * as FabricaElements from "./fabrica-elements";
-export * as Seiva from "./seiva-state";

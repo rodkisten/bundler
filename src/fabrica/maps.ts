@@ -7,6 +7,22 @@ type MapState = {
   values: Map<string, unknown>;
 };
 
+const kebabCache = new Map<string, string>();
+const IMPORTANT_SUFFIX_RE = /\s*!important\s*$/i;
+
+function getKebabName(property: string): string {
+  let cssName = kebabCache.get(property);
+  if (!cssName) {
+    cssName = toKebabCase(property);
+    kebabCache.set(property, cssName);
+  }
+  return cssName;
+}
+
+function createMapState(): MapState {
+  return { keys: new Set<string>(), values: new Map<string, unknown>() };
+}
+
 /**
  * Applies a class map with key and value diffing.
  *
@@ -21,33 +37,32 @@ type MapState = {
  * ```
  */
 export function applyClassMap(element: Element, map: Record<string, unknown>, state: MapState | null): MapState {
-  const previousKeys = state?.keys ?? new Set<string>();
-  const previousValues = state?.values ?? new Map<string, unknown>();
-  const nextKeys = new Set<string>();
-  const nextValues = new Map<string, unknown>();
+  const nextState = state ?? createMapState();
+  const keys = nextState.keys;
+  const values = nextState.values;
+  const classList = element.classList;
 
-  for (const className in map) {
-    nextKeys.add(className);
-  }
-
-  for (const className of previousKeys) {
-    if (!nextKeys.has(className)) {
-      element.classList.remove(className);
+  for (const className of keys) {
+    if (!(className in map)) {
+      classList.remove(className);
+      values.delete(className);
+      keys.delete(className);
     }
   }
 
-  for (const className of nextKeys) {
+  for (const className in map) {
     const next = Boolean(readValue(map[className]));
-    nextValues.set(className, next);
 
-    if (previousValues.has(className) && Object.is(previousValues.get(className), next)) {
+    if (keys.has(className) && Object.is(values.get(className), next)) {
       continue;
     }
 
-    element.classList.toggle(className, next);
+    keys.add(className);
+    values.set(className, next);
+    classList.toggle(className, next);
   }
 
-  return { keys: nextKeys, values: nextValues };
+  return nextState;
 }
 
 /**
@@ -65,32 +80,31 @@ export function applyClassMap(element: Element, map: Record<string, unknown>, st
  */
 export function applyStyleMap(element: Element, map: Record<string, unknown>, state: MapState | null): MapState {
   const style = (element as HTMLElement).style;
-  const previousKeys = state?.keys ?? new Set<string>();
-  const previousValues = state?.values ?? new Map<string, unknown>();
-  const nextKeys = new Set<string>();
-  const nextValues = new Map<string, unknown>();
+  const nextState = state ?? createMapState();
+  const keys = nextState.keys;
+  const values = nextState.values;
 
-  for (const property in map) {
-    nextKeys.add(property);
-  }
-
-  for (const property of previousKeys) {
-    if (!nextKeys.has(property)) {
-      style.removeProperty(toKebabCase(property));
+  for (const property of keys) {
+    if (!(property in map)) {
+      style.removeProperty(getKebabName(property));
+      values.delete(property);
+      keys.delete(property);
     }
   }
 
-  for (const property of nextKeys) {
-    const cssName = toKebabCase(property);
+  for (const property in map) {
     const value = readValue(map[property]);
     const normalized = normalizeStyleValue(value);
     const signature = normalized ? `${normalized.value}!${normalized.priority}` : null;
-    nextValues.set(property, signature);
 
-    if (previousValues.has(property) && Object.is(previousValues.get(property), signature)) {
+    if (keys.has(property) && Object.is(values.get(property), signature)) {
       continue;
     }
 
+    keys.add(property);
+    values.set(property, signature);
+
+    const cssName = getKebabName(property);
     if (!normalized) {
       style.removeProperty(cssName);
       continue;
@@ -99,7 +113,7 @@ export function applyStyleMap(element: Element, map: Record<string, unknown>, st
     style.setProperty(cssName, normalized.value, normalized.priority);
   }
 
-  return { keys: nextKeys, values: nextValues };
+  return nextState;
 }
 
 /**
@@ -119,8 +133,8 @@ function normalizeStyleValue(value: unknown): { value: string; priority: "" | "i
     return null;
   }
 
-  if (/\s*!important\s*$/i.test(text)) {
-    return { value: text.replace(/\s*!important\s*$/i, "").trim(), priority: "important" };
+  if (IMPORTANT_SUFFIX_RE.test(text)) {
+    return { value: text.replace(IMPORTANT_SUFFIX_RE, "").trim(), priority: "important" };
   }
 
   return { value: text, priority: "" };

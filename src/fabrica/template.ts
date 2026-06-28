@@ -106,7 +106,13 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
   template.innerHTML = buildTemplateSource(strings, values, { jsx });
 
   const parts = compileParts(template.content);
-  const compiled: CompiledTemplate = { template, parts };
+  const orderedParts = parts.slice().sort((left, right) => comparePathsReverse(left.path, right.path));
+  const compiled: CompiledTemplate = {
+    template,
+    parts,
+    orderedParts,
+    hasComponents: parts.some((part) => part.type === "component"),
+  };
 
   cache.set(strings, compiled);
   debugState.templates += 1;
@@ -512,7 +518,7 @@ function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void 
       continue;
     }
 
-    parts.push({ type: "child", index: Number(value.slice(TEXT_MARKER_PREFIX.length)), path: getNodePath(root, node) });
+    parts.push(withPartMeta({ type: "child", index: Number(value.slice(TEXT_MARKER_PREFIX.length)), path: getNodePath(root, node) }, parts.length));
   }
 }
 
@@ -527,10 +533,10 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
 
   while (walker.nextNode()) {
     const element = walker.currentNode as Element;
-    const attributes = Array.from(element.attributes);
+    const attributesToRemove: string[] = [];
 
-    for (let index = 0; index < attributes.length; index += 1) {
-      const attribute = attributes[index];
+    for (let index = 0; index < element.attributes.length; index += 1) {
+      const attribute = element.attributes[index];
 
       if (!attribute) {
         continue;
@@ -542,13 +548,14 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         continue;
       }
 
+      attributesToRemove.push(attribute.name);
+
       if (attribute.name === "data-fabrica-spread") {
-        parts.push({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) });
-        element.removeAttribute(attribute.name);
+        parts.push(withPartMeta({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) }, parts.length));
         continue;
       }
 
-      parts.push({
+      parts.push(withPartMeta({
         type: "attribute",
         index: markerState.indices[0]!,
         indices: markerState.indices,
@@ -556,8 +563,11 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
         raw: markerState.raw,
         path: getNodePath(root, element),
         name: markerState.name || attribute.name,
-      });
-      element.removeAttribute(attribute.name);
+      }, parts.length));
+    }
+
+    for (let index = 0; index < attributesToRemove.length; index += 1) {
+      element.removeAttribute(attributesToRemove[index]!);
     }
   }
 }
@@ -569,9 +579,7 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
  * @param parts - Parts accumulator.
  */
 function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): void {
-  const templates = Array.from(
-    root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]"),
-  );
+  const templates = root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]");
 
   for (let index = 0; index < templates.length; index += 1) {
     const element = templates[index];
@@ -583,12 +591,12 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
       continue;
     }
 
-    parts.push({
+    parts.push(withPartMeta({
       type: "component",
       index: componentIndex,
       path: getNodePath(root, element),
       name: rawName || undefined,
-    });
+    }, parts.length));
   }
 }
 
@@ -649,6 +657,22 @@ function readAttributeMarkers(value: string): {
   strings.push(value.slice(cursor));
   const raw = indices.length === 1 && strings.length === 2 && strings[0] === "" && strings[1] === "";
   return { indices, strings, name, raw };
+}
+
+
+function withPartMeta<T extends Omit<TemplatePart, "pathKey" | "order">>(part: T, order: number): T & { pathKey: string; order: number } {
+  return { ...part, pathKey: createPathKey(part.path), order };
+}
+
+function createPathKey(path: readonly number[]): string {
+  let key = "";
+
+  for (let index = 0; index < path.length; index += 1) {
+    if (index > 0) key += ".";
+    key += path[index];
+  }
+
+  return key;
 }
 
 /**
