@@ -40,12 +40,17 @@ export function isRegisteredComponentName(name: unknown): boolean {
  */
 export class FabricaComponentRegistry implements ComponentRegistry {
   readonly #components = new Map<string, ComponentLike>();
-  readonly #resolveCache = new Map<string, { version: number; value: ComponentLike | undefined }>();
+  readonly #inheritedResolveCache = new Map<string, { parentVersion: number; value: ComponentLike | undefined }>();
   #parent: ComponentRegistry | undefined;
   #version = 0;
-  #lastResolveName = "";
-  #lastResolveVersion = -1;
-  #lastResolveValue: ComponentLike | undefined;
+  #combinedVersion = 0;
+  #combinedParentVersion = -1;
+  #lastLocalName = "";
+  #lastLocalVersion = -1;
+  #lastLocalValue: ComponentLike | undefined;
+  #lastInheritedName = "";
+  #lastInheritedParentVersion = -1;
+  #lastInheritedValue: ComponentLike | undefined;
   readonly name: string;
 
   constructor(options: ComponentRegistryOptions = {}) {
@@ -68,7 +73,12 @@ export class FabricaComponentRegistry implements ComponentRegistry {
   }
 
   get version(): number {
-    return this.#version + (this.#parent?.version ?? 0);
+    const parentVersion = this.#parent?.version ?? 0;
+    if (this.#combinedParentVersion !== parentVersion) {
+      this.#combinedParentVersion = parentVersion;
+      this.#combinedVersion = this.#version + parentVersion;
+    }
+    return this.#combinedVersion;
   }
 
   register<T extends ComponentLike>(
@@ -115,8 +125,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#components.get(normalized) !== component) {
       this.#components.set(normalized, component);
       this.#version += 1;
-      this.#resolveCache.clear();
-      this.#clearLastResolve();
+      this.#clearResolutionCaches();
     }
 
     return component;
@@ -126,8 +135,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     const removed = this.#components.delete(normalizeComponentName(name));
     if (removed) {
       this.#version += 1;
-      this.#resolveCache.clear();
-      this.#clearLastResolve();
+      this.#clearResolutionCaches();
     }
     return removed;
   }
@@ -136,33 +144,44 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     const normalized = normalizeComponentName(name);
     if (!normalized) return undefined;
 
-    const version = this.version;
-    if (this.#lastResolveName === normalized && this.#lastResolveVersion === version) {
-      return this.#lastResolveValue;
+    // Hot path 1: local/shared registries. This intentionally does not read
+    // `version`, because inherited version composition was the source of the
+    // forked-registry regression: every lookup paid for parent bookkeeping even
+    // when the component was local. Repeated same-name lookups use a tiny L1
+    // cache, while alternating lookups fall back to a single Map.get().
+    if (this.#lastLocalName === normalized && this.#lastLocalVersion === this.#version) {
+      return this.#lastLocalValue;
     }
 
     const own = this.#components.get(normalized);
     if (own) {
-      this.#rememberResolve(normalized, version, own);
+      this.#rememberLocalResolve(normalized, own);
       return own;
     }
 
     const parent = this.#parent;
     if (!parent) {
-      this.#rememberResolve(normalized, version, undefined);
+      this.#rememberLocalResolve(normalized, undefined);
       return undefined;
     }
 
+    // Hot path 2: forked registries. Cache inherited hits and misses against the
+    // parent epoch only. This keeps copy-on-write registries as cheap as the
+    // manual `own.get(name) ?? parent.get(name)` control without cloning maps.
     const parentVersion = parent.version;
-    const cached = this.#resolveCache.get(normalized);
-    if (cached && cached.version === parentVersion) {
-      this.#rememberResolve(normalized, version, cached.value);
+    if (this.#lastInheritedName === normalized && this.#lastInheritedParentVersion === parentVersion) {
+      return this.#lastInheritedValue;
+    }
+
+    const cached = this.#inheritedResolveCache.get(normalized);
+    if (cached && cached.parentVersion === parentVersion) {
+      this.#rememberInheritedResolve(normalized, parentVersion, cached.value);
       return cached.value;
     }
 
     const value = parent.resolve(normalized);
-    this.#resolveCache.set(normalized, { version: parentVersion, value });
-    this.#rememberResolve(normalized, version, value);
+    this.#inheritedResolveCache.set(normalized, { parentVersion, value });
+    this.#rememberInheritedResolve(normalized, parentVersion, value);
     return value;
   }
 
@@ -185,8 +204,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#components.size > 0) {
       this.#components.clear();
       this.#version += 1;
-      this.#resolveCache.clear();
-      this.#clearLastResolve();
+      this.#clearResolutionCaches();
     }
     if (options.inherited) this.#parent?.clear({ inherited: true });
   }
@@ -229,20 +247,31 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (this.#parent === parent) return;
     this.#parent = parent;
     this.#version += 1;
-    this.#resolveCache.clear();
-    this.#clearLastResolve();
+    this.#clearResolutionCaches();
   }
 
-  #rememberResolve(name: string, version: number, value: ComponentLike | undefined): void {
-    this.#lastResolveName = name;
-    this.#lastResolveVersion = version;
-    this.#lastResolveValue = value;
+  #rememberLocalResolve(name: string, value: ComponentLike | undefined): void {
+    this.#lastLocalName = name;
+    this.#lastLocalVersion = this.#version;
+    this.#lastLocalValue = value;
   }
 
-  #clearLastResolve(): void {
-    this.#lastResolveName = "";
-    this.#lastResolveVersion = -1;
-    this.#lastResolveValue = undefined;
+  #rememberInheritedResolve(name: string, parentVersion: number, value: ComponentLike | undefined): void {
+    this.#lastInheritedName = name;
+    this.#lastInheritedParentVersion = parentVersion;
+    this.#lastInheritedValue = value;
+  }
+
+  #clearResolutionCaches(): void {
+    this.#inheritedResolveCache.clear();
+    this.#combinedParentVersion = -1;
+    this.#combinedVersion = this.#version;
+    this.#lastLocalName = "";
+    this.#lastLocalVersion = -1;
+    this.#lastLocalValue = undefined;
+    this.#lastInheritedName = "";
+    this.#lastInheritedParentVersion = -1;
+    this.#lastInheritedValue = undefined;
   }
 
   /** @deprecated Use `registry.register(name, component)` or `instance.use(component)`. */
