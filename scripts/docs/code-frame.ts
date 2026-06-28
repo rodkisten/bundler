@@ -1,4 +1,4 @@
-import type { GeneratedCodePage } from "./doc-types";
+import type { GeneratedCodePage, PackageTheme } from "./doc-types";
 import { escapeHtml } from "./html-utils";
 
 export function createCodeFrame(input: {
@@ -7,14 +7,16 @@ export function createCodeFrame(input: {
   title: string;
   tone?: GeneratedCodePage["kind"];
   className?: string;
+  packageId?: PackageTheme;
 }): string {
   const language = input.language || "plaintext";
   const tone = input.tone || "source";
   const title = input.title || language;
+  const packageId = input.packageId || "default";
 
-  return `<figure class="code-frame ${escapeHtml(input.className || "")}" data-code-frame data-wrap="false" data-code-tone="${escapeHtml(tone)}">
+  return `<figure class="code-frame ${escapeHtml(input.className || "")}" data-code-frame data-wrap="false" data-code-tone="${escapeHtml(tone)}" data-package="${escapeHtml(packageId)}">
     <figcaption class="code-frame-bar">
-      <span class="code-frame-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="code-frame-accent" aria-hidden="true"></span>
       <span class="code-frame-title">${escapeHtml(title)}</span>
       <span class="code-frame-meta">${escapeHtml(language)}</span>
       <span class="code-frame-actions">
