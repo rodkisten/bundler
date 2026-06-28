@@ -350,6 +350,7 @@ jobs:
               -o -name "*.js.map" \
               -o -name "*.html" \
               -o -name "*.json" \
+              -o -name "*.css" \
               -o -name "*.txt" \
             \) | sort
             echo "EOF"
