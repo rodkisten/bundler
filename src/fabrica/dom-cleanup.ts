@@ -3,6 +3,48 @@ import type { Cleanup } from "./types";
 /** Cleanups attached to DOM nodes. WeakMap lets the browser collect removed nodes. */
 const nodeCleanups = new WeakMap<Node, Cleanup[]>();
 
+/** Nodes that received cleanups while a compiled fragment was being materialized. */
+let activeCleanupCollector: Set<Node> | null = null;
+
+/**
+ * Runs a callback while collecting only the nodes that actually receive cleanup callbacks.
+ *
+ * @remarks
+ * Root renders previously disposed by walking every descendant in the container.
+ * That is safe, but expensive for short-lived benchmark and docs-style renders.
+ * The collector keeps the public cleanup semantics intact while allowing the
+ * direct root render path to dispose only the nodes that own effects/listeners.
+ */
+export function collectCleanupNodes<T>(callback: () => T): { value: T; nodes: Node[] } {
+  const previous = activeCleanupCollector;
+  const collector = new Set<Node>();
+  activeCleanupCollector = collector;
+
+  try {
+    return { value: callback(), nodes: Array.from(collector) };
+  } finally {
+    activeCleanupCollector = previous;
+  }
+}
+
+/** Disposes cleanup callbacks for a collected node list without walking descendants. */
+export function disposeCollectedCleanups(nodes: readonly Node[]): void {
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    if (!node) continue;
+
+    const cleanups = nodeCleanups.get(node);
+    if (!cleanups) continue;
+
+    for (let cleanupIndex = 0; cleanupIndex < cleanups.length; cleanupIndex += 1) {
+      cleanups[cleanupIndex]?.();
+    }
+
+    cleanups.length = 0;
+    nodeCleanups.delete(node);
+  }
+}
+
 /**
  * Registers cleanup on a node.
  *
@@ -28,6 +70,7 @@ export function registerCleanup(node: Node, cleanup: Cleanup): void {
   }
 
   cleanups.push(cleanup);
+  activeCleanupCollector?.add(node);
 }
 
 /**

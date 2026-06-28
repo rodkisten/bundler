@@ -2,6 +2,8 @@ import { PART_END, PART_START } from "./constants";
 import { debugState } from "./debug";
 import {
   clearRange,
+  collectCleanupNodes,
+  disposeCollectedCleanups,
   disposeRange,
   disposeTree,
   moveRangeBefore,
@@ -76,9 +78,16 @@ import type {
 /** Persistent root render parts keyed by container. */
 type RootRenderState =
   | { kind: "part"; part: ReturnType<typeof createChildPart>; dispose: () => void }
-  | { kind: "direct"; dispose: () => void };
+  | { kind: "direct"; dispose: () => void; cleanupNodes: Node[]; dynamic: boolean };
 
 const renderStates = new WeakMap<Node, RootRenderState>();
+
+type MaterializedFragmentMetadata = {
+  cleanupNodes: Node[];
+  dynamic: boolean;
+};
+
+const materializedFragmentMetadata = new WeakMap<DocumentFragment, MaterializedFragmentMetadata>();
 
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
@@ -111,7 +120,20 @@ export function html(
       true,
     ) as DocumentFragment;
 
-    applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
+    if (compiled.orderedParts.length === 0) {
+      materializedFragmentMetadata.set(fragment, { cleanupNodes: [], dynamic: false });
+      return fragment;
+    }
+
+    const collected = collectCleanupNodes(() => {
+      applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
+    });
+
+    materializedFragmentMetadata.set(fragment, {
+      cleanupNodes: collected.nodes,
+      dynamic: true,
+    });
+
     return fragment;
   });
 }
@@ -139,7 +161,20 @@ export function html(
       true,
     ) as DocumentFragment;
 
-    applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
+    if (compiled.orderedParts.length === 0) {
+      materializedFragmentMetadata.set(fragment, { cleanupNodes: [], dynamic: false });
+      return fragment;
+    }
+
+    const collected = collectCleanupNodes(() => {
+      applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
+    });
+
+    materializedFragmentMetadata.set(fragment, {
+      cleanupNodes: collected.nodes,
+      dynamic: true,
+    });
+
     return fragment;
   });
 };
@@ -186,17 +221,34 @@ export function render(
      */
     if ((!state || state.kind === "direct") && resolvedValue instanceof DocumentFragment) {
       state?.dispose();
-      disposeTree(container);
+
+      const metadata = materializedFragmentMetadata.get(resolvedValue);
+      const cleanupNodes = metadata?.cleanupNodes ?? [];
+      const dynamic = Boolean(metadata?.dynamic || cleanupNodes.length > 0);
+
+      /**
+       * For freshly materialized html fragments, the compiler has already
+       * collected every node that owns a cleanup. Static fragments have no
+       * registered effects/listeners at all, so direct render can skip the
+       * expensive disposeTree(container) walk entirely. Dynamic fragments
+       * dispose the collected nodes only, preserving listener/effect cleanup
+       * without traversing unrelated static markup.
+       */
       container.replaceChildren(resolvedValue);
       debugState.reconciliations += 1;
 
       const dispose = (): void => {
-        disposeTree(container);
+        if (cleanupNodes.length > 0) {
+          disposeCollectedCleanups(cleanupNodes);
+        } else if (dynamic) {
+          disposeTree(container);
+        }
+
         container.replaceChildren();
         renderStates.delete(container);
       };
 
-      state = { kind: "direct", dispose };
+      state = { kind: "direct", dispose, cleanupNodes, dynamic };
       renderStates.set(container, state);
       return dispose;
     }
