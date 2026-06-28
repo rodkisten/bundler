@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { build, type BuildOptions } from "esbuild";
+import { createBenchmarkDashboardHtml } from "./benchmark/dashboard";
+import type { BenchmarkReportFile } from "./benchmark/types";
 import {
   createCodePageHtml,
   createIndexHtml,
@@ -50,7 +52,9 @@ export async function main(): Promise<void> {
   const examples = await collectExamplesByEntry(entries);
   const benchmarkFiles = await collectBenchmarkFiles();
   const benchmarkPages = await writeCodePages("benchmark", benchmarkFiles, BENCHMARK_DIR, []);
-  const benchmarks = await createBenchmarkSummaries(benchmarkFiles, benchmarkPages);
+  const benchmarkReports = readBenchmarkReports(benchmarkFiles);
+  await writeBenchmarkDashboard(benchmarkReports);
+  const benchmarks = await createBenchmarkSummaries(benchmarkFiles, benchmarkPages, benchmarkReports);
   const docs = await writeMarkdownDocs(benchmarks);
   const sources = await writeCodePages("source", await collectSourceFiles(), SOURCE_DIR, benchmarks);
   const tests = await writeCodePages("test", await collectTestFiles(), TESTS_DIR, benchmarks);
@@ -339,7 +343,7 @@ async function collectBenchmarkFiles(): Promise<TextFile[]> {
   });
 }
 
-async function createBenchmarkSummaries(files: TextFile[], pages: GeneratedCodePage[]): Promise<BenchmarkSummary[]> {
+async function createBenchmarkSummaries(files: TextFile[], pages: GeneratedCodePage[], reports: BenchmarkReportFile[]): Promise<BenchmarkSummary[]> {
   const summaries: BenchmarkSummary[] = [];
 
   for (let index = 0; index < pages.length; index += 1) {
@@ -367,7 +371,50 @@ async function createBenchmarkSummaries(files: TextFile[], pages: GeneratedCodeP
     });
   }
 
+  if (reports.length > 0) {
+    summaries.unshift({
+      id: "benchmark-dashboard",
+      title: "Benchmark Dashboard",
+      href: "benchmarks/index.html",
+      sourcePath: "bench/index.html",
+      displayPath: "Benchmarks / Dashboard",
+      packageId: "benchmark",
+      generatedAt: reports[0]?.generatedAt,
+      geometricMeanPercent: geometricMean(reports.map((report) => report.comparison.geometricMeanPercent).filter((value): value is number => typeof value === "number")),
+      absoluteGeometricMeanPercent: geometricMean(reports.map((report) => report.comparison.absoluteGeometricMeanPercent).filter((value): value is number => typeof value === "number")),
+      faster: reports.reduce((sum, report) => sum + report.comparison.faster, 0),
+      slower: reports.reduce((sum, report) => sum + report.comparison.slower, 0),
+      stable: reports.reduce((sum, report) => sum + report.comparison.stable, 0),
+      unstable: reports.reduce((sum, report) => sum + report.comparison.unstable, 0),
+    });
+  }
+
   return summaries.sort((left, right) => left.title.localeCompare(right.title));
+}
+
+function readBenchmarkReports(files: TextFile[]): BenchmarkReportFile[] {
+  return files
+    .filter((file) => /\.json$/i.test(file.relativePath))
+    .map((file) => safeJson(file.content))
+    .filter(isBenchmarkReportFile)
+    .sort((left, right) => left.suite.id.localeCompare(right.suite.id));
+}
+
+async function writeBenchmarkDashboard(reports: BenchmarkReportFile[]): Promise<void> {
+  if (reports.length === 0) return;
+  await fs.mkdir(BENCHMARK_DIR, { recursive: true });
+  await fs.writeFile(path.join(BENCHMARK_DIR, "index.html"), createBenchmarkDashboardHtml(reports));
+}
+
+function isBenchmarkReportFile(value: unknown): value is BenchmarkReportFile {
+  if (!isRecord(value)) return false;
+  return value.schemaVersion === 2 && isRecord(value.suite) && isRecord(value.current) && isRecord(value.comparison);
+}
+
+function geometricMean(values: number[]): number | undefined {
+  const valid = values.filter((value) => Number.isFinite(value)).map((value) => 1 + value / 100).filter((value) => value > 0);
+  if (valid.length === 0) return undefined;
+  return (Math.exp(valid.reduce((sum, value) => sum + Math.log(value), 0) / valid.length) - 1) * 100;
 }
 
 async function walkTextFiles(root: string, accept: (relativePath: string) => boolean, relativeRoot = "."): Promise<TextFile[]> {

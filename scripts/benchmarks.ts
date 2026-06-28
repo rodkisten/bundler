@@ -10,7 +10,7 @@ import {
   renderBenchmarkMarkdown,
 } from './benchmark/report'
 import { BENCHMARK_SUITES } from './benchmark/suites'
-import { median, medianAbsoluteDeviationPercent } from './benchmark/statistics'
+import { coefficientOfVariationPercent, median, medianAbsoluteDeviationPercent, standardDeviation } from './benchmark/statistics'
 import type {
   BenchmarkMethodology,
   BenchmarkRoundMeasurement,
@@ -673,8 +673,31 @@ function aggregateBenchmark(
     samples: values.reduce((sum, value) => sum + value.samples, 0),
     rounds: values.length,
     runVariationPercent: medianAbsoluteDeviationPercent(hzValues),
+    standardDeviationHz: standardDeviation(hzValues),
+    coefficientOfVariationPercent: coefficientOfVariationPercent(hzValues),
+    sparkline: createSparkline(hzValues),
     measurements: values,
   }
+}
+
+
+function createSparkline(values: readonly number[]): string {
+  const valid = values.filter(Number.isFinite)
+  if (valid.length === 0) return ''
+  if (valid.length === 1) return '▁'
+
+  const min = Math.min(...valid)
+  const max = Math.max(...valid)
+  const glyphs = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+
+  if (max === min) return glyphs[0]!.repeat(valid.length)
+
+  return valid
+    .map((value) => {
+      const index = Math.max(0, Math.min(glyphs.length - 1, Math.round(((value - min) / (max - min)) * (glyphs.length - 1))))
+      return glyphs[index]!
+    })
+    .join('')
 }
 
 function filterVitestBenchmarkJson(raw: VitestBenchmarkJson, benchmarkFile: string): VitestBenchmarkJson {
