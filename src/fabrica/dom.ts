@@ -272,7 +272,7 @@ export function render(
       renderStates.set(container, state);
     }
 
-    if (state.kind !== "part") {
+    if (state.kind !== "part" && "dispose" in state) {
       return state.dispose;
     }
 
