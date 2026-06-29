@@ -61,6 +61,7 @@ render(root, html`
 ### Hot paths optimized
 
 - Fresh root renders of `DocumentFragment` values mount directly instead of paying for a generic child range controller.
+- Direct root renders collect cleanup owners during materialization, so disposal runs exact listener/effect cleanups instead of recursively walking static descendants. Fully static fragments skip cleanup collection and dispose with a plain host clear.
 - Static attribute, property, boolean and conditional class bindings write directly without allocating effect/update closures.
 - String `class` and `style` bindings use `className` and `style.cssText` for the browser's fastest common path.
 - Slotless component tags reuse static props directly and skip child-fragment cloning.
@@ -71,6 +72,23 @@ render(root, html`
 
 The goal is not to change how authors write Fábrica. The goal is to make the engine do less work after the template has already told us what the page looks like.
 
+
+
+### Direct root cleanup collector
+
+`html` still returns a real `DocumentFragment`, but the fragment now carries private metadata when it was created by the Fabrica compiler. That metadata records whether the fragment has dynamic work and which nodes actually own cleanup callbacks. The direct root renderer uses that list on disposal:
+
+```txt
+static template   -> replaceChildren() only
+dynamic template  -> dispose collected cleanup nodes, then clear host
+legacy value      -> fallback tree walk
+```
+
+This keeps event listeners, effects and owners safe while avoiding a full DOM traversal for large static shells, docs pages and benchmark cases that mount and immediately dispose.
+
+### Lazy repeat context signals
+
+`repeat()` continues to pass `item`, `index` and `key` as signal-shaped callables. Internally those signals are now lazy. If a row template never reads `index()` or `key()`, reorders update only the stored primitive value and do not allocate or notify unused Broto signals. This is especially useful for keyed table/list updates where most rows depend only on `item()`.
 
 ## Runtime v2 execution plan
 

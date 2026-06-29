@@ -751,6 +751,47 @@ function updateIndexedRepeat(
   return items.length > 0;
 }
 
+/**
+ * Creates a repeat context signal that allocates the Broto signal lazily.
+ *
+ * @remarks
+ * `repeat()` exposes `{ item, index, key }` as signals for ergonomic render
+ * functions, but many item templates only read `item`. Creating and updating
+ * three full reactive primitives per row makes keyed reorders pay for signals
+ * that were never observed. This facade keeps the public callable signal shape
+ * while only materializing the real signal when user code reads or subscribes.
+ */
+function createLazyRepeatSignal<Value>(initialValue: Value): ReturnType<typeof signal<Value>> {
+  let value = initialValue;
+  let inner: ReturnType<typeof signal<Value>> | null = null;
+
+  const ensure = (): ReturnType<typeof signal<Value>> => {
+    if (!inner) inner = signal(value);
+    return inner;
+  };
+
+  const read = (() => {
+    if (inner) return inner();
+    inner = signal(value);
+    return inner();
+  }) as ReturnType<typeof signal<Value>>;
+
+  read.set = (nextValue: Value): void => {
+    value = nextValue;
+    inner?.set(nextValue);
+  };
+
+  read.update = (updater: (currentValue: Value) => Value): void => {
+    read.set(updater(value));
+  };
+
+  read.peek = (): Value => inner ? inner.peek() : value;
+
+  read.subscribe = (listener: Parameters<ReturnType<typeof signal<Value>>["subscribe"]>[0]): (() => void) => ensure().subscribe(listener);
+
+  return read;
+}
+
 function createRepeatRecord(
   item: unknown,
   index: number,
@@ -764,9 +805,9 @@ function createRepeatRecord(
   const start = document.createComment("fabrica:item:start");
   const end = document.createComment("fabrica:item:end");
   const context = {
-    item: signal(item),
-    index: signal(index),
-    key: signal(key),
+    item: createLazyRepeatSignal(item),
+    index: createLazyRepeatSignal(index),
+    key: createLazyRepeatSignal(key),
   };
   const fragment = document.createDocumentFragment();
 
