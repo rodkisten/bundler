@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased - Fabrica Runtime v2 disposal and repeat signal pass
+
+### Changed
+
+- Fabrica direct root renders now carry private cleanup metadata from template materialization, allowing static roots to dispose without tree walks and dynamic roots to dispose exact cleanup owners.
+- Fabrica `repeat()` contexts now allocate `item`, `index` and `key` signals lazily, preserving the public signal-shaped API while reducing unused signal work in keyed list updates.
+
+### Documentation
+
+- Expanded Fabrica README and changelog with the cleanup collector and lazy repeat signal model.
+
+
 
 ## Unreleased - Runtime v2 root and attribute instruction pass
 
