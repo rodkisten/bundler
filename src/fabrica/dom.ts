@@ -272,10 +272,6 @@ export function render(
       renderStates.set(container, state);
     }
 
-    if (state.kind !== "part") {
-      return state.dispose;
-    }
-
     debugState.reconciliations += 1;
     state.part.set(resolvedValue);
     return state.dispose;
