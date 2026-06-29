@@ -1,5 +1,18 @@
 # Fábrica Changelog
 
+## Unreleased - Runtime v2 cleanup collector and lazy repeat signals
+
+### Performance
+
+- Added a cleanup collector around template materialization. `render(host, html`...`)` now disposes direct root renders by running the exact collected cleanup nodes instead of recursively walking every descendant in the host. Fully static templates skip cleanup collection entirely.
+- Added static-fragment metadata so direct root disposal for static trees is a plain `replaceChildren()` with no cleanup traversal. This targets short-lived render/benchmark/docs scenarios where the DOM tree is large but owns no effects.
+- Added lazy repeat context signals. `repeat()` still exposes `item`, `index` and `key` as callable Broto-compatible signals, but the real signal object is now allocated only if user code reads or subscribes to it. Item renderers that only read `item()` no longer pay update costs for unused `index()` and `key()` signals during keyed reorders.
+
+### Documentation
+
+- Documented the Runtime v2 disposal model and repeat signal laziness as compatibility-preserving performance layers.
+
+
 
 ## Unreleased - Runtime v2 root and attribute instruction pass
 
