@@ -6,7 +6,7 @@
  * @description Dependency-free browser developer tools implemented in TypeScript with Cipo and Fábrica.
  */
 import { renderShell, type ShellRefs } from "./components/shell";
-import { detectMobile, isDevtoolsNode, viewportScale } from "./core/dom";
+import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./core/dom";
 import { NativeProtocol } from "./core/protocol";
 import { installDevtoolsStyles } from "./core/style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
@@ -98,6 +98,9 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private style: HTMLStyleElement | null = null;
   private currentScale = 1;
   private ownsHost = false;
+  private reattachTimer = 0;
+  private hostObserver: MutationObserver | null = null;
+  private readonly reattachHost = () => this.forceMountHost();
 
   init(options: DevtoolsInitOptions = {}): this {
     if (this.initialized) return this;
@@ -105,16 +108,18 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
     this.host = options.container ?? document.createElement("div");
     this.ownsHost = !options.container;
-    if (!this.host.isConnected) document.documentElement.append(this.host);
-    if (!this.host.id) this.host.id = "roderuda";
-    this.host.classList.add("__chobitsu-hide__", "__roderuda-host__");
-    this.host.style.all = "initial";
-    this.host.contentEditable = "false";
+    this.prepareHost(this.host, options.inline === true);
+    this.forceMountHost();
 
     const useShadowDom = options.useShadowDom !== false;
     if (useShadowDom && this.host.attachShadow) {
-      this.shadowRoot = this.host.shadowRoot ?? this.host.attachShadow({ mode: "open" });
-      this.rootTarget = this.shadowRoot;
+      try {
+        this.shadowRoot = this.host.shadowRoot ?? this.host.attachShadow({ mode: "open" });
+        this.rootTarget = this.shadowRoot;
+      } catch {
+        this.shadowRoot = null;
+        this.rootTarget = this.host;
+      }
     } else {
       this.rootTarget = this.host;
     }
@@ -150,6 +155,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     const first = selected.find((name) => this.devtools?.get(name)) ?? "settings";
     this.devtools.showTool(first);
     this.initialized = true;
+    this.installHostWatchdog();
+    this.forceMountHost();
 
     if (options.autoScale !== false && detectMobile()) this.scale(1 / viewportScale());
     if (options.inline) {
@@ -165,6 +172,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.devtools?.destroy();
     this.style?.remove();
     this.chobitsu.destroy();
+    this.uninstallHostWatchdog();
     if (this.ownsHost) this.host?.remove();
     else this.host?.replaceChildren();
     this.initialized = false;
@@ -235,6 +243,85 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  private prepareHost(host: HTMLElement, inline: boolean): void {
+    if (!host.id) host.id = "roderuda";
+    host.classList.add("__chobitsu-hide__", "__roderuda-host__");
+    host.setAttribute("data-roderuda-force-mounted", "true");
+    host.contentEditable = "false";
+    host.setAttribute("aria-live", "off");
+    host.setAttribute("role", "presentation");
+    applyImportantStyle(host, inline ? {
+      all: "initial",
+      display: "block",
+      position: "relative",
+      width: "100%",
+      height: "100%",
+      minWidth: "320px",
+      minHeight: "320px",
+      zIndex: "2147483647",
+      pointerEvents: "auto",
+      contain: "layout style paint",
+    } : {
+      all: "initial",
+      display: "block",
+      position: "fixed",
+      inset: "0",
+      width: "100vw",
+      height: "100vh",
+      minWidth: "0",
+      minHeight: "0",
+      margin: "0",
+      padding: "0",
+      border: "0",
+      overflow: "visible",
+      zIndex: "2147483647",
+      pointerEvents: "none",
+      contain: "layout style paint",
+      isolation: "isolate",
+    });
+  }
+
+  private forceMountHost(): void {
+    if (!this.host || !this.ownsHost) return;
+    if (this.host.isConnected) return;
+    if (forceAppendToPage(this.host)) return;
+    const retry = () => {
+      if (!this.initialized || !this.host || this.host.isConnected) return;
+      if (!forceAppendToPage(this.host)) {
+        window.setTimeout(retry, 16);
+      }
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", retry, { once: true, capture: true });
+    }
+    window.setTimeout(retry, 16);
+  }
+
+  private installHostWatchdog(): void {
+    if (!this.host || !this.ownsHost) return;
+    this.uninstallHostWatchdog();
+    try {
+      this.hostObserver = new MutationObserver(this.reattachHost);
+      this.hostObserver.observe(document, { childList: true, subtree: true });
+    } catch {
+      // Older or hostile documents can reject observing `document`; the interval below still keeps us alive.
+    }
+    this.reattachTimer = window.setInterval(this.reattachHost, 1000);
+    window.addEventListener("pageshow", this.reattachHost, true);
+    window.addEventListener("focus", this.reattachHost, true);
+  }
+
+  private uninstallHostWatchdog(): void {
+    if (this.reattachTimer) {
+      window.clearInterval(this.reattachTimer);
+      this.reattachTimer = 0;
+    }
+    this.hostObserver?.disconnect();
+    this.hostObserver = null;
+    window.removeEventListener("pageshow", this.reattachHost, true);
+    window.removeEventListener("focus", this.reattachHost, true);
   }
 
   private checkInitialized(): boolean {
