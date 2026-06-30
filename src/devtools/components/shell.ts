@@ -55,73 +55,81 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
   uiState.setPath("shell.inline", inline);
 
   renderInto(target, html`
-    <${ShellRoot}
+    <RodDevtoolsShellRoot
       class=${`roderuda-container${inline ? " roderuda-inline" : ""}`}
       data-roderuda-root
+      data-roderuda-shell-ref="root"
       ref=${ref((node) => {
         refs.root = node as HTMLElement;
         uiState.setPath("shell.mounted", true);
         return () => uiState.setPath("shell.mounted", false);
       })}
     >
-      <${EntryButtonView}
+      <RodDevtoolsEntryButton
         class="roderuda-entry-btn"
         type="button"
         aria-label="Open developer tools"
         title="RodEruda"
+        data-roderuda-shell-ref="entryButton"
         @click=${event((event: Event) => event.stopPropagation())}
         ref=${ref((node) => { refs.entryButton = node as HTMLButtonElement; })}
-      >⌘</${EntryButtonView}>
+      >⌘</RodDevtoolsEntryButton>
 
       ${suspense(READY_RESOURCE, () => html`
-          <${DevtoolsDock}
+          <RodDevtoolsDock
             class="roderuda-dev-tools"
             aria-label="Developer tools"
             aria-hidden="true"
+            data-roderuda-shell-ref="devtools"
             ref=${ref((node) => { refs.devtools = node as HTMLElement; })}
           >
-            <${Resizer}
+            <RodDevtoolsResizer
               class="roderuda-resizer"
               role="separator"
               aria-orientation="horizontal"
               aria-label="Resize developer tools"
+              data-roderuda-shell-ref="resizer"
               ref=${ref((node) => { refs.resizer = node as HTMLElement; })}
-            />
-            <${Tabbar}
+                />
+            <RodDevtoolsTabbar
               class="roderuda-tabbar"
               aria-label="Developer tools panels"
+              data-roderuda-shell-ref="tabbar"
               ref=${ref((node) => { refs.tabbar = node as HTMLElement; })}
             >
               ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
-            </${Tabbar}>
-            <${Tools}
+            </RodDevtoolsTabbar>
+            <RodDevtoolsTools
               class="roderuda-tools"
+              data-roderuda-shell-ref="tools"
               ref=${ref((node) => { refs.tools = node as HTMLElement; })}
-            />
-            <${Notifications}
+                />
+            <RodDevtoolsNotifications
               class="roderuda-notifications"
               aria-live="polite"
+              data-roderuda-shell-ref="notifications"
               ref=${ref((node) => { refs.notifications = node as HTMLElement; })}
-            />
-            <${ModalRoot}
+                />
+            <RodDevtoolsModalRoot
               class="roderuda-modal-root"
               role="presentation"
+              data-roderuda-shell-ref="modalRoot"
               ref=${ref((node) => { refs.modalRoot = node as HTMLElement; })}
-            />
+                />
             ${portal(target, html`<span hidden data-roderuda-portal-probe></span>`)}
-          </${DevtoolsDock}>
+          </RodDevtoolsDock>
         `, () => html`<div class="roderuda-empty">Loading devtools shell…</div>`, (error) => html`<div class="roderuda-empty">${String(error)}</div>`)}
-    </${ShellRoot}>
+    </RodDevtoolsShellRoot>
   `);
 
   onMount(() => uiState.setPath("shell.mounted", true));
   onUnmount(() => uiState.setPath("shell.mounted", false));
 
-  return assertShellRefs(refs);
+  return assertShellRefs(refs, target);
 }
 
-function assertShellRefs(refs: Partial<ShellRefs>): ShellRefs {
-  const missing = [
+function assertShellRefs(refs: Partial<ShellRefs>, target: HTMLElement | ShadowRoot): ShellRefs {
+  const keys = [
     "root",
     "entryButton",
     "devtools",
@@ -130,7 +138,24 @@ function assertShellRefs(refs: Partial<ShellRefs>): ShellRefs {
     "tools",
     "notifications",
     "modalRoot",
-  ].filter((key) => !refs[key as keyof ShellRefs]);
+  ] as const;
+
+  for (const key of keys) {
+    if (refs[key]) continue;
+    const node = target.querySelector(`[data-roderuda-shell-ref="${key}"]`);
+    if (node) assignShellRef(refs, key, node);
+  }
+
+  const missing = keys.filter((key) => !refs[key]);
   if (missing.length) throw new Error(`[RodEruda] Shell did not mount: ${missing.join(", ")}`);
   return refs as ShellRefs;
+}
+
+
+function assignShellRef(refs: Partial<ShellRefs>, key: keyof ShellRefs, node: Element): void {
+  if (key === "entryButton") {
+    refs.entryButton = node as HTMLButtonElement;
+    return;
+  }
+  refs[key] = node as HTMLElement;
 }
