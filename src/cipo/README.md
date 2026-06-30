@@ -1,4 +1,4 @@
-# Cipó Next 🌿
+# Cipó CSS 🌿
 
 Cipó is the CSS owner in the Rod browser toolbox. It provides a semantic CSS DSL, atomic class generation, full stylesheet compilation, inline style compilation, JIT caching, theme tokens, helpers, aliases, recipes and browser-friendly debug tools.
 
