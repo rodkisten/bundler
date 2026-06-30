@@ -1,8 +1,8 @@
 import { runtime } from '../runtime'
-import type { CipoAtomicRule, CipoDeclarationNode, CipoRuleContext } from '../types'
+import type { CipoAtomicRule, CipoDeclarationNode, CipoRuleContext, CipoScopedRule } from '../types'
 import { createDeclaration, hashString } from '../utils'
 import { addImportant } from './important'
-import { compileSelector, createAtomicRuleId, wrapContext } from './selector-compile'
+import { compileSelector, createAtomicRuleId, resolveScopedSelector, wrapContext } from './selector-compile'
 import { createAtomicClassName } from './atomic-class-name'
 
 /** Creates or reuses an atomic rule for a declaration/context pair. */
@@ -24,6 +24,46 @@ export function createAtomicRule(declaration: CipoDeclarationNode, context: Cipo
   runtime.atomicCache.set(id, atom)
   runtime.debugAtoms.set(atom.className, atom)
   return atom
+}
+
+
+/**
+ * Applies the configured atomic promotion threshold.
+ *
+ * Declarations below `atomic.minUses` stay inside the artifact scope class so
+ * one-off rules do not pollute the shared atomic sheet. Once a declaration is
+ * seen often enough, future artifacts reuse the shared atom.
+ */
+export function partitionPromotedAtoms(
+  atoms: readonly CipoAtomicRule[],
+  scopeClassName: string,
+): { readonly atoms: readonly CipoAtomicRule[]; readonly scopedRules: CipoScopedRule[] } {
+  const minUses = runtime.config.atomic.minUses
+  if (minUses <= 1) return { atoms, scopedRules: [] }
+
+  const promoted: CipoAtomicRule[] = []
+  const scopedRules: CipoScopedRule[] = []
+  for (const atom of atoms) {
+    const nextCount = (runtime.atomicUsageCounts.get(atom.id) || 0) + 1
+    runtime.atomicUsageCounts.set(atom.id, nextCount)
+    if (nextCount >= minUses) {
+      runtime.atomicSingleUseFallbacks.delete(atom.id)
+      promoted.push(atom)
+      continue
+    }
+    runtime.atomicSingleUseFallbacks.set(atom.id, atom)
+    scopedRules.push({
+      selector: resolveScopedSelector(scopeClassName, ''),
+      declarations: [{
+        type: 'declaration',
+        property: atom.property,
+        value: atom.value,
+        source: atom.source,
+      }],
+      context: atom.context,
+    })
+  }
+  return { atoms: promoted, scopedRules }
 }
 
 /** Compiles one atomic rule. */
@@ -52,7 +92,8 @@ import { compileCss, createArtifactCacheKey, getCachedArtifact, setCachedArtifac
 export function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
   const rawCss = buildSafeSource(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
-  const cached = getCachedArtifact(cacheKey)
+  const cacheable = runtime.config.atomic.minUses <= 1
+  const cached = cacheable ? getCachedArtifact(cacheKey) : undefined
 
   if (cached && isAtomicCssArtifactLike(cached)) return cached
 
@@ -62,7 +103,7 @@ export function compileAtomicCss(strings: TemplateStringsArray, values: readonly
   const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
 
   insertCss(artifact.compiledCss)
-  setCachedArtifact(cacheKey, artifact)
+  if (cacheable) setCachedArtifact(cacheKey, artifact)
   return artifact
 }
 
@@ -72,7 +113,10 @@ export function createAtomicArtifact(rawCss: string, transformedCss: string, ast
   const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
   const previousImportant = runtime.config.important
   runtime.config.important = previousImportant || forceImportant
-  const { atoms, scopedRules } = collectRules(ast, scopeClassName, mutableWarnings)
+  const collected = collectRules(ast, scopeClassName, mutableWarnings)
+  const promoted = partitionPromotedAtoms(collected.atoms, scopeClassName)
+  const atoms = promoted.atoms
+  const scopedRules = [...promoted.scopedRules, ...collected.scopedRules]
   const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
   const compiledCss = compileCss(atoms, scopedRules)
   runtime.config.important = previousImportant

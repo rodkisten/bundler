@@ -8,6 +8,7 @@ import { createDeclaration, hashString } from '../utils'
 import { compilePropertyBlock } from '../properties'
 import { addImportant } from './important'
 import { compileAtomicRule } from './atomic-compile'
+import { applyConfiguredScopeToSelectors } from './selector-compile'
 import { collectRules } from './at-rules'
 
 /** Compiles atoms and scoped rules into CSS. */
@@ -229,7 +230,7 @@ function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly
 function compileStylesheetRule(selectors: readonly string[], declarations: readonly CipoDeclarationNode[], forceImportant: boolean): string {
   let body = ''
   for (let index = 0; index < declarations.length; index += 1) body += compileDeclaration(declarations[index], forceImportant)
-  return `${joinSelectors(selectors)}{${body}}`
+  return `${joinSelectors(applyConfiguredScopeToSelectors(selectors))}{${body}}`
 }
 
 function compileDeclaration(declaration: CipoDeclarationNode, forceImportant: boolean): string {
