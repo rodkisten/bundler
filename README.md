@@ -538,3 +538,16 @@ still work, emit one migration warning, and are documented as deprecated.
 
 Use `Cipo.createStyled({ fabrica: instance })` when each Fabrica instance needs
 its own named styled-component registry.
+
+## 🌿 Cipó + Broto enterprise ergonomics
+
+This build adds the next layer of the design-system engine:
+
+- `!property: value` adds one safe `!important` priority without producing duplicate `!important !important` output.
+- `atomic: { minUses: 2 }` keeps first-use declarations scoped to the component and promotes only reused declarations into shared atomic classes.
+- `scope: { strategy: "where", selector: ".app" }` wraps generated selectors as `:where(.app) ...`, keeping specificity low while isolating styles.
+- Container-query authoring works in Cipó syntax via `container: card / inline-size` and `x:cq(md) { ... }`.
+- Tailwind-like helpers stay CSS-first: use `sr-only`, `space-y: 2`, `ring: glow`, `bg: color-sky-240`, `text(nowrap)` and friends inside declarations instead of className strings.
+- `getDebugOverlayStats()` and `installDebugOverlay()` expose atom reuse, promotion and CSS byte statistics for mobile debug panels.
+- Broto stores now accept middleware and devtools listeners: `store(initial, { middleware, devtools })`, plus runtime `state.use()` and `state.subscribeDevtools()`.
+
