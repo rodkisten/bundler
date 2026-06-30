@@ -1,6 +1,6 @@
 import { DEFAULT_BASE_FONT_SIZE } from './constants'
 import { clearJitCaches, runtime } from './runtime'
-import type { CipoConfig, CipoDebugConfig, CipoJitConfig, CipoRemConfig, RuntimeConfig } from './types'
+import type { CipoAtomicPromotionConfig, CipoConfig, CipoDebugConfig, CipoDebugOverlayConfig, CipoJitConfig, CipoRemConfig, CipoScopeConfig, RuntimeConfig } from './types'
 import { theme } from './theme'
 import { configureCss } from './config-css'
 
@@ -22,6 +22,9 @@ export function configure(config: CipoConfig): void {
   const nextRem = normalizeRemConfig(config.rem, config.baseFontSize, current.rem)
   const nextJit = normalizeJitConfig(config.jit, current.jit)
   const nextBreakpoints = mergeBreakpoints(current.breakpoints, config.breakpoints)
+  const nextAtomic = normalizeAtomicConfig(config.atomic, current.atomic)
+  const nextScope = normalizeScopeConfig(config.scope, current.scope)
+  const nextDebugOverlay = normalizeDebugOverlayConfig(config.debugOverlay, current.debugOverlay)
 
   const next: RuntimeConfig = {
     prefix: config.prefix ?? current.prefix,
@@ -40,6 +43,9 @@ export function configure(config: CipoConfig): void {
     registerTypedThemeProperties:
       config.registerTypedThemeProperties ?? current.registerTypedThemeProperties,
     jit: nextJit,
+    atomic: nextAtomic,
+    scope: nextScope,
+    debugOverlay: nextDebugOverlay,
     onWarning: config.onWarning ?? current.onWarning,
   }
 
@@ -61,6 +67,54 @@ export function setup(config: CipoConfig): void {
 
 Object.assign(setup, { css: configureCss })
 
+
+function normalizeAtomicConfig(
+  atomic: boolean | CipoAtomicPromotionConfig | undefined,
+  current: Required<CipoAtomicPromotionConfig>,
+): Required<CipoAtomicPromotionConfig> {
+  if (atomic === undefined) return current
+  const minUses = typeof atomic === 'boolean' ? (atomic ? 1 : Number.POSITIVE_INFINITY) : atomic.minUses ?? current.minUses
+  const normalized = Number.isFinite(minUses) ? Math.max(1, Math.trunc(minUses)) : Number.POSITIVE_INFINITY
+  return normalized === current.minUses ? current : { minUses: normalized }
+}
+
+function normalizeScopeConfig(
+  scope: string | CipoScopeConfig | undefined,
+  current: Required<CipoScopeConfig>,
+): Required<CipoScopeConfig> {
+  if (scope === undefined) return current
+  const selector = typeof scope === 'string' ? scope : scope.selector ?? current.selector
+  const strategy = typeof scope === 'string'
+    ? inferScopeStrategy(scope)
+    : scope.strategy ?? inferScopeStrategy(selector)
+  const next = { strategy, selector: selector || '' } as Required<CipoScopeConfig>
+  return next.strategy === current.strategy && next.selector === current.selector ? current : next
+}
+
+function inferScopeStrategy(selector: string): Required<CipoScopeConfig>['strategy'] {
+  const value = String(selector || '').trim()
+  if (!value) return 'none'
+  if (value === ':host' || value.startsWith(':host')) return 'host'
+  if (value.startsWith('#')) return 'id'
+  if (value.startsWith('.')) return 'where'
+  return 'selector'
+}
+
+function normalizeDebugOverlayConfig(
+  debugOverlay: boolean | CipoDebugOverlayConfig | undefined,
+  current: RuntimeConfig['debugOverlay'],
+): RuntimeConfig['debugOverlay'] {
+  if (debugOverlay === undefined) return current
+  if (typeof debugOverlay === 'boolean') {
+    return debugOverlay === current.enabled ? current : { ...current, enabled: debugOverlay }
+  }
+  const next = {
+    enabled: debugOverlay.enabled ?? current.enabled,
+    target: debugOverlay.target ?? current.target,
+    position: debugOverlay.position ?? current.position,
+  } as Required<CipoDebugOverlayConfig>
+  return next.enabled === current.enabled && next.target === current.target && next.position === current.position ? current : next
+}
 
 function normalizeDebugConfig(
   debug: boolean | CipoDebugConfig | undefined,
@@ -175,6 +229,9 @@ function sameRuntimeConfig(left: RuntimeConfig, right: RuntimeConfig): boolean {
     left.themeValidation === right.themeValidation &&
     left.registerTypedThemeProperties === right.registerTypedThemeProperties &&
     left.jit === right.jit &&
+    left.atomic === right.atomic &&
+    left.scope === right.scope &&
+    left.debugOverlay === right.debugOverlay &&
     left.onWarning === right.onWarning
   )
 }

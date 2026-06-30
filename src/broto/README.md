@@ -348,3 +348,35 @@ html`<span>${label}</span>`
 ```
 
 JavaScript evaluates `${state.user.profile.name()}` before the tagged template can see the expression, so that exact form is a plain value. Prefer `${state.user.profile.name}`, `${state.view.user.profile.name}` or `${() => state.user.profile.name()}` for live DOM bindings.
+
+## 🥬 Store middleware and devtools bridge
+
+Broto stores now support middleware at creation time and after creation:
+
+```ts
+const state = store({ count: 0 }, {
+  middleware: [
+    (event, api, next) => {
+      console.log(event.type, api.snapshot())
+      next(event)
+    },
+  ],
+  devtools: {
+    listener(event) {
+      window.dispatchEvent(new CustomEvent('broto:mutation', { detail: event }))
+    },
+  },
+})
+
+state.use((event, api, next) => {
+  performance.mark(`broto:${event.type}`)
+  next(event)
+})
+
+state.subscribeDevtools((event) => {
+  console.table({ type: event.type, cause: event.cause })
+})
+```
+
+Middleware runs after the state mutation and before subscribers/devtools listeners. It can annotate or drop events by deciding whether to call `next(event)`. Devtools listeners receive the final post-middleware event shape, making Alerta or any external panel integration straightforward.
+

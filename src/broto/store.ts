@@ -40,6 +40,23 @@ export type StoreUnsubscribe = () => void;
 /** Store subscriber callback. */
 export type StoreSubscriber<State> = (event: StorePatchEvent<State>) => void;
 
+/** Store middleware receives each mutation event before subscribers. */
+export type StoreMiddleware<State extends Record<string, unknown> = Record<string, unknown>> = (
+  event: StorePatchEvent<State>,
+  api: { readonly snapshot: () => State; readonly store: Store<State> },
+  next: (event: StorePatchEvent<State>) => void,
+) => void;
+
+/** Devtools adapter event emitted after middleware processing. */
+export type StoreDevtoolsListener<State extends Record<string, unknown> = Record<string, unknown>> = (event: StorePatchEvent<State>) => void;
+
+/** Optional store creation hooks for middleware and external devtools panels. */
+export interface StoreOptions<State extends Record<string, unknown>> {
+  readonly name?: string;
+  readonly middleware?: readonly StoreMiddleware<State>[];
+  readonly devtools?: boolean | { readonly name?: string; readonly listener?: StoreDevtoolsListener<State> };
+}
+
 /** Recursively turns plain object leaves into signals while keeping nested objects reactive. */
 export type DeepStoreValue<Value> = Value extends Primitive
   ? Signal<Value>
@@ -83,6 +100,10 @@ export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
   readonly view: StoreView<State>;
   /** Subscribes to root set/patch/update/path events. */
   subscribe(listener: StoreSubscriber<State>): StoreUnsubscribe;
+  /** Adds middleware after store creation. */
+  use(listener: StoreMiddleware<State>): StoreUnsubscribe;
+  /** Subscribes an external devtools panel to post-middleware mutation events. */
+  subscribeDevtools(listener: StoreDevtoolsListener<State>): StoreUnsubscribe;
 };
 
 /** Backwards compatible public store type. */
@@ -166,20 +187,44 @@ const STORE_VERSION = new WeakMap<object, Signal<number>>();
  * });
  * ```
  */
-export function store<State extends Record<string, unknown>>(initialState: State): Store<State> {
+export function store<State extends Record<string, unknown>>(initialState: State, options: StoreOptions<State> = {}): Store<State> {
   brotoDebugState.stores += 1;
   const subscribers = new Set<StoreSubscriber<State>>();
+  const middleware = Array.isArray(options.middleware) ? options.middleware.slice() : [];
+  const devtoolsListeners = new Set<StoreDevtoolsListener<State>>();
   let root: Record<string, unknown>;
+
+  if (typeof options.devtools === "object" && typeof options.devtools.listener === "function") {
+    devtoolsListeners.add(options.devtools.listener);
+  }
+
+  const dispatchSubscribers = (event: StorePatchEvent<State>): void => {
+    for (const listener of devtoolsListeners) listener(event);
+    const pending: StoreSubscriber<State>[] = [];
+    for (const subscriber of subscribers) pending[pending.length] = subscriber;
+    for (let index = 0; index < pending.length; index += 1) pending[index]?.(event);
+  };
 
   const notify = (event: StorePatchEvent): void => {
     const typedEvent = event as StorePatchEvent<State>;
-    const pending: StoreSubscriber<State>[] = [];
-    for (const subscriber of subscribers) pending[pending.length] = subscriber;
-    for (let index = 0; index < pending.length; index += 1) pending[index]?.(typedEvent);
+    if (middleware.length === 0) {
+      dispatchSubscribers(typedEvent);
+      return;
+    }
+
+    let cursor = -1;
+    const api = { snapshot: () => (root as Store<State>).snapshot(), store: root as Store<State> };
+    const next = (nextEvent: StorePatchEvent<State>): void => {
+      cursor += 1;
+      const fn = middleware[cursor];
+      if (fn) fn(nextEvent, api, next);
+      else dispatchSubscribers(nextEvent);
+    };
+    next(typedEvent);
   };
 
   root = createStoreObject(initialState, [], notify) as Record<string, unknown>;
-  installRootStoreApi(root, subscribers, notify);
+  installRootStoreApi(root, subscribers, notify, middleware as StoreMiddleware<State>[], devtoolsListeners);
 
   return root as Store<State>;
 }
@@ -326,17 +371,38 @@ function installRootStoreApi<State extends Record<string, unknown>>(
   root: Record<string, unknown>,
   subscribers: Set<StoreSubscriber<State>>,
   notify: (event: StorePatchEvent) => void,
+  middleware: StoreMiddleware<State>[],
+  devtoolsListeners: Set<StoreDevtoolsListener<State>>,
 ): void {
   STORE_NOTIFY.set(root, notify);
 
-  Object.defineProperty(root, "subscribe", {
-    enumerable: false,
-    value(listener: StoreSubscriber<State>): StoreUnsubscribe {
-      if (typeof listener !== "function") return () => {};
-      subscribers.add(listener);
-      return () => {
-        subscribers.delete(listener);
-      };
+  Object.defineProperties(root, {
+    subscribe: {
+      enumerable: false,
+      value(listener: StoreSubscriber<State>): StoreUnsubscribe {
+        if (typeof listener !== "function") return () => {};
+        subscribers.add(listener);
+        return () => { subscribers.delete(listener); };
+      },
+    },
+    use: {
+      enumerable: false,
+      value(fn: StoreMiddleware<State>): StoreUnsubscribe {
+        if (typeof fn !== "function") return () => {};
+        middleware.push(fn);
+        return () => {
+          const index = middleware.indexOf(fn);
+          if (index >= 0) middleware.splice(index, 1);
+        };
+      },
+    },
+    subscribeDevtools: {
+      enumerable: false,
+      value(listener: StoreDevtoolsListener<State>): StoreUnsubscribe {
+        if (typeof listener !== "function") return () => {};
+        devtoolsListeners.add(listener);
+        return () => { devtoolsListeners.delete(listener); };
+      },
     },
   });
 }
@@ -614,7 +680,7 @@ function createStoreViewProxy(
       if (property === Symbol.toPrimitive) return () => stringifyStoreViewValue(target.peek());
       if (property === "toJSON") return () => target.peek();
       if (property === "toString") return () => stringifyStoreViewValue(target.peek());
-      if (property === "set" || property === "update" || property === "peek" || property === "subscribe") {
+      if (property === "set" || property === "update" || property === "peek" || property === "subscribe" || property === "use" || property === "subscribeDevtools") {
         return Reflect.get(target, property, receiver);
       }
 

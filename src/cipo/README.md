@@ -1576,3 +1576,87 @@ const SandboxButton = sandboxStyled.button('Button')`
 bridge while sharing Cipó's compiler and atomic CSS caches. Named components are
 registered through the new `registry.register()` fast path, so Fabrica's legacy
 `registerComponent()` deprecation warning is not triggered.
+
+## 🌿 Enterprise CSS authoring
+
+### Bang important declarations
+
+Any declaration can be marked important by placing `!` before the property name:
+
+```ts
+const button = css`
+  !bg: $brand
+  !px: 4
+  color: $ink
+`
+```
+
+Cipó normalizes this after token/helper resolution, so scaled values still compile correctly and existing `!important` markers are not duplicated.
+
+### Atomic promotion by reuse
+
+Set a promotion threshold when you want one-off declarations to stay local and repeated declarations to become shared atoms:
+
+```ts
+setup({
+  atomic: { minUses: 2 },
+})
+```
+
+The first use compiles into the component scope class. When the same declaration/context is seen again, Cipó promotes it into the shared atomic rule cache. This keeps generated class lists quieter in small components while preserving dedupe for real reuse.
+
+### Global selector scope
+
+Use scope to isolate generated selectors:
+
+```ts
+setup({
+  scope: { strategy: 'where', selector: '.my-app' },
+})
+```
+
+Strategies are `none`, `where`, `class`, `id`, `selector` and `host`. The recommended default for apps and userscripts is `where` because `:where(...)` does not add specificity.
+
+### Container queries
+
+Container declarations are preserved as native CSS while query variants stay in Cipó syntax:
+
+```ts
+sheet.css`
+  .card {
+    container: card / inline-size
+
+    x:cq(md) {
+      grid-template(cols: 1fr 1fr)
+    }
+  }
+`
+```
+
+### Tailwind-style utilities, CSS-first
+
+Cipó keeps the ergonomics of modern utility systems but places them inside CSS declarations:
+
+```ts
+sheet.css`
+  .utility {
+    sr-only
+    not-sr-only
+    bg: color-sky-240
+    text(nowrap)
+    break(anywhere)
+    ring: glow
+    space-y: 2
+  }
+`
+```
+
+### Debug observatory
+
+```ts
+const stats = getDebugOverlayStats()
+installDebugOverlay(document)
+```
+
+The stats object reports total atoms, inserted rules, promoted atoms, single-use fallbacks, reused atoms and generated CSS bytes.
+

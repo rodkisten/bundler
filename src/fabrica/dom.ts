@@ -237,20 +237,31 @@ export function render(
       container.replaceChildren(resolvedValue);
       debugState.reconciliations += 1;
 
-      const dispose = (): void => {
-        if (cleanupNodes.length > 0) {
-          disposeCollectedCleanups(cleanupNodes);
-        } else if (dynamic) {
-          disposeTree(container);
-        }
+      if (state?.kind === "direct") {
+        state.cleanupNodes = cleanupNodes;
+        state.dynamic = dynamic;
+        renderStates.set(container, state);
+        return state.dispose;
+      }
 
-        container.replaceChildren();
-        renderStates.delete(container);
+      const directState: Extract<RootRenderState, { kind: "direct" }> = {
+        kind: "direct",
+        cleanupNodes,
+        dynamic,
+        dispose: () => {
+          if (directState.cleanupNodes.length > 0) {
+            disposeCollectedCleanups(directState.cleanupNodes);
+          } else if (directState.dynamic) {
+            disposeTree(container);
+          }
+
+          container.replaceChildren();
+          renderStates.delete(container);
+        },
       };
 
-      state = { kind: "direct", dispose, cleanupNodes, dynamic };
-      renderStates.set(container, state);
-      return dispose;
+      renderStates.set(container, directState);
+      return directState.dispose;
     }
 
     if (!state || state.kind === "direct") {

@@ -415,6 +415,11 @@ function parseCipoBlock(body: string): Partial<Mutable<CipoConfig>> {
     else if (key === 'important') config.important = parseBoolean(value)
     else if (key === 'debug') config.debug = parseBoolean(value)
     else if (key === 'minify') config.minify = parseBoolean(value)
+    else if (key === 'atomic-min-uses' || key === 'atomicMinUses') config.atomic = { minUses: parseCssNumber(value, 1) }
+    else if (key === 'scope') config.scope = stripQuotes(value)
+    else if (key === 'scope-selector' || key === 'scopeSelector') config.scope = { ...(typeof config.scope === 'object' ? config.scope : {}), selector: stripQuotes(value) }
+    else if (key === 'scope-strategy' || key === 'scopeStrategy') config.scope = { ...(typeof config.scope === 'object' ? config.scope : {}), strategy: stripQuotes(value) as never }
+    else if (key === 'debug-overlay' || key === 'debugOverlay') config.debugOverlay = parseBoolean(value)
     else if (key === 'color-mode' || key === 'colorMode') config.colorMode = stripQuotes(value) as NonNullable<CipoConfig['colorMode']>
     else if (key === 'dark-selector' || key === 'darkSelector') config.darkSelector = stripQuotes(value)
     else if (key === 'theme-root' || key === 'themeRootSelector') config.themeRootSelector = stripQuotes(value)

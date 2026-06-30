@@ -1,3 +1,20 @@
+
+
+## Unreleased
+
+### Added
+
+- Added `!property: value` declaration priority syntax for Cipó with idempotent important handling.
+- Added atomic promotion thresholds via `setup({ atomic: { minUses } })`, keeping single-use declarations scoped and promoting repeated declarations into shared atoms.
+- Added configurable generated-selector scoping with `scope: { strategy, selector }`, including low-specificity `:where(...)` support.
+- Added debug observability helpers, `getDebugOverlayStats()` and `installDebugOverlay()`, for atom reuse and generated CSS diagnostics.
+- Added CSS-first coverage tests for container queries and Tailwind-like utility helpers inside declarations.
+- Added Broto store middleware and devtools listener hooks through `store(initial, { middleware, devtools })`, `store.use()` and `store.subscribeDevtools()`.
+
+### Fixed
+
+- Preserved native `container: name / inline-size` values instead of treating the slash as arithmetic.
+- Kept Fábrica root `render()` disposer identity stable across direct fragment rerenders.
 ## Instance-scoped styled registries
 
 - Added `createStyled({ fabrica | registry })` for independent styled factories bound to separate Fabrica instances.

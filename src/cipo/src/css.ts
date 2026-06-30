@@ -348,7 +348,8 @@ function compilePolymorphicCss(
     polymorphic.css,
     important ? "important" : "auto",
   );
-  const cached = getCachedArtifact(cacheKey);
+  const cacheable = runtime.config.atomic.minUses <= 1;
+  const cached = cacheable ? getCachedArtifact(cacheKey) : undefined;
 
   if (cached) return cached;
 
@@ -376,7 +377,7 @@ function compilePolymorphicCss(
     important,
   );
   insertCss(artifact.compiledCss);
-  setCachedArtifact(cacheKey, artifact);
+  if (cacheable) setCachedArtifact(cacheKey, artifact);
   return artifact;
 }
 

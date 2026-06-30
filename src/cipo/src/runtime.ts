@@ -53,6 +53,18 @@ export const runtime: RuntimeState = {
       maxEntries: 3000,
       debug: false,
     },
+    atomic: {
+      minUses: 1,
+    },
+    scope: {
+      strategy: 'none',
+      selector: '',
+    },
+    debugOverlay: {
+      enabled: false,
+      target: undefined,
+      position: 'right',
+    },
   },
   sheet: null,
   insertedCss: new Set(),
@@ -76,6 +88,8 @@ export const runtime: RuntimeState = {
   themeVersion: 0,
   configVersion: 0,
   registryVersion: 0,
+  atomicUsageCounts: new Map(),
+  atomicSingleUseFallbacks: new Map(),
 }
 
 /**
