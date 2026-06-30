@@ -61,29 +61,28 @@ export class Console extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <div class="roderuda-console roderuda-scroll roderuda-with-control" data-console-body>
-        <div class="roderuda-control">
-          <button class="roderuda-icon-btn" type="button" data-action="clear" title="Clear">${icon("clear")}</button>
-          <div class="roderuda-console-levels">
-            ${visibleLevels.map((level) => `<button class="roderuda-console-level roderuda-active" type="button" data-level="${level}">${level}</button>`).join("")}
-          </div>
-          <div class="roderuda-control-spacer"></div>
-          <input class="roderuda-search" data-console-filter type="search" placeholder="Filter" aria-label="Filter console">
-          <button class="roderuda-icon-btn" type="button" data-action="copy" title="Copy console">${icon("copy")}</button>
-        </div>
-        <div class="roderuda-console-list" data-console-list></div>
-      </div>
-      <div class="roderuda-console-input-wrap" data-console-input-wrap>
-        <span class="roderuda-console-prompt">›</span>
-        <textarea class="roderuda-console-input" data-console-input rows="1" spellcheck="false" autocomplete="off" aria-label="JavaScript console"></textarea>
-        <div class="roderuda-console-editor-actions">
-          <button type="button" data-action="cancel-editor">Cancel</button>
-          <button type="button" data-action="clear-editor">Clear</button>
-          <button type="button" data-action="run-editor">Run</button>
-        </div>
-      </div>
-    `;
+    const body = create("div", { className: "roderuda-console roderuda-scroll roderuda-with-control", attrs: { "data-console-body": "" } });
+    const control = create("div", { className: "roderuda-control" });
+    const clearButton = create("button", { className: "roderuda-icon-btn", text: icon("clear"), attrs: { type: "button", "data-action": "clear", title: "Clear" } });
+    const levels = create("div", { className: "roderuda-console-levels" });
+    for (const level of visibleLevels) {
+      levels.append(create("button", { className: "roderuda-console-level roderuda-active", text: level, attrs: { type: "button", "data-level": level } }));
+    }
+    const filter = create("input", { className: "roderuda-search", attrs: { "data-console-filter": "", type: "search", placeholder: "Filter", "aria-label": "Filter console" } });
+    const copyButton = create("button", { className: "roderuda-icon-btn", text: icon("copy"), attrs: { type: "button", "data-action": "copy", title: "Copy console" } });
+    control.append(clearButton, levels, create("div", { className: "roderuda-control-spacer" }), filter, copyButton);
+    body.append(control, create("div", { className: "roderuda-console-list", attrs: { "data-console-list": "" } }));
+
+    const inputWrap = create("div", { className: "roderuda-console-input-wrap", attrs: { "data-console-input-wrap": "" } });
+    const input = create("textarea", { className: "roderuda-console-input", attrs: { "data-console-input": "", rows: 1, spellcheck: "false", autocomplete: "off", "aria-label": "JavaScript console" } });
+    const editorActions = create("div", { className: "roderuda-console-editor-actions" });
+    editorActions.append(
+      create("button", { text: "Cancel", attrs: { type: "button", "data-action": "cancel-editor" } }),
+      create("button", { text: "Clear", attrs: { type: "button", "data-action": "clear-editor" } }),
+      create("button", { text: "Run", attrs: { type: "button", "data-action": "run-editor" } }),
+    );
+    inputWrap.append(create("span", { className: "roderuda-console-prompt", text: "›" }), input, editorActions);
+    container.replaceChildren(body, inputWrap);
     this.body = qs(container, "[data-console-body]");
     this.list = qs(container, "[data-console-list]");
     this.input = qs(container, "[data-console-input]");
@@ -102,7 +101,11 @@ export class Console extends Tool {
 
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
-    this.capture.install({ overrideConsole: this.config.get("overrideConsole"), catchGlobalErrors: this.config.get("catchGlobalErr") });
+    try {
+      this.capture.install({ overrideConsole: this.config.get("overrideConsole"), catchGlobalErrors: this.config.get("catchGlobalErr") });
+    } catch (error) {
+      context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
+    }
     this.config.on("change", this.onConfigChange);
     this.registerSettings(context);
     this.applyConfig();
@@ -220,8 +223,7 @@ export class Console extends Tool {
     if (record.collapsed != null) row.append(create("span", { className: "roderuda-console-group", text: record.collapsed ? "▸" : "▾" }));
 
     if (record.level === "html") {
-      const content = create("span");
-      content.innerHTML = String(record.args[0] ?? "");
+      const content = create("span", { text: String(record.args[0] ?? "") });
       row.append(content);
     } else if (record.level === "table") {
       row.append(this.renderTable(record.args[0]));

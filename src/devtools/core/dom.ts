@@ -1,5 +1,31 @@
 export type Cleanup = () => void;
 
+type TrustedTypesPolicy = { createHTML(value: string): unknown };
+
+type TrustedTypesFactory = {
+  createPolicy(name: string, rules: { createHTML(value: string): string }): TrustedTypesPolicy;
+};
+
+let roderudaTrustedTypesPolicy: TrustedTypesPolicy | null | undefined;
+
+export function trustedHtml(value: string): unknown {
+  const trustedTypes = typeof window !== "undefined" ? (window as unknown as { trustedTypes?: TrustedTypesFactory }).trustedTypes : undefined;
+  if (!trustedTypes) return value;
+  if (roderudaTrustedTypesPolicy === undefined) {
+    try {
+      roderudaTrustedTypesPolicy = trustedTypes.createPolicy("roderuda-devtools", { createHTML: (html) => html });
+    } catch {
+      roderudaTrustedTypesPolicy = null;
+    }
+  }
+  return roderudaTrustedTypesPolicy ? roderudaTrustedTypesPolicy.createHTML(value) : value;
+}
+
+export function setHtml(element: Element, html: string): void {
+  (element as Element & { innerHTML: unknown }).innerHTML = trustedHtml(html);
+}
+
+
 export function qs<T extends Element>(root: ParentNode, selector: string): T {
   const element = root.querySelector<T>(selector);
   if (!element) throw new Error(`[Devtools] Missing element: ${selector}`);
@@ -22,7 +48,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
   const element = document.createElement(tag);
   if (options.className) element.className = options.className;
   if (options.text != null) element.textContent = options.text;
-  if (options.html != null) element.innerHTML = options.html;
+  if (options.html != null) setHtml(element, options.html);
   if (options.attrs) {
     for (const [name, value] of Object.entries(options.attrs)) {
       if (value == null || value === false) continue;
@@ -192,6 +218,33 @@ export function downloadText(filename: string, text: string, type = "text/plain"
   const anchor = create("a", { attrs: { href: url, download: filename } });
   anchor.click();
   queueMicrotask(() => URL.revokeObjectURL(url));
+}
+
+export function applyImportantStyle(element: HTMLElement, styles: Record<string, string>): void {
+  for (const [property, value] of Object.entries(styles)) {
+    element.style.setProperty(property, value, "important");
+  }
+}
+
+export function forceAppendToPage(element: HTMLElement): boolean {
+  const roots: Array<ParentNode | null> = [document.body, document.documentElement, document.head];
+  for (const root of roots) {
+    if (!root) continue;
+    try {
+      if (!element.isConnected) {
+        (root as HTMLElement).appendChild(element);
+      }
+      return element.isConnected;
+    } catch {
+      // Keep trying. Some hostile pages temporarily monkey-patch appendChild or replace roots.
+    }
+  }
+  try {
+    document.appendChild(element);
+    return element.isConnected;
+  } catch {
+    return element.isConnected;
+  }
 }
 
 export function isDevtoolsNode(value: EventTarget | Node | null, host?: HTMLElement | null): boolean {

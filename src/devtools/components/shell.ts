@@ -1,5 +1,5 @@
 import { createFabrica } from "../../fabrica/index";
-import { qs } from "../core/dom";
+import { create, qs } from "../core/dom";
 
 const fabrica = createFabrica({ name: "roderuda-devtools", isolated: true });
 
@@ -28,7 +28,21 @@ export interface ShellRefs {
 }
 
 export function renderShell(target: HTMLElement | ShadowRoot, inline = false): ShellRefs {
-  fabrica.render(target, DevtoolsShell({ inline }));
+  try {
+    fabrica.render(target, DevtoolsShell({ inline }));
+  } catch {
+    renderShellNative(target, inline);
+  }
+
+  try {
+    return collectShellRefs(target);
+  } catch {
+    renderShellNative(target, inline);
+    return collectShellRefs(target);
+  }
+}
+
+function collectShellRefs(target: HTMLElement | ShadowRoot): ShellRefs {
   const root = qs<HTMLElement>(target, "[data-roderuda-root]");
   return {
     root,
@@ -40,4 +54,23 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
     notifications: qs<HTMLElement>(root, ".roderuda-notifications"),
     modalRoot: qs<HTMLElement>(root, ".roderuda-modal-root"),
   };
+}
+
+function renderShellNative(target: HTMLElement | ShadowRoot, inline = false): void {
+  const root = create("div", { className: `roderuda-container${inline ? " roderuda-inline" : ""}`, attrs: { "data-roderuda-root": "" } });
+  const entryButton = create("button", {
+    className: "roderuda-entry-btn",
+    text: "⌘",
+    attrs: { type: "button", "aria-label": "Open developer tools", title: "RodEruda" },
+  });
+  const devtools = create("section", { className: "roderuda-dev-tools", attrs: { "aria-label": "Developer tools", "aria-hidden": "true" } });
+  devtools.append(
+    create("div", { className: "roderuda-resizer", attrs: { role: "separator", "aria-orientation": "horizontal", "aria-label": "Resize developer tools" } }),
+    create("nav", { className: "roderuda-tabbar", attrs: { "aria-label": "Developer tools panels" } }),
+    create("main", { className: "roderuda-tools" }),
+    create("div", { className: "roderuda-notifications", attrs: { "aria-live": "polite" } }),
+    create("div", { className: "roderuda-modal-root", attrs: { role: "presentation" } }),
+  );
+  root.append(entryButton, devtools);
+  target.replaceChildren(root);
 }
