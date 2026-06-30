@@ -26,7 +26,7 @@ export class Settings extends Tool implements SettingsLike {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `<div class="roderuda-settings roderuda-scroll" data-settings-body></div>`;
+    container.replaceChildren(create("div", { className: "roderuda-settings roderuda-scroll", attrs: { "data-settings-body": "" } }));
     this.body = qs(container, "[data-settings-body]");
     this.cleanup.push(delegate(this.body, "change", "[data-setting-id]", (event, element) => this.handleChange(event, element)));
     this.cleanup.push(delegate(this.body, "click", "button[data-setting-id]", (_event, element) => this.handleButton(element)));
