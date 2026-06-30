@@ -27,10 +27,10 @@
   --pkg-accent-line: rgb(214 185 140 / .32);
   --pkg-ink: #1b1510;
 
-  --broto-accent: #d8c7a1;
-  --broto-accent-2: #f0e5c9;
-  --broto-soft: rgb(87 64 191 / .14); /*rgb(216 199 161 / .14);*/
-  --broto-line: rgb(87 64 191 / .38);
+  --broto-accent: var(--pipeline-accent, #d8c7a1);
+  --broto-accent-2: var(--pipeline-accent-2, #f0e5c9);
+  --broto-soft: var(--pipeline-soft, rgb(87 64 191 / .14)); /*rgb(216 199 161 / .14);*/
+  --broto-line: var(--pipeline-line, rgb(87 64 191 / .38));
 
   --fabrica-accent: #c76b3d;
   --fabrica-accent-2: #f0a070;
