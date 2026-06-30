@@ -1,6 +1,7 @@
 import type { ShellRefs } from "./components/shell";
 import { ConfigStore } from "./core/config";
-import { create, delegate, on } from "./core/dom";
+import { delegate, on } from "./core/dom";
+import { asNode, event, html, ref, uiState } from "./components/runtime";
 import { Emitter } from "./core/emitter";
 import { applyTheme, themes } from "./core/theme";
 import type {
@@ -80,26 +81,42 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       return this;
     }
 
-    const panel = create("section", {
-      className: `roderuda-tool roderuda-tool-${name.replace(/\s+/g, "-")}`,
-      attrs: { role: "tabpanel", "data-tool": name, "aria-label": tool.title ?? name },
-    });
+    let panel!: HTMLElement;
+    const panelFragment = html`
+      <section
+        class=${`roderuda-tool roderuda-tool-${name.replace(/\s+/g, "-")}`}
+        role="tabpanel"
+        data-tool=${name}
+        aria-label=${tool.title ?? name}
+        ref=${ref((node) => { panel = node as HTMLElement; })}
+      />
+    `;
+    asNode(panelFragment);
     this.refs.tools.prepend(panel);
 
-    const tab = create("button", {
-      className: "roderuda-tab",
-      attrs: { type: "button", role: "tab", "data-tool-tab": name, "aria-selected": "false" },
-    });
-    tab.append(
-      create("span", { className: "roderuda-tab-icon", text: tool.icon ?? name.slice(0, 1).toUpperCase() }),
-      create("span", { className: "roderuda-tab-label", text: tool.title ?? name }),
-    );
+    let tab!: HTMLButtonElement;
+    const tabFragment = html`
+      <button
+        class="roderuda-tab"
+        type="button"
+        role="tab"
+        data-tool-tab=${name}
+        aria-selected="false"
+        @click=${event(() => this.showTool(name))}
+        ref=${ref((node) => { tab = node as HTMLButtonElement; })}
+      >
+        <span class="roderuda-tab-icon">${tool.icon ?? name.slice(0, 1).toUpperCase()}</span>
+        <span class="roderuda-tab-label">${tool.title ?? name}</span>
+      </button>
+    `;
+    asNode(tabFragment);
     const settingsTab = this.refs.tabbar.querySelector('[data-tool-tab="settings"]');
     if (name !== "settings" && settingsTab) this.refs.tabbar.insertBefore(tab, settingsTab);
     else this.refs.tabbar.append(tab);
 
     this.tools.set(name, tool);
     this.tabs.set(name, tab);
+    uiState.setPath("panels.names", [...this.tools.keys()]);
     if (name === "settings") this.settings = tool as SettingsLike;
 
     try {
@@ -126,6 +143,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     this.tabs.get(name)?.remove();
     this.tabs.delete(name);
     this.tools.delete(name);
+    uiState.setPath("panels.names", [...this.tools.keys()]);
     if (this.settings === tool) this.settings = null;
     if (wasActive) {
       this.currentTool = "";
@@ -170,6 +188,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     tab?.setAttribute("aria-selected", "true");
     tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
     this.currentTool = name;
+    uiState.setPath("panels.active", name);
     this.emit("showTool", name, previous);
     return this;
   }
@@ -209,11 +228,16 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   notify(message: string, options: NotificationOptions = {}): void {
-    const item = create("div", {
-      className: `roderuda-notification roderuda-notification-${options.type ?? "info"}`,
-      text: message,
-      attrs: { role: options.type === "error" ? "alert" : "status", "data-notification": ++this.notificationSequence },
-    });
+    let item!: HTMLElement;
+    asNode(html`
+      <div
+        class=${`roderuda-notification roderuda-notification-${options.type ?? "info"}`}
+        role=${options.type === "error" ? "alert" : "status"}
+        data-notification=${++this.notificationSequence}
+        @click=${event(() => item && item.remove())}
+        ref=${ref((node) => { item = node as HTMLElement; })}
+      >${message}</div>
+    `);
     this.refs.notifications.append(item);
     requestAnimationFrame(() => item.classList.add("roderuda-active"));
     const remove = () => {
@@ -226,26 +250,35 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   async prompt(message: string, initialValue = ""): Promise<string | null> {
     return new Promise((resolve) => {
-      const body = create("form", { className: "roderuda-modal" });
-      const input = create("input", { className: "roderuda-modal-input", attrs: { value: initialValue, autocomplete: "off" } });
-      input.value = initialValue;
-      body.append(
-        create("div", { className: "roderuda-modal-title", text: message }),
-        create("div", { className: "roderuda-modal-body" }),
-      );
-      body.querySelector(".roderuda-modal-body")?.append(input);
-      const actions = create("div", { className: "roderuda-modal-actions" });
-      const cancel = create("button", { className: "roderuda-text-btn", text: "Cancel", attrs: { type: "button" } });
-      const submit = create("button", { className: "roderuda-text-btn", text: "OK", attrs: { type: "submit" } });
-      actions.append(cancel, submit);
-      body.append(actions);
+      let body!: HTMLFormElement;
+      let input!: HTMLInputElement;
       const finish = (value: string | null) => {
         body.remove();
+        uiState.setPath("modal.active", false);
         this.refs.modalRoot.classList.remove("roderuda-active");
         resolve(value);
       };
-      cancel.addEventListener("click", () => finish(null));
-      body.addEventListener("submit", (event) => { event.preventDefault(); finish(input.value); });
+      asNode(html`
+        <form
+          class="roderuda-modal"
+          @submit=${event((event: Event) => { event.preventDefault(); finish(input.value); })}
+          ref=${ref((node) => { body = node as HTMLFormElement; })}
+        >
+          <div class="roderuda-modal-title">${message}</div>
+          <div class="roderuda-modal-body">
+            <input
+              class="roderuda-modal-input"
+              value=${initialValue}
+              autocomplete="off"
+              ref=${ref((node) => { input = node as HTMLInputElement; input.value = initialValue; })}
+            />
+          </div>
+          <div class="roderuda-modal-actions">
+            <button class="roderuda-text-btn" type="button" @click=${event(() => finish(null))}>Cancel</button>
+            <button class="roderuda-text-btn" type="submit">OK</button>
+          </div>
+        </form>
+      `);
       this.openModal(body);
       requestAnimationFrame(() => { input.focus(); input.select(); });
     });
@@ -253,23 +286,24 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   async confirm(message: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const body = create("div", { className: "roderuda-modal" });
-      body.append(
-        create("div", { className: "roderuda-modal-title", text: "Confirm" }),
-        create("div", { className: "roderuda-modal-body", text: message }),
-      );
-      const actions = create("div", { className: "roderuda-modal-actions" });
-      const cancel = create("button", { className: "roderuda-text-btn", text: "Cancel", attrs: { type: "button" } });
-      const accept = create("button", { className: "roderuda-text-btn", text: "Continue", attrs: { type: "button" } });
-      actions.append(cancel, accept);
-      body.append(actions);
+      let body!: HTMLElement;
+      let accept!: HTMLButtonElement;
       const finish = (value: boolean) => {
         body.remove();
+        uiState.setPath("modal.active", false);
         this.refs.modalRoot.classList.remove("roderuda-active");
         resolve(value);
       };
-      cancel.addEventListener("click", () => finish(false));
-      accept.addEventListener("click", () => finish(true));
+      asNode(html`
+        <div class="roderuda-modal" ref=${ref((node) => { body = node as HTMLElement; })}>
+          <div class="roderuda-modal-title">Confirm</div>
+          <div class="roderuda-modal-body">${message}</div>
+          <div class="roderuda-modal-actions">
+            <button class="roderuda-text-btn" type="button" @click=${event(() => finish(false))}>Cancel</button>
+            <button class="roderuda-text-btn" type="button" @click=${event(() => finish(true))} ref=${ref((node) => { accept = node as HTMLButtonElement; })}>Continue</button>
+          </div>
+        </div>
+      `);
       this.openModal(body);
       requestAnimationFrame(() => accept.focus());
     });
@@ -362,6 +396,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   private openModal(modal: HTMLElement): void {
     this.refs.modalRoot.replaceChildren(modal);
+    uiState.setPath("modal.active", true);
     this.refs.modalRoot.classList.add("roderuda-active");
   }
 

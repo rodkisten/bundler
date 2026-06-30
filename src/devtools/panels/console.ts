@@ -1,3 +1,4 @@
+import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { ConsoleCapture } from "../core/console-capture";
 import { copyText, create, delegate, formatTime, icon, qs } from "../core/dom";
@@ -28,19 +29,21 @@ export class Console extends Tool {
   readonly icon = "⌘";
   readonly config: ConfigStore<ConsoleConfig>;
   private readonly capture = new ConsoleCapture();
-  private records: ConsoleRecord[] = [];
+  private readonly state = store({
+    records: [] as ConsoleRecord[],
+    filterValue: null as Filter,
+    history: [] as string[],
+    historyIndex: 0,
+    selectedRecordId: null as number | null,
+    renderQueued: false,
+    lastResult: undefined as unknown,
+  });
   private enabledLevels = new Set<ConsoleLevel>(visibleLevels);
-  private filterValue: Filter = null;
   private body: HTMLElement | null = null;
   private list: HTMLElement | null = null;
   private input: HTMLTextAreaElement | null = null;
   private inputWrap: HTMLElement | null = null;
   private cleanup: Array<() => void> = [];
-  private history: string[] = [];
-  private historyIndex = 0;
-  private lastResult: unknown;
-  private selectedRecord: ConsoleRecord | null = null;
-  private renderQueued = false;
 
   constructor({ name = "console" }: { name?: string } = {}) {
     super();
@@ -85,17 +88,19 @@ export class Console extends Tool {
     container.replaceChildren(body, inputWrap);
     this.body = qs(container, "[data-console-body]");
     this.list = qs(container, "[data-console-list]");
-    this.input = qs(container, "[data-console-input]");
+    const filterInput = qs<HTMLInputElement>(container, "[data-console-filter]");
+    const consoleInput = qs<HTMLTextAreaElement>(container, "[data-console-input]");
+    this.input = consoleInput;
     this.inputWrap = qs(container, "[data-console-input-wrap]");
 
     this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-level]", (_event, element) => this.toggleLevel(element)));
     this.cleanup.push(delegate(container, "click", ".roderuda-console-row", (_event, element) => this.selectRecord(element)));
-    this.cleanup.push(this.listen(qs<HTMLInputElement>(container, "[data-console-filter]"), "input", (event) => {
+    this.cleanup.push(this.listen(filterInput, "input", (event) => {
       this.filter((event.target as HTMLInputElement).value);
     }));
-    this.cleanup.push(this.listen(this.input, "keydown", (event) => this.handleInputKey(event as KeyboardEvent)));
-    this.cleanup.push(this.listen(this.input, "focus", () => {
+    this.cleanup.push(this.listen(consoleInput, "keydown", (event) => this.handleInputKey(event as KeyboardEvent)));
+    this.cleanup.push(this.listen(consoleInput, "focus", () => {
       if (this.input?.value.includes("\n") || (this.input?.value.length ?? 0) > 80) this.expandEditor(true);
     }));
 
@@ -127,7 +132,7 @@ export class Console extends Tool {
   ignoreGlobalErr(): this { this.capture.disableGlobalErrors(); return this; }
 
   filter(filter: Filter): void {
-    this.filterValue = typeof filter === "string" && !filter.trim() ? null : filter;
+    this.state.setPath("filterValue", typeof filter === "string" && !filter.trim() ? null : filter);
     this.render();
   }
 
@@ -142,18 +147,19 @@ export class Console extends Tool {
     this.capture.destroy();
     this.config.off("change", this.onConfigChange);
     for (const cleanup of this.cleanup.splice(0)) cleanup();
-    this.records = [];
+    this.state.setPath("records", []);
     super.destroy();
   }
 
   private readonly onRecord = (record: ConsoleRecord): void => {
-    const last = this.records.at(-1);
+    const records = [...this.state.snapshot().records];
+    const last = records.at(-1);
     if (last && sameRecord(last, record)) {
-      last.repeat = (last.repeat ?? 1) + 1;
-      last.timestamp = record.timestamp;
+      records[records.length - 1] = { ...last, repeat: (last.repeat ?? 1) + 1, timestamp: record.timestamp };
     } else {
-      this.records.push(record);
+      records.push(record);
     }
+    this.state.setPath("records", records);
     this.trimRecords();
     if (this.config.get("asyncRender")) this.scheduleRender();
     else this.render();
@@ -163,8 +169,8 @@ export class Console extends Tool {
   };
 
   private readonly onClear = (): void => {
-    this.records = [];
-    this.selectedRecord = null;
+    this.state.setPath("records", []);
+    this.state.setPath("selectedRecordId", null);
     this.render();
   };
 
@@ -202,7 +208,7 @@ export class Console extends Tool {
   private render(): void {
     if (!this.list) return;
     const fragment = document.createDocumentFragment();
-    for (const record of this.records) {
+    for (const record of this.state.snapshot().records) {
       if (!this.matches(record)) continue;
       fragment.append(this.renderRecord(record));
     }
@@ -279,21 +285,22 @@ export class Console extends Tool {
       ? "log"
       : record.level;
     if (!this.enabledLevels.has(level)) return false;
-    if (!this.filterValue) return true;
-    if (typeof this.filterValue === "function") return this.filterValue(record);
+    const filterValue = this.state.snapshot().filterValue;
+    if (!filterValue) return true;
+    if (typeof filterValue === "function") return filterValue(record);
     const text = record.args.map(plainText).join(" ");
-    if (this.filterValue instanceof RegExp) {
-      this.filterValue.lastIndex = 0;
-      return this.filterValue.test(text);
+    if (filterValue instanceof RegExp) {
+      filterValue.lastIndex = 0;
+      return filterValue.test(text);
     }
-    return text.toLowerCase().includes(this.filterValue.toLowerCase());
+    return text.toLowerCase().includes(filterValue.toLowerCase());
   }
 
   private scheduleRender(): void {
-    if (this.renderQueued) return;
-    this.renderQueued = true;
+    if (this.state.snapshot().renderQueued) return;
+    this.state.setPath("renderQueued", true);
     queueMicrotask(() => {
-      this.renderQueued = false;
+      this.state.setPath("renderQueued", false);
       this.render();
     });
   }
@@ -301,7 +308,8 @@ export class Console extends Tool {
   private trimRecords(): void {
     const value = this.config.get("maxLogNum");
     const max = value === "infinite" ? 0 : Number(value);
-    if (max > 0 && this.records.length > max) this.records.splice(0, this.records.length - max);
+    const records = this.state.snapshot().records;
+    if (max > 0 && records.length > max) this.state.setPath("records", records.slice(records.length - max));
   }
 
   private toggleLevel(element: HTMLElement): void {
@@ -314,7 +322,7 @@ export class Console extends Tool {
 
   private selectRecord(element: HTMLElement): void {
     const id = Number(element.dataset.recordId);
-    this.selectedRecord = this.records.find((record) => record.id === id) ?? null;
+    this.state.setPath("selectedRecordId", Number.isFinite(id) ? id : null);
   }
 
   private handleAction(event: Event, element: HTMLElement): void {
@@ -324,7 +332,7 @@ export class Console extends Tool {
         this.clear();
         break;
       case "copy":
-        void copyText(this.records.filter((record) => this.matches(record)).map((record) => record.args.map(plainText).join(" ")).join("\n"))
+        void copyText(this.state.snapshot().records.filter((record) => this.matches(record)).map((record) => record.args.map(plainText).join(" ")).join("\n"))
           .then(() => this.context?.notify("Console copied", { type: "success" }));
         break;
       case "cancel-editor":
@@ -353,12 +361,14 @@ export class Console extends Tool {
     }
     if (event.key === "ArrowUp" && !this.input.value.includes("\n")) {
       event.preventDefault();
-      this.historyIndex = Math.max(0, this.historyIndex - 1);
-      this.input.value = this.history[this.historyIndex] ?? "";
+      const nextIndex = Math.max(0, this.state.snapshot().historyIndex - 1);
+      this.state.setPath("historyIndex", nextIndex);
+      this.input.value = this.state.snapshot().history[nextIndex] ?? "";
     } else if (event.key === "ArrowDown" && !this.input.value.includes("\n")) {
       event.preventDefault();
-      this.historyIndex = Math.min(this.history.length, this.historyIndex + 1);
-      this.input.value = this.history[this.historyIndex] ?? "";
+      const nextIndex = Math.min(this.state.snapshot().history.length, this.state.snapshot().historyIndex + 1);
+      this.state.setPath("historyIndex", nextIndex);
+      this.input.value = this.state.snapshot().history[nextIndex] ?? "";
     } else if (event.key === "Escape") {
       this.expandEditor(false);
     } else if (event.key === "Enter" && event.shiftKey) {
@@ -369,20 +379,20 @@ export class Console extends Tool {
   private async executeInput(): Promise<void> {
     const code = this.input?.value.trim();
     if (!code || !this.input) return;
-    this.history.push(code);
-    this.historyIndex = this.history.length;
+    const history = [...this.state.snapshot().history, code];
+    this.state.patch({ history, historyIndex: history.length });
     this.capture.record("command", [code]);
     this.input.value = "";
     this.expandEditor(false);
 
     try {
       const result = await executeJavaScript(code, {
-        $_: this.lastResult,
-        $0: this.selectedRecord?.args[0],
+        $_: this.state.snapshot().lastResult,
+        $0: this.selectedRecord()?.args[0],
         devtools: this.context?.devtools,
         globals: this.capture.getGlobals(),
       });
-      this.lastResult = result;
+      this.state.setPath("lastResult", result);
       this.capture.record("result", [result]);
     } catch (error) {
       this.capture.record("error", [error]);
@@ -392,6 +402,11 @@ export class Console extends Tool {
   private expandEditor(expanded: boolean): void {
     this.inputWrap?.classList.toggle("roderuda-expanded", expanded);
     if (expanded) this.input?.focus();
+  }
+
+  private selectedRecord(): ConsoleRecord | null {
+    const id = this.state.snapshot().selectedRecordId;
+    return id == null ? null : this.state.snapshot().records.find((record) => record.id === id) ?? null;
   }
 
   private scrollToBottom(): void {

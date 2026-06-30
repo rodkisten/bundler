@@ -1,3 +1,5 @@
+import { uiElement } from "../components/runtime";
+
 export type Cleanup = () => void;
 
 type TrustedTypesPolicy = { createHTML(value: string): unknown };
@@ -22,18 +24,18 @@ export function trustedHtml(value: string): unknown {
 }
 
 export function setHtml(element: Element, html: string): void {
-  (element as Element & { innerHTML: unknown }).innerHTML = trustedHtml(html);
+  (element as Element & { innerHTML: string }).innerHTML = trustedHtml(html) as string;
 }
 
 
-export function qs<T extends Element>(root: ParentNode, selector: string): T {
-  const element = root.querySelector<T>(selector);
+export function qs<T = any>(root: ParentNode, selector: string): T {
+  const element = root.querySelector(selector);
   if (!element) throw new Error(`[Devtools] Missing element: ${selector}`);
-  return element;
+  return element as unknown as T;
 }
 
-export function qsa<T extends Element>(root: ParentNode, selector: string): T[] {
-  return Array.from(root.querySelectorAll<T>(selector));
+export function qsa<T = HTMLElement>(root: ParentNode, selector: string): T[] {
+  return Array.from(root.querySelectorAll(selector)) as unknown as T[];
 }
 
 export function create<K extends keyof HTMLElementTagNameMap>(
@@ -45,17 +47,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
     attrs?: Record<string, string | number | boolean | null | undefined>;
   } = {},
 ): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tag);
-  if (options.className) element.className = options.className;
-  if (options.text != null) element.textContent = options.text;
-  if (options.html != null) setHtml(element, options.html);
-  if (options.attrs) {
-    for (const [name, value] of Object.entries(options.attrs)) {
-      if (value == null || value === false) continue;
-      element.setAttribute(name, value === true ? "" : String(value));
-    }
-  }
-  return element;
+  return uiElement(tag, options) as HTMLElementTagNameMap[K];
 }
 
 export function on<K extends keyof HTMLElementEventMap>(
