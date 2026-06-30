@@ -1,696 +1,1322 @@
-import { injectStyle, sheet } from "../../cipo/src/index";
+import { injectStyle, css } from "../../cipo/src/index";
 
-export const devtoolsStyles = sheet.css`
+/* *************** */
+/* Design system   */
+/* *************** */
+
+export const devtoolsTokens = css`
+  @cipo {
+    prefix: rd;
+    layers: false;
+    minify: true;
+    rem: 16px;
+    color-mode: oklch;
+    theme-root: :host;
+    theme-validation: warn;
+  }
+
+  @theme {
+    colors<color>: (
+      background: var(--background),
+      backgroundDark: var(--darker-background),
+      foreground: var(--foreground),
+      primary: var(--primary),
+      accent: var(--accent),
+      border: var(--border),
+      highlight: var(--highlight),
+      contrast: var(--contrast),
+      selectedForeground: var(--select-foreground),
+      link: var(--link-color),
+      success: #2e8b57,
+      post: #8a63d2,
+      statusRedirect: #c18401,
+      warningBg: var(--console-warn-background),
+      warningFg: var(--console-warn-foreground),
+      warningBorder: var(--console-warn-border),
+      errorBg: var(--console-error-background),
+      errorFg: var(--console-error-foreground),
+      errorBorder: var(--console-error-border),
+      operator: var(--operator-color),
+      keyword: var(--keyword-color),
+      string: var(--string-color),
+      number: var(--number-color),
+      function: var(--function-color),
+      tag: var(--tag-name-color),
+      attr: var(--attribute-name-color),
+      var: var(--var-color),
+      comment: var(--comment-color)
+    );
+
+    spacing<size>: 0.25rem;
+
+    radius<length>: (
+      xs: 3px,
+      sm: 4px,
+      md: 5px,
+      control: 6px,
+      section: 7px,
+      notification: 8px,
+      panel: 10px,
+      modal: 10px,
+      pill: 999px
+    );
+
+    shadow<shadow>: (
+      entry: 0 4px 18px rgb(0 0 0 / .22),
+      panel: 0 -18px 60px rgb(0 0 0 / .2),
+      notification: 0 8px 30px rgb(0 0 0 / .24),
+      modal: 0 24px 90px rgb(0 0 0 / .4)
+    );
+
+    font<font>: (
+      ui: -apple-system, system-ui, BlinkMacSystemFont, ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", "Segoe UI", Tahoma, sans-serif,
+      mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace
+    );
+  }
+
+  @breakpoints {
+    xs: 520px;
+    md: 680px;
+  }
+
+  @alias touchScroll {
+    overscroll(contain)
+    -webkit-overflow-scrolling: touch
+  }
+
+  @alias noScrollbar {
+    scrollbar-width: none
+    &::-webkit-scrollbar { hidden }
+  }
+
+  @alias controlStrip {
+    flex
+    items-center
+    gap: 5px
+    bg: $backgroundDark
+    color: $primary
+    border-bottom: 1px solid $border
+  }
+
+  @alias rdControlButton {
+    flex: 0 0 auto
+    minw: 28px
+    h: 28px
+    inline-grid
+    place-items: center
+    p: 0 7px
+    rounded: $control
+    bg: transparent
+    color: $primary
+    cursor: pointer
+    transition: color .18s, background .18s, transform .1s
+  }
+
+  @alias rdInput {
+    minw: 0
+    bor: 1px solid $border
+    outline: none
+    bg: $background
+    color: $primary
+    select(text)
+  }
+
+  @alias rdCodeText {
+    font: 12px / 1.45 $font.mono
+    select(text)
+  }
+
+  @alias rdTextEllipsis {
+    overflow: hidden
+    text-overflow: ellipsis
+    text(nowrap)
+  }
+
+  @alias rdPanelSurface {
+    bg: $background
+    bor: 1px solid $border
+  }
+`;
+
+export const devtoolsStyles = css`
   :host {
-    all: initial;
-    contain: layout style;
+    all: initial
+    contain: layout style
+    color-scheme: dark light
   }
 
   .roderuda-container {
-    --rd-safe-bottom: env(safe-area-inset-bottom, 0px);
-    --rd-tab-height: 40px;
-    --rd-control-height: 40px;
-    --rd-radius: 10px;
-    --rd-font: -apple-system, system-ui, BlinkMacSystemFont, ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", "Segoe UI", Tahoma, sans-serif;
-    --rd-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    min-width: 320px;
-    pointer-events: none;
-    position: fixed;
-    inset: 0;
-    z-index: 2147483646;
-    color: var(--foreground);
-    font-family: var(--rd-font);
-    font-size: 14px;
-    line-height: 1.35;
-    direction: ltr;
-    text-align: left;
+    $$safeBottom: env(safe-area-inset-bottom, 0px)
+    $$tabHeight: 40px
+    $$controlHeight: 40px
+    $$entrySize: 40px
+    $$entryZ: 1000
+    $$toolsZ: 500
+    $$overlayZ: 1200
+
+    minw: 320px
+    pointer-events: none
+    pos(fixed, inset: 0)
+    z: 2147483646
+    color: $foreground
+    font-family: $font.ui
+    font-size: 14px
+    line-height: 1.35
+    direction: ltr
+    text-align: left
+
+    &.roderuda-inline {
+      pos(relative)
+      w: 100%
+      h: 100%
+      minh: 320px
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box
+      pointer-events: auto
+      -webkit-tap-highlight-color: transparent
+      -webkit-text-size-adjust: none
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit
+      color: inherit
+    }
+
+    button {
+      appearance: none
+      border: 0
+      m: 0
+    }
   }
 
-  .roderuda-container.roderuda-inline {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-height: 320px;
+  .roderuda-hidden {
+    hidden!
   }
 
-  .roderuda-container *,
-  .roderuda-container *::before,
-  .roderuda-container *::after {
-    box-sizing: border-box;
-    pointer-events: auto;
-    -webkit-tap-highlight-color: transparent;
-    -webkit-text-size-adjust: none;
-  }
-
-  .roderuda-container button,
-  .roderuda-container input,
-  .roderuda-container textarea,
-  .roderuda-container select {
-    font: inherit;
-    color: inherit;
-  }
-
-  .roderuda-container button {
-    appearance: none;
-    border: 0;
-    margin: 0;
-  }
-
-  .roderuda-hidden { display: none !important; }
   .roderuda-visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+    pos(absolute)
+    w: 1px
+    h: 1px
+    p: 0
+    m: -1px
+    overflow: hidden
+    clip: rect(0, 0, 0, 0)
+    text(nowrap)
+    border: 0
   }
 
   .roderuda-entry-btn {
-    touch-action: none;
-    position: fixed;
-    width: 40px;
-    height: 40px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-    background: #000;
-    color: #fff;
-    opacity: .3;
-    z-index: 1000;
-    cursor: grab;
-    font: 700 23px/1 var(--rd-font);
-    transition: opacity .3s, transform .15s;
-    box-shadow: 0 4px 18px rgb(0 0 0 / .22);
-  }
+    touch-action: none
+    pos(fixed)
+    w: $$entrySize
+    h: $$entrySize
+    grid
+    place-items: center
+    rounded: $panel
+    bg: black
+    color: white
+    opacity: .3
+    z: $$entryZ
+    cursor: grab
+    font: 700 23px / 1 $font.ui
+    transition: opacity .3s, transform .15s
+    shadow: $shadow.entry
 
-  .roderuda-entry-btn:hover,
-  .roderuda-entry-btn:active,
-  .roderuda-entry-btn.roderuda-active {
-    opacity: .82;
-  }
+    &:hover,
+    &:active,
+    &.roderuda-active {
+      opacity: .82
+    }
 
-  .roderuda-entry-btn:active { cursor: grabbing; transform: scale(.96); }
+    &:active {
+      cursor: grabbing
+      transform: scale(.96)
+    }
+  }
 
   .roderuda-dev-tools {
-    pointer-events: auto;
-    position: absolute;
-    width: 100%;
-    height: 80%;
-    left: 0;
-    bottom: 0;
-    z-index: 500;
-    display: none;
-    padding-top: var(--rd-tab-height);
-    opacity: 0;
-    background: var(--background);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -18px 60px rgb(0 0 0 / .2);
-    transition: opacity .3s;
-    overflow: hidden;
+    pointer-events: auto
+    pos(absolute, left: 0, bottom: 0)
+    w: 100%
+    h: 80%
+    z: $$toolsZ
+    hidden
+    pt: $$tabHeight
+    opacity: 0
+    bg: $background
+    border-top: 1px solid $border
+    shadow: $shadow.panel
+    transition: opacity .3s
+    overflow: hidden
   }
 
   .roderuda-inline .roderuda-dev-tools {
-    position: absolute;
-    height: 100%;
-    display: block;
-    opacity: 1;
+    pos(absolute)
+    h: 100%
+    block
+    opacity: 1
   }
 
   .roderuda-resizer {
-    position: absolute;
-    width: 100%;
-    height: 14px;
-    left: 0;
-    top: -8px;
-    touch-action: none;
-    cursor: row-resize;
-    z-index: 120;
-  }
+    pos(absolute, left: 0, top: -8px)
+    w: 100%
+    h: 14px
+    touch-action: none
+    cursor: row-resize
+    z: 120
 
-  .roderuda-resizer::after {
-    content: "";
-    display: block;
-    width: 44px;
-    height: 4px;
-    margin: 3px auto 0;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--primary) 35%, transparent);
+    &::after {
+      content: ""
+      block
+      w: 44px
+      h: 4px
+      m: 3px auto 0
+      rounded: $pill
+      bg: mix($primary, transparent, 35%)
+    }
   }
 
   .roderuda-tabbar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: var(--rd-tab-height);
-    display: flex;
-    align-items: stretch;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    background: var(--darker-background);
-    border-bottom: 1px solid var(--border);
-    color: var(--primary);
-    overscroll-behavior-x: contain;
+    pos(absolute, left: 0, right: 0, top: 0)
+    h: $$tabHeight
+    flex
+    items-stretch
+    overflow-x: auto
+    overflow-y: hidden
+    noScrollbar
+    bg: $backgroundDark
+    border-bottom: 1px solid $border
+    color: $primary
+    overscroll-behavior-x: contain
   }
-
-  .roderuda-tabbar::-webkit-scrollbar { display: none; }
 
   .roderuda-tab {
-    position: relative;
-    flex: 0 0 auto;
-    min-width: 78px;
-    height: 40px;
-    padding: 0 10px;
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    text-transform: capitalize;
-    font-size: 12px;
-    white-space: nowrap;
-    transition: color .2s, background .2s;
+    relative
+    flex: 0 0 auto
+    minw: 78px
+    h: 40px
+    px: 10px
+    inline-flex
+    gap: 6px
+    items-center
+    justify-center
+    bg: transparent
+    color: inherit
+    cursor: pointer
+    text-transform: capitalize
+    font-size: 12px
+    text(nowrap)
+    transition: color .2s, background .2s
+
+    &:hover { bg: mix($highlight, transparent, 70%) }
+
+    &.roderuda-selected {
+      color: $accent
+
+      &::after {
+        content: ""
+        pos(absolute, left: 8px, right: 8px, bottom: 0)
+        h: 2px
+        rounded: 2px 2px 0 0
+        bg: $accent
+      }
+    }
   }
 
-  .roderuda-tab:hover { background: color-mix(in srgb, var(--highlight) 70%, transparent); }
-  .roderuda-tab.roderuda-selected { color: var(--accent); }
-  .roderuda-tab.roderuda-selected::after {
-    content: "";
-    position: absolute;
-    left: 8px;
-    right: 8px;
-    bottom: 0;
-    height: 2px;
-    border-radius: 2px 2px 0 0;
-    background: var(--accent);
+  .roderuda-tab-icon {
+    font-size: 15px
+    line-height: 1
   }
 
-  .roderuda-tab-icon { font-size: 15px; line-height: 1; }
-
-  .roderuda-tools {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+  .roderuda-tools,
+  .roderuda-tool,
+  .roderuda-network-layout,
+  .roderuda-elements-layout,
+  .roderuda-sources {
+    relative
+    w: 100%
+    h: 100%
+    overflow: hidden
   }
 
   .roderuda-tool {
-    position: absolute;
-    inset: 0;
-    display: none;
-    overflow: hidden;
-    background: var(--background);
-  }
+    pos(absolute, inset: 0)
+    hidden
+    bg: $background
 
-  .roderuda-tool.roderuda-active { display: block; }
+    &.roderuda-active { block }
+  }
 
   .roderuda-control {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    z-index: 12;
-    height: var(--rd-control-height);
-    padding: 7px 8px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: var(--darker-background);
-    color: var(--primary);
-    border-bottom: 1px solid var(--border);
+    pos(absolute, left: 0, right: 0, top: 0)
+    z: 12
+    h: $$controlHeight
+    p: 7px 8px
+    controlStrip
   }
 
-  .roderuda-control-spacer { flex: 1 1 auto; min-width: 4px; }
+  .roderuda-control-spacer {
+    flex: 1 1 auto
+    minw: 4px
+  }
 
   .roderuda-icon-btn,
   .roderuda-text-btn {
-    flex: 0 0 auto;
-    min-width: 28px;
-    height: 28px;
-    display: inline-grid;
-    place-items: center;
-    padding: 0 7px;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--primary);
-    cursor: pointer;
-    transition: color .18s, background .18s, transform .1s;
+    rdControlButton
+
+    &:hover {
+      bg: $highlight
+      color: $selectedForeground
+    }
+
+    &:active {
+      transform: scale(.94)
+      color: $accent
+    }
+
+    &.roderuda-active {
+      color: $accent
+      bg: $highlight
+    }
+
+    &:disabled {
+      opacity: .45
+      pointer-events: none
+    }
   }
 
-  .roderuda-icon-btn { font-size: 17px; }
-  .roderuda-text-btn { font-size: 12px; }
-  .roderuda-icon-btn:hover,
-  .roderuda-text-btn:hover { background: var(--highlight); color: var(--select-foreground); }
-  .roderuda-icon-btn:active,
-  .roderuda-text-btn:active { transform: scale(.94); color: var(--accent); }
-  .roderuda-icon-btn.roderuda-active,
-  .roderuda-text-btn.roderuda-active { color: var(--accent); background: var(--highlight); }
-  .roderuda-icon-btn:disabled,
-  .roderuda-text-btn:disabled { opacity: .45; pointer-events: none; }
+  .roderuda-icon-btn { font-size: 17px }
+  .roderuda-text-btn { font-size: 12px }
 
   .roderuda-search {
-    min-width: 0;
-    height: 27px;
-    flex: 1 1 120px;
-    max-width: 260px;
-    padding: 4px 9px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    outline: none;
-    background: var(--background);
-    color: var(--primary);
-    user-select: text;
+    rdInput
+    h: 27px
+    flex: 1 1 120px
+    maxw: 260px
+    p: 4px 9px
+    rounded: $section
+
+    &:focus {
+      border-color: $accent
+      shadow: 0 0 0 2px mix($accent, transparent, 18%)
+    }
   }
 
-  .roderuda-search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .roderuda-scroll,
+  .roderuda-table-wrap,
+  .roderuda-detail-body,
+  .roderuda-elements-tree-wrap,
+  .roderuda-source-breadcrumb,
+  .roderuda-source-object {
+    touchScroll
+  }
 
   .roderuda-scroll {
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-color: var(--border) transparent;
+    w: 100%
+    h: 100%
+    overflow: auto
+    scrollbar-color: $border transparent
   }
 
-  .roderuda-with-control { padding-top: var(--rd-control-height); }
+  .roderuda-with-control { pt: $$controlHeight }
 
   .roderuda-empty {
-    min-height: 180px;
-    height: 100%;
-    display: grid;
-    place-content: center;
-    gap: 8px;
-    padding: 24px;
-    text-align: center;
-    color: var(--foreground);
+    minh: 180px
+    h: 100%
+    grid
+    place-content: center
+    gap: 8px
+    p: 24px
+    text-align: center
+    color: $foreground
+
+    strong {
+      color: $primary
+      font-size: 15px
+    }
   }
 
-  .roderuda-empty strong { color: var(--primary); font-size: 15px; }
-
-  .roderuda-section {
-    margin: 10px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    overflow: hidden;
-    background: var(--background);
+  .roderuda-section,
+  .roderuda-info-card,
+  .roderuda-snippet-card {
+    m: 10px
+    rdPanelSurface
+    rounded: $section
+    overflow: hidden
   }
 
-  .roderuda-section-title {
-    min-height: 38px;
-    padding: 9px 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--primary);
-    background: var(--darker-background);
-    border-bottom: 1px solid var(--border);
-    font-weight: 600;
+  .roderuda-section-title,
+  .roderuda-snippet-name {
+    minh: 38px
+    p: 9px 10px
+    flex
+    items-center
+    gap: 8px
+    color: $primary
+    bg: $backgroundDark
+    border-bottom: 1px solid $border
+    font-weight: 600
   }
 
-  .roderuda-section-actions { margin-left: auto; display: flex; gap: 3px; }
-  .roderuda-section-content { padding: 10px; color: var(--foreground); }
+  .roderuda-section-actions {
+    ml: auto
+    flex
+    gap: 3px
+  }
 
-  .roderuda-table-wrap { width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; }
+  .roderuda-section-content {
+    p: 10px
+    color: $foreground
+  }
+
+  .roderuda-table-wrap { w: 100%; overflow: auto }
+
+  .roderuda-table,
+  .roderuda-kv {
+    w: 100%
+    border-collapse: collapse
+  }
+
   .roderuda-table {
-    width: 100%;
-    border-collapse: collapse;
-    color: inherit;
-    font: 12px/1.4 var(--rd-font);
+    color: inherit
+    font: 12px / 1.4 $font.ui
+
+    th,
+    td {
+      minh: 30px
+      p: 7px 9px
+      border-bottom: 1px solid $border
+      text-align: left
+      vertical-align: top
+      break(word)
+    }
+
+    th {
+      sticky
+      top: 0
+      z: 2
+      bg: $backgroundDark
+      color: $primary
+      font-weight: 600
+      text(nowrap)
+    }
+
+    tbody tr:hover { bg: mix($highlight, transparent, 70%) }
+
+    input {
+      w: 100%
+      minw: 80px
+      bor: 1px solid transparent
+      rounded: $sm
+      p: 3px 5px
+      outline: none
+      bg: transparent
+      select(text)
+
+      &:focus {
+        border-color: $accent
+        bg: $background
+      }
+    }
   }
-  .roderuda-table th,
-  .roderuda-table td {
-    min-height: 30px;
-    padding: 7px 9px;
-    border-bottom: 1px solid var(--border);
-    text-align: left;
-    vertical-align: top;
-    word-break: break-word;
-  }
-  .roderuda-table th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background: var(--darker-background);
-    color: var(--primary);
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .roderuda-table tbody tr:hover { background: color-mix(in srgb, var(--highlight) 70%, transparent); }
-  .roderuda-table input {
-    width: 100%;
-    min-width: 80px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 3px 5px;
-    outline: none;
-    background: transparent;
-    user-select: text;
-  }
-  .roderuda-table input:focus { border-color: var(--accent); background: var(--background); }
 
   .roderuda-notifications {
-    position: absolute;
-    z-index: 1000;
-    top: 48px;
-    left: 50%;
-    width: min(92%, 440px);
-    display: grid;
-    gap: 7px;
-    transform: translateX(-50%);
-    pointer-events: none;
+    pos(absolute, top: 48px, left: 50%)
+    z: 1000
+    w: min(92%, 440px)
+    grid
+    gap: 7px
+    transform: translateX(-50%)
+    pointer-events: none
   }
 
   .roderuda-notification {
-    pointer-events: auto;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--primary);
-    background: color-mix(in srgb, var(--background) 94%, transparent);
-    box-shadow: 0 8px 30px rgb(0 0 0 / .24);
-    backdrop-filter: blur(14px);
-    animation: roderuda-notify-in .18s ease-out;
+    pointer-events: auto
+    p: 10px 12px
+    bor: 1px solid $border
+    rounded: $notification
+    color: $primary
+    bg: mix($background, transparent, 94%)
+    shadow: $shadow.notification
+    backdrop-filter: blur(14px)
+    animation: roderuda-notify-in .18s ease-out
+
+    &[data-type="success"] { border-color: $success }
+    &[data-type="warning"] { border-color: $warningBorder; bg: $warningBg; color: $warningFg }
+    &[data-type="error"] { border-color: $errorBorder; bg: $errorBg; color: $errorFg }
   }
-  .roderuda-notification[data-type="success"] { border-color: #2e8b57; }
-  .roderuda-notification[data-type="warning"] { border-color: var(--console-warn-border); background: var(--console-warn-background); color: var(--console-warn-foreground); }
-  .roderuda-notification[data-type="error"] { border-color: var(--console-error-border); background: var(--console-error-background); color: var(--console-error-foreground); }
-  @keyframes roderuda-notify-in { from { opacity: 0; transform: translateY(-7px) scale(.98); } }
+
+  @keyframes roderuda-notify-in {
+    from { opacity: 0; transform: translateY(-7px) scale(.98) }
+  }
 
   .roderuda-modal-root {
-    position: absolute;
-    inset: 0;
-    z-index: 1200;
-    display: none;
-    place-items: center;
-    padding: 16px;
-    background: rgb(0 0 0 / .45);
-    backdrop-filter: blur(2px);
+    pos(absolute, inset: 0)
+    z: $$overlayZ
+    hidden
+    place-items: center
+    p: 16px
+    bg: rgb(0 0 0 / .45)
+    backdrop-filter: blur(2px)
+
+    &.roderuda-active { grid }
   }
-  .roderuda-modal-root.roderuda-active { display: grid; }
+
   .roderuda-modal {
-    width: min(100%, 480px);
-    max-height: min(80vh, 620px);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--background);
-    box-shadow: 0 24px 90px rgb(0 0 0 / .4);
+    w: min(100%, 480px)
+    maxh: min(80vh, 620px)
+    flex
+    flex-direction: column
+    overflow: hidden
+    rdPanelSurface
+    rounded: $modal
+    shadow: $shadow.modal
   }
-  .roderuda-modal-title { padding: 13px 14px; color: var(--primary); font-weight: 700; border-bottom: 1px solid var(--border); }
-  .roderuda-modal-body { padding: 14px; overflow: auto; color: var(--foreground); user-select: text; }
+
+  .roderuda-modal-title {
+    p: 13px 14px
+    color: $primary
+    font-weight: 700
+    border-bottom: 1px solid $border
+  }
+
+  .roderuda-modal-body {
+    p: 14px
+    overflow: auto
+    color: $foreground
+    select(text)
+  }
+
   .roderuda-modal-input {
-    width: 100%;
-    margin-top: 12px;
-    padding: 9px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    outline: none;
-    background: var(--darker-background);
-    color: var(--primary);
-    user-select: text;
-  }
-  .roderuda-modal-input:focus { border-color: var(--accent); }
-  .roderuda-modal-actions { padding: 10px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); }
-  .roderuda-modal-actions button { min-width: 74px; padding: 8px 11px; border-radius: 6px; background: var(--darker-background); cursor: pointer; }
-  .roderuda-modal-actions button[data-primary] { background: var(--accent); color: #fff; }
+    rdInput
+    w: 100%
+    mt: 12px
+    p: 9px 10px
+    rounded: $control
+    bg: $backgroundDark
 
-  /* Console */
-  .roderuda-console { padding-bottom: calc(25px + var(--rd-safe-bottom)); }
-  .roderuda-console-levels { display: flex; gap: 2px; }
+    &:focus { border-color: $accent }
+  }
+
+  .roderuda-modal-actions {
+    p: 10px
+    flex
+    justify-content: flex-end
+    gap: 8px
+    border-top: 1px solid $border
+
+    button {
+      minw: 74px
+      p: 8px 11px
+      rounded: $control
+      bg: $backgroundDark
+      cursor: pointer
+
+      &[data-primary] {
+        bg: $accent
+        color: white
+      }
+    }
+  }
+
+  .roderuda-console { pb: calc(25px + $$safeBottom) }
+
+  .roderuda-console-levels { flex; gap: 2px }
+
   .roderuda-console-level {
-    height: 24px;
-    padding: 0 6px;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--foreground);
-    cursor: pointer;
-    font-size: 11px;
+    h: 24px
+    px: 6px
+    rounded: $md
+    bg: transparent
+    color: $foreground
+    cursor: pointer
+    font-size: 11px
+
+    &.roderuda-active {
+      bg: $highlight
+      color: $selectedForeground
+    }
   }
-  .roderuda-console-level.roderuda-active { background: var(--highlight); color: var(--select-foreground); }
-  .roderuda-console-list { font: 12px/1.45 var(--rd-mono); user-select: text; }
+
+  .roderuda-console-list {
+    rdCodeText
+  }
+
   .roderuda-console-row {
-    position: relative;
-    min-height: 25px;
-    padding: 4px 35px 4px 9px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-    color: var(--foreground);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    user-select: text;
+    relative
+    minh: 25px
+    p: 4px 35px 4px 9px
+    border-bottom: 1px solid mix($border, transparent, 65%)
+    color: $foreground
+    white-space: pre-wrap
+    break(anywhere)
+    select(text)
+
+    &[data-level="warn"] { bg: $warningBg; color: $warningFg; border-color: $warningBorder }
+    &[data-level="error"] { bg: $errorBg; color: $errorFg; border-color: $errorBorder }
+    &[data-level="command"] { color: $accent }
+    &[data-level="result"] { color: $primary }
   }
-  .roderuda-console-row[data-level="warn"] { background: var(--console-warn-background); color: var(--console-warn-foreground); border-color: var(--console-warn-border); }
-  .roderuda-console-row[data-level="error"] { background: var(--console-error-background); color: var(--console-error-foreground); border-color: var(--console-error-border); }
-  .roderuda-console-row[data-level="command"] { color: var(--accent); }
-  .roderuda-console-row[data-level="result"] { color: var(--primary); }
-  .roderuda-console-time { position: absolute; right: 7px; top: 5px; opacity: .55; font: 10px/1.3 var(--rd-font); }
-  .roderuda-console-repeat { display: inline-grid; min-width: 18px; height: 18px; place-items: center; margin-right: 5px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: #fff; font: 10px/1 var(--rd-font); }
-  .roderuda-console-group { display: inline-block; width: 14px; color: var(--operator-color); }
+
+  .roderuda-console-time {
+    pos(absolute, right: 7px, top: 5px)
+    opacity: .55
+    font: 10px / 1.3 $font.ui
+  }
+
+  .roderuda-console-repeat {
+    inline-grid
+    minw: 18px
+    h: 18px
+    place-items: center
+    mr: 5px
+    px: 4px
+    rounded: 9px
+    bg: $accent
+    color: white
+    font: 10px / 1 $font.ui
+  }
+
+  .roderuda-console-group {
+    inline-block
+    w: 14px
+    color: $operator
+  }
+
   .roderuda-console-input-wrap {
-    position: absolute;
-    z-index: 20;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: calc(25px + var(--rd-safe-bottom));
-    padding-bottom: var(--rd-safe-bottom);
-    display: flex;
-    align-items: stretch;
-    border-top: 1px solid var(--border);
-    background: var(--background);
+    pos(absolute, left: 0, right: 0, bottom: 0)
+    z: 20
+    h: calc(25px + $$safeBottom)
+    pb: $$safeBottom
+    flex
+    items-stretch
+    border-top: 1px solid $border
+    bg: $background
+
+    &.roderuda-expanded {
+      top: 0
+      h: 100%
+      p: 40px 0 calc(44px + $$safeBottom)
+
+      .roderuda-console-prompt { hidden }
+      .roderuda-console-input { p: 10px }
+      .roderuda-console-editor-actions { flex }
+    }
   }
-  .roderuda-console-prompt { width: 25px; display: grid; place-items: center; color: var(--accent); font: 700 15px/1 var(--rd-mono); }
+
+  .roderuda-console-prompt {
+    w: 25px
+    grid
+    place-items: center
+    color: $accent
+    font: 700 15px / 1 $font.mono
+  }
+
   .roderuda-console-input {
-    flex: 1;
-    min-width: 0;
-    padding: 3px 8px 3px 0;
-    resize: none;
-    outline: none;
-    border: 0;
-    background: transparent;
-    color: var(--primary);
-    user-select: text;
-    font: 13px/1.4 var(--rd-mono);
+    flex: 1
+    minw: 0
+    p: 3px 8px 3px 0
+    resize: none
+    outline: none
+    border: 0
+    bg: transparent
+    color: $primary
+    select(text)
+    font: 13px / 1.4 $font.mono
   }
-  .roderuda-console-input-wrap.roderuda-expanded {
-    top: 0;
-    height: 100%;
-    padding: 40px 0 calc(44px + var(--rd-safe-bottom));
-  }
-  .roderuda-console-input-wrap.roderuda-expanded .roderuda-console-prompt { display: none; }
-  .roderuda-console-input-wrap.roderuda-expanded .roderuda-console-input { padding: 10px; }
+
   .roderuda-console-editor-actions {
-    display: none;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: var(--rd-safe-bottom);
-    height: 44px;
-    border-top: 1px solid var(--border);
-    background: var(--darker-background);
-  }
-  .roderuda-console-input-wrap.roderuda-expanded .roderuda-console-editor-actions { display: flex; }
-  .roderuda-console-editor-actions button { flex: 1; background: transparent; border-right: 1px solid var(--border); cursor: pointer; }
+    hidden
+    pos(absolute, left: 0, right: 0, bottom: $$safeBottom)
+    h: 44px
+    border-top: 1px solid $border
+    bg: $backgroundDark
 
-  /* Value and object viewer */
-  .roderuda-value { user-select: text; }
+    button {
+      flex: 1
+      bg: transparent
+      border-right: 1px solid $border
+      cursor: pointer
+    }
+  }
+
+  .roderuda-value { select(text) }
   .roderuda-value-null,
-  .roderuda-value-undefined { color: var(--keyword-color); }
-  .roderuda-value-string { color: var(--string-color); }
+  .roderuda-value-undefined,
+  .roderuda-value-boolean { color: $keyword }
+  .roderuda-value-string { color: $string }
   .roderuda-value-number,
-  .roderuda-value-bigint { color: var(--number-color); }
-  .roderuda-value-boolean { color: var(--keyword-color); }
-  .roderuda-value-function { color: var(--function-color); }
-  .roderuda-value-node { color: var(--tag-name-color); cursor: pointer; }
-  .roderuda-value-error { color: var(--console-error-foreground); }
-  details.roderuda-object { display: inline; }
-  details.roderuda-object > summary { display: inline; cursor: pointer; list-style: none; color: var(--primary); }
-  details.roderuda-object > summary::-webkit-details-marker { display: none; }
-  details.roderuda-object > summary::before { content: "▸"; display: inline-block; width: 12px; color: var(--operator-color); }
-  details.roderuda-object[open] > summary::before { content: "▾"; }
-  .roderuda-object-body { margin: 3px 0 3px 15px; border-left: 1px solid var(--border); padding-left: 8px; }
-  .roderuda-object-row { min-height: 20px; }
-  .roderuda-object-key { color: var(--attribute-name-color); margin-right: 5px; }
+  .roderuda-value-bigint { color: $number }
+  .roderuda-value-function { color: $function }
+  .roderuda-value-node { color: $tag; cursor: pointer }
+  .roderuda-value-error { color: $errorFg }
 
-  /* Network */
-  .roderuda-network-layout { position: relative; height: 100%; }
-  .roderuda-network-list { height: 100%; padding-top: 40px; overflow: auto; }
-  .roderuda-network-row { cursor: pointer; }
-  .roderuda-network-row[data-state="failed"] { background: var(--console-error-background); color: var(--console-error-foreground); }
-  .roderuda-network-name { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--primary); }
-  .roderuda-network-method { font-weight: 700; }
-  .roderuda-network-method[data-method="GET"] { color: #2e8b57; }
-  .roderuda-network-method[data-method="POST"] { color: #8a63d2; }
-  .roderuda-network-method[data-method="DELETE"] { color: var(--console-error-foreground); }
-  .roderuda-status[data-status^="2"] { color: #2e8b57; }
-  .roderuda-status[data-status^="3"] { color: #c18401; }
-  .roderuda-status[data-status^="4"], .roderuda-status[data-status^="5"] { color: var(--console-error-foreground); }
+  details.roderuda-object {
+    inline
+
+    > summary {
+      inline
+      cursor: pointer
+      list-style: none
+      color: $primary
+
+      &::-webkit-details-marker { hidden }
+
+      &::before {
+        content: "▸"
+        inline-block
+        w: 12px
+        color: $operator
+      }
+    }
+
+    &[open] > summary::before { content: "▾" }
+  }
+
+  .roderuda-object-body {
+    m: 3px 0 3px 15px
+    border-left: 1px solid $border
+    pl: 8px
+  }
+
+  .roderuda-object-row { minh: 20px }
+  .roderuda-object-key { color: $attr; mr: 5px }
+
+  .roderuda-network-list,
+  .roderuda-elements-tree-wrap {
+    h: 100%
+    pt: 40px
+    overflow: auto
+  }
+
+  .roderuda-elements-tree-wrap {
+    pb: calc(25px + $$safeBottom)
+  }
+
+  .roderuda-network-row { cursor: pointer }
+  .roderuda-network-row[data-state="failed"] { bg: $errorBg; color: $errorFg }
+  .roderuda-network-name { maxw: 300px; rdTextEllipsis; color: $primary }
+  .roderuda-network-method { font-weight: 700 }
+  .roderuda-network-method[data-method="GET"],
+  .roderuda-status[data-status^="2"] { color: $success }
+  .roderuda-network-method[data-method="POST"] { color: $post }
+  .roderuda-network-method[data-method="DELETE"],
+  .roderuda-status[data-status^="4"],
+  .roderuda-status[data-status^="5"] { color: $errorFg }
+  .roderuda-status[data-status^="3"] { color: $statusRedirect }
+
   .roderuda-detail {
-    position: absolute;
-    inset: 0;
-    z-index: 30;
-    display: none;
-    padding-top: 40px;
-    background: var(--background);
-  }
-  .roderuda-detail.roderuda-active { display: block; }
-  .roderuda-detail-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-  .roderuda-detail-body { height: 100%; overflow: auto; padding-bottom: var(--rd-safe-bottom); }
-  .roderuda-detail-tabs { position: sticky; top: 0; z-index: 4; display: flex; overflow-x: auto; background: var(--darker-background); border-bottom: 1px solid var(--border); }
-  .roderuda-detail-tabs button { flex: 0 0 auto; padding: 9px 12px; background: transparent; cursor: pointer; color: var(--foreground); }
-  .roderuda-detail-tabs button.roderuda-active { color: var(--accent); border-bottom: 2px solid var(--accent); }
-  .roderuda-detail-pane { display: none; padding: 10px; }
-  .roderuda-detail-pane.roderuda-active { display: block; }
-  .roderuda-kv { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .roderuda-kv td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-word; user-select: text; }
-  .roderuda-kv td:first-child { width: 140px; color: var(--var-color); white-space: nowrap; }
-  .roderuda-pre { margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; user-select: text; font: 12px/1.5 var(--rd-mono); color: var(--foreground); }
+    pos(absolute, inset: 0)
+    z: 30
+    hidden
+    pt: 40px
+    bg: $background
 
-  /* Elements */
-  .roderuda-elements-layout { position: relative; height: 100%; }
-  .roderuda-elements-tree-wrap { height: 100%; padding: 40px 0 calc(25px + var(--rd-safe-bottom)); overflow: auto; }
-  .roderuda-dom-tree { min-width: max-content; padding: 5px 0 12px 12px; font: 12px/1.45 var(--rd-mono); }
-  .roderuda-dom-tree ul { margin: 0; padding-left: 15px; list-style: none; }
-  .roderuda-dom-row { position: relative; min-height: 20px; padding: 1px 8px 1px 2px; cursor: default; white-space: nowrap; }
-  .roderuda-dom-row:hover { background: var(--highlight); }
-  .roderuda-dom-row.roderuda-selected { background: var(--contrast); color: var(--select-foreground); }
-  .roderuda-dom-toggle { display: inline-block; width: 13px; color: var(--operator-color); cursor: pointer; }
-  .roderuda-dom-tag { color: var(--tag-name-color); }
-  .roderuda-dom-attr-name { color: var(--attribute-name-color); }
-  .roderuda-dom-attr-value { color: var(--string-color); }
-  .roderuda-dom-text { color: var(--foreground); white-space: pre; }
+    &.roderuda-active { block }
+  }
+
+  .roderuda-detail-title { minw: 0; flex: 1; rdTextEllipsis; font-size: 12px }
+  .roderuda-detail-body { h: 100%; overflow: auto; pb: $$safeBottom }
+
+  .roderuda-detail-tabs {
+    sticky
+    top: 0
+    z: 4
+    flex
+    overflow-x: auto
+    bg: $backgroundDark
+    border-bottom: 1px solid $border
+
+    button {
+      flex: 0 0 auto
+      p: 9px 12px
+      bg: transparent
+      cursor: pointer
+      color: $foreground
+
+      &.roderuda-active {
+        color: $accent
+        border-bottom: 2px solid $accent
+      }
+    }
+  }
+
+  .roderuda-detail-pane {
+    hidden
+    p: 10px
+
+    &.roderuda-active { block }
+  }
+
+  .roderuda-kv {
+    font-size: 12px
+
+    td {
+      p: 6px 8px
+      border-bottom: 1px solid $border
+      vertical-align: top
+      break(word)
+      select(text)
+
+      &:first-child {
+        w: 140px
+        color: $var
+        text(nowrap)
+      }
+    }
+  }
+
+  .roderuda-pre,
+  .roderuda-source-object {
+    m: 0
+    p: 10px
+    overflow: auto
+    white-space: pre-wrap
+    break(word)
+    select(text)
+    font: 12px / 1.5 $font.mono
+    color: $foreground
+  }
+
+  .roderuda-dom-tree {
+    minw: max-content
+    p: 5px 0 12px 12px
+    font: 12px / 1.45 $font.mono
+
+    ul {
+      m: 0
+      pl: 15px
+      list-style: none
+    }
+  }
+
+  .roderuda-dom-row {
+    relative
+    minh: 20px
+    p: 1px 8px 1px 2px
+    cursor: default
+    text(nowrap)
+
+    &:hover { bg: $highlight }
+
+    &.roderuda-selected {
+      bg: $contrast
+      color: $selectedForeground
+    }
+  }
+
+  .roderuda-dom-toggle { inline-block; w: 13px; color: $operator; cursor: pointer }
+  .roderuda-dom-tag { color: $tag }
+  .roderuda-dom-attr-name { color: $attr }
+  .roderuda-dom-attr-value { color: $string }
+  .roderuda-dom-text { color: $foreground; white-space: pre }
+
   .roderuda-crumbs {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: calc(25px + var(--rd-safe-bottom));
-    padding-bottom: var(--rd-safe-bottom);
-    display: flex;
-    align-items: center;
-    overflow-x: auto;
-    background: var(--darker-background);
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    white-space: nowrap;
-  }
-  .roderuda-crumbs button { padding: 5px 8px; background: transparent; color: var(--primary); cursor: pointer; }
-  .roderuda-crumbs button:last-child { background: var(--highlight); }
-  .roderuda-element-detail .roderuda-section { margin: 10px 0; border-left: 0; border-right: 0; border-radius: 0; }
-  .roderuda-element-attributes { display: grid; gap: 6px; }
-  .roderuda-attribute-row { display: grid; grid-template-columns: minmax(80px, .45fr) minmax(120px, 1fr) 30px; gap: 6px; }
-  .roderuda-attribute-row input { min-width: 0; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--background); user-select: text; }
-  .roderuda-box-model { min-width: 300px; padding: 10px; text-align: center; font: 11px/1.35 var(--rd-mono); }
-  .roderuda-box-layer { margin: 5px; padding: 7px; border: 1px dashed var(--border); background: color-mix(in srgb, var(--highlight) 55%, transparent); }
-  .roderuda-box-layer[data-layer="margin"] { background: rgb(246 178 107 / .22); }
-  .roderuda-box-layer[data-layer="border"] { background: rgb(255 229 153 / .25); }
-  .roderuda-box-layer[data-layer="padding"] { background: rgb(147 196 125 / .24); }
-  .roderuda-box-layer[data-layer="content"] { background: rgb(111 168 220 / .24); }
-  .roderuda-style-rule { margin-bottom: 9px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; font: 12px/1.45 var(--rd-mono); }
-  .roderuda-style-selector { color: var(--tag-name-color); word-break: break-word; }
-  .roderuda-style-declaration { display: grid; grid-template-columns: minmax(90px, .45fr) minmax(120px, 1fr); gap: 6px; padding-left: 13px; }
-  .roderuda-style-declaration input { min-width: 0; border: 0; outline: none; background: transparent; user-select: text; font: inherit; }
-  .roderuda-style-declaration input:first-child { color: var(--var-color); }
-  .roderuda-style-declaration input:last-child { color: var(--string-color); }
-  .roderuda-listener { margin-bottom: 8px; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
-  .roderuda-listener strong { display: block; padding: 7px 9px; background: var(--darker-background); color: var(--primary); }
-  .roderuda-listener pre { margin: 0; padding: 8px; overflow: auto; user-select: text; font: 11px/1.4 var(--rd-mono); }
+    pos(absolute, left: 0, right: 0, bottom: 0)
+    h: calc(25px + $$safeBottom)
+    pb: $$safeBottom
+    flex
+    items-center
+    overflow-x: auto
+    bg: $backgroundDark
+    border-top: 1px solid $border
+    font-size: 11px
+    text(nowrap)
 
-  /* Resources */
-  .roderuda-resources { padding: 1px 0 calc(10px + var(--rd-safe-bottom)); }
-  .roderuda-link-list { margin: 0; padding: 0; list-style: none; font-size: 12px; }
-  .roderuda-link-list li { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); word-break: break-all; }
-  .roderuda-link-list a { color: var(--link-color); user-select: text; }
-  .roderuda-image-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 9px; }
-  .roderuda-image-card { min-width: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: pointer; background: var(--darker-background); }
-  .roderuda-image-card img { display: block; width: 100%; height: 90px; object-fit: cover; background: repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 50% / 12px 12px; }
-  .roderuda-image-card span { display: block; padding: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
-  .roderuda-resource-warning { border-color: var(--console-warn-border); }
-  .roderuda-resource-warning .roderuda-section-title { background: var(--console-warn-background); color: var(--console-warn-foreground); }
+    button {
+      p: 5px 8px
+      bg: transparent
+      color: $primary
+      cursor: pointer
 
-  /* Sources */
-  .roderuda-sources { position: relative; height: 100%; overflow: auto; color: var(--foreground); }
-  .roderuda-source-breadcrumb { position: sticky; top: 0; z-index: 5; padding: 10px; min-height: 40px; background: var(--darker-background); color: var(--primary); border-bottom: 1px solid var(--border); word-break: break-all; user-select: text; }
-  .roderuda-code { margin: 0; min-width: max-content; padding: 10px; user-select: text; font: 12px/1.55 var(--rd-mono); tab-size: 2; }
-  .roderuda-code .token-comment { color: var(--comment-color); }
-  .roderuda-code .token-string { color: var(--string-color); }
-  .roderuda-code .token-number { color: var(--number-color); }
-  .roderuda-code .token-keyword { color: var(--keyword-color); }
-  .roderuda-code .token-tag { color: var(--tag-name-color); }
-  .roderuda-code .token-attr { color: var(--attribute-name-color); }
-  .roderuda-line { display: block; min-height: 1.55em; }
-  .roderuda-line::before { content: attr(data-line); display: inline-block; width: 3.6em; margin-right: 1em; text-align: right; color: var(--operator-color); opacity: .7; user-select: none; }
-  .roderuda-source-image { padding: 20px 10px; text-align: center; }
-  .roderuda-source-image img { max-width: 100%; max-height: 70vh; }
-  .roderuda-source-image p { color: var(--foreground); font-size: 12px; }
-  .roderuda-source-iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-  .roderuda-source-object { padding: 10px; font: 12px/1.5 var(--rd-mono); }
-
-  /* Info and snippets */
-  .roderuda-cards { padding: 1px 0 calc(10px + var(--rd-safe-bottom)); }
-  .roderuda-info-card,
-  .roderuda-snippet-card { margin: 10px; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
-  .roderuda-card-title { position: relative; padding: 9px 40px 4px 10px; color: var(--accent); font-weight: 600; }
-  .roderuda-card-content { padding: 7px 10px 10px; color: var(--foreground); font-size: 12px; word-break: break-word; user-select: text; }
-  .roderuda-card-content * { user-select: text; }
-  .roderuda-card-content a { color: var(--link-color); }
-  .roderuda-card-copy { position: absolute; right: 7px; top: 5px; }
-  .roderuda-snippet-card { cursor: pointer; transition: transform .1s; }
-  .roderuda-snippet-card:active { transform: scale(.99); }
-  .roderuda-snippet-name { padding: 9px 10px; display: flex; align-items: center; gap: 8px; color: var(--primary); background: var(--darker-background); font-weight: 600; }
-  .roderuda-snippet-description { padding: 9px 10px; color: var(--foreground); font-size: 12px; }
-
-  /* Settings */
-  .roderuda-settings { padding: 1px 0 calc(10px + var(--rd-safe-bottom)); }
-  .roderuda-setting { padding: 10px; border-bottom: 1px solid var(--border); }
-  .roderuda-setting:hover { background: color-mix(in srgb, var(--highlight) 65%, transparent); }
-  .roderuda-setting-title { color: var(--primary); font-weight: 600; line-height: 1.4; }
-  .roderuda-setting-description { margin-bottom: 8px; color: var(--foreground); font-size: 12px; }
-  .roderuda-setting-control { display: flex; align-items: center; gap: 9px; }
-  .roderuda-setting input[type="checkbox"] { appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--border); border-radius: 3px; background: var(--background); }
-  .roderuda-setting input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px var(--background); }
-  .roderuda-setting input[type="range"] { flex: 1; accent-color: var(--accent); }
-  .roderuda-setting input[type="number"],
-  .roderuda-setting select { min-width: 90px; max-width: 100%; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--background); color: var(--primary); }
-  .roderuda-setting button { padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--background); color: var(--accent); cursor: pointer; }
-  .roderuda-setting-separator { height: 10px; border-bottom: 1px solid var(--border); background: var(--darker-background); }
-  .roderuda-setting-text { padding: 10px; color: var(--foreground); font-size: 12px; }
-
-  /* Search snippet */
-  .roderuda-search-highlight-block { display: inline; }
-  .roderuda-search-highlight-block .roderuda-keyword { background: var(--console-warn-background); color: var(--console-warn-foreground); }
-
-  @media (min-width: 680px) {
-    .roderuda-elements-layout > .roderuda-elements-tree-side { width: 50%; border-right: 1px solid var(--border); }
-    .roderuda-elements-layout > .roderuda-element-detail { display: block; width: 50%; left: auto; right: 0; border-left: 1px solid var(--border); }
-    .roderuda-element-detail .roderuda-control [data-action="back"] { display: none; }
+      &:last-child { bg: $highlight }
+    }
   }
 
-  @media (max-width: 520px) {
-    .roderuda-tab { min-width: 58px; padding-inline: 7px; }
-    .roderuda-tab-label { display: none; }
-    .roderuda-tab-icon { font-size: 17px; }
-    .roderuda-control { padding-inline: 5px; gap: 2px; }
+  .roderuda-element-detail .roderuda-section {
+    m: 10px 0
+    border-left: 0
+    border-right: 0
+    rounded: 0
+  }
+
+  .roderuda-element-attributes { grid; gap: 6px }
+
+  .roderuda-attribute-row {
+    grid
+    grid-template(cols: minmax(80px, .45fr) minmax(120px, 1fr) 30px)
+    gap: 6px
+
+    input {
+      minw: 0
+      p: 5px 7px
+      bor: 1px solid $border
+      rounded: $sm
+      bg: $background
+      select(text)
+    }
+  }
+
+  .roderuda-box-model {
+    minw: 300px
+    p: 10px
+    text-align: center
+    font: 11px / 1.35 $font.mono
+  }
+
+  .roderuda-box-layer {
+    m: 5px
+    p: 7px
+    border: 1px dashed $border
+    bg: mix($highlight, transparent, 55%)
+
+    &[data-layer="margin"] { bg: rgb(246 178 107 / .22) }
+    &[data-layer="border"] { bg: rgb(255 229 153 / .25) }
+    &[data-layer="padding"] { bg: rgb(147 196 125 / .24) }
+    &[data-layer="content"] { bg: rgb(111 168 220 / .24) }
+  }
+
+  .roderuda-style-rule,
+  .roderuda-listener {
+    mb: 9px
+    p: 8px
+    bor: 1px solid $border
+    rounded: $md
+    font: 12px / 1.45 $font.mono
+  }
+
+  .roderuda-style-selector { color: $tag; break(word) }
+
+  .roderuda-style-declaration {
+    grid
+    grid-template(cols: minmax(90px, .45fr) minmax(120px, 1fr))
+    gap: 6px
+    pl: 13px
+
+    input {
+      minw: 0
+      border: 0
+      outline: none
+      bg: transparent
+      select(text)
+      font: inherit
+
+      &:first-child { color: $var }
+      &:last-child { color: $string }
+    }
+  }
+
+  .roderuda-listener {
+    p: 0
+    overflow: hidden
+
+    strong {
+      block
+      p: 7px 9px
+      bg: $backgroundDark
+      color: $primary
+    }
+
+    pre {
+      m: 0
+      p: 8px
+      overflow: auto
+      select(text)
+      font: 11px / 1.4 $font.mono
+    }
+  }
+
+  .roderuda-resources,
+  .roderuda-cards,
+  .roderuda-settings {
+    p: 1px 0 calc(10px + $$safeBottom)
+  }
+
+  .roderuda-link-list {
+    m: 0
+    p: 0
+    list-style: none
+    font-size: 12px
+
+    li {
+      p: 8px 10px
+      border-bottom: 1px solid mix($border, transparent, 65%)
+      word-break: break-all
+    }
+
+    a {
+      color: $link
+      select(text)
+    }
+  }
+
+  .roderuda-image-list {
+    grid
+    grid-template(cols: repeat(auto-fill, minmax(110px, 1fr)))
+    gap: 9px
+  }
+
+  .roderuda-image-card {
+    minw: 0
+    bor: 1px solid $border
+    rounded: $control
+    overflow: hidden
+    cursor: pointer
+    bg: $backgroundDark
+
+    img {
+      block
+      w: 100%
+      h: 90px
+      object-fit: cover
+      bg: repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 50% / 12px 12px
+    }
+
+    span {
+      block
+      p: 6px
+      rdTextEllipsis
+      font-size: 10px
+    }
+  }
+
+  .roderuda-resource-warning {
+    border-color: $warningBorder
+
+    .roderuda-section-title {
+      bg: $warningBg
+      color: $warningFg
+    }
+  }
+
+  .roderuda-sources {
+    overflow: auto
+    color: $foreground
+  }
+
+  .roderuda-source-breadcrumb {
+    sticky
+    top: 0
+    z: 5
+    p: 10px
+    minh: 40px
+    bg: $backgroundDark
+    color: $primary
+    border-bottom: 1px solid $border
+    word-break: break-all
+    select(text)
+  }
+
+  .roderuda-code {
+    m: 0
+    minw: max-content
+    p: 10px
+    select(text)
+    font: 12px / 1.55 $font.mono
+    tab-size: 2
+
+    .token-comment { color: $comment }
+    .token-string { color: $string }
+    .token-number { color: $number }
+    .token-keyword { color: $keyword }
+    .token-tag { color: $tag }
+    .token-attr { color: $attr }
+  }
+
+  .roderuda-line {
+    block
+    minh: 1.55em
+
+    &::before {
+      content: attr(data-line)
+      inline-block
+      w: 3.6em
+      mr: 1em
+      text-align: right
+      color: $operator
+      opacity: .7
+      select(none)
+    }
+  }
+
+  .roderuda-source-image {
+    p: 20px 10px
+    text-align: center
+
+    img {
+      maxw: 100%
+      maxh: 70vh
+    }
+
+    p {
+      color: $foreground
+      font-size: 12px
+    }
+  }
+
+  .roderuda-source-iframe {
+    w: 100%
+    h: 100%
+    border: 0
+    bg: white
+  }
+
+  .roderuda-card-title {
+    relative
+    p: 9px 40px 4px 10px
+    color: $accent
+    font-weight: 600
+  }
+
+  .roderuda-card-content {
+    p: 7px 10px 10px
+    color: $foreground
+    font-size: 12px
+    break(word)
+    select(text)
+
+    * { select(text) }
+    a { color: $link }
+  }
+
+  .roderuda-card-copy { pos(absolute, right: 7px, top: 5px) }
+  .roderuda-snippet-card { cursor: pointer; transition: transform .1s }
+  .roderuda-snippet-card:active { transform: scale(.99) }
+  .roderuda-snippet-description { p: 9px 10px; color: $foreground; font-size: 12px }
+
+  .roderuda-setting {
+    p: 10px
+    border-bottom: 1px solid $border
+
+    &:hover { bg: mix($highlight, transparent, 65%) }
+
+    input[type="checkbox"] {
+      appearance: none
+      w: 16px
+      h: 16px
+      m: 0
+      bor: 1px solid $border
+      rounded: $xs
+      bg: $background
+
+      &:checked {
+        border-color: $accent
+        bg: $accent
+        shadow: inset 0 0 0 3px $background
+      }
+    }
+
+    input[type="range"] {
+      flex: 1
+      accent-color: $accent
+    }
+
+    input[type="number"],
+    select {
+      minw: 90px
+      maxw: 100%
+      p: 5px 7px
+      bor: 1px solid $border
+      rounded: $md
+      bg: $background
+      color: $primary
+    }
+
+    button {
+      p: 7px 10px
+      bor: 1px solid $border
+      rounded: $md
+      bg: $background
+      color: $accent
+      cursor: pointer
+    }
+  }
+
+  .roderuda-setting-title {
+    color: $primary
+    font-weight: 600
+    line-height: 1.4
+  }
+
+  .roderuda-setting-description {
+    mb: 8px
+    color: $foreground
+    font-size: 12px
+  }
+
+  .roderuda-setting-control {
+    flex
+    items-center
+    gap: 9px
+  }
+
+  .roderuda-setting-separator {
+    h: 10px
+    border-bottom: 1px solid $border
+    bg: $backgroundDark
+  }
+
+  .roderuda-setting-text {
+    p: 10px
+    color: $foreground
+    font-size: 12px
+  }
+
+  .roderuda-search-highlight-block { inline }
+  .roderuda-search-highlight-block .roderuda-keyword { bg: $warningBg; color: $warningFg }
+
+  x:md {
+    .roderuda-elements-layout > .roderuda-elements-tree-side {
+      w: 50%
+      border-right: 1px solid $border
+    }
+
+    .roderuda-elements-layout > .roderuda-element-detail {
+      block
+      w: 50%
+      left: auto
+      right: 0
+      border-left: 1px solid $border
+    }
+
+    .roderuda-element-detail .roderuda-control [data-action="back"] {
+      hidden
+    }
+  }
+
+  x:not(xs) {
+    .roderuda-tab {
+      minw: 58px
+      padding-inline: 7px
+    }
+
+    .roderuda-tab-label { hidden }
+    .roderuda-tab-icon { font-size: 17px }
+    .roderuda-control { padding-inline: 5px; gap: 2px }
+
     .roderuda-network-table th:nth-child(4),
     .roderuda-network-table td:nth-child(4),
     .roderuda-network-table th:nth-child(5),
-    .roderuda-network-table td:nth-child(5) { display: none; }
-    .roderuda-kv td:first-child { width: 105px; }
+    .roderuda-network-table td:nth-child(5) {
+      hidden
+    }
+
+    .roderuda-kv td:first-child { w: 105px }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .roderuda-container *, .roderuda-container *::before, .roderuda-container *::after {
-      animation-duration: .001ms !important;
-      transition-duration: .001ms !important;
+  reduce-motion {
+    .roderuda-container *,
+    .roderuda-container *::before,
+    .roderuda-container *::after {
+      animation-duration: .001ms!
+      transition-duration: .001ms!
     }
   }
 `;
