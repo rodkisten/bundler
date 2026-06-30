@@ -151,6 +151,25 @@ export interface CipoJitConfig {
   readonly debug?: boolean;
 }
 
+/** Controls when declarations are emitted as shared atomic classes. */
+export interface CipoAtomicPromotionConfig {
+  /** Minimum global use count before an atomic class is emitted. Use 1 for classic always-atomic mode. */
+  readonly minUses?: number;
+}
+
+/** Optional selector scope applied around generated atomic/scoped selectors. */
+export interface CipoScopeConfig {
+  readonly strategy?: "none" | "where" | "class" | "id" | "selector" | "host";
+  readonly selector?: string;
+}
+
+/** Runtime debug overlay options for inspecting generated atoms on-page. */
+export interface CipoDebugOverlayConfig {
+  readonly enabled?: boolean;
+  readonly target?: Document | ShadowRoot | HTMLElement | undefined;
+  readonly position?: "left" | "right" | "bottom";
+}
+
 /**
  * Developer-facing debug configuration.
  *
@@ -190,6 +209,9 @@ export interface CipoConfig {
   readonly themeValidation?: CipoThemeValidationMode;
   readonly registerTypedThemeProperties?: boolean;
   readonly jit?: boolean | CipoJitConfig;
+  readonly atomic?: boolean | CipoAtomicPromotionConfig;
+  readonly scope?: string | CipoScopeConfig;
+  readonly debugOverlay?: boolean | CipoDebugOverlayConfig;
   readonly onWarning?: ((warning: CipoWarning) => void) | undefined;
 }
 
@@ -491,6 +513,9 @@ export interface RuntimeConfig {
   themeValidation: CipoThemeValidationMode;
   registerTypedThemeProperties: boolean;
   jit: Required<CipoJitConfig>;
+  atomic: Required<CipoAtomicPromotionConfig>;
+  scope: Required<CipoScopeConfig>;
+  debugOverlay: { readonly enabled: boolean; readonly target: Document | ShadowRoot | HTMLElement | undefined; readonly position: "left" | "right" | "bottom" };
   onWarning?: ((warning: CipoWarning) => void) | undefined;
 }
 
@@ -518,4 +543,6 @@ export interface RuntimeState {
   themeVersion: number;
   configVersion: number;
   registryVersion: number;
+  atomicUsageCounts: Map<string, number>;
+  atomicSingleUseFallbacks: Map<string, CipoAtomicRule>;
 }

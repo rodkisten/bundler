@@ -11,6 +11,7 @@ import { installBuiltInAliases } from './aliases'
 import { configure, setup } from './config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
+import { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { injectGlobal } from './global'
@@ -39,6 +40,7 @@ export { injectStyle, getCssText } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed, typedProperty } from './properties'
 export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
+export { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
 
 /**
  * Compatibility HTML tag.
@@ -88,6 +90,8 @@ export function reset(): void {
   resetWarningDedupe()
   runtime.generatedCssText = ''
   runtime.registeredProperties.clear()
+  runtime.atomicUsageCounts.clear()
+  runtime.atomicSingleUseFallbacks.clear()
   runtime.propertyDefinitions.clear()
   runtime.layerHeaderInserted = false
   invalidateCssConfigApplications()
@@ -137,6 +141,8 @@ Object.assign(cipo, {
   inspect,
   validateCss,
   getCssText,
+  getDebugOverlayStats,
+  installDebugOverlay,
   reset,
   registerAlias,
   registerHelper,
@@ -199,6 +205,8 @@ export function createBrowserGlobal() {
     inspect,
     validateCss,
     getCssText,
+    getDebugOverlayStats,
+    installDebugOverlay,
     reset,
     registerAlias,
     registerHelper,

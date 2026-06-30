@@ -128,7 +128,14 @@ export function normalizePropertyDeclaration(
   rawValue: string,
 ): CipoDeclarationNode[] {
   let propertyKey = rawProperty.trim();
+  let valueInput = rawValue;
   let forceRawProperty = false;
+  let forceImportant = false;
+
+  if (propertyKey[0] === "!") {
+    propertyKey = propertyKey.slice(1).trim();
+    forceImportant = true;
+  }
 
   if (propertyKey[0] === "#") {
     forceRawProperty = true;
@@ -137,37 +144,37 @@ export function normalizePropertyDeclaration(
 
   if (propertyKey.startsWith("$$")) {
     const customProperty = normalizeCustomPropertyName(propertyKey);
-    const typedValue = normalizeTypedCssValue(rawValue);
+    const typedValue = normalizeTypedCssValue(valueInput);
     if (typedValue) {
       registerCssProperty(customProperty, {
         syntax: typedValue.syntax,
         inherits: typedValue.inherits,
         initialValue: typedValue.initialValue,
       });
-      return [
+      return applyDeclarationImportant([
         {
           type: "declaration",
           property: customProperty,
           value: getTypedInitialValue(typedValue),
-          source: `${rawProperty}:${rawValue}`,
+          source: `${rawProperty}:${valueInput}`,
         },
-      ];
+      ], forceImportant);
     }
-    return [
+    return applyDeclarationImportant([
       {
         type: "declaration",
         property: customProperty,
-        value: normalizeValue("theme-token", rawValue),
-        source: `${rawProperty}:${rawValue}`,
+        value: normalizeValue("theme-token", valueInput),
+        source: `${rawProperty}:${valueInput}`,
       },
-    ];
+    ], forceImportant);
   }
 
   const smartProperty = normalizeSmartPropertyDeclaration(
     propertyKey,
-    rawValue,
+    valueInput,
   );
-  if (smartProperty) return smartProperty;
+  if (smartProperty) return applyDeclarationImportant(smartProperty, forceImportant);
 
   if (propertyKey === "text") {
     return parseGeneratedDeclarations(expandText(rawValue));
@@ -181,16 +188,24 @@ export function normalizePropertyDeclaration(
     : runtime.propertyAliasRegistry.get(lookupKey);
   const property = alias?.property ?? propertyKey;
   const scale = alias?.scale ?? "none";
-  const value = normalizeValue(property, rawValue, scale);
+  const value = normalizeValue(property, valueInput, scale);
 
-  return [
+  return applyDeclarationImportant([
     {
       type: "declaration",
       property,
       value,
-      source: `${rawProperty}:${rawValue}`,
+      source: `${rawProperty}:${valueInput}`,
     },
-  ];
+  ], forceImportant);
+}
+
+function applyDeclarationImportant(nodes: CipoDeclarationNode[], important: boolean): CipoDeclarationNode[] {
+  if (!important) return nodes;
+  return nodes.map((node) => ({
+    ...node,
+    value: /\s!important\s*$/i.test(node.value) ? node.value : `${node.value} !important`,
+  }));
 }
 
 /**
@@ -213,6 +228,7 @@ export function normalizeValue(
   scale: AliasScale = "none",
 ): string {
   const trimmed = rawValue.trim();
+  if (property === "container") return trimmed.replace(/^calc\(([\s\S]*)\)$/i, "$1");
   const valueScale = resolveSmartValueScale(property, trimmed, scale);
   const resolved = resolveHelpers(
     resolveThemeReferencesForValue(trimmed, property, valueScale),
@@ -406,6 +422,11 @@ function normalizeSmartPropertyValue(
     /^bg-[a-z]+-[0-9]{1,3}$/.test(trimmed)
   )
     return utilityColor(trimmed.slice(3));
+  if (
+    (property === "background" || property === "background-image") &&
+    /^color-[a-z]+-[0-9]{1,3}$/.test(trimmed)
+  )
+    return utilityColor(trimmed.slice(6));
   if (
     (property === "color" || property.endsWith("color")) &&
     /^color-[a-z]+-[0-9]{1,3}$/.test(trimmed)
