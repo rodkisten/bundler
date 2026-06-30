@@ -58,7 +58,6 @@ export function partitionPromotedAtoms(
         type: 'declaration',
         property: atom.property,
         value: atom.value,
-        important: false,
         source: atom.source,
       }],
       context: atom.context,
