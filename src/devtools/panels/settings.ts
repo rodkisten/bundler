@@ -1,3 +1,4 @@
+import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { create, delegate, qs } from "../core/dom";
 import { Tool } from "../tool";
@@ -15,8 +16,7 @@ export class Settings extends Tool implements SettingsLike {
   readonly name = "settings";
   readonly title = "settings";
   readonly icon = "⚙";
-  private descriptors: SettingDescriptor[] = [];
-  private sequence = 0;
+  private readonly state = store({ descriptors: [] as SettingDescriptor[], sequence: 0 });
   private body: HTMLElement | null = null;
   private cleanup: Array<() => void> = [];
 
@@ -27,9 +27,10 @@ export class Settings extends Tool implements SettingsLike {
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
     container.replaceChildren(create("div", { className: "roderuda-settings roderuda-scroll", attrs: { "data-settings-body": "" } }));
-    this.body = qs(container, "[data-settings-body]");
-    this.cleanup.push(delegate(this.body, "change", "[data-setting-id]", (event, element) => this.handleChange(event, element)));
-    this.cleanup.push(delegate(this.body, "click", "button[data-setting-id]", (_event, element) => this.handleButton(element)));
+    const body = qs<HTMLElement>(container, "[data-settings-body]");
+    this.body = body;
+    this.cleanup.push(delegate(body, "change", "[data-setting-id]", (event, element) => this.handleChange(event, element)));
+    this.cleanup.push(delegate(body, "click", "button[data-setting-id]", (_event, element) => this.handleButton(element)));
     this.render();
   }
 
@@ -95,55 +96,66 @@ export class Settings extends Tool implements SettingsLike {
   }
 
   removeSetting(id: string): void {
-    this.descriptors = this.descriptors.filter((descriptor) => descriptor.id !== id);
+    this.setDescriptors(this.descriptors().filter((descriptor) => descriptor.id !== id));
     this.render();
   }
 
   remove(title: string): this;
   remove(config: ConfigLike, key: string): this;
   remove(configOrTitle: string | ConfigLike, key?: string): this {
-    this.descriptors = typeof configOrTitle === "string"
-      ? this.descriptors.filter((descriptor) => !(descriptor.type === "text" && descriptor.text === configOrTitle))
-      : this.descriptors.filter((descriptor) => !("config" in descriptor && descriptor.config === configOrTitle && descriptor.key === key));
+    this.setDescriptors(typeof configOrTitle === "string"
+      ? this.descriptors().filter((descriptor) => !(descriptor.type === "text" && descriptor.text === configOrTitle))
+      : this.descriptors().filter((descriptor) => !("config" in descriptor && descriptor.config === configOrTitle && descriptor.key === key)));
     this.cleanSeparators();
     this.render();
     return this;
   }
 
   clear(): this {
-    this.descriptors = [];
+    this.setDescriptors([]);
     this.render();
     return this;
   }
 
   override destroy(): void {
     for (const cleanup of this.cleanup.splice(0)) cleanup();
-    this.descriptors = [];
+    this.setDescriptors([]);
     this.body = null;
     super.destroy();
   }
 
+
+  private descriptors(): SettingDescriptor[] {
+    return this.state.snapshot().descriptors;
+  }
+
+  private setDescriptors(descriptors: SettingDescriptor[]): void {
+    this.state.setPath("descriptors", descriptors);
+  }
+
   private cleanSeparators(): void {
-    this.descriptors = this.descriptors.filter((descriptor, index, all) => {
+    this.setDescriptors(this.descriptors().filter((descriptor, index, all) => {
       if (descriptor.type !== "separator") return true;
       return index > 0 && index < all.length - 1 && all[index - 1]?.type !== "separator";
-    });
+    }));
   }
 
   private add(descriptor: SettingDescriptor): string {
-    this.descriptors.push(descriptor);
+    this.setDescriptors([...this.descriptors(), descriptor]);
     this.render();
     return descriptor.id;
   }
 
   private id(): string {
-    return `setting-${++this.sequence}`;
+    const next = this.state.snapshot().sequence + 1;
+    this.state.setPath("sequence", next);
+    return `setting-${next}`;
   }
 
   private render(): void {
     if (!this.body) return;
     this.body.replaceChildren();
-    for (const descriptor of this.descriptors) this.body.append(this.renderSetting(descriptor));
+    for (const descriptor of this.descriptors()) this.body.append(this.renderSetting(descriptor));
   }
 
   private renderSetting(descriptor: SettingDescriptor): HTMLElement {
@@ -203,7 +215,7 @@ export class Settings extends Tool implements SettingsLike {
   }
 
   private handleChange(event: Event, element: HTMLElement): void {
-    const descriptor = this.descriptors.find((item) => item.id === element.dataset.settingId);
+    const descriptor = this.descriptors().find((item) => item.id === element.dataset.settingId);
     if (!descriptor || !("config" in descriptor)) return;
     const input = event.target;
     if (!(input instanceof HTMLInputElement || input instanceof HTMLSelectElement)) return;
@@ -223,7 +235,7 @@ export class Settings extends Tool implements SettingsLike {
   }
 
   private handleButton(element: HTMLElement): void {
-    const descriptor = this.descriptors.find((item) => item.id === element.dataset.settingId);
+    const descriptor = this.descriptors().find((item) => item.id === element.dataset.settingId);
     if (descriptor?.type !== "button") return;
     void Promise.resolve(descriptor.handler()).catch((error) => this.context?.notify(String(error), { type: "error" }));
   }

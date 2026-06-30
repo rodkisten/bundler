@@ -1,3 +1,4 @@
+import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { NetworkCapture } from "../core/network-capture";
 import { copyText, create, delegate, escapeHtml, formatBytes, formatDuration, icon, qs, truncate } from "../core/dom";
@@ -25,7 +26,7 @@ export class Network extends Tool {
   private detail: HTMLElement | null = null;
   private filterInput: HTMLInputElement | null = null;
   private cleanup: Array<() => void> = [];
-  private selected: NetworkRecord | null = null;
+  private readonly state = store({ selectedId: null as string | null });
 
   constructor(capture = new NetworkCapture()) {
     super();
@@ -34,28 +35,31 @@ export class Network extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <div class="roderuda-network-layout">
-        <div class="roderuda-control">
-          <button class="roderuda-icon-btn roderuda-active" type="button" data-action="record" title="Record">${icon("record")}</button>
-          <button class="roderuda-icon-btn" type="button" data-action="clear" title="Clear">${icon("clear")}</button>
-          <div class="roderuda-control-spacer"></div>
-          <input class="roderuda-search" data-network-filter type="search" placeholder="Filter requests" aria-label="Filter network requests">
-          <button class="roderuda-icon-btn" type="button" data-action="copy" title="Copy as cURL">${icon("copy")}</button>
-        </div>
-        <div class="roderuda-network-list" data-network-list></div>
-        <section class="roderuda-detail" data-network-detail></section>
-      </div>
-    `;
+    const layout = create("div", { className: "roderuda-network-layout" });
+    const control = create("div", { className: "roderuda-control" });
+    control.append(
+      create("button", { className: "roderuda-icon-btn roderuda-active", text: icon("record"), attrs: { type: "button", "data-action": "record", title: "Record" } }),
+      create("button", { className: "roderuda-icon-btn", text: icon("clear"), attrs: { type: "button", "data-action": "clear", title: "Clear" } }),
+      create("div", { className: "roderuda-control-spacer" }),
+      create("input", { className: "roderuda-search", attrs: { "data-network-filter": "", type: "search", placeholder: "Filter requests", "aria-label": "Filter network requests" } }),
+      create("button", { className: "roderuda-icon-btn", text: icon("copy"), attrs: { type: "button", "data-action": "copy", title: "Copy as cURL" } }),
+    );
+    layout.append(
+      control,
+      create("div", { className: "roderuda-network-list", attrs: { "data-network-list": "" } }),
+      create("section", { className: "roderuda-detail", attrs: { "data-network-detail": "" } }),
+    );
+    container.replaceChildren(layout);
     this.list = qs(container, "[data-network-list]");
     this.detail = qs(container, "[data-network-detail]");
-    this.filterInput = qs(container, "[data-network-filter]");
-    this.filterInput.value = this.config.get("filter");
+    const filterInput = qs<HTMLInputElement>(container, "[data-network-filter]");
+    this.filterInput = filterInput;
+    filterInput.value = this.config.get("filter");
 
     this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-request-id]", (_event, element) => this.openDetail(element.dataset.requestId || "")));
     this.cleanup.push(delegate(container, "click", "[data-detail-tab]", (_event, element) => this.switchDetailTab(element.dataset.detailTab || "headers")));
-    this.cleanup.push(this.listen(this.filterInput, "input", (event) => {
+    this.cleanup.push(this.listen(filterInput, "input", (event) => {
       this.config.set("filter", (event.target as HTMLInputElement).value);
       this.render();
     }));
@@ -88,13 +92,12 @@ export class Network extends Tool {
   private readonly onRequest = (): void => this.render();
   private readonly onUpdate = (record: NetworkRecord): void => {
     this.render();
-    if (this.selected?.id === record.id) {
-      this.selected = record;
+    if (this.state.snapshot().selectedId === record.id) {
       this.renderDetail(record);
     }
   };
   private readonly onClear = (): void => {
-    this.selected = null;
+    this.state.setPath("selectedId", null);
     this.detail?.classList.remove("roderuda-active");
     this.render();
   };
@@ -147,7 +150,7 @@ export class Network extends Tool {
   private openDetail(id: string): void {
     const record = this.capture.get(id);
     if (!record) return;
-    this.selected = record;
+    this.state.setPath("selectedId", record.id);
     this.renderDetail(record);
     this.detail?.classList.add("roderuda-active");
   }
@@ -214,7 +217,7 @@ export class Network extends Tool {
         this.clear();
         break;
       case "copy": {
-        const record = this.selected || this.capture.requests().at(-1);
+        const record = this.selectedRecord() || this.capture.requests().at(-1);
         if (!record) return;
         void copyText(toCurl(record)).then(() => this.context?.notify("cURL copied", { type: "success" }));
         break;
@@ -223,9 +226,17 @@ export class Network extends Tool {
         this.detail?.classList.remove("roderuda-active");
         break;
       case "copy-curl":
-        if (this.selected) void copyText(toCurl(this.selected)).then(() => this.context?.notify("cURL copied", { type: "success" }));
+        {
+          const selected = this.selectedRecord();
+          if (selected) void copyText(toCurl(selected)).then(() => this.context?.notify("cURL copied", { type: "success" }));
+        }
         break;
     }
+  }
+
+  private selectedRecord(): NetworkRecord | null {
+    const id = this.state.snapshot().selectedId;
+    return id ? this.capture.get(id) ?? null : null;
   }
 
   private listen(target: EventTarget, type: string, listener: EventListener): () => void {
