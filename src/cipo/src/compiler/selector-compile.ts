@@ -7,7 +7,7 @@ export function compileSelector(className: string, context: CipoRuleContext): st
   let selector = `.${className}`
   if (context.pseudo) selector += context.pseudo
   if (context.dark) selector = `${runtime.config.darkSelector} ${selector}`
-  return selector
+  return applyConfiguredScope(selector)
 }
 
 /** Wraps a rule with media/supports/container/layer contexts. */
@@ -26,9 +26,27 @@ export function wrapContext(rule: string, context: CipoRuleContext): string {
 
 /** Resolves a nested selector against the generated scope class. */
 export function resolveScopedSelector(scopeClassName: string, selector: string): string {
-  if (!selector) return `.${scopeClassName}`
-  if (selector.includes('&')) return selector.replaceAll('&', `.${scopeClassName}`)
-  return `.${scopeClassName} ${selector}`
+  const localSelector = !selector
+    ? `.${scopeClassName}`
+    : selector.includes('&')
+      ? selector.replaceAll('&', `.${scopeClassName}`)
+      : `.${scopeClassName} ${selector}`
+  return applyConfiguredScope(localSelector)
+}
+
+/** Applies the configured global scope to a selector with minimal specificity. */
+export function applyConfiguredScope(selector: string): string {
+  const scope = runtime.config.scope
+  const prefix = scope.selector.trim()
+  if (!prefix || scope.strategy === 'none') return selector
+  if (scope.strategy === 'host') return `${prefix} ${selector}`
+  if (scope.strategy === 'where') return `:where(${prefix}) ${selector}`
+  return `${prefix} ${selector}`
+}
+
+/** Applies configured scoping to every selector in a selector list. */
+export function applyConfiguredScopeToSelectors(selectors: readonly string[]): string[] {
+  return selectors.map((selector) => applyConfiguredScope(selector))
 }
 
 /** Stable identity for atomic rule cache entries. */
