@@ -1660,3 +1660,28 @@ installDebugOverlay(document)
 
 The stats object reports total atoms, inserted rules, promoted atoms, single-use fallbacks, reused atoms and generated CSS bytes.
 
+## Compiled inline mode
+
+Cipó now has a first compiled-mode surface for Fábrica and DevTools. It keeps the
+current syntax, but rewrites styled `.css` templates into explicit
+`compiledInlineCss` artifact calls through the Vite plugin. Output is inline CSS
+by default, so no generated CSS file is required yet.
+
+```ts
+import { cipoVite } from './src/cipo/src/vite'
+
+export default {
+  plugins: [cipoVite()],
+}
+```
+
+```ts
+const Card = styled.div('Card').css`
+  px(3)
+  color: red;
+`
+```
+
+DevTools uses this as the playground path: the `devtools` root entry is built
+with Vite and `cipoVite()`, while the rest of the bundle can continue on the
+existing esbuild pipeline. See [`COMPILED_INLINE.md`](./COMPILED_INLINE.md).
