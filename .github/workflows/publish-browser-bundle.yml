@@ -1,27 +1,9 @@
 name: 📦 Publish browser bundle
 
 on:
-  # Trigger only when a pull request is opened or synchronized
- # pull_request:
- #   types: [opened]
   push:
-   branches:
-    - main
-  #  paths:
-     # - "src/**"
-#      - "scripts/**"
-   #   - "package.json"
-    #  - "pnpm-lock.yaml"
-    #  - "pnpm-workspace.yaml"
-      #- "tsconfig*.json"
-  #    - "vitest.config.*"
-  #    - "vitest.workspace.*"
-  #    - ".github/workflows/publish-browser-bundle.yml"
-   #   - "!**/*.md"
-   #   - "!docs/**"
-   #   - "!.vscode/**"
-   #   - "!.idea/**"
-   #   - "!.DS_Store"
+    branches:
+      - main
 
   workflow_dispatch:
     inputs:
@@ -46,7 +28,7 @@ env:
 
 jobs:
   guard:
-    name: '🛡️ Guard' 
+    name: "🛡️ Guard"
     runs-on: ubuntu-24.04
 
     outputs:
@@ -79,7 +61,6 @@ jobs:
             exit 0
           fi
 
-          
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "reason=pull_request_always_allowed" >> "$GITHUB_OUTPUT"
@@ -142,14 +123,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   changes:
-    name: '📋 Check incoming changes'
+    name: "📋 Check incoming changes"
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
 
     outputs:
       should_test: ${{ steps.detect.outputs.should_test }}
+      should_benchmark: ${{ steps.detect.outputs.should_benchmark }}
       reason: ${{ steps.detect.outputs.reason }}
+      benchmark_reason: ${{ steps.detect.outputs.benchmark_reason }}
 
     steps:
       - name: Checkout private source
@@ -158,7 +141,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect test relevant changes
+      - name: Detect test and benchmark relevant changes
         id: detect
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -169,7 +152,9 @@ jobs:
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
             echo "reason=manual_run_always_tests" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=manual_run_without_changed_files" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -181,7 +166,11 @@ jobs:
             CHANGED_FILES="$(git diff --name-status --diff-filter=AMR "$BEFORE_SHA" "$HEAD_SHA")"
           fi
 
-          TEST_RELEVANT_FILES="$(echo "$CHANGED_FILES" | awk '{ print $2 }' | grep -E '^(src|scripts)/.*\.ts$|(^|/)package\.json$|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|(^|/)tsconfig([^/]*)?\.json$|(^|/)vitest\.config\.(js|cjs|mjs|ts|cts|mts)$|(^|/)vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)$' || true)"
+          CHANGED_PATHS="$(echo "$CHANGED_FILES" | awk '{ print $NF }')"
+
+          TEST_RELEVANT_FILES="$(echo "$CHANGED_PATHS" | grep -E '^(src|scripts)/.*\.ts$|(^|/)package\.json$|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|(^|/)tsconfig([^/]*)?\.json$|(^|/)vitest\.config\.(js|cjs|mjs|ts|cts|mts)$|(^|/)vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)$' || true)"
+
+          BENCHMARK_RELEVANT_FILES="$(echo "$CHANGED_PATHS" | grep -E '^src/(fabrica|broto|cipo|fabrica-elements)/' || true)"
 
           if [ -n "$TEST_RELEVANT_FILES" ]; then
             echo "should_test=true" >> "$GITHUB_OUTPUT"
@@ -191,19 +180,29 @@ jobs:
             echo "reason=no_test_relevant_files_changed" >> "$GITHUB_OUTPUT"
           fi
 
+          if [ -n "$BENCHMARK_RELEVANT_FILES" ]; then
+            echo "should_benchmark=true" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=benchmark_relevant_packages_changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=no_fabrica_broto_cipo_or_fabrica_elements_changes" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Write changes summary
         run: |
           {
-            echo "## 🧭 Test Change Detector"
+            echo "## 🧭 Change Detector"
             echo ""
             echo "| Field | Value |"
             echo "| --- | --- |"
             echo "| Should test | \`${{ steps.detect.outputs.should_test }}\` |"
-            echo "| Reason | \`${{ steps.detect.outputs.reason }}\` |"
+            echo "| Test reason | \`${{ steps.detect.outputs.reason }}\` |"
+            echo "| Should benchmark | \`${{ steps.detect.outputs.should_benchmark }}\` |"
+            echo "| Benchmark reason | \`${{ steps.detect.outputs.benchmark_reason }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   test:
-    name: '🧪 Run all tests'
+    name: "🧪 Run all tests"
     needs:
       - guard
       - changes
@@ -234,12 +233,11 @@ jobs:
           set -o pipefail
           export LANG=C.UTF-8
           export LC_ALL=C.UTF-8
-          
+
           mkdir -p artifacts/test
 
           pnpm test 2>&1 | tee artifacts/test/test-output.log
-        
-        
+
       - name: Write test summary
         if: always()
         run: |
@@ -260,30 +258,32 @@ jobs:
 
       - name: Run Benchmarks
         id: benchmarks_cipo
+        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
         continue-on-error: true
         run: |
           set -o pipefail
           export LANG=C.UTF-8
           export LC_ALL=C.UTF-8
-          
-          mkdir -p artifacts/test 
-          
+
+          mkdir -p artifacts/test
+
           pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
 
       - name: 🌿 Run Cipo benchmarks
+        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
         shell: bash
         continue-on-error: true
         run: |
-         set -o pipefail
-         mkdir -p artifacts
+          set -o pipefail
+          mkdir -p artifacts
 
-         pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
-           2>&1 \
-           | node scripts/strip-ansi-stream.mjs \
-           | tee artifacts/cipo-benchmark.log
-     
+          pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
+            2>&1 \
+            | node scripts/strip-ansi-stream.mjs \
+            | tee artifacts/cipo-benchmark.log
+
       - name: Write benchmark summary
-        if: always()
+        if: ${{ always() && needs.changes.outputs.should_benchmark == 'true' }}
         run: |
           {
             echo "## ⏱️ Benchmark Report"
@@ -291,12 +291,25 @@ jobs:
             echo "| Field | Value |"
             echo "| --- | --- |"
             echo "| Status | \`${{ steps.benchmarks_cipo.outcome }}\` |"
+            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
             echo ""
-            echo "### Last test output lines"
+            echo "### Last benchmark output lines"
             echo ""
             echo '```markdown'
             tail -n 200 artifacts/test/benchmarks-cipo-output.log || true
             echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write skipped benchmark summary
+        if: ${{ always() && needs.changes.outputs.should_benchmark != 'true' }}
+        run: |
+          {
+            echo "## ⏱️ Benchmark Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`skipped\` |"
+            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test artifact
@@ -308,7 +321,7 @@ jobs:
           retention-days: 14
 
   build:
-    name: '👷🏼‍♂️ Build'
+    name: "👷🏼‍♂️ Build"
     needs: guard
     if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
     runs-on: ubuntu-24.04
@@ -360,11 +373,7 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
-        if: ${{ github.ref_name == 'main' && github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
-
-      #- name: Publish public Gist
-      #  if: ${{ env.GIST_TOKEN != '' && env.GIST_ID != '' }}
-      #  run: pnpm publish:gist
+        if: ${{ (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') || needs.guard.outputs.should_run == 'true' }}
 
       - name: Write build summary
         if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
@@ -401,18 +410,13 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        
+
       - name: Notify Pushcut
         if: ${{ success() }}
         id: pushcut
         env:
           WORKFLOW_ID: ${{ github.workflow_ref }}
-        run: | 
+        run: |
           set -euo pipefail
 
           curl -X POST -d "{\"input\": \"$WORKFLOW_ID\", \"text\": \"Abrir pipeline {teste}\", \"title\": \"Build finished\"}" -H "Content-Type: application/json" https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published
-
-
-
-
-        
