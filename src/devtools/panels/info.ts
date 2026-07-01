@@ -1,6 +1,7 @@
 import { copyText, create, delegate, safeStringify } from "../core/dom";
 import { Tool } from "../tool";
 import type { InfoItem, ToolContext } from "../types";
+import { renderPanelShell } from "./panel-ui";
 
 function getConnectionInfo(): Record<string, unknown> {
   const connection = (navigator as Navigator & {
@@ -120,18 +121,17 @@ export class Info extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <section class="roderuda-section roderuda-info">
-        <header class="roderuda-section-title">
-          <span>Page information</span>
-          <div class="roderuda-section-actions">
-            <button class="roderuda-text-btn" type="button" data-action="refresh">Refresh</button>
-            <button class="roderuda-text-btn" type="button" data-action="copy-all">Copy all</button>
-          </div>
-        </header>
-        <div class="roderuda-cards roderuda-scroll" data-info-body></div>
-      </section>`;
-    this.body = container.querySelector<HTMLElement>("[data-info-body]");
+    const refs = renderPanelShell(container, {
+      className: "roderuda-section roderuda-info",
+      title: "Page information",
+      bodyAttr: "data-info-body",
+      bodyClassName: "roderuda-cards",
+      actions: [
+        { label: "Refresh", action: "refresh" },
+        { label: "Copy all", action: "copy-all" },
+      ],
+    });
+    this.body = refs.body;
     this.cleanup.push(delegate(container, "click", "[data-action]", (_event, element) => {
       if (element.dataset.action === "refresh") this.render();
       if (element.dataset.action === "copy-all") void this.copyAll();
