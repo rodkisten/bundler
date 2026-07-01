@@ -1,4 +1,4 @@
-import { injectStyle, css } from "../../cipo/src/index";
+import { injectStyle, css, sheet } from "../../cipo/src/index";
 
 /* *************** */
 /* Design system   */
@@ -86,11 +86,11 @@ export const devtoolsTokens = css`
 
   @alias noScrollbar {
     scrollbar-width: none
-    &::-webkit-scrollbar { hidden }
+    &::-webkit-scrollbar { display: none }
   }
 
   @alias controlStrip {
-    flex
+    display: flex
     items-center
     gap: 5px
     bg: $backgroundDark
@@ -138,7 +138,7 @@ export const devtoolsTokens = css`
   }
 `;
 
-export const devtoolsStyles = css`
+export const devtoolsStyles = sheet.css`
   :host {
     all: initial
     contain: layout style
@@ -172,32 +172,46 @@ export const devtoolsStyles = css`
       minh: 320px
     }
 
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box
-      pointer-events: auto
-      -webkit-tap-highlight-color: transparent
-      -webkit-text-size-adjust: none
-    }
+  }
 
-    button,
-    input,
-    textarea,
-    select {
-      font: inherit
-      color: inherit
-    }
 
-    button {
-      appearance: none
-      border: 0
-      m: 0
-    }
+  .roderuda-container * {
+    box-sizing: border-box
+    pointer-events: auto
+    -webkit-tap-highlight-color: transparent
+    -webkit-text-size-adjust: none
+  }
+
+  .roderuda-container *::before {
+    box-sizing: border-box
+    pointer-events: auto
+    -webkit-tap-highlight-color: transparent
+    -webkit-text-size-adjust: none
+  }
+
+  .roderuda-container *::after {
+    box-sizing: border-box
+    pointer-events: auto
+    -webkit-tap-highlight-color: transparent
+    -webkit-text-size-adjust: none
+  }
+
+  .roderuda-container button,
+  .roderuda-container input,
+  .roderuda-container textarea,
+  .roderuda-container select {
+    font: inherit
+    color: inherit
+  }
+
+  .roderuda-container button {
+    appearance: none
+    border: 0
+    m: 0
   }
 
   .roderuda-hidden {
-    hidden!
+    display: none !important
   }
 
   .roderuda-visually-hidden {
@@ -217,7 +231,7 @@ export const devtoolsStyles = css`
     pos(fixed)
     w: $$entrySize
     h: $$entrySize
-    grid
+    display: grid
     place-items: center
     rounded: $panel
     bg: black
@@ -247,7 +261,7 @@ export const devtoolsStyles = css`
     w: 100%
     h: 80%
     z: $$toolsZ
-    hidden
+    display: none
     pt: $$tabHeight
     opacity: 0
     bg: $background
@@ -260,7 +274,7 @@ export const devtoolsStyles = css`
   .roderuda-inline .roderuda-dev-tools {
     pos(absolute)
     h: 100%
-    block
+    display: block
     opacity: 1
   }
 
@@ -274,7 +288,7 @@ export const devtoolsStyles = css`
 
     &::after {
       content: ""
-      block
+      display: block
       w: 44px
       h: 4px
       m: 3px auto 0
@@ -286,7 +300,7 @@ export const devtoolsStyles = css`
   .roderuda-tabbar {
     pos(absolute, left: 0, right: 0, top: 0)
     h: $$tabHeight
-    flex
+    display: flex
     items-stretch
     overflow-x: auto
     overflow-y: hidden
@@ -348,10 +362,10 @@ export const devtoolsStyles = css`
 
   .roderuda-tool {
     pos(absolute, inset: 0)
-    hidden
+    display: none
     bg: $background
 
-    &.roderuda-active { block }
+    &.roderuda-active { display: block }
   }
 
   .roderuda-control {
@@ -430,7 +444,7 @@ export const devtoolsStyles = css`
   .roderuda-empty {
     minh: 180px
     h: 100%
-    grid
+    display: grid
     place-content: center
     gap: 8px
     p: 24px
@@ -456,7 +470,7 @@ export const devtoolsStyles = css`
   .roderuda-snippet-name {
     minh: 38px
     p: 9px 10px
-    flex
+    display: flex
     items-center
     gap: 8px
     color: $primary
@@ -467,7 +481,7 @@ export const devtoolsStyles = css`
 
   .roderuda-section-actions {
     ml: auto
-    flex
+    display: flex
     gap: 3px
   }
 
@@ -488,26 +502,6 @@ export const devtoolsStyles = css`
     color: inherit
     font: 12px / 1.4 $font.ui
 
-    th,
-    td {
-      minh: 30px
-      p: 7px 9px
-      border-bottom: 1px solid $border
-      text-align: left
-      vertical-align: top
-      break(word)
-    }
-
-    th {
-      sticky
-      top: 0
-      z: 2
-      bg: $backgroundDark
-      color: $primary
-      font-weight: 600
-      text(nowrap)
-    }
-
     tbody tr:hover { bg: mix($highlight, transparent, 70%) }
 
     input {
@@ -527,11 +521,36 @@ export const devtoolsStyles = css`
     }
   }
 
+  .roderuda-table th {
+    minh: 30px
+    p: 7px 9px
+    border-bottom: 1px solid $border
+    text-align: left
+    vertical-align: top
+    break(word)
+    sticky
+    top: 0
+    z: 2
+    bg: $backgroundDark
+    color: $primary
+    font-weight: 600
+    text(nowrap)
+  }
+
+  .roderuda-table td {
+    minh: 30px
+    p: 7px 9px
+    border-bottom: 1px solid $border
+    text-align: left
+    vertical-align: top
+    break(word)
+  }
+
   .roderuda-notifications {
     pos(absolute, top: 48px, left: 50%)
     z: 1000
     w: min(92%, 440px)
-    grid
+    display: grid
     gap: 7px
     transform: translateX(-50%)
     pointer-events: none
@@ -560,19 +579,19 @@ export const devtoolsStyles = css`
   .roderuda-modal-root {
     pos(absolute, inset: 0)
     z: $$overlayZ
-    hidden
+    display: none
     place-items: center
     p: 16px
     bg: rgb(0 0 0 / .45)
     backdrop-filter: blur(2px)
 
-    &.roderuda-active { grid }
+    &.roderuda-active { display: grid }
   }
 
   .roderuda-modal {
     w: min(100%, 480px)
     maxh: min(80vh, 620px)
-    flex
+    display: flex
     flex-direction: column
     overflow: hidden
     rdPanelSurface
@@ -607,7 +626,7 @@ export const devtoolsStyles = css`
 
   .roderuda-modal-actions {
     p: 10px
-    flex
+    display: flex
     justify-content: flex-end
     gap: 8px
     border-top: 1px solid $border
@@ -628,7 +647,7 @@ export const devtoolsStyles = css`
 
   .roderuda-console { pb: calc(25px + $$safeBottom) }
 
-  .roderuda-console-levels { flex; gap: 2px }
+  .roderuda-console-levels { display: flex; gap: 2px }
 
   .roderuda-console-level {
     h: 24px
@@ -695,7 +714,7 @@ export const devtoolsStyles = css`
     z: 20
     h: calc(25px + $$safeBottom)
     pb: $$safeBottom
-    flex
+    display: flex
     items-stretch
     border-top: 1px solid $border
     bg: $background
@@ -705,15 +724,15 @@ export const devtoolsStyles = css`
       h: 100%
       p: 40px 0 calc(44px + $$safeBottom)
 
-      .roderuda-console-prompt { hidden }
+      .roderuda-console-prompt { display: none }
       .roderuda-console-input { p: 10px }
-      .roderuda-console-editor-actions { flex }
+      .roderuda-console-editor-actions { display: flex }
     }
   }
 
   .roderuda-console-prompt {
     w: 25px
-    grid
+    display: grid
     place-items: center
     color: $accent
     font: 700 15px / 1 $font.mono
@@ -733,7 +752,7 @@ export const devtoolsStyles = css`
   }
 
   .roderuda-console-editor-actions {
-    hidden
+    display: none
     pos(absolute, left: 0, right: 0, bottom: $$safeBottom)
     h: 44px
     border-top: 1px solid $border
@@ -759,15 +778,15 @@ export const devtoolsStyles = css`
   .roderuda-value-error { color: $errorFg }
 
   details.roderuda-object {
-    inline
+    display: inline
 
     > summary {
-      inline
+      display: inline
       cursor: pointer
       list-style: none
       color: $primary
 
-      &::-webkit-details-marker { hidden }
+      &::-webkit-details-marker { display: none }
 
       &::before {
         content: "▸"
@@ -815,11 +834,11 @@ export const devtoolsStyles = css`
   .roderuda-detail {
     pos(absolute, inset: 0)
     z: 30
-    hidden
+    display: none
     pt: 40px
     bg: $background
 
-    &.roderuda-active { block }
+    &.roderuda-active { display: block }
   }
 
   .roderuda-detail-title { minw: 0; flex: 1; rdTextEllipsis; font-size: 12px }
@@ -829,7 +848,7 @@ export const devtoolsStyles = css`
     sticky
     top: 0
     z: 4
-    flex
+    display: flex
     overflow-x: auto
     bg: $backgroundDark
     border-bottom: 1px solid $border
@@ -849,10 +868,10 @@ export const devtoolsStyles = css`
   }
 
   .roderuda-detail-pane {
-    hidden
+    display: none
     p: 10px
 
-    &.roderuda-active { block }
+    &.roderuda-active { display: block }
   }
 
   .roderuda-kv {
@@ -922,7 +941,7 @@ export const devtoolsStyles = css`
     pos(absolute, left: 0, right: 0, bottom: 0)
     h: calc(25px + $$safeBottom)
     pb: $$safeBottom
-    flex
+    display: flex
     items-center
     overflow-x: auto
     bg: $backgroundDark
@@ -947,10 +966,10 @@ export const devtoolsStyles = css`
     rounded: 0
   }
 
-  .roderuda-element-attributes { grid; gap: 6px }
+  .roderuda-element-attributes { display: grid; gap: 6px }
 
   .roderuda-attribute-row {
-    grid
+    display: grid
     grid-template(cols: minmax(80px, .45fr) minmax(120px, 1fr) 30px)
     gap: 6px
 
@@ -995,7 +1014,7 @@ export const devtoolsStyles = css`
   .roderuda-style-selector { color: $tag; break(word) }
 
   .roderuda-style-declaration {
-    grid
+    display: grid
     grid-template(cols: minmax(90px, .45fr) minmax(120px, 1fr))
     gap: 6px
     pl: 13px
@@ -1018,7 +1037,7 @@ export const devtoolsStyles = css`
     overflow: hidden
 
     strong {
-      block
+      display: block
       p: 7px 9px
       bg: $backgroundDark
       color: $primary
@@ -1058,7 +1077,7 @@ export const devtoolsStyles = css`
   }
 
   .roderuda-image-list {
-    grid
+    display: grid
     grid-template(cols: repeat(auto-fill, minmax(110px, 1fr)))
     gap: 9px
   }
@@ -1072,7 +1091,7 @@ export const devtoolsStyles = css`
     bg: $backgroundDark
 
     img {
-      block
+      display: block
       w: 100%
       h: 90px
       object-fit: cover
@@ -1080,7 +1099,7 @@ export const devtoolsStyles = css`
     }
 
     span {
-      block
+      display: block
       p: 6px
       rdTextEllipsis
       font-size: 10px
@@ -1131,7 +1150,7 @@ export const devtoolsStyles = css`
   }
 
   .roderuda-line {
-    block
+    display: block
     minh: 1.55em
 
     &::before {
@@ -1252,7 +1271,7 @@ export const devtoolsStyles = css`
   }
 
   .roderuda-setting-control {
-    flex
+    display: flex
     items-center
     gap: 9px
   }
@@ -1269,7 +1288,7 @@ export const devtoolsStyles = css`
     font-size: 12px
   }
 
-  .roderuda-search-highlight-block { inline }
+  .roderuda-search-highlight-block { display: inline }
   .roderuda-search-highlight-block .roderuda-keyword { bg: $warningBg; color: $warningFg }
 
   x:md {
@@ -1279,7 +1298,7 @@ export const devtoolsStyles = css`
     }
 
     .roderuda-elements-layout > .roderuda-element-detail {
-      block
+      display: block
       w: 50%
       left: auto
       right: 0
@@ -1287,7 +1306,7 @@ export const devtoolsStyles = css`
     }
 
     .roderuda-element-detail .roderuda-control [data-action="back"] {
-      hidden
+      display: none
     }
   }
 
@@ -1297,7 +1316,7 @@ export const devtoolsStyles = css`
       padding-inline: 7px
     }
 
-    .roderuda-tab-label { hidden }
+    .roderuda-tab-label { display: none }
     .roderuda-tab-icon { font-size: 17px }
     .roderuda-control { padding-inline: 5px; gap: 2px }
 
@@ -1305,18 +1324,26 @@ export const devtoolsStyles = css`
     .roderuda-network-table td:nth-child(4),
     .roderuda-network-table th:nth-child(5),
     .roderuda-network-table td:nth-child(5) {
-      hidden
+      display: none
     }
 
     .roderuda-kv td:first-child { w: 105px }
   }
 
   reduce-motion {
-    .roderuda-container *,
-    .roderuda-container *::before,
+    .roderuda-container * {
+      animation-duration: .001ms !important
+      transition-duration: .001ms !important
+    }
+
+    .roderuda-container *::before {
+      animation-duration: .001ms !important
+      transition-duration: .001ms !important
+    }
+
     .roderuda-container *::after {
-      animation-duration: .001ms!
-      transition-duration: .001ms!
+      animation-duration: .001ms !important
+      transition-duration: .001ms !important
     }
   }
 `;
