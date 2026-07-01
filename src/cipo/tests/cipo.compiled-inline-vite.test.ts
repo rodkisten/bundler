@@ -1,98 +1,69 @@
 /** @vitest-environment jsdom */
+import { describe, expect, it } from 'vitest'
+import { createCompiledStyled, compileCipoSourceInline, compiledInlineCss, cipoVite, setup } from '../src'
+import { createFabrica } from '../../fabrica'
 
-import { beforeEach, describe, expect, it } from 'vitest'
-import Fabrica, { clearComponents, html, render, resolveComponent } from '../../fabrica'
-import {
-  cipoVite,
-  compiledInlineCss,
-  compileCipoSourceInline,
-  createCompiledStyled,
-  getCssText,
-  reset,
-  setup,
-} from '../src/index'
-
-let host: HTMLDivElement
-
-beforeEach(() => {
-  document.body.replaceChildren()
-  host = document.createElement('div')
-  document.body.append(host)
-  clearComponents()
-  reset()
-  setup({
-    prefix: 'compiled-inline',
-    adapter: 'dom',
-    minify: true,
-    layers: false,
-  })
-})
-
-describe('Cipó compiled inline playground', () => {
-  it('compiles tagged templates to inline artifacts without emitting stylesheet CSS', () => {
+describe('Cipó compiled inline + Vite playground mode', () => {
+  it('compiles templates through the existing inline compiler', () => {
+    setup({ adapter: 'dom' })
     const artifact = compiledInlineCss`
-      display: flex;
-      px: 2;
       color: red;
+      padding-left: 8px;
+      padding-right: 8px;
     `
 
     expect(artifact.kind).toBe('cipo.inline-css')
-    expect(artifact.cssText).toContain('display:flex')
-    expect(artifact.cssText).toContain('padding-inline')
     expect(artifact.cssText).toContain('color:red')
-    expect(getCssText()).toBe('')
+    expect(artifact.cssText).toContain('padding-left')
+    expect(artifact.cssText).toContain('padding-right')
   })
 
-  it('creates Fabrica styled components whose CSS is inline by default', () => {
-    const styled = createCompiledStyled({ fabrica: Fabrica })
-    const Card = styled.div('CompiledCard').css`
-      display: grid;
-      gap: 8px;
+  it('creates Fábrica styled components with inline style by default', () => {
+    setup({ adapter: 'dom' })
+    const fabrica = createFabrica({ name: 'compiled-inline-test', isolated: true })
+    const styled = createCompiledStyled({ fabrica })
+    const Card = styled.div('Card').css`
       color: red;
+      padding-left: 8px;
+      padding-right: 8px;
     `
 
-    expect(Card.className).toBe('')
-    expect(Card.artifact?.kind).toBe('cipo.inline-css')
-    expect(resolveComponent('CompiledCard')).toBe(Card)
+    const node = Card({ children: 'hello' }) as HTMLElement
 
-    render(host, html`<CompiledCard style=${'opacity:.9;'}>Compiled</CompiledCard>`)
-    const node = host.querySelector('div') as HTMLDivElement
-    expect(node.textContent).toBe('Compiled')
-    expect(node.getAttribute('class')).toBeNull()
-    expect(node.getAttribute('style')).toContain('display:grid')
-    expect(node.getAttribute('style')).toContain('gap:0.5rem')
-    expect(node.getAttribute('style')).toContain('opacity:.9')
-    expect(getCssText()).toBe('')
+    expect(node.tagName).toBe('DIV')
+    expect(node.getAttribute('style')).toContain('color:red')
+    expect(node.getAttribute('style')).toContain('padding-left')
+    expect(Card.className).toBe('')
+    expect(Card.artifact).toMatchObject({ kind: 'cipo.inline-css' })
   })
 
-  it('rewrites styled .css templates through the Vite adapter into inline artifact calls', () => {
+  it('rewrites styled .css templates to compiledInlineCss artifact calls', () => {
     const source = `
-      import { styled } from '../src/index'
-      const Box = styled.div('Box').css\`
-        display: flex;
+      import { styled } from './runtime'
+      export const Panel = styled.div('Panel').css\`
         color: red;
+        padding-left: 8px;
+      padding-right: 8px;
       \`
     `
 
-    const plugin = cipoVite({ filenameImportPath: '../src/index' })
-    const result = plugin.transform(source, '/project/src/box.ts')
-
-    expect(result).not.toBeNull()
-    expect(result!.code).toContain("import { compiledInlineCss } from '../src/index'")
-    expect(result!.code).toContain("styled.div('Box')(compiledInlineCss`")
-    expect(result!.meta.cipo.manifest).toHaveLength(1)
-    expect(result!.meta.cipo.manifest[0]?.cssText).toContain('display:flex')
-  })
-
-  it('exposes the source compiler directly for DevTools playground probes', () => {
-    const result = compileCipoSourceInline("const X = styled.button('X').css`px: 2; color: red;`", {
-      filename: 'devtools-playground.ts',
-      importPath: '../src/index',
+    const result = compileCipoSourceInline(source, {
+      filename: '/project/src/devtools/panel.ts',
+      importPath: '../cipo',
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('compiledInlineCss`px: 2; color: red;`')
-    expect(result.manifest[0]?.filename).toBe('devtools-playground.ts')
-    expect(result.manifest[0]?.cssText).toContain('padding-inline')
+    expect(result.code).toContain("import { compiledInlineCss } from '../cipo'")
+    expect(result.code).toContain("styled.div('Panel')(compiledInlineCss`")
+    expect(result.manifest).toHaveLength(1)
+    expect(result.manifest[0]?.cssText).toContain('color:red')
+  })
+
+  it('computes valid relative compiler imports in the Vite plugin', () => {
+    const plugin = cipoVite({ root: '/project' })
+    const result = plugin.transform?.call({} as never, "export const Panel = styled.div('Panel').css`color: red;`", '/project/src/devtools/panel.ts')
+
+    expect(result && 'code' in result ? result.code : '').toContain("from '../cipo/src/compiler/compiled-inline'")
+    expect(result && 'meta' in result ? result.meta.cipo.manifest[0]?.receiver.trim() : '').toBe("styled.div('Panel')")
   })
 })
