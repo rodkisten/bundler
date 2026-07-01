@@ -28,6 +28,8 @@ const PanelRoot = styled.section("RodDevtoolsPanelRoot").css`
   height: 100%;
   min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const PanelHeader = styled.header("RodDevtoolsPanelHeader").css`
@@ -41,6 +43,7 @@ const PanelActions = styled.div("RodDevtoolsPanelActions").css`
 const PanelBody = styled.div("RodDevtoolsPanelBody").css`
   min-width: 0;
   min-height: 0;
+  flex: 1 1 0;
 `;
 
 const PanelButton = styled.button("RodDevtoolsPanelButton").css`
