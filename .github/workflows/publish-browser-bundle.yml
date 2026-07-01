@@ -4,9 +4,9 @@ on:
   # Trigger only when a pull request is opened or synchronized
  # pull_request:
  #   types: [opened]
-  #push:
-   # branches:
-    #  - main
+  push:
+   branches:
+    - main
   #  paths:
      # - "src/**"
 #      - "scripts/**"
