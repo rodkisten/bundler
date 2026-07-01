@@ -1,4 +1,5 @@
 import { injectStyle, css, sheet } from "../../cipo/src/index";
+import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
 
 /* *************** */
 /* Design system   */
@@ -645,126 +646,7 @@ export const devtoolsStyles = sheet.css`
     }
   }
 
-  .roderuda-console { pb: calc(25px + $$safeBottom) }
-
-  .roderuda-console-levels { display: flex; gap: 2px }
-
-  .roderuda-console-level {
-    h: 24px
-    px: 6px
-    rounded: $md
-    bg: transparent
-    color: $foreground
-    cursor: pointer
-    font-size: 11px
-
-    &.roderuda-active {
-      bg: $highlight
-      color: $selectedForeground
-    }
-  }
-
-  .roderuda-console-list {
-    rdCodeText
-  }
-
-  .roderuda-console-row {
-    relative
-    minh: 25px
-    p: 4px 35px 4px 9px
-    border-bottom: 1px solid mix($border, transparent, 65%)
-    color: $foreground
-    white-space: pre-wrap
-    break(anywhere)
-    select(text)
-
-    &[data-level="warn"] { bg: $warningBg; color: $warningFg; border-color: $warningBorder }
-    &[data-level="error"] { bg: $errorBg; color: $errorFg; border-color: $errorBorder }
-    &[data-level="command"] { color: $accent }
-    &[data-level="result"] { color: $primary }
-  }
-
-  .roderuda-console-time {
-    pos(absolute, right: 7px, top: 5px)
-    opacity: .55
-    font: 10px / 1.3 $font.ui
-  }
-
-  .roderuda-console-repeat {
-    inline-grid
-    minw: 18px
-    h: 18px
-    place-items: center
-    mr: 5px
-    px: 4px
-    rounded: 9px
-    bg: $accent
-    color: white
-    font: 10px / 1 $font.ui
-  }
-
-  .roderuda-console-group {
-    inline-block
-    w: 14px
-    color: $operator
-  }
-
-  .roderuda-console-input-wrap {
-    pos(absolute, left: 0, right: 0, bottom: 0)
-    z: 20
-    h: calc(25px + $$safeBottom)
-    pb: $$safeBottom
-    display: flex
-    items-stretch
-    border-top: 1px solid $border
-    bg: $background
-
-    &.roderuda-expanded {
-      top: 0
-      h: 100%
-      p: 40px 0 calc(44px + $$safeBottom)
-
-      .roderuda-console-prompt { display: none }
-      .roderuda-console-input { p: 10px }
-      .roderuda-console-editor-actions { display: flex }
-    }
-  }
-
-  .roderuda-console-prompt {
-    w: 25px
-    display: grid
-    place-items: center
-    color: $accent
-    font: 700 15px / 1 $font.mono
-  }
-
-  .roderuda-console-input {
-    flex: 1
-    minw: 0
-    p: 3px 8px 3px 0
-    resize: none
-    outline: none
-    border: 0
-    bg: transparent
-    color: $primary
-    select(text)
-    font: 13px / 1.4 $font.mono
-  }
-
-  .roderuda-console-editor-actions {
-    display: none
-    pos(absolute, left: 0, right: 0, bottom: $$safeBottom)
-    h: 44px
-    border-top: 1px solid $border
-    bg: $backgroundDark
-
-    button {
-      flex: 1
-      bg: transparent
-      border-right: 1px solid $border
-      cursor: pointer
-    }
-  }
+  /* Console visuals live in panels/console.ts as named Cipó styled components. */
 
   .roderuda-value { select(text) }
   .roderuda-value-null,
@@ -1348,6 +1230,15 @@ export const devtoolsStyles = sheet.css`
   }
 `;
 
-export function installDevtoolsStyles(target: ShadowRoot | HTMLElement | Document): HTMLStyleElement {
-  return injectStyle(target, devtoolsStyles, { dedupe: true, position: "prepend" });
+export type DevtoolsStyleArtifact = CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact;
+
+export function installDevtoolsStyles(
+  target: ShadowRoot | HTMLElement | Document,
+  additionalStyles: readonly DevtoolsStyleArtifact[] = [],
+): HTMLStyleElement {
+  return injectStyle(
+    target,
+    additionalStyles.length > 0 ? [devtoolsStyles, ...additionalStyles] : devtoolsStyles,
+    { dedupe: true, position: "prepend" },
+  );
 }
