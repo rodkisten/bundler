@@ -130,7 +130,7 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const baseConfig = {
     configFile: false as const,
     root: ROOT_DIR,
-    plugins: [cipoVite({ root: ROOT_DIR })],
+    plugins: [cipoVite({ root: ROOT_DIR, mode: 'build', cssFileName: `${entry.name}.compiled.css`, compileFabrica: true, transformCssTag: true })],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
@@ -147,6 +147,7 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
         output: {
           banner,
           extend: true,
+          assetFileNames: (assetInfo) => assetInfo.name === `${entry.name}.compiled.css` ? `${entry.name}.compiled.css` : '[name][extname]',
         },
       },
     },
@@ -178,7 +179,9 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
     },
   });
 
-  return [normalIife, minIife].map((file) => path.relative(DIST_DIR, file));
+  const emitted = [normalIife, minIife, path.join(DIST_DIR, `${entry.name}.compiled.css`), path.join(DIST_DIR, 'cipo.compiled.manifest.json')];
+  const existing = await Promise.all(emitted.map(async (file) => { try { await fs.access(file); return file; } catch { return null; } }));
+  return existing.filter((file): file is string => Boolean(file)).map((file) => path.relative(DIST_DIR, file));
 }
 
 async function buildEntry(entry: RootEntry): Promise<string[]> {
