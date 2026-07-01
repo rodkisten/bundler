@@ -32,13 +32,14 @@ const originalConsole = {
   error: console.error?.bind(console) ?? console.log.bind(console),
 };
 
-let enabled = true;
+let enabled = false;
 let currentLevel: DebugLevel = "debug";
 let sequence = 0;
 
 export function configureDebug(options?: boolean | DebugOptions): void {
   if (typeof options === "boolean") {
     enabled = options;
+    if (options) currentLevel = "debug";
     return;
   }
   if (!options) return;

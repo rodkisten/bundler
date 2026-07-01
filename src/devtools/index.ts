@@ -266,7 +266,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   position(value?: Position): Position | undefined | this {
     if (!this.checkInitialized()) return value ? this : undefined;
     if (value) {
-      debugLog("runtime", "position:set", value as unknown as Record<string, unknown>);
+      debugLog("runtime", "position:set", value);
       this.entryBtn?.setPos(value);
       return this;
     }
