@@ -124,7 +124,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       this.rootTarget = this.host;
     }
 
-    this.style = installDevtoolsStyles(this.rootTarget, consoleStyleArtifacts);
+    this.style = installDevtoolsStyles(this.rootTarget);
     this.refs = renderShell(this.rootTarget, options.inline === true);
     this.chobitsu.setHost(this.host);
     this.devtools = new DevTools(this.host, this.shadowRoot, this.refs, options.inline === true, options.defaults);
