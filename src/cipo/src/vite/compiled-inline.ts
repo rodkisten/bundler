@@ -1,61 +1,120 @@
 import type { Plugin } from 'vite'
+import { compileCipoSourceBuild, type CipoCompiledBuildResult } from '../compiler/compiled-build'
 import { compileCipoSourceInline, type CipoCompiledInlineSourceResult } from '../compiler/compiled-inline'
+import { compileFabricaSource, type FabricaCompileSourceResult } from '../../../fabrica/compiler'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
   readonly exclude?: RegExp | readonly RegExp[]
-  /** Project root. Defaults to `process.cwd()` when available. */
   readonly root?: string
-  /** Absolute compiler module path used for generated imports. */
-  readonly compilerPath?: string
-  /** Explicit import specifier. When omitted, a relative path is computed per file. */
-  readonly importPath?: string
-  /** Enables the transform. Defaults to true. */
+  readonly mode?: 'build' | 'inline'
+  readonly classPrefix?: string
+  readonly cssFileName?: string
+  readonly transformCssTag?: boolean
+  readonly compileFabrica?: boolean
   readonly enabled?: boolean
-  /** Evaluate static CSS in transform metadata. Defaults to false for quiet production builds. */
   readonly evaluateStaticCss?: boolean
 }
 
 export interface CipoViteTransformResult {
   readonly code: string
   readonly map: null
-  readonly meta: { readonly cipo: CipoCompiledInlineSourceResult }
+  readonly meta: {
+    readonly cipo?: CipoCompiledBuildResult | CipoCompiledInlineSourceResult
+    readonly fabrica?: FabricaCompileSourceResult
+  }
 }
 
 const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/
 const DEFAULT_EXCLUDE = /(?:^|[/\\])node_modules(?:[/\\]|$)/
+const VIRTUAL_CSS_ID = '\0cipo:compiled.css'
 
-/**
- * Vite adapter for Cipó compiled-inline mode.
- *
- * @remarks
- * The plugin does not emit CSS files yet. It rewrites styled `.css` templates
- * to explicit `compiledInlineCss` artifact calls and lets the existing Cipó
- * inline compiler own parsing, helpers, aliases, theme variables and warnings.
- */
+/** Vite adapter for Cipó/Fábrica compiled mode. */
 export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
   const root = options.root ?? safeCwd()
-  const compilerPath = options.compilerPath ?? joinPath(root, 'src/cipo/src/compiler/compiled-inline.ts')
+  const mode = options.mode ?? 'build'
+  const cssChunks: string[] = []
+  const manifests: unknown[] = []
 
   return {
-    name: 'cipo:compiled-inline',
+    name: mode === 'build' ? 'cipo:compiled-build' : 'cipo:compiled-inline',
     enforce: 'pre',
+
+    resolveId(id) {
+      if (id === VIRTUAL_CSS_ID) return VIRTUAL_CSS_ID
+      return null
+    },
+
+    load(id) {
+      if (id === VIRTUAL_CSS_ID) return cssChunks.join('\n')
+      return null
+    },
+
     transform(code, id) {
       if (options.enabled === false) return null
       const filename = cleanViteId(id)
       if (!matches(filename, options.include ?? DEFAULT_INCLUDE)) return null
       if (matches(filename, options.exclude ?? DEFAULT_EXCLUDE)) return null
 
-      const result = compileCipoSourceInline(code, {
+      if (mode === 'inline') {
+        const result = compileCipoSourceInline(code, {
+          filename,
+          importPath: createImportPath(filename, joinPath(root, 'src/cipo/src/compiler/compiled-inline.ts')),
+          evaluateStaticCss: options.evaluateStaticCss ?? false,
+        })
+        if (!result.changed) return null
+        manifests.push(...result.manifest)
+        return { code: result.code, map: null, meta: { cipo: result } } satisfies CipoViteTransformResult
+      }
+
+      const cipo = compileCipoSourceBuild(code, {
         filename,
-        importPath: options.importPath ?? createImportPath(filename, compilerPath),
-        evaluateStaticCss: options.evaluateStaticCss ?? false,
+        classPrefix: options.classPrefix,
+        cssImportId: VIRTUAL_CSS_ID,
+        transformCssTag: options.transformCssTag ?? true,
       })
 
-      if (!result.changed) return null
-      return { code: result.code, map: null, meta: { cipo: result } } satisfies CipoViteTransformResult
+      let nextCode = cipo.code
+      let fabrica: FabricaCompileSourceResult | undefined
+      if (options.compileFabrica !== false) {
+        fabrica = compileFabricaSource(nextCode, {
+          filename,
+          importPath: createImportPath(filename, joinPath(root, 'src/fabrica/compiler.ts')),
+        })
+        nextCode = fabrica.code
+      }
+
+      if (cipo.css) cssChunks.push(cipo.css)
+      if (cipo.changed) manifests.push(...cipo.manifest)
+      if (fabrica?.changed) manifests.push(...fabrica.manifest)
+
+      if (!cipo.changed && !fabrica?.changed) return null
+      return { code: nextCode, map: null, meta: { cipo, ...(fabrica ? { fabrica } : {}) } } satisfies CipoViteTransformResult
+    },
+
+    generateBundle() {
+      const css = dedupeCss(cssChunks.join('\n'))
+      if (css.trim()) {
+        this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${css.trim()}\n` })
+      }
+      if (manifests.length > 0) {
+        this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries: manifests }, null, 2)}\n` })
+      }
     },
   }
+}
+
+function dedupeCss(css: string): string {
+  const seen = new Set<string>()
+  const chunks = css.split(/\n(?=\.)/g)
+  let output = ''
+  for (const chunk of chunks) {
+    const clean = chunk.trim()
+    if (!clean || seen.has(clean)) continue
+    seen.add(clean)
+    output += output ? `\n${clean}` : clean
+  }
+  return output
 }
 
 function matches(value: string, pattern: RegExp | readonly RegExp[]): boolean {
@@ -78,10 +137,10 @@ function cleanViteId(id: string): string {
   return file
 }
 
-function createImportPath(filename: string, compilerPath: string): string {
-  if (filename.startsWith('\0')) return `file://${compilerPath}`
+function createImportPath(filename: string, targetPath: string): string {
+  if (filename.startsWith('\0')) return `file://${targetPath}`
   const fromDirectory = dirname(filename)
-  let relative = relativePath(fromDirectory, compilerPath).replace(/\\/g, '/')
+  let relative = relativePath(fromDirectory, targetPath).replace(/\\/g, '/')
   relative = relative.replace(/\.(?:mts|cts|ts|tsx|mjs|cjs|js|jsx)$/, '')
   if (!relative.startsWith('.')) relative = `./${relative}`
   return relative
@@ -101,8 +160,7 @@ function relativePath(from: string, to: string): string {
   const fromParts = normalizePath(from).split('/').filter(Boolean)
   const toParts = normalizePath(to).split('/').filter(Boolean)
   while (fromParts.length > 0 && toParts.length > 0 && fromParts[0] === toParts[0]) {
-    fromParts.shift()
-    toParts.shift()
+    fromParts.shift(); toParts.shift()
   }
   return [...fromParts.map(() => '..'), ...toParts].join('/') || '.'
 }
@@ -119,5 +177,5 @@ function normalizePath(value: string): string {
 }
 
 function safeCwd(): string {
-  try { return process.cwd() } catch { return '.' }
+  try { return (globalThis as unknown as { process?: { cwd?: () => string } }).process?.cwd?.() ?? '.' } catch { return '.' }
 }
