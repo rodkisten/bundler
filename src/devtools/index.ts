@@ -12,7 +12,7 @@ import { installDevtoolsStyles } from "./core/style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
 import { DevTools } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
-import { Console } from "./panels/console";
+import { Console, consoleStyleArtifacts } from "./panels/console";
 import { Elements } from "./panels/elements";
 import { Info } from "./panels/info";
 import { Network } from "./panels/network";
