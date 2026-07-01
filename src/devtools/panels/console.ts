@@ -1,21 +1,11 @@
-import { computed, flushSync, store, type Signal, type Store } from "../../broto";
+import { flushSync, store, type Store } from "../../broto";
 import type { CipoCssArtifact } from "../../cipo";
-import type { RenderValue } from "../../fabrica";
-import {
-  component,
-  event,
-  html,
-  ref,
-  render,
-  repeat,
-  styled,
-  when,
-} from "../components/runtime";
+import { component, event, html, ref, render, styled } from "../components/runtime";
 import { ConfigStore } from "../core/config";
 import { ConsoleCapture } from "../core/console-capture";
-import { copyText, formatTime, icon } from "../core/dom";
+import { copyText, formatTime, icon, safeStringify } from "../core/dom";
 import { devtoolsTokens } from "../core/style";
-import { plainText, renderValue } from "../core/serialize";
+import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
 
@@ -53,21 +43,19 @@ interface ConsoleState extends Record<string, unknown> {
 
 interface ConsoleViewModel {
   readonly state: Store<ConsoleState>;
-  readonly visibleRecords: Signal<readonly ConsoleRecord[]>;
   setBody(node: HTMLElement | null): void;
+  setList(node: HTMLElement | null): void;
   setInput(node: HTMLTextAreaElement | null): void;
   clear(): void;
   copy(): void;
   toggleLevel(level: ConsoleLevel): void;
   filter(value: string): void;
-  selectRecord(id: number): void;
   handleInput(event: Event): void;
   handleInputKey(event: KeyboardEvent): void;
   handleInputFocus(): void;
   cancelEditor(): void;
   clearEditor(): void;
   runEditor(): void;
-  selectNode(node: Node): void;
 }
 
 const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
@@ -85,11 +73,6 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
 
 const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "warn", "error"];
 
-/*
- * Importing the configuration artifact before declaring styled components keeps
- * this isolated Devtools Fabrica instance on the same Cipó design-system
- * contract as the shell. The value itself is intentionally not rendered.
- */
 void devtoolsTokens;
 
 /* *************** */
@@ -103,7 +86,6 @@ const ConsoleSurface = styled.div("RodConsoleSurface").css`
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scrollbar-color: $border transparent;
   background: $background;
 
   &.roderuda-console-no-execution {
@@ -113,9 +95,7 @@ const ConsoleSurface = styled.div("RodConsoleSurface").css`
 
 const ConsoleControl = styled.div("RodConsoleControl").css`
   position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
+  inset: 0 0 auto 0;
   z-index: 12;
   display: flex;
   align-items: center;
@@ -131,32 +111,12 @@ const ConsoleIconButton = styled.button("RodConsoleIconButton").css`
   appearance: none;
   display: inline-grid;
   place-items: center;
-  flex: 0 0 auto;
   min-width: 28px;
   height: 28px;
-  padding: 0 7px;
   border: 0;
   border-radius: $control;
   color: $primary;
   background: transparent;
-  cursor: pointer;
-  font-size: 17px;
-  transition: color .18s, background .18s, transform .1s;
-
-  &:hover {
-    color: $selectedForeground;
-    background: $highlight;
-  }
-
-  &:active {
-    color: $accent;
-    transform: scale(.94);
-  }
-
-  &:focus-visible {
-    outline: 2px solid alpha($accent / 55%);
-    outline-offset: 1px;
-  }
 `;
 
 const ConsoleLevels = styled.div("RodConsoleLevels").css`
@@ -173,25 +133,15 @@ const ConsoleLevelButton = styled.button("RodConsoleLevelButton").css`
   border-radius: $md;
   color: $foreground;
   background: transparent;
-  cursor: pointer;
-  font-size: 11px;
-  text-transform: capitalize;
 
-  &:hover,
   &.roderuda-active {
     color: $selectedForeground;
     background: $highlight;
-  }
-
-  &:focus-visible {
-    outline: 2px solid alpha($accent / 55%);
-    outline-offset: 1px;
   }
 `;
 
 const ConsoleControlSpacer = styled.div("RodConsoleControlSpacer").css`
   flex: 1 1 auto;
-  min-width: 4px;
 `;
 
 const ConsoleFilter = styled.input("RodConsoleFilter").css`
@@ -202,15 +152,8 @@ const ConsoleFilter = styled.input("RodConsoleFilter").css`
   padding: 4px 9px;
   border: 1px solid $border;
   border-radius: $section;
-  outline: none;
   color: $primary;
   background: $background;
-  user-select: text;
-
-  &:focus {
-    border-color: $accent;
-    box-shadow: 0 0 0 2px alpha($accent / 18%);
-  }
 `;
 
 const ConsoleList = styled.div("RodConsoleList").css`
@@ -221,16 +164,11 @@ const ConsoleList = styled.div("RodConsoleList").css`
 const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
   min-height: 25px;
-  padding-top: 4px;
-  padding-right: 35px;
-  padding-bottom: 4px;
-  padding-left: calc(9px + var(--rd-console-depth, 0) * 14px);
+  padding: 4px 35px 4px calc(9px + var(--rd-console-depth, 0) * 14px);
   border-bottom: 1px solid alpha($border / 65%);
   color: $foreground;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  user-select: text;
-  cursor: default;
 
   &[data-level="warn"] {
     color: $warningFg;
@@ -250,12 +188,6 @@ const ConsoleRow = styled.div("RodConsoleRow").css`
 
   &[data-level="result"] {
     color: $primary;
-  }
-
-  &.roderuda-selected {
-    outline: 1px solid alpha($accent / 45%);
-    outline-offset: -1px;
-    background: alpha($highlight / 70%);
   }
 `;
 
@@ -316,10 +248,6 @@ const ConsolePrompt = styled.span("RodConsolePrompt").css`
   width: 25px;
   color: $accent;
   font: 700 15px / 1 $font.mono;
-
-  .roderuda-expanded & {
-    display: none;
-  }
 `;
 
 const ConsoleInput = styled.textarea("RodConsoleInput").css`
@@ -331,12 +259,7 @@ const ConsoleInput = styled.textarea("RodConsoleInput").css`
   border: 0;
   color: $primary;
   background: transparent;
-  user-select: text;
   font: 13px / 1.4 $font.mono;
-
-  .roderuda-expanded & {
-    padding: 10px;
-  }
 `;
 
 const ConsoleEditorActions = styled.div("RodConsoleEditorActions").css`
@@ -361,24 +284,11 @@ const ConsoleEditorButton = styled.button("RodConsoleEditorButton").css`
   border-right: 1px solid $border;
   color: $primary;
   background: transparent;
-  cursor: pointer;
-
-  &:hover {
-    color: $selectedForeground;
-    background: $highlight;
-  }
-
-  &:last-child {
-    border-right: 0;
-    color: $accent;
-  }
 `;
 
 const ConsoleTableWrap = styled.div("RodConsoleTableWrap").css`
   width: 100%;
   overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 `;
 
 const ConsoleTable = styled.table("RodConsoleTable").css`
@@ -386,35 +296,20 @@ const ConsoleTable = styled.table("RodConsoleTable").css`
   border-collapse: collapse;
   color: inherit;
   font: 12px / 1.4 $font.ui;
-
-  tbody tr:hover {
-    background: alpha($highlight / 70%);
-  }
 `;
 
 const ConsoleTableHead = styled.th("RodConsoleTableHead").css`
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  min-height: 30px;
   padding: 7px 9px;
   border-bottom: 1px solid $border;
   color: $primary;
   background: $backgroundDark;
   text-align: left;
-  vertical-align: top;
-  word-break: break-word;
-  white-space: nowrap;
-  font-weight: 600;
 `;
 
 const ConsoleTableCell = styled.td("RodConsoleTableCell").css`
-  min-height: 30px;
   padding: 7px 9px;
   border-bottom: 1px solid $border;
   text-align: left;
-  vertical-align: top;
-  word-break: break-word;
 `;
 
 const CONSOLE_STYLED_COMPONENTS = Object.freeze([
@@ -441,19 +336,13 @@ const CONSOLE_STYLED_COMPONENTS = Object.freeze([
   ConsoleTableCell,
 ]);
 
-/** Static Cipó artifacts that must be injected into the Devtools ShadowRoot. */
 export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
   CONSOLE_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-/* *************** */
-/* Fabrica views   */
-/* *************** */
-
 component("RodConsoleView", function RodConsoleView(props) {
   const view = props.view as ConsoleViewModel;
-
   return html`
     <RodConsoleSurface
       class=${() => [
@@ -470,84 +359,30 @@ component("RodConsoleView", function RodConsoleView(props) {
       })}
     >
       <RodConsoleControl class="roderuda-control">
-        <RodConsoleIconButton
-          class="roderuda-icon-btn"
-          type="button"
-          title="Clear"
-          aria-label="Clear console"
-          data-action="clear"
-          @click=${event((actionEvent: Event) => {
-            actionEvent.preventDefault();
-            view.clear();
-          })}
-        >${icon("clear")}</RodConsoleIconButton>
-
+        <RodConsoleIconButton class="roderuda-icon-btn" type="button" title="Clear" data-action="clear" @click=${event((click: Event) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
         <RodConsoleLevels class="roderuda-console-levels" role="group" aria-label="Console levels">
           ${visibleLevels.map((level) => html`
             <RodConsoleLevelButton
-              class=${() => view.state.enabledLevels().includes(level)
-                ? "roderuda-console-level roderuda-active"
-                : "roderuda-console-level"}
+              class=${() => view.state.enabledLevels().includes(level) ? "roderuda-console-level roderuda-active" : "roderuda-console-level"}
               type="button"
               data-level=${level}
               aria-pressed=${() => String(view.state.enabledLevels().includes(level))}
-              @click=${event((levelEvent: Event) => {
-                levelEvent.preventDefault();
-                view.toggleLevel(level);
-              })}
+              @click=${event((levelEvent: Event) => { levelEvent.preventDefault(); view.toggleLevel(level); })}
             >${level}</RodConsoleLevelButton>
           `)}
         </RodConsoleLevels>
-
         <RodConsoleControlSpacer class="roderuda-control-spacer" />
-
-        <RodConsoleFilter
-          class="roderuda-search"
-          data-console-filter
-          type="search"
-          placeholder="Filter"
-          aria-label="Filter console"
-          .value=${() => view.state.filterText()}
-          @input=${event((inputEvent: Event) => {
-            view.filter((inputEvent.currentTarget as HTMLInputElement).value);
-          })}
-        />
-
-        <RodConsoleIconButton
-          class="roderuda-icon-btn"
-          type="button"
-          title="Copy console"
-          aria-label="Copy console"
-          data-action="copy"
-          @click=${event((copyEvent: Event) => {
-            copyEvent.preventDefault();
-            view.copy();
-          })}
-        >${icon("copy")}</RodConsoleIconButton>
+        <RodConsoleFilter class="roderuda-search" data-console-filter type="search" placeholder="Filter" aria-label="Filter console" .value=${() => view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
+        <RodConsoleIconButton class="roderuda-icon-btn" type="button" title="Copy console" data-action="copy" @click=${event((copyEvent: Event) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
-
-      <RodConsoleList class="roderuda-console-list" data-console-list>
-        ${repeat(
-          view.visibleRecords,
-          (record) => record.id,
-          ({ item }) => html`
-            <RodConsoleRecordView view=${view as never} record=${item as never} />
-          `,
-          {
-            empty: () => html`<span class="roderuda-visually-hidden">No console records</span>`,
-          },
-        )}
+      <RodConsoleList class="roderuda-console-list" data-console-list ref=${ref((node) => {
+        view.setList(node as HTMLElement);
+        return () => view.setList(null);
+      })}>
+        <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-
-    <RodConsoleInputWrap
-      class=${() => [
-        "roderuda-console-input-wrap",
-        view.state.jsExecution() ? "" : "roderuda-hidden",
-        view.state.editorExpanded() ? "roderuda-expanded" : "",
-      ].filter(Boolean).join(" ")}
-      data-console-input-wrap
-    >
+    <RodConsoleInputWrap class=${() => ["roderuda-console-input-wrap", view.state.jsExecution() ? "" : "roderuda-hidden", view.state.editorExpanded() ? "roderuda-expanded" : ""].filter(Boolean).join(" ")} data-console-input-wrap>
       <RodConsolePrompt class="roderuda-console-prompt">›</RodConsolePrompt>
       <RodConsoleInput
         class="roderuda-console-input"
@@ -566,150 +401,13 @@ component("RodConsoleView", function RodConsoleView(props) {
         @focus=${event(() => view.handleInputFocus())}
       />
       <RodConsoleEditorActions class="roderuda-console-editor-actions">
-        <RodConsoleEditorButton
-          type="button"
-          data-action="cancel-editor"
-          @click=${event(() => view.cancelEditor())}
-        >Cancel</RodConsoleEditorButton>
-        <RodConsoleEditorButton
-          type="button"
-          data-action="clear-editor"
-          @click=${event(() => view.clearEditor())}
-        >Clear</RodConsoleEditorButton>
-        <RodConsoleEditorButton
-          type="button"
-          data-action="run-editor"
-          @click=${event(() => view.runEditor())}
-        >Run</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" data-action="cancel-editor" @click=${event(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" data-action="clear-editor" @click=${event(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" data-action="run-editor" @click=${event(() => view.runEditor())}>Run</RodConsoleEditorButton>
       </RodConsoleEditorActions>
     </RodConsoleInputWrap>
   `;
 });
-
-component("RodConsoleRecordView", function RodConsoleRecordView(props) {
-  const view = props.view as ConsoleViewModel;
-  const recordSignal = props.record as Signal<ConsoleRecord>;
-  const readRecord = (): ConsoleRecord => recordSignal();
-
-  return html`
-    <RodConsoleRow
-      class=${() => view.state.selectedRecordId() === readRecord().id
-        ? "roderuda-console-row roderuda-selected"
-        : "roderuda-console-row"}
-      data-level=${() => readRecord().level}
-      data-record-id=${() => String(readRecord().id)}
-      aria-selected=${() => String(view.state.selectedRecordId() === readRecord().id)}
-      style=${() => `--rd-console-depth:${readRecord().groupDepth}`}
-      @click=${event(() => view.selectRecord(readRecord().id))}
-    >
-      ${when(
-        () => (readRecord().repeat ?? 1) > 1,
-        () => html`
-          <RodConsoleRepeat class="roderuda-console-repeat">
-            ${() => String(readRecord().repeat ?? 1)}
-          </RodConsoleRepeat>
-        `,
-      )}
-
-      ${when(
-        () => readRecord().collapsed != null,
-        () => html`
-          <RodConsoleGroup class="roderuda-console-group">
-            ${() => readRecord().collapsed ? "▸" : "▾"}
-          </RodConsoleGroup>
-        `,
-      )}
-
-      ${() => renderRecordPayload(readRecord(), view)}
-
-      ${when(
-        () => view.state.displayExtraInfo(),
-        () => html`
-          <RodConsoleTime class="roderuda-console-time">
-            ${() => formatTime(readRecord().timestamp)}
-          </RodConsoleTime>
-        `,
-      )}
-    </RodConsoleRow>
-  `;
-});
-
-component("RodConsoleTableView", function RodConsoleTableView(props) {
-  const value = props.value;
-  const data = normalizeTable(value);
-
-  if (!data.rows.length) {
-    return html`
-      <RodConsoleTableWrap class="roderuda-table-wrap">
-        ${renderValue(value)}
-      </RodConsoleTableWrap>
-    `;
-  }
-
-  return html`
-    <RodConsoleTableWrap class="roderuda-table-wrap">
-      <RodConsoleTable class="roderuda-table">
-        <thead>
-          <tr>
-            ${repeat(
-              data.columns,
-              (column) => column,
-              ({ item: column }) => html`
-                <RodConsoleTableHead>${column}</RodConsoleTableHead>
-              `,
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          ${repeat(
-            data.rows,
-            (_row, index) => index,
-            ({ item: row }) => html`
-              <tr>
-                ${repeat(
-                  data.columns,
-                  (column) => column,
-                  ({ item: column }) => html`
-                    <RodConsoleTableCell>
-                      ${() => renderValue(row()[column()], { maxDepth: 2, maxEntries: 20 })}
-                    </RodConsoleTableCell>
-                  `,
-                )}
-              </tr>
-            `,
-          )}
-        </tbody>
-      </RodConsoleTable>
-    </RodConsoleTableWrap>
-  `;
-});
-
-function renderRecordPayload(record: ConsoleRecord, view: ConsoleViewModel): RenderValue {
-  if (record.level === "html") {
-    return html`<span>${String(record.args[0] ?? "")}</span>`;
-  }
-
-  if (record.level === "table") {
-    return html`<RodConsoleTableView value=${record.args[0] as never} />`;
-  }
-
-  const output: RenderValue[] = [];
-
-  record.args.forEach((argument, index) => {
-    if (index > 0) output.push(" ");
-    output.push(renderValue(argument, {
-      maxDepth: view.state.lazyEvaluation() ? 4 : 2,
-      maxEntries: view.state.displayUnenumerable() ? 100 : 50,
-      onNodeSelect: (node) => view.selectNode(node),
-    }));
-  });
-
-  return output;
-}
-
-/* *************** */
-/* Console tool    */
-/* *************** */
 
 export class Console extends Tool {
   readonly name: string;
@@ -733,15 +431,10 @@ export class Console extends Tool {
     displayUnenumerable: DEFAULT_CONSOLE_CONFIG.displayUnenumerable,
     lazyEvaluation: DEFAULT_CONSOLE_CONFIG.lazyEvaluation,
     lastResult: undefined,
-  }, {
-    name: "roderuda-console",
-  });
-
-  private readonly visibleRecords = computed<readonly ConsoleRecord[]>(() => {
-    return this.state.records().filter((record) => this.matches(record));
-  });
+  }, { name: "roderuda-console" });
 
   private body: HTMLElement | null = null;
+  private list: HTMLElement | null = null;
   private input: HTMLTextAreaElement | null = null;
   private disposeView: (() => void) | null = null;
 
@@ -754,29 +447,25 @@ export class Console extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-
     const view: ConsoleViewModel = {
       state: this.state,
-      visibleRecords: this.visibleRecords,
       setBody: (node) => { this.body = node; },
+      setList: (node) => { this.list = node; },
       setInput: (node) => { this.input = node; },
       clear: () => this.clear(),
       copy: () => { void this.copyVisibleRecords(); },
       toggleLevel: (level) => this.toggleLevel(level),
       filter: (value) => this.filter(value),
-      selectRecord: (id) => this.selectRecord(id),
       handleInput: (inputEvent) => this.handleInput(inputEvent),
       handleInputKey: (keyboardEvent) => this.handleInputKey(keyboardEvent),
       handleInputFocus: () => this.handleInputFocus(),
       cancelEditor: () => this.expandEditor(false),
       clearEditor: () => this.clearEditor(),
       runEditor: () => { void this.executeInput(); },
-      selectNode: (node) => this.selectNode(node),
     };
 
     this.disposeView?.();
     this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
-
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
 
@@ -786,15 +475,13 @@ export class Console extends Tool {
         catchGlobalErrors: this.config.get("catchGlobalErr"),
       });
     } catch (error) {
-      context.notify(
-        `Console capture fallback: ${error instanceof Error ? error.message : String(error)}`,
-        { type: "warning", duration: 5000 },
-      );
+      context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
     }
 
     this.config.on("change", this.onConfigChange);
     this.registerSettings(context);
     this.syncConfigState();
+    this.syncDom();
     flushSync();
   }
 
@@ -818,6 +505,7 @@ export class Console extends Tool {
       filterValue: typeof filter === "string" && !filter.trim() ? null : filter,
       filterText: typeof filter === "string" ? filter : "",
     }, { cause: "console:filter" });
+    this.syncDom();
     flushSync();
   }
 
@@ -834,73 +522,45 @@ export class Console extends Tool {
     this.disposeView?.();
     this.disposeView = null;
     this.body = null;
+    this.list = null;
     this.input = null;
-    this.state.patch({
-      records: [],
-      selectedRecordId: null,
-      inputValue: "",
-      editorExpanded: false,
-    }, { cause: "console:destroy" });
+    this.state.patch({ records: [], selectedRecordId: null, inputValue: "", editorExpanded: false }, { cause: "console:destroy" });
     super.destroy();
   }
 
   private readonly onRecord = (record: ConsoleRecord): void => {
     const records = [...this.state.records.peek()];
     const last = records.at(-1);
-
     if (last && sameRecord(last, record)) {
-      records[records.length - 1] = {
-        ...last,
-        repeat: (last.repeat ?? 1) + 1,
-        timestamp: record.timestamp,
-      };
+      records[records.length - 1] = { ...last, repeat: (last.repeat ?? 1) + 1, timestamp: record.timestamp };
     } else {
       records.push(record);
     }
-
     this.state.records.set(records);
     this.trimRecords();
-
-    if (!this.config.get("asyncRender")) {
-      flushSync();
-    }
-
+    this.syncDom();
+    if (!this.config.get("asyncRender")) flushSync();
     this.scrollToBottom();
-
-    if (record.level === "error" && this.config.get("displayIfErr")) {
-      this.context?.devtools.show().showTool(this.name);
-    }
+    if (record.level === "error" && this.config.get("displayIfErr")) this.context?.devtools.show().showTool(this.name);
   };
 
   private readonly onClear = (): void => {
-    this.state.patch({
-      records: [],
-      selectedRecordId: null,
-    }, { cause: "console:clear" });
+    this.state.patch({ records: [], selectedRecordId: null }, { cause: "console:clear" });
+    this.syncDom();
     flushSync();
   };
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
-    if (key === "overrideConsole") {
-      value ? this.capture.overrideConsole() : this.capture.restoreConsole();
-    }
-
-    if (key === "catchGlobalErr") {
-      value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
-    }
-
-    if (
-      key === "jsExecution" ||
-      key === "displayExtraInfo" ||
-      key === "displayUnenumerable" ||
-      key === "lazyEvaluation"
-    ) {
+    if (key === "overrideConsole") value ? this.capture.overrideConsole() : this.capture.restoreConsole();
+    if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
+    if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
+      this.syncDom();
       flushSync();
     }
-
     if (key === "maxLogNum") {
       this.trimRecords();
+      this.syncDom();
       flushSync();
     }
   };
@@ -927,38 +587,24 @@ export class Console extends Tool {
     settings.registerSwitch(this.config, "displayGetterVal", "Read getter values");
     settings.registerSwitch(this.config, "lazyEvaluation", "Lazy object evaluation");
     settings.registerSwitch(this.config, "displayIfErr", "Open Console when an error occurs");
-    settings.registerSelect(
-      this.config,
-      "maxLogNum",
-      "Maximum log count",
-      ["infinite", "500", "250", "125", "100", "50", "10"],
-    );
+    settings.registerSelect(this.config, "maxLogNum", "Maximum log count", ["infinite", "500", "250", "125", "100", "50", "10"]);
+  }
+
+  private visibleRecords(): readonly ConsoleRecord[] {
+    return this.state.records.peek().filter((record) => this.matches(record));
   }
 
   private matches(record: ConsoleRecord): boolean {
     const level = normalizeVisibleLevel(record.level);
-
-    if (!this.state.enabledLevels().includes(level)) {
-      return false;
-    }
-
-    const filterValue = this.state.filterValue();
-
-    if (!filterValue) {
-      return true;
-    }
-
-    if (typeof filterValue === "function") {
-      return filterValue(record);
-    }
-
+    if (!this.state.enabledLevels.peek().includes(level)) return false;
+    const filterValue = this.state.filterValue.peek();
+    if (!filterValue) return true;
+    if (typeof filterValue === "function") return filterValue(record);
     const text = record.args.map(plainText).join(" ");
-
     if (filterValue instanceof RegExp) {
       filterValue.lastIndex = 0;
       return filterValue.test(text);
     }
-
     return text.toLowerCase().includes(filterValue.toLowerCase());
   }
 
@@ -966,24 +612,15 @@ export class Console extends Tool {
     const value = this.config.get("maxLogNum");
     const max = value === "infinite" ? 0 : Number(value);
     const records = this.state.records.peek();
-
-    if (max > 0 && records.length > max) {
-      this.state.records.set(records.slice(records.length - max));
-    }
+    if (max > 0 && records.length > max) this.state.records.set(records.slice(records.length - max));
   }
 
   private toggleLevel(level: ConsoleLevel): void {
     const enabled = this.state.enabledLevels.peek();
-    const next = enabled.includes(level)
-      ? enabled.filter((candidate) => candidate !== level)
-      : [...enabled, level];
-
+    const next = enabled.includes(level) ? enabled.filter((candidate) => candidate !== level) : [...enabled, level];
     this.state.enabledLevels.set(next);
+    this.syncDom();
     flushSync();
-  }
-
-  private selectRecord(id: number): void {
-    this.state.setPath("selectedRecordId", Number.isFinite(id) ? id : null);
   }
 
   private handleInput(eventValue: Event): void {
@@ -992,238 +629,219 @@ export class Console extends Tool {
 
   private handleInputFocus(): void {
     const value = this.state.inputValue.peek();
-    if (value.includes("\n") || value.length > 80) {
-      this.expandEditor(true);
-    }
+    if (value.includes("\n") || value.length > 80) this.expandEditor(true);
   }
 
   private handleInputKey(eventValue: KeyboardEvent): void {
     const value = this.state.inputValue.peek();
-
-    if (
-      eventValue.key === "Enter" &&
-      !eventValue.shiftKey &&
-      !eventValue.altKey &&
-      !eventValue.ctrlKey &&
-      !eventValue.metaKey
-    ) {
+    if (eventValue.key === "Enter" && !eventValue.shiftKey && !eventValue.altKey && !eventValue.ctrlKey && !eventValue.metaKey) {
       eventValue.preventDefault();
       void this.executeInput();
       return;
     }
-
     if ((eventValue.metaKey || eventValue.ctrlKey) && eventValue.key === "Enter") {
       eventValue.preventDefault();
       void this.executeInput();
       return;
     }
-
     if (eventValue.key === "ArrowUp" && !value.includes("\n")) {
       eventValue.preventDefault();
       const nextIndex = Math.max(0, this.state.historyIndex.peek() - 1);
-      this.state.patch({
-        historyIndex: nextIndex,
-        inputValue: this.state.history.peek()[nextIndex] ?? "",
-      }, { cause: "console:history-up" });
+      this.state.patch({ historyIndex: nextIndex, inputValue: this.state.history.peek()[nextIndex] ?? "" }, { cause: "console:history-up" });
+      this.syncDom();
       flushSync();
       return;
     }
-
     if (eventValue.key === "ArrowDown" && !value.includes("\n")) {
       eventValue.preventDefault();
-      const nextIndex = Math.min(
-        this.state.history.peek().length,
-        this.state.historyIndex.peek() + 1,
-      );
-      this.state.patch({
-        historyIndex: nextIndex,
-        inputValue: this.state.history.peek()[nextIndex] ?? "",
-      }, { cause: "console:history-down" });
+      const nextIndex = Math.min(this.state.history.peek().length, this.state.historyIndex.peek() + 1);
+      this.state.patch({ historyIndex: nextIndex, inputValue: this.state.history.peek()[nextIndex] ?? "" }, { cause: "console:history-down" });
+      this.syncDom();
       flushSync();
       return;
     }
-
-    if (eventValue.key === "Escape") {
-      this.expandEditor(false);
-      return;
-    }
-
-    if (eventValue.key === "Enter" && eventValue.shiftKey) {
-      this.expandEditor(true);
-    }
+    if (eventValue.key === "Escape") this.expandEditor(false);
+    if (eventValue.key === "Enter" && eventValue.shiftKey) this.expandEditor(true);
   }
 
   private async executeInput(): Promise<void> {
     const code = this.state.inputValue.peek().trim();
-
-    if (!code) {
-      return;
-    }
-
+    if (!code) return;
     const history = [...this.state.history.peek(), code];
-    this.state.patch({
-      history,
-      historyIndex: history.length,
-      inputValue: "",
-      editorExpanded: false,
-    }, { cause: "console:execute" });
+    this.state.patch({ history, historyIndex: history.length, inputValue: "", editorExpanded: false }, { cause: "console:execute" });
+    this.syncDom();
     flushSync();
-
     this.capture.record("command", [code]);
-
     try {
-      const result = await executeJavaScript(code, {
-        $_: this.state.lastResult.peek(),
-        $0: this.selectedRecord()?.args[0],
-        devtools: this.context?.devtools,
-        globals: this.capture.getGlobals(),
-      });
-
+      const result = await executeJavaScript(code, { $_: this.state.lastResult.peek(), $0: this.selectedRecord()?.args[0], devtools: this.context?.devtools, globals: this.capture.getGlobals() });
       this.state.lastResult.set(result);
       this.capture.record("result", [result]);
     } catch (error) {
       this.capture.record("error", [error]);
     }
+    this.syncDom();
+    flushSync();
   }
 
   private expandEditor(expanded: boolean): void {
     this.state.setPath("editorExpanded", expanded);
+    this.syncDom();
     flushSync();
-
-    if (expanded) {
-      queueMicrotask(() => this.input?.focus());
-    }
+    if (expanded) queueMicrotask(() => this.input?.focus());
   }
 
   private clearEditor(): void {
     this.state.inputValue.set("");
+    this.syncDom();
     flushSync();
     this.input?.focus();
   }
 
   private selectedRecord(): ConsoleRecord | null {
     const id = this.state.selectedRecordId.peek();
-    return id == null
-      ? null
-      : this.state.records.peek().find((record) => record.id === id) ?? null;
-  }
-
-  private selectNode(node: Node): void {
-    if (!(node instanceof Element)) {
-      return;
-    }
-
-    this.context?.devtools
-      .get<{ select(selectedNode: Element): void } & Tool>("elements")
-      ?.select(node);
-    this.context?.devtools.showTool("elements");
+    return id == null ? null : this.state.records.peek().find((record) => record.id === id) ?? null;
   }
 
   private async copyVisibleRecords(): Promise<void> {
-    const text = this.visibleRecords.peek()
-      .map((record) => record.args.map(plainText).join(" "))
-      .join("\n");
-
-    await copyText(text);
+    await copyText(this.visibleRecords().map((record) => record.args.map(plainText).join(" ")).join("\n"));
     this.context?.notify("Console copied", { type: "success" });
+  }
+
+  private syncDom(): void {
+    const wrap = this.container?.querySelector<HTMLElement>("[data-console-input-wrap]");
+    if (wrap) {
+      wrap.classList.toggle("roderuda-hidden", !this.state.jsExecution.peek());
+      wrap.classList.toggle("roderuda-expanded", this.state.editorExpanded.peek());
+    }
+    if (this.input && this.input.value !== this.state.inputValue.peek()) this.input.value = this.state.inputValue.peek();
+    for (const button of Array.from(this.container?.querySelectorAll<HTMLButtonElement>("[data-level]") ?? [])) {
+      const enabled = this.state.enabledLevels.peek().includes(button.dataset.level as ConsoleLevel);
+      button.classList.toggle("roderuda-active", enabled);
+      button.setAttribute("aria-pressed", String(enabled));
+    }
+    this.renderRecords();
+  }
+
+  private renderRecords(): void {
+    if (!this.list) return;
+    this.list.replaceChildren();
+    const records = this.visibleRecords();
+    if (!records.length) {
+      const empty = document.createElement("span");
+      empty.className = "roderuda-visually-hidden";
+      empty.textContent = "No console records";
+      this.list.append(empty);
+      return;
+    }
+    for (const record of records) this.list.append(renderRecord(record, this.state.displayExtraInfo.peek()));
   }
 
   private scrollToBottom(): void {
     requestAnimationFrame(() => {
-      if (!this.body) {
-        return;
-      }
-
-      this.body.scrollTop = this.body.scrollHeight;
+      if (this.body) this.body.scrollTop = this.body.scrollHeight;
     });
   }
+}
+
+function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "roderuda-console-row";
+  row.dataset.level = record.level;
+  row.dataset.recordId = String(record.id);
+  row.style.setProperty("--rd-console-depth", String(record.groupDepth));
+  if ((record.repeat ?? 1) > 1) {
+    const repeat = document.createElement("span");
+    repeat.className = "roderuda-console-repeat";
+    repeat.textContent = String(record.repeat ?? 1);
+    row.append(repeat);
+  }
+  if (record.collapsed != null) {
+    const group = document.createElement("span");
+    group.className = "roderuda-console-group";
+    group.textContent = record.collapsed ? "▸" : "▾";
+    row.append(group);
+  }
+  if (record.level === "table") row.append(renderTable(record.args[0]));
+  else row.append(document.createTextNode(record.args.map(plainText).join(" ")));
+  if (displayExtraInfo) {
+    const time = document.createElement("time");
+    time.className = "roderuda-console-time";
+    time.textContent = formatTime(record.timestamp);
+    row.append(time);
+  }
+  return row;
+}
+
+function renderTable(value: unknown): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "roderuda-table-wrap";
+  const data = normalizeTable(value);
+  if (!data.rows.length) {
+    wrap.textContent = plainText(value);
+    return wrap;
+  }
+  const table = document.createElement("table");
+  table.className = "roderuda-table";
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const column of data.columns) {
+    const th = document.createElement("th");
+    th.textContent = column;
+    headRow.append(th);
+  }
+  thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  for (const row of data.rows) {
+    const tr = document.createElement("tr");
+    for (const column of data.columns) {
+      const td = document.createElement("td");
+      td.textContent = stringifyCell(row[column]);
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  wrap.append(table);
+  return wrap;
+}
+
+function stringifyCell(value: unknown): string {
+  if (value == null) return String(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
+  return safeStringify(value, 0);
 }
 
 function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
-  return level === "command" ||
-    level === "result" ||
-    level === "html" ||
-    level === "table" ||
-    level === "dir"
-    ? "log"
-    : level;
+  return level === "command" || level === "result" || level === "html" || level === "table" || level === "dir" ? "log" : level;
 }
 
 function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
-  if (
-    left.level !== right.level ||
-    left.groupDepth !== right.groupDepth ||
-    left.args.length !== right.args.length
-  ) {
-    return false;
-  }
-
+  if (left.level !== right.level || left.groupDepth !== right.groupDepth || left.args.length !== right.args.length) return false;
   return left.args.every((value, index) => Object.is(value, right.args[index]));
 }
 
-function normalizeTable(value: unknown): {
-  columns: string[];
-  rows: Array<Record<string, unknown>>;
-} {
+function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record<string, unknown>> } {
   if (Array.isArray(value)) {
-    const rows = value.map((item, index) => {
-      if (item && typeof item === "object") {
-        return { "(index)": index, ...(item as Record<string, unknown>) };
-      }
-
-      return { "(index)": index, Value: item };
-    });
-
-    return {
-      columns: [...new Set(rows.flatMap((row) => Object.keys(row)))],
-      rows,
-    };
+    const rows = value.map((item, index) => item && typeof item === "object" ? { "(index)": index, ...(item as Record<string, unknown>) } : { "(index)": index, Value: item });
+    return { columns: [...new Set(rows.flatMap((row) => Object.keys(row)))], rows };
   }
-
   if (value && typeof value === "object") {
-    const rows = Object.entries(value).map(([key, item]) => {
-      if (item && typeof item === "object") {
-        return { "(index)": key, ...(item as Record<string, unknown>) };
-      }
-
-      return { "(index)": key, Value: item };
-    });
-
-    return {
-      columns: [...new Set(rows.flatMap((row) => Object.keys(row)))],
-      rows,
-    };
+    const rows = Object.entries(value).map(([key, item]) => item && typeof item === "object" ? { "(index)": key, ...(item as Record<string, unknown>) } : { "(index)": key, Value: item });
+    return { columns: [...new Set(rows.flatMap((row) => Object.keys(row)))], rows };
   }
-
   return { columns: [], rows: [] };
 }
 
-async function executeJavaScript(
-  code: string,
-  context: {
-    $_: unknown;
-    $0: unknown;
-    devtools: unknown;
-    globals: ReadonlyMap<string, unknown>;
-  },
-): Promise<unknown> {
+async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
   const names = ["$_", "$0", "devtools", ...context.globals.keys()];
   const values = [context.$_, context.$0, context.devtools, ...context.globals.values()];
-  const AsyncFunction = Object.getPrototypeOf(async function noop() {}).constructor as new (
-    ...args: string[]
-  ) => (...functionValues: unknown[]) => Promise<unknown>;
-
+  const AsyncFunction = Object.getPrototypeOf(async function noop() {}).constructor as new (...args: string[]) => (...functionValues: unknown[]) => Promise<unknown>;
   try {
-    const expression = new AsyncFunction(
-      ...names,
-      `"use strict"; return await (${code});`,
-    );
+    const expression = new AsyncFunction(...names, `"use strict"; return await (${code});`);
     return await expression(...values);
   } catch (error) {
-    if (!(error instanceof SyntaxError)) {
-      throw error;
-    }
-
+    if (!(error instanceof SyntaxError)) throw error;
     const statements = new AsyncFunction(...names, `"use strict"; ${code}`);
     return await statements(...values);
   }
