@@ -37,6 +37,9 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): CipoViteL
 }
 
 function matches(value: string, pattern: RegExp | readonly RegExp[]): boolean {
-  if (Array.isArray(pattern)) return (pattern as readonly RegExp[]).some((item) => item.test(value))
-  return (pattern as RegExp).test(value)
+  const test = (re: RegExp) => {
+    if (re.global || re.sticky) re.lastIndex = 0
+    return re.test(value)
+  }
+  return Array.isArray(pattern) ? pattern.some(test) : test(pattern)
 }
