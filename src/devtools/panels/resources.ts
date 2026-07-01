@@ -27,9 +27,8 @@ export class Resources extends Tool {
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
     const refs = renderPanelShell(container, {
-      className: "roderuda-resources",
       bodyAttr: "data-resources-body",
-      bodyClassName: "roderuda-resources-body",
+      bodyClassName: "roderuda-resources roderuda-resources-body",
     });
     this.body = refs.body;
     this.cleanup.push(delegate(container, "click", "[data-resource-action]", (event, element) => this.handleAction(event, element)));
