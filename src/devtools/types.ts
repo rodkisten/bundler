@@ -3,6 +3,7 @@ export type ConsoleLevel = "debug" | "log" | "info" | "warn" | "error" | "table"
 export type NetworkKind = "fetch" | "xhr" | "websocket" | "resource";
 export type NetworkState = "pending" | "complete" | "failed";
 export type SourceType = "auto" | "text" | "raw" | "html" | "css" | "javascript" | "json" | "object" | "image" | "iframe";
+export type DebugLevel = "trace" | "debug" | "info" | "warn" | "error" | "silent";
 
 export interface Position {
   x: number;
@@ -15,6 +16,11 @@ export interface DevtoolsDefaults {
   theme?: string;
 }
 
+export interface DevtoolsDebugOptions {
+  enabled?: boolean;
+  level?: DebugLevel;
+}
+
 export interface DevtoolsInitOptions {
   container?: HTMLElement;
   tool?: string | readonly string[];
@@ -22,6 +28,7 @@ export interface DevtoolsInitOptions {
   useShadowDom?: boolean;
   inline?: boolean;
   defaults?: DevtoolsDefaults;
+  debug?: boolean | DevtoolsDebugOptions;
 }
 
 export interface ToolContext {

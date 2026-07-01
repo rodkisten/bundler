@@ -1,3 +1,4 @@
+import { debugLog } from "../core/debug";
 import { event, html, onMount, onUnmount, portal, ref, renderInto, repeat, signal, styled, suspense, uiState } from "./runtime";
 
 const EMPTY_PANELS = signal<string[]>([]);
@@ -52,6 +53,7 @@ export interface ShellRefs {
 
 export function renderShell(target: HTMLElement | ShadowRoot, inline = false): ShellRefs {
   const refs = {} as Partial<ShellRefs>;
+  debugLog("shell", "render:start", { inline, target: target instanceof ShadowRoot ? "shadow" : "element" });
   uiState.setPath("shell.inline", inline);
 
   renderInto(target, html`
@@ -122,10 +124,18 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
     </RodDevtoolsShellRoot>
   `);
 
-  onMount(() => uiState.setPath("shell.mounted", true));
-  onUnmount(() => uiState.setPath("shell.mounted", false));
+  onMount(() => {
+    debugLog("shell", "mounted");
+    uiState.setPath("shell.mounted", true);
+  });
+  onUnmount(() => {
+    debugLog("shell", "unmounted");
+    uiState.setPath("shell.mounted", false);
+  });
 
-  return assertShellRefs(refs, target);
+  const shellRefs = assertShellRefs(refs, target);
+  debugLog("shell", "render:end", { refs: Object.keys(shellRefs) });
+  return shellRefs;
 }
 
 function assertShellRefs(refs: Partial<ShellRefs>, target: HTMLElement | ShadowRoot): ShellRefs {

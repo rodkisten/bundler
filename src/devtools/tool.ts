@@ -1,3 +1,4 @@
+import { debugLog } from "./core/debug";
 import type { ToolContext, ToolLike } from "./types";
 
 export abstract class Tool implements ToolLike {
@@ -11,19 +12,23 @@ export abstract class Tool implements ToolLike {
   init(container: HTMLElement, context: ToolContext): void | Promise<void> {
     this.container = container;
     this.context = context;
+    debugLog("tool", "init", { name: this.name, title: this.title ?? this.name });
   }
 
   show(): void {
     this.active = true;
     this.container?.classList.add("roderuda-active");
+    debugLog("tool", "show", { name: this.name });
   }
 
   hide(): void {
     this.active = false;
     this.container?.classList.remove("roderuda-active");
+    debugLog("tool", "hide", { name: this.name });
   }
 
   destroy(): void {
+    debugLog("tool", "destroy", { name: this.name });
     this.container?.remove();
     this.container = null;
     this.context = null;
