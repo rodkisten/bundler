@@ -34,6 +34,7 @@ const BENCHMARK_DIR = path.join(DIST_DIR, "benchmarks");
 const ASSETS_DIR = path.join(DIST_DIR, "assets");
 
 const TEXT_PAGE_MAX_BYTES = 320_000;
+const DEVTOOLS_ENTRY_NAME = "devtools";
 
 export async function main(): Promise<void> {
   await fs.rm(DIST_DIR, { recursive: true, force: true });
@@ -47,7 +48,9 @@ export async function main(): Promise<void> {
   }
 
   const outputs: string[] = [];
-  for (const entry of entries) outputs.push(...(await buildEntry(entry)));
+  for (const entry of entries) {
+    outputs.push(...(entry.name === DEVTOOLS_ENTRY_NAME ? await buildDevtoolsEntryWithVite(entry) : await buildEntry(entry)));
+  }
 
   const examples = await collectExamplesByEntry(entries);
   const benchmarkFiles = await collectBenchmarkFiles();
@@ -111,6 +114,71 @@ function isBuildableRootEntry(entry: RootEntry): boolean {
 
 function isSupportedScriptEntryFile(fileName: string): boolean {
   return /\.(ts|tsx|js|jsx|mjs)$/.test(fileName) && !fileName.endsWith(".d.ts");
+}
+
+
+async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
+  const [{ build: viteBuild }, { cipoVite }] = await Promise.all([
+    import("vite"),
+    import("../src/cipo/src/vite"),
+  ]);
+
+  const banner = createBanner(entry);
+  const normalIife = path.join(DIST_DIR, `${entry.name}.iife.js`);
+  const minIife = path.join(DIST_DIR, `${entry.name}.iife.min.js`);
+
+  const baseConfig = {
+    configFile: false as const,
+    root: ROOT_DIR,
+    plugins: [cipoVite({ root: ROOT_DIR })],
+    define: {
+      "process.env.NODE_ENV": JSON.stringify("production"),
+    },
+    build: {
+      emptyOutDir: false,
+      sourcemap: true,
+      target: "es2022",
+      lib: {
+        entry: entry.absolutePath,
+        name: entry.globalName,
+        formats: ["iife" as const],
+      },
+      rollupOptions: {
+        output: {
+          banner,
+          extend: true,
+        },
+      },
+    },
+  };
+
+  await viteBuild({
+    ...baseConfig,
+    build: {
+      ...baseConfig.build,
+      minify: false,
+      outDir: DIST_DIR,
+      lib: {
+        ...baseConfig.build.lib,
+        fileName: () => `${entry.name}.iife.js`,
+      },
+    },
+  });
+
+  await viteBuild({
+    ...baseConfig,
+    build: {
+      ...baseConfig.build,
+      minify: true,
+      outDir: DIST_DIR,
+      lib: {
+        ...baseConfig.build.lib,
+        fileName: () => `${entry.name}.iife.min.js`,
+      },
+    },
+  });
+
+  return [normalIife, minIife].map((file) => path.relative(DIST_DIR, file));
 }
 
 async function buildEntry(entry: RootEntry): Promise<string[]> {
