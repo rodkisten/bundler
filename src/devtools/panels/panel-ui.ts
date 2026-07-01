@@ -23,6 +23,10 @@ export interface PanelShellRefs {
   readonly body: HTMLElement;
 }
 
+type MutablePanelShellRefs = {
+  -readonly [Key in keyof PanelShellRefs]?: PanelShellRefs[Key];
+};
+
 const PanelRoot = styled.section("RodDevtoolsPanelRoot").css`
   width: 100%;
   height: 100%;
@@ -51,7 +55,7 @@ const PanelButton = styled.button("RodDevtoolsPanelButton").css`
 `;
 
 export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
-  const refs: Partial<PanelShellRefs> = {};
+  const refs: MutablePanelShellRefs = {};
   const rootClassName = ["roderuda-panel-shell", options.className].filter(Boolean).join(" ");
   const bodyClassName = [
     options.bodyClassName,
