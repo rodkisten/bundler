@@ -1,4 +1,5 @@
 import { uiElement } from "../components/runtime";
+import { debugLog, debugTrace, debugWarn } from "./debug";
 
 export type Cleanup = () => void;
 
@@ -16,26 +17,35 @@ export function trustedHtml(value: string): unknown {
   if (roderudaTrustedTypesPolicy === undefined) {
     try {
       roderudaTrustedTypesPolicy = trustedTypes.createPolicy("roderuda-devtools", { createHTML: (html) => html });
-    } catch {
+      debugLog("dom", "trusted types policy created");
+    } catch (error) {
       roderudaTrustedTypesPolicy = null;
+      debugWarn("dom", "trusted types policy unavailable", { error: error instanceof Error ? error.message : String(error) });
     }
   }
   return roderudaTrustedTypesPolicy ? roderudaTrustedTypesPolicy.createHTML(value) : value;
 }
 
 export function setHtml(element: Element, html: string): void {
+  debugTrace("dom", "setHtml", { target: describeTarget(element), length: html.length });
   (element as Element & { innerHTML: string }).innerHTML = trustedHtml(html) as string;
 }
 
 
 export function qs<T = any>(root: ParentNode, selector: string): T {
   const element = root.querySelector(selector);
-  if (!element) throw new Error(`[Devtools] Missing element: ${selector}`);
+  if (!element) {
+    debugWarn("dom", "qs missing", { selector });
+    throw new Error(`[Devtools] Missing element: ${selector}`);
+  }
+  debugTrace("dom", "qs", { selector, element: describeTarget(element) });
   return element as unknown as T;
 }
 
 export function qsa<T = HTMLElement>(root: ParentNode, selector: string): T[] {
-  return Array.from(root.querySelectorAll(selector)) as unknown as T[];
+  const elements = Array.from(root.querySelectorAll(selector)) as unknown as T[];
+  debugTrace("dom", "qsa", { selector, count: elements.length });
+  return elements;
 }
 
 export function create<K extends keyof HTMLElementTagNameMap>(
@@ -47,6 +57,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
     attrs?: Record<string, string | number | boolean | null | undefined>;
   } = {},
 ): HTMLElementTagNameMap[K] {
+  debugTrace("dom", "create", { tag, className: options.className, attrs: Object.keys(options.attrs ?? {}) });
   return uiElement(tag, options) as HTMLElementTagNameMap[K];
 }
 
@@ -68,8 +79,12 @@ export function on(
   listener: EventListener,
   options?: AddEventListenerOptions | boolean,
 ): Cleanup {
+  debugTrace("dom", "on", { target: describeTarget(target), type, options: describeEventOptions(options) });
   target.addEventListener(type, listener, options);
-  return () => target.removeEventListener(type, listener, options);
+  return () => {
+    debugTrace("dom", "off", { target: describeTarget(target), type });
+    target.removeEventListener(type, listener, options);
+  };
 }
 
 export function delegate(
@@ -78,11 +93,13 @@ export function delegate(
   selector: string,
   listener: (event: Event, element: HTMLElement) => void,
 ): Cleanup {
+  debugTrace("dom", "delegate", { target: describeTarget(target), type, selector });
   return on(target, type, ((event: Event) => {
     const origin = event.target;
     if (!(origin instanceof Element)) return;
     const match = origin.closest<HTMLElement>(selector);
     if (!match) return;
+    debugTrace("dom", "delegate match", { type, selector, origin: describeTarget(origin), match: describeTarget(match) });
     listener(event, match);
   }) as EventListener);
 }
@@ -184,14 +201,18 @@ export function nodePath(node: Node): string {
     parts.unshift(part);
     current = parentElement;
   }
-  return parts.join(" > ");
+  const path = parts.join(" > ");
+  debugTrace("dom", "nodePath", { node: describeNode(node), path });
+  return path;
 }
 
 export async function copyText(value: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(value);
+    debugLog("dom", "copyText:clipboard", { length: value.length });
     return true;
-  } catch {
+  } catch (error) {
+    debugWarn("dom", "copyText:fallback", { error: error instanceof Error ? error.message : String(error), length: value.length });
     const textarea = create("textarea", { attrs: { "aria-hidden": "true" } });
     textarea.value = value;
     textarea.style.position = "fixed";
@@ -205,6 +226,7 @@ export async function copyText(value: string): Promise<boolean> {
 }
 
 export function downloadText(filename: string, text: string, type = "text/plain"): void {
+  debugLog("dom", "downloadText", { filename, type, length: text.length });
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const anchor = create("a", { attrs: { href: url, download: filename } });
@@ -213,6 +235,7 @@ export function downloadText(filename: string, text: string, type = "text/plain"
 }
 
 export function applyImportantStyle(element: HTMLElement, styles: Record<string, string>): void {
+  debugTrace("dom", "applyImportantStyle", { target: describeTarget(element), properties: Object.keys(styles) });
   for (const [property, value] of Object.entries(styles)) {
     element.style.setProperty(property, value, "important");
   }
@@ -226,15 +249,18 @@ export function forceAppendToPage(element: HTMLElement): boolean {
       if (!element.isConnected) {
         (root as HTMLElement).appendChild(element);
       }
+      debugLog("dom", "forceAppendToPage", { target: describeTarget(element), root: describeTarget(root), connected: element.isConnected });
       return element.isConnected;
-    } catch {
-      // Keep trying. Some hostile pages temporarily monkey-patch appendChild or replace roots.
+    } catch (error) {
+      debugWarn("dom", "forceAppendToPage root failed", { root: describeTarget(root), error: error instanceof Error ? error.message : String(error) });
     }
   }
   try {
     document.appendChild(element);
+    debugLog("dom", "forceAppendToPage document", { connected: element.isConnected });
     return element.isConnected;
-  } catch {
+  } catch (error) {
+    debugWarn("dom", "forceAppendToPage failed", { error: error instanceof Error ? error.message : String(error) });
     return element.isConnected;
   }
 }
@@ -247,14 +273,18 @@ export function isDevtoolsNode(value: EventTarget | Node | null, host?: HTMLElem
 }
 
 export function detectMobile(): boolean {
-  return (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  const mobile = (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  debugLog("dom", "detectMobile", { mobile, userAgent: navigator.userAgent });
+  return mobile;
 }
 
 export function viewportScale(): number {
   const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   const content = viewport?.content ?? "";
   const match = content.match(/initial-scale\s*=\s*([\d.]+)/i);
-  return match ? Number(match[1]) || 1 : 1;
+  const scale = match ? Number(match[1]) || 1 : 1;
+  debugLog("dom", "viewportScale", { scale, content });
+  return scale;
 }
 
 export function eventPoint(event: PointerEvent | MouseEvent | TouchEvent): { x: number; y: number } {
@@ -266,8 +296,12 @@ export function eventPoint(event: PointerEvent | MouseEvent | TouchEvent): { x: 
 export function debounce<T extends (...args: never[]) => void>(fn: T, wait: number): T {
   let timer = 0;
   return ((...args: never[]) => {
+    debugTrace("dom", "debounce:schedule", { wait });
     window.clearTimeout(timer);
-    timer = window.setTimeout(() => fn(...args), wait);
+    timer = window.setTimeout(() => {
+      debugTrace("dom", "debounce:run", { wait });
+      fn(...args);
+    }, wait);
   }) as T;
 }
 
@@ -302,4 +336,19 @@ export function icon(name: string): string {
     download: "⇩",
   };
   return icons[name] ?? "•";
+}
+
+function describeTarget(target: EventTarget | Node | ParentNode | null): string {
+  if (!target) return "null";
+  if (target instanceof ShadowRoot) return "#shadow-root";
+  if (target instanceof Document) return "document";
+  if (target === window) return "window";
+  if (target instanceof Element) return describeNode(target);
+  return (target as object).constructor?.name ?? typeof target;
+}
+
+function describeEventOptions(options?: AddEventListenerOptions | boolean): string {
+  if (typeof options === "boolean") return options ? "capture" : "bubble";
+  if (!options) return "default";
+  return Object.entries(options).filter(([, value]) => value != null).map(([key, value]) => `${key}:${String(value)}`).join(",") || "default";
 }
