@@ -401,3 +401,18 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        
+      - name: Notify Pushcut
+        id: pushcut
+        env:
+          WORKFLOW_ID: ${{ github.workflow_ref }}
+          
+        run: | 
+          set -euo pipefail
+
+          curl -X POST -d "{\"input\": \"$WORKFLOW_ID\", \"text\": \"Abrir pipeline {teste}\", \"title\": \"Build finished\"}" -H "Content-Type: application/json" https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published
+
+
+
+
+        
