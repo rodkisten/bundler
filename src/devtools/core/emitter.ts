@@ -1,3 +1,5 @@
+import { debugError, debugTrace } from "./debug";
+
 export type Listener<Args extends unknown[] = unknown[]> = (...args: Args) => void;
 
 export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<string, unknown[]>> {
@@ -12,6 +14,7 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
       this.listeners.set(event, bucket);
     }
     bucket.add(listener);
+    debugTrace("emitter", "on", { owner: this.constructor.name, event: String(event), count: bucket.size });
     return this;
   }
 
@@ -22,13 +25,16 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
       this.off(event as string, wrapped);
       listener(...args);
     };
+    debugTrace("emitter", "once", { owner: this.constructor.name, event: String(event) });
     return this.on(event as string, wrapped);
   }
 
   off<K extends keyof Events>(event: K, listener: Listener<Events[K]>): this;
   off(event: string, listener: Listener<any[]>): this;
   off(event: PropertyKey, listener: Listener<any[]>): this {
-    this.listeners.get(event)?.delete(listener);
+    const bucket = this.listeners.get(event);
+    bucket?.delete(listener);
+    debugTrace("emitter", "off", { owner: this.constructor.name, event: String(event), count: bucket?.size ?? 0 });
     return this;
   }
 
@@ -36,11 +42,13 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
   emit(event: string, ...args: unknown[]): this;
   emit(event: PropertyKey, ...args: unknown[]): this {
     const bucket = this.listeners.get(event);
+    debugTrace("emitter", "emit", { owner: this.constructor.name, event: String(event), listeners: bucket?.size ?? 0, args: args.length });
     if (!bucket) return this;
     for (const listener of [...bucket]) {
       try {
         listener(...args);
       } catch (error) {
+        debugError("emitter", "listener failed", { owner: this.constructor.name, event: String(event), error: error instanceof Error ? error.message : String(error) });
         queueMicrotask(() => { throw error; });
       }
     }
@@ -48,6 +56,7 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
   }
 
   removeAllListeners(event?: keyof Events | string): this {
+    debugTrace("emitter", "removeAllListeners", { owner: this.constructor.name, event: event == null ? "all" : String(event), count: this.listeners.size });
     if (event == null) this.listeners.clear();
     else this.listeners.delete(event);
     return this;
