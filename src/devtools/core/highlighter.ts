@@ -1,5 +1,8 @@
 import { isDevtoolsNode } from "./dom";
 
+const HIGHLIGHT_DURATION = 850;
+const OVERLAY_CLASS = "__roderuda-overlay__";
+
 export class ElementHighlighter {
   private host: HTMLDivElement | null = null;
   private label: HTMLDivElement | null = null;
@@ -7,11 +10,13 @@ export class ElementHighlighter {
   private selected: Element | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private frame = 0;
+  private hideTimer = 0;
+  private viewportCleanup: (() => void) | null = null;
 
   constructor(private readonly devtoolsHost?: HTMLElement | null) {}
 
-  highlight(element: Element, label = true): void {
-    if (isDevtoolsNode(element, this.devtoolsHost)) return;
+  highlight(element: Element, label = true, duration = HIGHLIGHT_DURATION): void {
+    if (isDevtoolsNode(element, this.devtoolsHost) || element.closest(`.${OVERLAY_CLASS}`)) return;
     this.ensure();
     this.selected = element;
     this.draw(label);
@@ -20,17 +25,23 @@ export class ElementHighlighter {
       this.resizeObserver = new ResizeObserver(() => this.scheduleDraw(label));
       this.resizeObserver.observe(element);
     }
+    this.scheduleHide(duration);
   }
 
   hide(): void {
     this.selected = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.viewportCleanup?.();
+    this.viewportCleanup = null;
     this.host?.remove();
     this.host = null;
     this.label = null;
     this.boxes = [];
     cancelAnimationFrame(this.frame);
+    window.clearTimeout(this.hideTimer);
+    this.frame = 0;
+    this.hideTimer = 0;
   }
 
   destroy(): void {
@@ -40,8 +51,10 @@ export class ElementHighlighter {
   private ensure(): void {
     if (this.host?.isConnected) return;
     const host = document.createElement("div");
-    host.className = "__roderuda-overlay__";
-    host.style.cssText = "position:fixed;inset:0;z-index:2147483647;pointer-events:none;font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;";
+    host.className = OVERLAY_CLASS;
+    host.setAttribute("data-roderuda-internal", "highlighter");
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText = "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483647;pointer-events:none;overflow:hidden;font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;contain:strict;";
     const colors = [
       "rgb(246 178 107 / .32)",
       "rgb(255 229 153 / .36)",
@@ -59,6 +72,26 @@ export class ElementHighlighter {
     host.appendChild(this.label);
     document.documentElement.appendChild(host);
     this.host = host;
+    this.observeViewport();
+  }
+
+  private observeViewport(): void {
+    this.viewportCleanup?.();
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const redraw = () => this.scheduleDraw(true);
+    viewport.addEventListener("resize", redraw);
+    viewport.addEventListener("scroll", redraw);
+    this.viewportCleanup = () => {
+      viewport.removeEventListener("resize", redraw);
+      viewport.removeEventListener("scroll", redraw);
+    };
+  }
+
+  private scheduleHide(duration: number): void {
+    window.clearTimeout(this.hideTimer);
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    this.hideTimer = window.setTimeout(() => this.hide(), duration);
   }
 
   private scheduleDraw(label: boolean): void {
@@ -101,9 +134,15 @@ export class ElementHighlighter {
     const id = element.id ? `#${element.id}` : "";
     const classes = Array.from(element.classList).slice(0, 4).map((name) => `.${name}`).join("");
     this.label.textContent = `${element.tagName.toLowerCase()}${id}${classes}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+
+    const viewport = window.visualViewport;
+    const viewportWidth = viewport?.width ?? innerWidth;
+    const viewportHeight = viewport?.height ?? innerHeight;
     const labelHeight = 26;
-    const top = rect.top > labelHeight + 5 ? rect.top - labelHeight - 3 : Math.min(innerHeight - labelHeight, rect.bottom + 3);
-    this.label.style.left = `${Math.max(2, Math.min(innerWidth - 260, rect.left))}px`;
+    const top = rect.top > labelHeight + 5
+      ? rect.top - labelHeight - 3
+      : Math.min(viewportHeight - labelHeight, rect.bottom + 3);
+    this.label.style.left = `${Math.max(2, Math.min(viewportWidth - 260, rect.left))}px`;
     this.label.style.top = `${Math.max(2, top)}px`;
   }
 }
