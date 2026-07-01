@@ -41,5 +41,9 @@ function matches(value: string, pattern: RegExp | readonly RegExp[]): boolean {
     if (re.global || re.sticky) re.lastIndex = 0
     return re.test(value)
   }
-  return Array.isArray(pattern) ? pattern.some(test) : test(pattern)
+  return isRegExpList(pattern) ? pattern.some(test) : test(pattern)
+}
+
+function isRegExpList(pattern: RegExp | readonly RegExp[]): pattern is readonly RegExp[] {
+  return Array.isArray(pattern)
 }
