@@ -11,20 +11,87 @@ export const devtoolsFabrica = createFabrica({
 
 debugLog("fabrica", "runtime created", { name: "roderuda-devtools", isolated: true });
 
-export const html = devtoolsFabrica.html;
-export const jsx = devtoolsFabrica.jsx;
-export const render = devtoolsFabrica.render;
-export const mount = devtoolsFabrica.mount;
-export const component = devtoolsFabrica.component;
-export const signal = devtoolsFabrica.signal;
-export const computed = devtoolsFabrica.computed;
-export const effect = devtoolsFabrica.effect;
-export const batch = devtoolsFabrica.batch;
-export const ref = devtoolsFabrica.ref;
-export const repeat = devtoolsFabrica.repeat;
-export const portal = devtoolsFabrica.portal;
-export const suspense = devtoolsFabrica.suspense;
-export const when = devtoolsFabrica.when;
+type HtmlFn = typeof devtoolsFabrica.html;
+type JsxFn = typeof devtoolsFabrica.jsx;
+type RenderFn = typeof devtoolsFabrica.render;
+type MountFn = typeof devtoolsFabrica.mount;
+type ComponentFn = typeof devtoolsFabrica.component;
+type SignalFn = typeof devtoolsFabrica.signal;
+type ComputedFn = typeof devtoolsFabrica.computed;
+type EffectFn = typeof devtoolsFabrica.effect;
+type BatchFn = typeof devtoolsFabrica.batch;
+type RefFn = typeof devtoolsFabrica.ref;
+type RepeatFn = typeof devtoolsFabrica.repeat;
+type PortalFn = typeof devtoolsFabrica.portal;
+type SuspenseFn = typeof devtoolsFabrica.suspense;
+type WhenFn = typeof devtoolsFabrica.when;
+
+export const html: HtmlFn = devtoolsFabrica.html;
+export const jsx: JsxFn = ((...args: Parameters<JsxFn>) => {
+  debugTrace("fabrica", "jsx", { type: describeComponentType(args[0]) });
+  return devtoolsFabrica.jsx(...args);
+}) as JsxFn;
+
+export const render: RenderFn = ((...args: Parameters<RenderFn>) => {
+  debugTrace("fabrica", "render", { target: describeRenderTarget(args[0]) });
+  return devtoolsFabrica.render(...args);
+}) as RenderFn;
+
+export const mount: MountFn = ((...args: Parameters<MountFn>) => {
+  debugTrace("fabrica", "mount", { target: describeRenderTarget(args[0]) });
+  return devtoolsFabrica.mount(...args);
+}) as MountFn;
+
+export const component: ComponentFn = ((...args: Parameters<ComponentFn>) => {
+  debugLog("fabrica", "component", { name: typeof args[0] === "string" ? args[0] : describeComponentType(args[0]) });
+  return devtoolsFabrica.component(...args);
+}) as ComponentFn;
+
+export const signal: SignalFn = ((...args: Parameters<SignalFn>) => {
+  debugTrace("fabrica", "signal", { hasInitialValue: args.length > 0 });
+  return devtoolsFabrica.signal(...args);
+}) as SignalFn;
+
+export const computed: ComputedFn = ((...args: Parameters<ComputedFn>) => {
+  debugTrace("fabrica", "computed");
+  return devtoolsFabrica.computed(...args);
+}) as ComputedFn;
+
+export const effect: EffectFn = ((...args: Parameters<EffectFn>) => {
+  debugTrace("fabrica", "effect");
+  return devtoolsFabrica.effect(...args);
+}) as EffectFn;
+
+export const batch: BatchFn = ((...args: Parameters<BatchFn>) => {
+  debugTrace("fabrica", "batch");
+  return devtoolsFabrica.batch(...args);
+}) as BatchFn;
+
+export const ref: RefFn = ((...args: Parameters<RefFn>) => {
+  debugTrace("fabrica", "ref");
+  return devtoolsFabrica.ref(...args);
+}) as RefFn;
+
+export const repeat: RepeatFn = ((...args: Parameters<RepeatFn>) => {
+  debugTrace("fabrica", "repeat");
+  return devtoolsFabrica.repeat(...args);
+}) as RepeatFn;
+
+export const portal: PortalFn = ((...args: Parameters<PortalFn>) => {
+  debugTrace("fabrica", "portal", { target: describeRenderTarget(args[0]) });
+  return devtoolsFabrica.portal(...args);
+}) as PortalFn;
+
+export const suspense: SuspenseFn = ((...args: Parameters<SuspenseFn>) => {
+  debugTrace("fabrica", "suspense");
+  return devtoolsFabrica.suspense(...args);
+}) as SuspenseFn;
+
+export const when: WhenFn = ((...args: Parameters<WhenFn>) => {
+  debugTrace("fabrica", "when");
+  return devtoolsFabrica.when(...args);
+}) as WhenFn;
+
 export const classMap = devtoolsFabrica.classMap;
 export const styleMap = devtoolsFabrica.styleMap;
 export const onMount = devtoolsFabrica.onMount;
@@ -114,6 +181,16 @@ export function asNode(value: RenderValue): Node {
   const fragment = document.createDocumentFragment();
   render(fragment, value);
   return fragment.childNodes.length === 1 ? fragment.firstChild! : fragment;
+}
+
+function describeComponentType(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "function") return value.name || "anonymous";
+  return String(value ?? "unknown");
+}
+
+function describeRenderTarget(value: unknown): string {
+  return value instanceof EventTarget ? describeEventTarget(value) : describeComponentType(value);
 }
 
 function describeEventTarget(target: EventTarget | null): string {
