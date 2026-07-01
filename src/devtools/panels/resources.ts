@@ -1,7 +1,8 @@
 import { ConfigStore } from "../core/config";
-import { create, debounce, delegate, escapeHtml, icon, isDevtoolsNode, qs, truncate } from "../core/dom";
+import { debounce, delegate, escapeHtml, icon, isDevtoolsNode, truncate } from "../core/dom";
 import { Tool } from "../tool";
 import type { SourcePayload, ToolContext } from "../types";
+import { renderPanelShell } from "./panel-ui";
 
 interface ResourcesConfig {
   hideDevtoolsSetting: boolean;
@@ -25,8 +26,12 @@ export class Resources extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `<div class="roderuda-resources roderuda-scroll" data-resources-body></div>`;
-    this.body = qs(container, "[data-resources-body]");
+    const refs = renderPanelShell(container, {
+      className: "roderuda-resources",
+      bodyAttr: "data-resources-body",
+      bodyClassName: "roderuda-resources-body",
+    });
+    this.body = refs.body;
     this.cleanup.push(delegate(container, "click", "[data-resource-action]", (event, element) => this.handleAction(event, element)));
     this.cleanup.push(delegate(container, "change", "[data-storage-key]", (event, element) => this.handleStorageChange(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-source-type]", (event, element) => this.openSource(event, element)));
