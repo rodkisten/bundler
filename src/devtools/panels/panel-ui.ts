@@ -1,5 +1,3 @@
-import { uiElement } from "../components/runtime";
-
 export interface PanelAction {
   readonly label: string;
   readonly action: string;
@@ -25,17 +23,15 @@ export interface PanelShellRefs {
 
 export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
   target.replaceChildren();
-  const root = uiElement("section", {
-    className: ["roderuda-panel-shell", options.className].filter(Boolean).join(" "),
-  });
+  const root = document.createElement("section");
+  root.className = ["roderuda-panel-shell", options.className].filter(Boolean).join(" ");
 
   if (options.title != null) {
     root.append(renderPanelHeader(options));
   }
 
-  const body = uiElement("div", {
-    className: [options.bodyClassName, options.scroll === false ? "" : "roderuda-scroll"].filter(Boolean).join(" "),
-  });
+  const body = document.createElement("div");
+  body.className = [options.bodyClassName, options.scroll === false ? "" : "roderuda-scroll"].filter(Boolean).join(" ");
   if (options.bodyAttr) body.setAttribute(options.bodyAttr, "");
 
   root.append(body);
@@ -44,24 +40,24 @@ export function renderPanelShell(target: HTMLElement, options: PanelShellOptions
 }
 
 function renderPanelHeader(options: PanelShellOptions): HTMLElement {
-  const header = uiElement("header", { className: "roderuda-section-title" });
-  header.append(uiElement("span", { text: options.title ?? "" }));
+  const header = document.createElement("header");
+  header.className = "roderuda-section-title";
+
+  const title = document.createElement("span");
+  title.textContent = options.title ?? "";
+  header.append(title);
 
   if (options.actions?.length) {
-    const actions = uiElement("div", { className: "roderuda-section-actions" });
+    const actions = document.createElement("div");
+    actions.className = "roderuda-section-actions";
     for (const item of options.actions) {
-      const button = uiElement("button", {
-        className: item.className ?? "roderuda-text-btn",
-        text: item.label,
-        attrs: {
-          type: "button",
-          title: item.title ?? item.label,
-          "data-action": item.action,
-        },
-        on: {
-          click: (click) => options.onAction?.(click, item.action),
-        },
-      });
+      const button = document.createElement("button");
+      button.className = item.className ?? "roderuda-text-btn";
+      button.type = "button";
+      button.title = item.title ?? item.label;
+      button.dataset.action = item.action;
+      button.textContent = item.label;
+      button.addEventListener("click", (click) => options.onAction?.(click, item.action));
       applyAttrs(button, item.attrs);
       actions.append(button);
     }
