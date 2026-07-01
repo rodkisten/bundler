@@ -1,5 +1,5 @@
 import { store } from "../../broto";
-import { createStyled, compiledStyled } from "../../cipo";
+import { createStyled, createCompiledStyled } from "../../cipo";
 import { createFabrica } from "../../fabrica";
 import type { Component, RenderValue } from "../../fabrica";
 
