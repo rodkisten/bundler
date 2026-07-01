@@ -403,10 +403,10 @@ jobs:
         uses: actions/deploy-pages@v4
         
       - name: Notify Pushcut
+        if: ${{ success() }}
         id: pushcut
         env:
           WORKFLOW_ID: ${{ github.workflow_ref }}
-          
         run: | 
           set -euo pipefail
 
