@@ -322,11 +322,13 @@ The build pipeline now runs `pnpm bench` after browser bundles are emitted and u
 
 Current benchmark fixture shape:
 
+```md
 | Benchmark | Purpose |
 | --- | --- |
 | `cipo.atomic.basic` | Hot path for atomic declarations, aliases, theme tokens and generated OKLCH color utilities. |
 | `cipo.sheet.nested` | Full stylesheet parser with nesting, runtime `x:*` blocks and helpers. |
 | `cipo.sheet.runtime-dsl` | Runtime token objects, derived CSS variables, mixins and Tailwind-like color utilities. |
+```
 
 Run locally:
 
@@ -336,7 +338,7 @@ pnpm bench
 
 Example output:
 
-```txt
+```markdown
 ## ⚡ Runtime Benchmarks
 
 | Benchmark | Iterations | Total ms | Avg ms |
