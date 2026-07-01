@@ -14,6 +14,8 @@ import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss }
 import { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
+import { compiledInlineCss, compileCipoSourceInline, createCompiledStyled } from './compiler/compiled-inline'
+import { cipoVite } from './vite/compiled-inline'
 import { injectGlobal } from './global'
 import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 import { properties, property, typed, typedProperty } from './properties'
@@ -35,6 +37,10 @@ export { theme } from './theme'
 export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
 export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 export { inline } from './inline'
+export { compiledInlineCss, compileCipoSourceInline, createCompiledStyled, inlineCssTextToObject, resolveCompiledStyleInput } from './compiler/compiled-inline'
+export type { CipoCompiledInlineArtifact, CipoCompiledInlineManifestEntry, CipoCompiledInlineOptions, CipoCompiledInlineSourceResult } from './compiler/compiled-inline'
+export { cipoVite } from './vite/compiled-inline'
+export type { CipoViteCompiledInlineOptions, CipoViteLikePlugin, CipoViteTransformResult } from './vite/compiled-inline'
 export { injectGlobal } from './global'
 export { injectStyle, getCssText } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
@@ -129,6 +135,10 @@ Object.assign(cipo, {
   isStylesheetArtifact,
   html,
   inline,
+  compiledInlineCss,
+  compileCipoSourceInline,
+  createCompiledStyled,
+  cipoVite,
   theme,
   configure,
   setup,
@@ -193,6 +203,10 @@ export function createBrowserGlobal() {
     isStylesheetArtifact,
     html,
     inline,
+    compiledInlineCss,
+    compileCipoSourceInline,
+    createCompiledStyled,
+    cipoVite,
     theme,
     configure,
     setup,
