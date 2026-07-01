@@ -18,8 +18,8 @@ export interface CipoViteLikePlugin {
   transform(code: string, id: string): CipoViteTransformResult | null
 }
 
-const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/
-const DEFAULT_EXCLUDE = /(?:^|\/)node_modules\//
+const DEFAULT_INCLUDE = new RegExp('\\.[cm]?[jt]sx?$')
+const DEFAULT_EXCLUDE = new RegExp('(?:^|/)node_modules/')
 
 /** Vite adapter for the first Cipó compiled inline playground. */
 export function cipoVite(options: CipoViteCompiledInlineOptions = {}): CipoViteLikePlugin {
