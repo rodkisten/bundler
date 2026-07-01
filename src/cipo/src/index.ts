@@ -15,6 +15,7 @@ import { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
 import { getCssText, injectStyle } from './injection'
 import { inline } from './inline'
 import { compiledInlineCss, compileCipoSourceInline, createCompiledStyled } from './compiler/compiled-inline'
+import { compileCipoSourceBuild } from './compiler/compiled-build'
 import { cipoVite } from './vite/compiled-inline'
 import { injectGlobal } from './global'
 import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
@@ -38,7 +39,9 @@ export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThem
 export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 export { inline } from './inline'
 export { compiledInlineCss, compileCipoSourceInline, createCompiledStyled, inlineCssTextToObject, resolveCompiledStyleInput } from './compiler/compiled-inline'
+export { compileCipoSourceBuild } from './compiler/compiled-build'
 export type { CipoCompiledInlineArtifact, CipoCompiledInlineManifestEntry, CipoCompiledInlineOptions, CipoCompiledInlineSourceResult } from './compiler/compiled-inline'
+export type { CipoCompiledBuildManifestEntry, CipoCompiledBuildOptions, CipoCompiledBuildResult } from './compiler/compiled-build'
 export { cipoVite } from './vite/compiled-inline'
 export type { CipoViteCompiledInlineOptions, CipoViteTransformResult } from './vite/compiled-inline'
 export { injectGlobal } from './global'
@@ -137,6 +140,7 @@ Object.assign(cipo, {
   inline,
   compiledInlineCss,
   compileCipoSourceInline,
+  compileCipoSourceBuild,
   createCompiledStyled,
   cipoVite,
   theme,
