@@ -1,15 +1,15 @@
 import { createStyledFactory } from '../../../fabrica-elements'
-import type { ElementsAdapter, ElementsAdapterName, ElementsResolvedStyle, ElementsRecord, StyledFactory, StyledRegistryCollision } from '../../../fabrica-elements'
+import type { ElementsAdapter, ElementsAdapterName, ElementsRecord, ElementsResolvedStyle, StyledFactory, StyledRegistryCollision } from '../../../fabrica-elements'
 import type { CipoCssInterpolation, CipoCssResult } from '../types'
 import { inline } from '../inline'
 import { runtime } from '../runtime'
 import { insertCss } from '../injection'
 
-/** Options for Cipó's first compiled-mode surface. */
+/** Options for Cipó's compiled-inline surface. */
 export interface CipoCompiledInlineOptions {
-  /** Fabrica-compatible registry used by named styled components. */
+  /** Fábrica-compatible registry used by named styled components. */
   readonly fabrica?: unknown
-  /** Explicit Fabrica-compatible registry. Wins over `fabrica` when provided. */
+  /** Explicit Fábrica-compatible registry. Wins over `fabrica` when provided. */
   readonly registry?: unknown
   /** Whether named components should be registered as they are created. */
   readonly autoRegister?: boolean
@@ -19,17 +19,19 @@ export interface CipoCompiledInlineOptions {
   readonly onWarning?: (message: string) => void
 }
 
-/** Metadata returned by source transforms and DevTools playground probes. */
+/** A transformed template captured by the source compiler and Vite plugin. */
 export interface CipoCompiledInlineManifestEntry {
   readonly id: string
   readonly filename?: string
   readonly start: number
   readonly end: number
+  readonly receiver: string
   readonly rawCss: string
   readonly cssText: string
+  readonly static: boolean
 }
 
-/** Result returned by the lightweight source compiler used by the Vite adapter. */
+/** Source compiler result used by Vite, tests and the DevTools playground. */
 export interface CipoCompiledInlineSourceResult {
   readonly code: string
   readonly changed: boolean
@@ -40,13 +42,12 @@ export interface CipoCompiledInlineSourceResult {
 export type CipoCompiledInlineArtifact = ReturnType<typeof compiledInlineCss>
 
 /**
- * Compiles a tagged template to an inline Cipó artifact.
+ * Compiles a tagged template or style object to an inline Cipó artifact.
  *
  * @remarks
- * This is deliberately a tiny wrapper over the existing inline compiler. The
- * compiled-mode contract starts as "inline by default" so the runtime, DevTools
- * and Vite transform can share the exact same artifact format without emitting
- * a generated CSS file yet.
+ * This is intentionally a wrapper over the existing compiler, not a parallel
+ * parser. The first compiled mode keeps CSS inline by default, so Fábrica,
+ * Cipó, DevTools and Vite all consume the same `cipo.inline-css` artifact.
  */
 export function compiledInlineCss(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]) {
   return inline.css(strings, ...values)
@@ -106,52 +107,54 @@ export function resolveCompiledStyleInput(input: unknown, _props: ElementsRecord
   throw new TypeError('[Cipó compiled] Received an unknown style artifact.')
 }
 
+export interface CompileCipoSourceInlineOptions {
+  readonly filename?: string
+  /** Import specifier inserted when at least one template is transformed. */
+  readonly importPath?: string
+  /** Whether static templates should be evaluated for manifest cssText. Defaults to true. */
+  readonly evaluateStaticCss?: boolean
+}
+
 /**
- * Rewrites common styled `.css\`...\`` templates to inline-artifact calls.
+ * Rewrites common styled `.css\`...\`` templates to explicit inline artifact calls.
  *
- * @remarks
- * This intentionally starts conservative. It covers the current Fabrica/Cipó
- * styled shapes used by DevTools and tests:
- * `styled.div("Name").css\`...\`` -> `styled.div("Name")(compiledInlineCss\`...\`)`.
- * The runtime compiled factory already handles templates without a transform;
- * this source pass exists so Vite can become the playground/inspection layer.
+ * @example
+ * ```ts
+ * styled.div('Panel').css`px(2)`
+ * // becomes
+ * styled.div('Panel')(compiledInlineCss`px(2)`)
+ * ```
  */
-export function compileCipoSourceInline(source: string, options: { readonly filename?: string; readonly importPath?: string } = {}): CipoCompiledInlineSourceResult {
+export function compileCipoSourceInline(source: string, options: CompileCipoSourceInlineOptions = {}): CipoCompiledInlineSourceResult {
   const manifest: CipoCompiledInlineManifestEntry[] = []
-  let importNeeded = false
-  let counter = 0
   let output = ''
   let cursor = 0
+  let counter = 0
 
-  const matcher = /((?:styled|cipo)(?:\.[A-Za-z_$][\w$]*|\([^`]*?\))(?:\([^`]*?\))?)\.css`/g
-  let match: RegExpExecArray | null
-  while ((match = matcher.exec(source))) {
-    const receiver = match[1]
-    if (!receiver) continue
-    const templateStart = matcher.lastIndex - 1
-    const templateEnd = findTemplateEnd(source, templateStart)
-    if (templateEnd < 0) continue
+  for (const hit of findStyledCssTemplates(source)) {
+    const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
+    const shouldEvaluate = options.evaluateStaticCss ?? true
+    const cssText = shouldEvaluate && !rawCss.includes('${') ? tryCompileRawTemplate(rawCss) : ''
 
-    const rawCss = source.slice(templateStart + 1, templateEnd)
-    const cssText = tryCompileRawTemplate(rawCss)
     manifest.push({
       id: `cipo-inline-${++counter}`,
       ...(options.filename ? { filename: options.filename } : {}),
-      start: match.index,
-      end: templateEnd + 1,
+      start: hit.start,
+      end: hit.templateEnd + 1,
+      receiver: hit.receiver,
       rawCss,
       cssText,
+      static: cssText.length > 0,
     })
 
-    output += source.slice(cursor, match.index)
-    output += `${receiver}(compiledInlineCss\`${rawCss}\`)`
-    cursor = templateEnd + 1
-    matcher.lastIndex = templateEnd + 1
-    importNeeded = true
+    output += source.slice(cursor, hit.start)
+    output += `${hit.receiver}(compiledInlineCss\`${rawCss}\`)`
+    cursor = hit.templateEnd + 1
   }
 
-  if (!importNeeded) return { code: source, changed: false, manifest }
+  if (manifest.length === 0) return { code: source, changed: false, manifest }
   output += source.slice(cursor)
+
   return {
     code: ensureCompiledInlineImport(output, options.importPath),
     changed: true,
@@ -159,20 +162,107 @@ export function compileCipoSourceInline(source: string, options: { readonly file
   }
 }
 
+interface StyledCssTemplateHit {
+  readonly start: number
+  readonly receiver: string
+  readonly templateStart: number
+  readonly templateEnd: number
+}
+
+function findStyledCssTemplates(source: string): StyledCssTemplateHit[] {
+  const hits: StyledCssTemplateHit[] = []
+  const marker = '.css`'
+  let searchFrom = 0
+
+  while (searchFrom < source.length) {
+    const markerIndex = source.indexOf(marker, searchFrom)
+    if (markerIndex < 0) break
+
+    const receiverStart = findReceiverStart(source, markerIndex)
+    const templateStart = markerIndex + '.css'.length
+    const templateEnd = findTemplateEnd(source, templateStart)
+
+    if (receiverStart >= 0 && templateEnd >= 0) {
+      const receiver = source.slice(receiverStart, markerIndex)
+      if (isCompilableReceiver(receiver)) {
+        hits.push({ start: receiverStart, receiver, templateStart, templateEnd })
+        searchFrom = templateEnd + 1
+        continue
+      }
+    }
+
+    searchFrom = markerIndex + marker.length
+  }
+
+  return hits
+}
+
+function findReceiverStart(source: string, cssDotIndex: number): number {
+  let index = cssDotIndex - 1
+  let parenDepth = 0
+  let bracketDepth = 0
+  let quote = ''
+  let escaped = false
+
+  for (; index >= 0; index -= 1) {
+    const char = source[index]!
+
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+
+    if (char === '"' || char === "'" || char === '`') { quote = char; continue }
+    if (char === ')') { parenDepth += 1; continue }
+    if (char === '(') { parenDepth -= 1; continue }
+    if (char === ']') { bracketDepth += 1; continue }
+    if (char === '[') { bracketDepth -= 1; continue }
+
+    if (parenDepth < 0 || bracketDepth < 0) return index + 1
+    if (parenDepth === 0 && bracketDepth === 0 && !isReceiverChar(char)) return index + 1
+  }
+
+  return 0
+}
+
+function isReceiverChar(char: string): boolean {
+  return /[A-Za-z0-9_$.[\]()'",\s:-]/.test(char)
+}
+
+function isCompilableReceiver(receiver: string): boolean {
+  const compact = receiver.replace(/\s+/g, '')
+  return /^(?:styled|cipo)(?:\.[A-Za-z_$][\w$]*|\(|\[)/.test(compact)
+}
+
 function tryCompileRawTemplate(rawCss: string): string {
-  if (rawCss.includes('${')) return ''
-  const cooked = rawCss.replace(/\\`/g, '`')
-  return String(compiledInlineCss([cooked] as unknown as TemplateStringsArray))
+  try {
+    const cooked = rawCss.replace(/\\`/g, '`')
+    return String(compiledInlineCss([cooked] as unknown as TemplateStringsArray))
+  } catch {
+    return ''
+  }
 }
 
 function findTemplateEnd(source: string, start: number): number {
   let escaped = false
   let expressionDepth = 0
+  let quote = ''
   for (let index = start + 1; index < source.length; index += 1) {
-    const char = source[index]
+    const char = source[index]!
     const next = source[index + 1]
+
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+
     if (escaped) { escaped = false; continue }
     if (char === '\\') { escaped = true; continue }
+    if (expressionDepth > 0 && (char === '"' || char === "'")) { quote = char; continue }
     if (char === '$' && next === '{') { expressionDepth += 1; index += 1; continue }
     if (char === '}' && expressionDepth > 0) { expressionDepth -= 1; continue }
     if (char === '`' && expressionDepth === 0) return index
@@ -181,7 +271,7 @@ function findTemplateEnd(source: string, start: number): number {
 }
 
 function ensureCompiledInlineImport(source: string, importPath = './compiler/compiled-inline'): string {
-  if (/\bcompiledInlineCss\b/.test(source) && /from\s+['"][^'"]*compiled-inline['"]/.test(source)) return source
+  if (/import\s+\{[^}]*\bcompiledInlineCss\b[^}]*\}\s+from\s+['"][^'"]+['"]/.test(source)) return source
   return `import { compiledInlineCss } from '${importPath}'\n${source}`
 }
 
