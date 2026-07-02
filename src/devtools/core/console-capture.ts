@@ -45,7 +45,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       this.original.set(method, original);
       this.current.set(method, original);
       const wrapper = (...args: unknown[]) => {
-        this.handle(method, args);
+        if (this.installed) this.handle(method, args);
         const passthrough = this.current.get(method) ?? original;
         if (passthrough !== wrapper) passthrough(...args);
       };
