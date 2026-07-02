@@ -53,7 +53,7 @@ export function createCompiledElement(
 ): RenderValue {
   if (typeof tag === 'function') return tag({ ...(props ?? {}), children })
 
-  const element = document.createElement(tag)
+  const element = /^(svg|path|circle|rect|line|polyline|polygon|ellipse|g|defs|symbol|use|text|tspan|linearGradient|radialGradient|stop|clipPath|mask)$/i.test(tag) ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag)
   applyCompiledProps(element, props)
   for (const child of children) appendValue(element, child)
   return element
