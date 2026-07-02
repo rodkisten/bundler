@@ -14,14 +14,14 @@ A modern TypeScript reimplementation of the RodEruda mobile browser developer to
 
 ## Panels
 
-- **Console:** console interception, global errors, promises, groups, timers, counts, filtering, expandable values, expression execution and history.
-- **Elements:** DOM tree, picker, highlighter, history, breadcrumbs, live mutation updates, attributes, inline and matched CSS, computed styles, box model and event listeners.
+- **Console:** early console interception, guarded console patching, global errors, promises, groups, timers, counts, filtering, CodeMirror-backed expression execution, `$`/`$$` helpers and persistent history.
+- **Elements:** DOM tree, picker, highlighter, history, breadcrumbs, live mutation updates, double-click open, mobile long-press/context actions, attributes, inline and matched CSS, computed styles, box model and event listeners.
 - **Network:** fetch, XMLHttpRequest, WebSocket and Performance Resource Timing capture, request/response details, preview, headers, timing and cURL export.
-- **Resources:** localStorage, sessionStorage, cookies, scripts, stylesheets, frames and images, including editing and source navigation.
-- **Sources:** HTML, CSS, JavaScript, JSON, text, objects, images and frames with formatting, highlighting, line numbers, copy and download.
+- **Resources:** localStorage, sessionStorage, cookies, storage capability discovery, JSON formatting/editing, scripts, stylesheets, frames and images, including editing and source navigation.
+- **Sources:** HTML, CSS, JavaScript, JSON, text, objects, images and frames with formatting, CodeMirror syntax highlighting, source index, copy and download.
 - **Info:** page, browser, device, connection, navigation, memory and document diagnostics.
 - **Snippets:** the RodEruda snippet set implemented locally, plus user-defined JavaScript snippets.
-- **Settings:** theme, transparency, display size and panel-specific configuration.
+- **Settings:** theme, transparency, display size, active panels, panel order and panel-specific configuration.
 
 ## API
 

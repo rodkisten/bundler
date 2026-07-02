@@ -23,6 +23,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private installed = false;
   private catchErrors = false;
   private readonly original = new Map<ConsoleMethod, (...args: unknown[]) => void>();
+  private readonly current = new Map<ConsoleMethod, (...args: unknown[]) => void>();
+  private readonly wrappers = new Map<ConsoleMethod, (...args: unknown[]) => void>();
+  private readonly records: ConsoleRecord[] = [];
   private readonly timers = new Map<string, number>();
   private readonly counters = new Map<string, number>();
   private readonly globals = new Map<string, unknown>();
@@ -40,12 +43,18 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         ? (console[method] as (...args: unknown[]) => void).bind(console)
         : () => undefined;
       this.original.set(method, original);
+      this.current.set(method, original);
+      const wrapper = (...args: unknown[]) => {
+        this.handle(method, args);
+        const passthrough = this.current.get(method) ?? original;
+        if (passthrough !== wrapper) passthrough(...args);
+      };
+      this.wrappers.set(method, wrapper);
       Object.defineProperty(console, method, {
         configurable: true,
-        writable: true,
-        value: (...args: unknown[]) => {
-          this.handle(method, args);
-          original(...args);
+        get: () => wrapper,
+        set: (value: unknown) => {
+          this.current.set(method, typeof value === "function" && value !== wrapper ? (value as (...args: unknown[]) => void).bind(console) : original);
         },
       });
     }
@@ -57,6 +66,8 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       Object.defineProperty(console, method, { configurable: true, writable: true, value: original });
     }
     this.original.clear();
+    this.current.clear();
+    this.wrappers.clear();
     this.installed = false;
   }
 
@@ -77,6 +88,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   destroy(): void {
     this.restoreConsole();
     this.disableGlobalErrors();
+    this.records.length = 0;
     this.removeAllListeners();
   }
 
@@ -89,12 +101,19 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       groupDepth: this.groupDepth,
       ...extra,
     };
+    this.records.push(record);
+    if (this.records.length > 1000) this.records.splice(0, this.records.length - 1000);
     this.emit("record", record);
     return record;
   }
 
   clear(): void {
+    this.records.length = 0;
     this.emit("clear");
+  }
+
+  getRecords(): readonly ConsoleRecord[] {
+    return this.records;
   }
 
   setGlobal(name: string, value: unknown): void {

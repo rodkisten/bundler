@@ -1,5 +1,6 @@
 import { ConfigStore } from "../core/config";
 import { debounce, delegate, escapeHtml, icon, isDevtoolsNode, truncate } from "../core/dom";
+import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { SourcePayload, ToolContext } from "../types";
 import { renderPanelShell } from "./panel-ui";
@@ -46,6 +47,7 @@ export class Resources extends Tool {
       storageSection("Local Storage", "local", safeStorage("local")),
       storageSection("Session Storage", "session", safeStorage("session")),
       cookieSection(parseCookies()),
+      capabilitySection(),
       linkSection("Scripts", "script", this.scriptUrls()),
       linkSection("Stylesheets", "style", this.stylesheetUrls()),
       linkSection("Iframes", "iframe", this.iframeUrls()),
@@ -144,6 +146,10 @@ export class Resources extends Tool {
       this.refresh();
       return;
     }
+    if (action === "edit-json-storage") {
+      void this.editJsonStorage(element.dataset.storageType as StorageType, element.dataset.storageKey || "");
+      return;
+    }
     if (action === "add-cookie") {
       void this.addCookie();
       return;
@@ -198,6 +204,20 @@ export class Resources extends Tool {
     document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; ${attributes || "path=/"}`;
     this.refresh();
   }
+
+  private async editJsonStorage(type: StorageType, key: string): Promise<void> {
+    const storage = safeStorage(type);
+    const current = storage.getItem(key) ?? "";
+    const next = await this.context?.prompt(`Edit JSON for ${key}`, formatJsonValue(current));
+    if (next == null) return;
+    try {
+      JSON.parse(next);
+      storage.setItem(key, next);
+      this.refresh();
+    } catch (error) {
+      this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
+    }
+  }
 }
 
 function storageSection(title: string, type: StorageType, storage: Storage): string {
@@ -205,7 +225,9 @@ function storageSection(title: string, type: StorageType, storage: Storage): str
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);
     if (key == null) continue;
-    rows.push(`<tr data-storage-type="${type}" data-original-key="${escapeHtml(key)}"><td><input data-storage-key value="${escapeHtml(key)}"></td><td><input data-storage-value value="${escapeHtml(storage.getItem(key) ?? "")}"></td><td><button class="roderuda-icon-btn" type="button" data-resource-action="remove-storage" data-storage-type="${type}" data-storage-key="${escapeHtml(key)}">×</button></td></tr>`);
+    const value = storage.getItem(key) ?? "";
+    const json = isJsonValue(value);
+    rows.push(`<tr data-storage-type="${type}" data-original-key="${escapeHtml(key)}"><td><input data-storage-key value="${escapeHtml(key)}"></td><td><input data-storage-value value="${escapeHtml(json ? formatJsonValue(value) : value)}"></td><td>${json ? `<button class="roderuda-icon-btn" type="button" data-resource-action="edit-json-storage" data-storage-type="${type}" data-storage-key="${escapeHtml(key)}" title="Edit JSON">{ }</button>` : ""}<button class="roderuda-icon-btn" type="button" data-resource-action="remove-storage" data-storage-type="${type}" data-storage-key="${escapeHtml(key)}">×</button></td></tr>`);
   }
   return `<section class="roderuda-section"><div class="roderuda-section-title"><span>${escapeHtml(title)} (${rows.length})</span><span class="roderuda-section-actions"><button class="roderuda-icon-btn" type="button" data-resource-action="refresh">${icon("refresh")}</button><button class="roderuda-icon-btn" type="button" data-resource-action="add-storage" data-storage-type="${type}">+</button><button class="roderuda-icon-btn" type="button" data-resource-action="clear-storage" data-storage-type="${type}">${icon("clear")}</button></span></div><div class="roderuda-table-wrap"><table class="roderuda-table"><thead><tr><th>Key</th><th>Value</th><th></th></tr></thead><tbody>${rows.join("") || '<tr><td colspan="3">Empty</td></tr>'}</tbody></table></div></section>`;
 }
@@ -213,6 +235,18 @@ function storageSection(title: string, type: StorageType, storage: Storage): str
 function cookieSection(cookies: Array<{ name: string; value: string }>): string {
   const rows = cookies.map((cookie) => `<tr><td>${escapeHtml(cookie.name)}</td><td>${escapeHtml(cookie.value)}</td><td><button class="roderuda-icon-btn" type="button" data-resource-action="remove-cookie" data-cookie-name="${escapeHtml(cookie.name)}">×</button></td></tr>`).join("");
   return `<section class="roderuda-section"><div class="roderuda-section-title"><span>Cookies (${cookies.length})</span><span class="roderuda-section-actions"><button class="roderuda-icon-btn" type="button" data-resource-action="add-cookie">+</button><button class="roderuda-icon-btn" type="button" data-resource-action="refresh">${icon("refresh")}</button></span></div><div class="roderuda-table-wrap"><table class="roderuda-table"><thead><tr><th>Name</th><th>Value</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3">No script-visible cookies</td></tr>'}</tbody></table></div></section>`;
+}
+
+function capabilitySection(): string {
+  const items = [
+    ["IndexedDB", typeof indexedDB !== "undefined"],
+    ["Cache Storage", typeof caches !== "undefined"],
+    ["WebSQL", typeof (window as unknown as { openDatabase?: unknown }).openDatabase === "function"],
+    ["localStorage", canUseStorage("local")],
+    ["sessionStorage", canUseStorage("session")],
+    ["Cookies", typeof document.cookie === "string"],
+  ];
+  return `<section class="roderuda-section"><div class="roderuda-section-title"><span>Storage capabilities</span><span class="roderuda-section-actions"><button class="roderuda-icon-btn" type="button" data-resource-action="refresh">${icon("refresh")}</button></span></div><ul class="roderuda-link-list">${items.map(([name, available]) => `<li>${escapeHtml(name)}: ${available ? "available" : "unavailable"}</li>`).join("")}</ul></section>`;
 }
 
 function linkSection(title: string, type: string, urls: string[]): string {
@@ -252,6 +286,37 @@ function safeStorage(type: StorageType): Storage {
       removeItem: (key) => memory.delete(key),
       setItem: (key, value) => memory.set(key, String(value)),
     };
+  }
+}
+
+function canUseStorage(type: StorageType): boolean {
+  try {
+    const storage = type === "local" ? localStorage : sessionStorage;
+    const key = "__roderuda_storage_probe__";
+    storage.setItem(key, "1");
+    storage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isJsonValue(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function formatJsonValue(value: string): string {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
   }
 }
 

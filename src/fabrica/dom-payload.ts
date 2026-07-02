@@ -157,6 +157,10 @@ export function applyPayloadRef(element: Element, value: unknown): void {
 export function stringifyAttributeValue(name: string, value: unknown): string {
   if (value == null || value === false) return ''
 
+  if ((name === 'class' || name === 'className') && Array.isArray(value)) {
+    return value.map((item) => stringifyAttributeValue(name, item)).filter(Boolean).join(' ')
+  }
+
   if (name === 'style' && value && typeof value === 'object') {
     const styleLike = value as { cssText?: unknown; compiledCss?: unknown; value?: unknown }
     if (typeof styleLike.cssText === 'string') return styleLike.cssText

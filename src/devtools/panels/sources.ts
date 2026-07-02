@@ -1,6 +1,7 @@
 import { ConfigStore } from "../core/config";
+import { mountCodeEditor, type CodeEditorHandle, type CodeEditorLanguage } from "../core/code-editor";
 import { copyText, create, delegate, downloadText, escapeHtml, icon, qs } from "../core/dom";
-import { highlightCode, inferSourceType, plainText, renderValue, withLineNumbers } from "../core/serialize";
+import { inferSourceType, plainText, renderValue } from "../core/serialize";
 import { Tool } from "../tool";
 import type { SourcePayload, SourceType, ToolContext } from "../types";
 
@@ -26,12 +27,14 @@ export class Sources extends Tool {
   private cleanup: Array<() => void> = [];
   private renderToken = 0;
   private renderedText = "";
+  private editor: CodeEditorHandle | null = null;
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
     container.innerHTML = `
       <div class="roderuda-control">
         <button class="roderuda-icon-btn" type="button" data-action="source-home" title="Document source">⌂</button>
+        <button class="roderuda-icon-btn" type="button" data-action="source-list" title="All sources">☰</button>
         <div class="roderuda-detail-title" data-source-title>Document</div>
         <button class="roderuda-icon-btn" type="button" data-action="source-copy" title="Copy">${icon("copy")}</button>
         <button class="roderuda-icon-btn" type="button" data-action="source-download" title="Download">${icon("download")}</button>
@@ -41,6 +44,7 @@ export class Sources extends Tool {
     `;
     this.body = qs(container, "[data-sources-body]");
     this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
+    this.cleanup.push(delegate(container, "click", "[data-source-index]", (event, element) => this.openIndexedSource(event, element)));
     this.config.on("change", this.onConfigChange);
     this.registerSettings(context);
     void this.render();
@@ -62,6 +66,8 @@ export class Sources extends Tool {
 
   override destroy(): void {
     this.config.off("change", this.onConfigChange);
+    this.editor?.destroy();
+    this.editor = null;
     for (const cleanup of this.cleanup.splice(0)) cleanup();
     super.destroy();
   }
@@ -130,10 +136,21 @@ export class Sources extends Tool {
 
   private renderCode(code: string, type: string): void {
     if (!this.body) return;
+    this.editor?.destroy();
+    this.editor = null;
     this.renderedText = code;
-    const highlighted = highlightCode(code, type);
-    const content = this.config.get("showLineNum") ? withLineNumbers(highlighted) : highlighted;
-    this.body.innerHTML = `<div class="roderuda-source-breadcrumb">${escapeHtml(this.payload.title || this.payload.url || type)}</div><pre class="roderuda-code" data-type="${escapeHtml(type)}" style="white-space:${this.config.get("wrapLines") ? "pre-wrap" : "pre"}">${content}</pre>`;
+    const wrapper = create("div", { className: "roderuda-source-editor" });
+    const title = create("div", { className: "roderuda-source-breadcrumb", text: this.payload.title || this.payload.url || type });
+    const host = create("div", { className: "roderuda-source-codemirror" });
+    wrapper.append(title, host);
+    this.body.replaceChildren(wrapper);
+    this.editor = mountCodeEditor({
+      parent: host,
+      value: code,
+      language: sourceLanguage(type),
+      readOnly: true,
+      dark: this.context?.root.classList.contains("roderuda-dark") ?? true,
+    });
   }
 
   private renderObject(value: unknown): void {
@@ -165,6 +182,9 @@ export class Sources extends Tool {
       case "source-home":
         this.set({ type: "html", value: () => document.documentElement.outerHTML, title: location.href });
         break;
+      case "source-list":
+        this.renderSourceIndex();
+        break;
       case "source-copy":
         void copyText(this.renderedText).then(() => this.context?.notify("Source copied", { type: "success" }));
         break;
@@ -176,6 +196,40 @@ export class Sources extends Tool {
         break;
     }
   }
+
+  private renderSourceIndex(): void {
+    if (!this.body) return;
+    const sources = collectSources();
+    this.renderedText = sources.map((source) => `${source.type}\t${source.title}`).join("\n");
+    this.body.innerHTML = `<div class="roderuda-source-breadcrumb">All sources</div><ul class="roderuda-link-list">${sources.map((source, index) => `<li><button class="roderuda-text-btn" type="button" data-source-index="${index}">${escapeHtml(source.type)} · ${escapeHtml(source.title)}</button></li>`).join("")}</ul>`;
+    this.body.dataset.sourcesIndex = JSON.stringify(sources);
+  }
+
+  private openIndexedSource(event: Event, element: HTMLElement): void {
+    event.preventDefault();
+    try {
+      const sources = JSON.parse(this.body?.dataset.sourcesIndex || "[]") as SourcePayload[];
+      const source = sources[Number(element.dataset.sourceIndex)];
+      if (source) this.set(source);
+    } catch {}
+  }
+}
+
+function collectSources(): SourcePayload[] {
+  const sources: SourcePayload[] = [
+    { type: "html", value: document.documentElement.outerHTML, title: "Document HTML" },
+  ];
+  for (const [index, script] of Array.from(document.scripts).entries()) {
+    if (script.src) sources.push({ type: "javascript", value: script.src, url: script.src, title: script.src });
+    else if (script.textContent?.trim()) sources.push({ type: "javascript", value: script.textContent, title: `Inline script #${index + 1}` });
+  }
+  for (const [index, style] of Array.from(document.querySelectorAll("style")).entries()) {
+    if (style.textContent?.trim()) sources.push({ type: "css", value: style.textContent, title: `Inline stylesheet #${index + 1}` });
+  }
+  for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'))) {
+    sources.push({ type: "css", value: link.href, url: link.href, title: link.href });
+  }
+  return sources;
 }
 
 function looksLikeUrl(value: string): boolean {
@@ -194,6 +248,14 @@ function formatJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function sourceLanguage(type: string): CodeEditorLanguage {
+  if (type === "javascript") return "javascript";
+  if (type === "json") return "json";
+  if (type === "html") return "html";
+  if (type === "css") return "css";
+  return "text";
 }
 
 function formatSource(source: string, type: string, indentSize: number): string {

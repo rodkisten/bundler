@@ -26,6 +26,8 @@ interface DevToolsConfig extends Record<string, unknown> {
   transparency: number;
   displaySize: number;
   theme: string;
+  panelOrder: string[];
+  disabledPanels: string[];
 }
 
 export class DevTools extends Emitter<ControllerEvents> implements DevtoolsControllerLike {
@@ -54,6 +56,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       transparency: defaults.transparency ?? 0.95,
       displaySize: defaults.displaySize ?? 80,
       theme: defaults.theme ?? "System preference",
+      panelOrder: [],
+      disabledPanels: [],
     });
     this.context = {
       root: refs.root,
@@ -102,6 +106,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         role="tab"
         data-tool-tab=${name}
         aria-selected="false"
+        draggable=${name === "settings" ? "false" : "true"}
         @click=${event(() => this.showTool(name))}
         ref=${ref((node) => { tab = node as HTMLButtonElement; })}
       >
@@ -116,6 +121,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     this.tools.set(name, tool);
     this.tabs.set(name, tab);
+    this.applyPanelPreferences();
     uiState.setPath("panels.names", [...this.tools.keys()]);
     if (name === "settings") this.settings = tool as SettingsLike;
 
@@ -167,6 +173,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const tool = this.tools.get(name);
     if (!tool) {
       this.notify(`Tool “${name}” does not exist`, { type: "warning" });
+      return this;
+    }
+    if (this.isPanelDisabled(name)) {
+      const fallback = this.firstEnabledTool();
+      if (fallback && fallback !== name) return this.showTool(fallback);
+      this.notify(`Tool “${name}” is disabled`, { type: "warning" });
       return this;
     }
     if (!this.visible) this.show();
@@ -316,6 +328,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       settings.registerRange(this.config, "transparency", "Transparency", { min: 0.2, max: 1, step: 0.01 });
       settings.registerRange(this.config, "displaySize", "Display Size", { min: 40, max: 100, step: 1 });
     }
+    settings.registerButton("Choose active panels", () => this.configureActivePanels());
+    settings.registerButton("Reset panel order", () => {
+      this.config.set("panelOrder", []);
+      this.applyPanelPreferences();
+    });
     settings.registerButton("Restore defaults and reload", () => {
       this.config.reset();
       for (const key of Object.keys(localStorage)) {
@@ -344,6 +361,22 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   private bind(): void {
     this.cleanup.push(delegate(this.refs.tabbar, "click", "[data-tool-tab]", (_event, tab) => this.showTool(tab.dataset.toolTab ?? "")));
+    this.cleanup.push(delegate(this.refs.tabbar, "dragstart", "[data-tool-tab]", (event, tab) => {
+      if (tab.dataset.toolTab === "settings" || !(event instanceof DragEvent)) return;
+      event.dataTransfer?.setData("text/plain", tab.dataset.toolTab ?? "");
+      event.dataTransfer?.setDragImage?.(tab, 8, 8);
+    }));
+    this.cleanup.push(delegate(this.refs.tabbar, "dragover", "[data-tool-tab]", (event) => {
+      if (event instanceof DragEvent) event.preventDefault();
+    }));
+    this.cleanup.push(delegate(this.refs.tabbar, "drop", "[data-tool-tab]", (event, tab) => {
+      if (!(event instanceof DragEvent)) return;
+      event.preventDefault();
+      const source = event.dataTransfer?.getData("text/plain") || "";
+      const target = tab.dataset.toolTab || "";
+      if (!source || !target || source === target || source === "settings") return;
+      this.movePanel(source, target);
+    }));
     this.cleanup.push(on(this.refs.resizer, "pointerdown", (event: PointerEvent) => {
       if (this.inline) return;
       event.preventDefault();
@@ -390,6 +423,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (!key || key === "displaySize") {
       this.refs.devtools.style.height = `${this.inline ? 100 : this.config.get<number>("displaySize")}%`;
     }
+    if (!key || key === "panelOrder" || key === "disabledPanels") this.applyPanelPreferences();
     if (this.inline) {
       this.visible = true;
       this.refs.devtools.style.display = "block";
@@ -397,6 +431,66 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       this.refs.devtools.setAttribute("aria-hidden", "false");
       this.refs.resizer.hidden = true;
     }
+  }
+
+  private async configureActivePanels(): Promise<void> {
+    const names = [...this.tools.keys()].filter((name) => name !== "settings");
+    const active = names.filter((name) => !this.isPanelDisabled(name));
+    const value = await this.prompt("Active panels, comma-separated", active.join(", "));
+    if (value == null) return;
+    const requested = new Set(value.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
+    const disabled = names.filter((name) => !requested.has(name.toLowerCase()));
+    this.config.set("disabledPanels", disabled);
+    this.applyPanelPreferences();
+    if (this.currentTool && this.isPanelDisabled(this.currentTool)) {
+      const fallback = this.firstEnabledTool();
+      if (fallback) this.showTool(fallback);
+    }
+  }
+
+  private movePanel(source: string, target: string): void {
+    const ordered = this.panelOrder();
+    const from = ordered.indexOf(source);
+    const to = ordered.indexOf(target);
+    if (from < 0 || to < 0) return;
+    ordered.splice(from, 1);
+    ordered.splice(to, 0, source);
+    this.config.set("panelOrder", ordered);
+    this.applyPanelPreferences();
+  }
+
+  private applyPanelPreferences(): void {
+    const order = this.panelOrder();
+    const settingsTab = this.tabs.get("settings");
+    for (const name of order) {
+      const tab = this.tabs.get(name);
+      const panel = Array.from(this.refs.tools.querySelectorAll<HTMLElement>("[data-tool]")).find((candidate) => candidate.dataset.tool === name);
+      if (tab && name !== "settings") this.refs.tabbar.insertBefore(tab, settingsTab ?? null);
+      if (panel) this.refs.tools.append(panel);
+      const disabled = this.isPanelDisabled(name);
+      if (tab) tab.hidden = disabled;
+      if (panel) panel.hidden = disabled;
+    }
+    if (settingsTab) this.refs.tabbar.append(settingsTab);
+    uiState.setPath("panels.names", order);
+  }
+
+  private panelOrder(): string[] {
+    const configured = this.config.get<string[]>("panelOrder");
+    const known = [...this.tools.keys()];
+    const ordered = Array.isArray(configured) ? configured.filter((name) => this.tools.has(name)) : [];
+    for (const name of known) if (!ordered.includes(name)) ordered.push(name);
+    return ordered;
+  }
+
+  private isPanelDisabled(name: string): boolean {
+    if (name === "settings") return false;
+    const disabled = this.config.get<string[]>("disabledPanels");
+    return Array.isArray(disabled) && disabled.includes(name);
+  }
+
+  private firstEnabledTool(): string | undefined {
+    return this.panelOrder().find((name) => !this.isPanelDisabled(name) && this.tools.has(name));
   }
 
   private openModal(modal: HTMLElement): void {
