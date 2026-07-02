@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
 import { compileCipoSourceBuild, cipoVite, setup } from '../src'
-import { compileFabricaSource, createCompiledElement } from '../../fabrica'
+import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '../../fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
   it('compiles styled Cipó templates into real scoped CSS classes', () => {
@@ -62,7 +62,18 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(clicked).toBe(1)
   })
 
-  it('Vite plugin emits virtual CSS and compiles Fabrica in build mode', () => {
+  it('creates dynamic DOM templates with runtime-backed @event bindings', () => {
+    let clicked = 0
+    const view = createCompiledTemplate(['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
+    const button = view.firstChild as HTMLButtonElement
+
+    expect(button.tagName).toBe('BUTTON')
+    expect(button.textContent).toBe('Save now')
+    button.click()
+    expect(clicked).toBe(1)
+  })
+
+  it('Vite plugin injects compiled CSS through Cipó runtime style tag and compiles Fabrica in build mode', () => {
     const plugin = cipoVite({ root: '/project', mode: 'build', compileFabrica: true })
     const context = { emitFile: () => 'asset' } as never
     const transformed = plugin.transform?.call(
@@ -71,9 +82,10 @@ describe('Cipó + Fábrica compiled build mode', () => {
       '/project/src/devtools/card.ts',
     )
 
-    expect(transformed && 'code' in transformed ? transformed.code : '').toContain("\\0cipo:compiled.css")
+    expect(transformed && 'code' in transformed ? transformed.code : '').toContain("\\u0000cipo:compiled-style-tag.js")
     expect(transformed && 'code' in transformed ? transformed.code : '').toContain('createCompiledElement("section"')
-    const css = plugin.load?.call(context, '\0cipo:compiled.css')
-    expect(css).toContain('color:red')
+    const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
+    expect(runtimeModule).toContain('insertCss')
+    expect(runtimeModule).toContain('color:red')
   })
 })

@@ -60,7 +60,7 @@ describe('Cipó compiled inline + Vite playground mode', () => {
   })
 
   it('computes valid relative compiler imports in the Vite plugin', () => {
-    const plugin = cipoVite({ root: '/project' })
+    const plugin = cipoVite({ root: '/project', mode: 'inline' })
     const result = plugin.transform?.call({} as never, "export const Panel = styled.div('Panel').css`color: red;`", '/project/src/devtools/panel.ts')
 
     expect(result && 'code' in result ? result.code : '').toContain("from '../cipo/src/compiler/compiled-inline'")
