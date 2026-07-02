@@ -40,6 +40,9 @@ export class Elements extends Tool {
   private highlighter: ElementHighlighter | null = null;
   private pickerCleanup: Array<() => void> = [];
   private picking = false;
+  private contextMenu: HTMLElement | null = null;
+  private longPressTimer = 0;
+  private longPressPoint: { x: number; y: number } | null = null;
   private readonly scheduleRender = debounce(() => this.renderTree(), 80);
 
   override init(container: HTMLElement, context: ToolContext): void {
@@ -70,6 +73,13 @@ export class Elements extends Tool {
 
     this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-node-id]", (event, element) => this.handleNodeClick(event, element)));
+    this.cleanup.push(delegate(container, "dblclick", "[data-node-id]", (event, element) => this.handleNodeOpen(event, element)));
+    this.cleanup.push(delegate(container, "contextmenu", "[data-node-id]", (event, element) => this.handleNodeMenu(event, element)));
+    this.cleanup.push(delegate(container, "pointerdown", "[data-node-id]", (event, element) => this.startLongPress(event, element)));
+    this.cleanup.push(delegate(container, "pointerup", "[data-node-id]", () => this.cancelLongPress()));
+    this.cleanup.push(delegate(container, "pointercancel", "[data-node-id]", () => this.cancelLongPress()));
+    this.cleanup.push(delegate(container, "pointermove", "[data-node-id]", (event) => this.trackLongPress(event)));
+    this.cleanup.push(delegate(container, "click", "[data-elements-menu-action]", (event, element) => { void this.handleContextAction(event, element); }));
     this.cleanup.push(delegate(container, "pointerover", "[data-node-id]", (_event, element) => this.hoverNode(element)));
     this.cleanup.push(delegate(container, "pointerout", "[data-node-id]", () => this.highlighter?.hide()));
     this.cleanup.push(delegate(container, "click", "[data-crumb-index]", (_event, element) => this.select(this.crumbElement(Number(element.dataset.crumbIndex)))));
@@ -118,7 +128,8 @@ export class Elements extends Tool {
 
   override destroy(): void {
     this.stopPicker();
-    this.highlighter?.destroy();
+    this.cancelLongPress();
+    this.closeContextMenu();
     this.highlighter = null;
     this.observer?.disconnect();
     this.observer = null;
@@ -288,6 +299,116 @@ export class Elements extends Tool {
     this.select(node);
   }
 
+  private handleNodeOpen(event: Event, element: HTMLElement): void {
+    event.preventDefault();
+    const node = this.resolveNode(element.dataset.nodeId || "");
+    if (!node) return;
+    this.select(node);
+    this.detail?.classList.add("roderuda-active");
+  }
+
+  private handleNodeMenu(event: Event, element: HTMLElement): void {
+    event.preventDefault();
+    const node = this.resolveNode(element.dataset.nodeId || "");
+    if (!(node instanceof Element)) return;
+    this.select(node);
+    const pointer = event instanceof MouseEvent ? { x: event.clientX, y: event.clientY } : { x: 16, y: 16 };
+    this.openContextMenu(node, pointer.x, pointer.y);
+  }
+
+  private startLongPress(event: Event, element: HTMLElement): void {
+    if (typeof PointerEvent === "undefined" || !(event instanceof PointerEvent) || event.pointerType === "mouse") return;
+    const node = this.resolveNode(element.dataset.nodeId || "");
+    if (!(node instanceof Element)) return;
+    this.cancelLongPress();
+    this.longPressPoint = { x: event.clientX, y: event.clientY };
+    this.longPressTimer = window.setTimeout(() => {
+      this.select(node);
+      this.openContextMenu(node, this.longPressPoint?.x ?? event.clientX, this.longPressPoint?.y ?? event.clientY);
+      this.cancelLongPress();
+    }, 550);
+  }
+
+  private trackLongPress(event: Event): void {
+    if (typeof PointerEvent === "undefined" || !(event instanceof PointerEvent) || !this.longPressPoint || !this.longPressTimer) return;
+    if (Math.hypot(event.clientX - this.longPressPoint.x, event.clientY - this.longPressPoint.y) > 12) this.cancelLongPress();
+  }
+
+  private cancelLongPress(): void {
+    if (this.longPressTimer) window.clearTimeout(this.longPressTimer);
+    this.longPressTimer = 0;
+    this.longPressPoint = null;
+  }
+
+  private openContextMenu(element: Element, x: number, y: number): void {
+    this.closeContextMenu();
+    const menu = create("div", { className: "roderuda-elements-menu", attrs: { role: "menu", "data-elements-menu": "", "data-node-id": this.nodeId(element) } });
+    const actions = [
+      ["copy-element", "Copy element"],
+      ["copy-selector", "Copy selector"],
+      ["edit-attributes", "Edit attributes"],
+      ["edit-props", "Edit props"],
+      ["edit-class", "Edit class"],
+      ["delete-element", "Delete element"],
+    ] as const;
+    for (const [action, label] of actions) {
+      menu.append(create("button", { text: label, attrs: { type: "button", role: "menuitem", "data-elements-menu-action": action } }));
+    }
+    this.contextMenu = menu;
+    this.context?.root.append(menu);
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
+    const close = (event: Event): void => {
+      if (event.target instanceof Node && menu.contains(event.target)) return;
+      this.closeContextMenu();
+      document.removeEventListener("pointerdown", close, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+    const onKey = (event: Event): void => {
+      if (event instanceof KeyboardEvent && event.key === "Escape") close(event);
+    };
+    queueMicrotask(() => {
+      document.addEventListener("pointerdown", close, true);
+      document.addEventListener("keydown", onKey, true);
+    });
+  }
+
+  private closeContextMenu(): void {
+    this.contextMenu?.remove();
+    this.contextMenu = null;
+  }
+
+  private async handleContextAction(event: Event, button: HTMLElement): Promise<void> {
+    event.preventDefault();
+    const node = this.resolveNode(button.closest<HTMLElement>("[data-elements-menu]")?.dataset.nodeId || "");
+    this.closeContextMenu();
+    if (!(node instanceof Element)) return;
+    this.select(node);
+    switch (button.dataset.elementsMenuAction) {
+      case "copy-element":
+        await copyText(node.outerHTML);
+        this.context?.notify("Element copied", { type: "success" });
+        break;
+      case "copy-selector":
+        await copyText(nodePath(node));
+        this.context?.notify("Selector copied", { type: "success" });
+        break;
+      case "edit-attributes":
+        await this.editAttributes(node);
+        break;
+      case "edit-props":
+        await this.editProps(node);
+        break;
+      case "edit-class":
+        await this.editClass(node);
+        break;
+      case "delete-element":
+        this.deleteSelected();
+        break;
+    }
+  }
+
   private hoverNode(element: HTMLElement): void {
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (node instanceof Element) this.highlighter?.highlight(node);
@@ -335,6 +456,55 @@ export class Elements extends Tool {
     const next = element.parentElement;
     element.remove();
     if (next) this.select(next);
+  }
+
+  private async editAttributes(element: Element): Promise<void> {
+    const current = Array.from(element.attributes).map((attribute) => `${attribute.name}=${attribute.value}`).join("\n");
+    const next = await this.context?.prompt("Edit attributes as name=value, one per line", current);
+    if (next == null) return;
+    try {
+      for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
+      for (const line of next.split(/\r?\n/g)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const index = trimmed.indexOf("=");
+        const name = (index < 0 ? trimmed : trimmed.slice(0, index)).trim();
+        const value = index < 0 ? "" : trimmed.slice(index + 1);
+        if (name) element.setAttribute(name, value);
+      }
+      this.renderTree();
+      this.renderDetail();
+    } catch (error) {
+      this.context?.notify(plainText(error), { type: "error" });
+    }
+  }
+
+  private async editClass(element: Element): Promise<void> {
+    const next = await this.context?.prompt("Edit class", element.getAttribute("class") ?? "");
+    if (next == null) return;
+    if (next.trim()) element.setAttribute("class", next);
+    else element.removeAttribute("class");
+    this.renderTree();
+    this.renderDetail();
+  }
+
+  private async editProps(element: Element): Promise<void> {
+    const current = JSON.stringify({ id: element.id, title: element.getAttribute("title") ?? "", textContent: element.textContent ?? "" }, null, 2);
+    const next = await this.context?.prompt("Edit simple props as JSON", current);
+    if (next == null) return;
+    try {
+      const props = JSON.parse(next) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(props)) {
+        if (key === "textContent") element.textContent = value == null ? "" : String(value);
+        else if (key in element) (element as unknown as Record<string, unknown>)[key] = value;
+        else if (value == null || value === false) element.removeAttribute(key);
+        else element.setAttribute(key, value === true ? "" : String(value));
+      }
+      this.renderTree();
+      this.renderDetail();
+    } catch (error) {
+      this.context?.notify(`Invalid props JSON: ${plainText(error)}`, { type: "error" });
+    }
   }
 
   private startPicker(button: HTMLElement): void {

@@ -3,6 +3,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import { component, event, html, ref, render, styled } from "../components/runtime";
 import { ConfigStore } from "../core/config";
 import { ConsoleCapture } from "../core/console-capture";
+import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import { copyText, formatTime, icon, safeStringify } from "../core/dom";
 import { devtoolsTokens } from "../core/style";
 import { plainText } from "../core/serialize";
@@ -72,6 +73,13 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
 });
 
 const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "warn", "error"];
+const HISTORY_STORAGE_KEY = "roderuda:console-history";
+const HISTORY_LIMIT = 100;
+const sharedCapture = new ConsoleCapture();
+
+try {
+  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true });
+} catch {}
 
 void devtoolsTokens;
 
@@ -262,6 +270,23 @@ const ConsoleInput = styled.textarea("RodConsoleInput").css`
   font: 13px / 1.4 $font.mono;
 `;
 
+const ConsoleCodeEditorHost = styled.div("RodConsoleCodeEditorHost").css`
+  flex: 1;
+  min-width: 0;
+  min-height: 100%;
+  color: $primary;
+
+  .cm-editor {
+    height: 100%;
+    background: transparent;
+    outline: none;
+  }
+
+  .cm-content {
+    padding: 3px 8px 3px 0;
+  }
+`;
+
 const ConsoleEditorActions = styled.div("RodConsoleEditorActions").css`
   position: absolute;
   right: 0;
@@ -328,6 +353,7 @@ const CONSOLE_STYLED_COMPONENTS = Object.freeze([
   ConsoleInputWrap,
   ConsolePrompt,
   ConsoleInput,
+  ConsoleCodeEditorHost,
   ConsoleEditorActions,
   ConsoleEditorButton,
   ConsoleTableWrap,
@@ -419,7 +445,7 @@ export class Console extends Tool {
   readonly icon = "⌘";
   readonly config: ConfigStore<ConsoleConfig>;
 
-  private readonly capture = new ConsoleCapture();
+  private readonly capture = sharedCapture;
   private readonly state = store<ConsoleState>({
     records: [],
     filterValue: null,
@@ -440,6 +466,8 @@ export class Console extends Tool {
   private body: HTMLElement | null = null;
   private list: HTMLElement | null = null;
   private input: HTMLTextAreaElement | null = null;
+  private codeEditor: CodeEditorHandle | null = null;
+  private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
 
   constructor({ name = "console" }: { name?: string } = {}) {
@@ -455,7 +483,7 @@ export class Console extends Tool {
       state: this.state,
       setBody: (node) => { this.body = node; },
       setList: (node) => { this.list = node; },
-      setInput: (node) => { this.input = node; },
+      setInput: (node) => { this.setInput(node); },
       clear: () => this.clear(),
       copy: () => { void this.copyVisibleRecords(); },
       toggleLevel: (level) => this.toggleLevel(level),
@@ -472,12 +500,16 @@ export class Console extends Tool {
     this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
+    this.hydrateCapturedRecords();
+    this.hydrateHistory();
 
     try {
       this.capture.install({
         overrideConsole: this.config.get("overrideConsole"),
         catchGlobalErrors: this.config.get("catchGlobalErr"),
       });
+      if (!this.config.get("overrideConsole")) this.capture.restoreConsole();
+      if (!this.config.get("catchGlobalErr")) this.capture.disableGlobalErrors();
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
     }
@@ -521,15 +553,26 @@ export class Console extends Tool {
   override destroy(): void {
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
-    this.capture.destroy();
     this.config.off("change", this.onConfigChange);
     this.disposeView?.();
     this.disposeView = null;
     this.body = null;
     this.list = null;
     this.input = null;
+    this.destroyCodeEditor();
     this.state.patch({ records: [], selectedRecordId: null, inputValue: "", editorExpanded: false }, { cause: "console:destroy" });
     super.destroy();
+  }
+
+  private hydrateCapturedRecords(): void {
+    const records = this.capture.getRecords();
+    if (!records.length || this.state.records.peek().length) return;
+    this.state.records.set([...records]);
+  }
+
+  private hydrateHistory(): void {
+    const history = readHistory();
+    this.state.patch({ history, historyIndex: history.length }, { cause: "console:history-hydrate" });
   }
 
   private readonly onRecord = (record: ConsoleRecord): void => {
@@ -631,6 +674,42 @@ export class Console extends Tool {
     this.state.inputValue.set((eventValue.currentTarget as HTMLTextAreaElement).value);
   }
 
+  private setInput(node: HTMLTextAreaElement | null): void {
+    this.input = node;
+    if (!node) {
+      this.destroyCodeEditor();
+      return;
+    }
+    this.mountCodeEditor(node);
+  }
+
+  private mountCodeEditor(textarea: HTMLTextAreaElement): void {
+    if (this.codeEditor || !textarea.parentElement) return;
+    const host = ConsoleCodeEditorHost({ class: "roderuda-console-codemirror" }) as HTMLElement;
+    textarea.before(host);
+    textarea.hidden = true;
+    this.codeEditorHost = host;
+    this.codeEditor = mountCodeEditor({
+      parent: host,
+      value: this.state.inputValue.peek(),
+      language: "javascript",
+      dark: this.context?.root.classList.contains("roderuda-dark") ?? true,
+      completions: (context) => consoleCompletions(context),
+      onChange: (value) => {
+        this.state.inputValue.set(value);
+        textarea.value = value;
+      },
+      onRun: () => { void this.executeInput(); },
+    });
+  }
+
+  private destroyCodeEditor(): void {
+    this.codeEditor?.destroy();
+    this.codeEditor = null;
+    this.codeEditorHost?.remove();
+    this.codeEditorHost = null;
+  }
+
   private handleInputFocus(): void {
     const value = this.state.inputValue.peek();
     if (value.includes("\n") || value.length > 80) this.expandEditor(true);
@@ -671,7 +750,8 @@ export class Console extends Tool {
   private async executeInput(): Promise<void> {
     const code = this.state.inputValue.peek().trim();
     if (!code) return;
-    const history = [...this.state.history.peek(), code];
+    const history = appendHistory(this.state.history.peek(), code);
+    writeHistory(history);
     this.state.patch({ history, historyIndex: history.length, inputValue: "", editorExpanded: false }, { cause: "console:execute" });
     this.syncDom();
     flushSync();
@@ -718,6 +798,7 @@ export class Console extends Tool {
       wrap.classList.toggle("roderuda-expanded", this.state.editorExpanded.peek());
     }
     if (this.input && this.input.value !== this.state.inputValue.peek()) this.input.value = this.state.inputValue.peek();
+    if (this.codeEditor && this.codeEditor.getValue() !== this.state.inputValue.peek()) this.codeEditor.setValue(this.state.inputValue.peek());
     for (const button of Array.from(this.container?.querySelectorAll<HTMLButtonElement>("[data-level]") ?? [])) {
       const enabled = this.state.enabledLevels.peek().includes(button.dataset.level as ConsoleLevel);
       button.classList.toggle("roderuda-active", enabled);
@@ -838,8 +919,10 @@ function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record
 }
 
 async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
-  const names = ["$_", "$0", "devtools", ...context.globals.keys()];
-  const values = [context.$_, context.$0, context.devtools, ...context.globals.values()];
+  const queryOne = (selector: string, root: ParentNode = document) => root.querySelector(selector);
+  const queryAll = (selector: string, root: ParentNode = document) => Array.from(root.querySelectorAll(selector));
+  const names = ["$_", "$0", "$", "$$", "devtools", ...context.globals.keys()];
+  const values = [context.$_, context.$0, queryOne, queryAll, context.devtools, ...context.globals.values()];
   const AsyncFunction = Object.getPrototypeOf(async function noop() {}).constructor as new (...args: string[]) => (...functionValues: unknown[]) => Promise<unknown>;
   try {
     const expression = new AsyncFunction(...names, `"use strict"; return await (${code});`);
@@ -849,4 +932,70 @@ async function executeJavaScript(code: string, context: { $_: unknown; $0: unkno
     const statements = new AsyncFunction(...names, `"use strict"; ${code}`);
     return await statements(...values);
   }
+}
+
+function readHistory(): string[] {
+  try {
+    const value = localStorage.getItem(HISTORY_STORAGE_KEY);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(-HISTORY_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeHistory(history: readonly string[]): void {
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(-HISTORY_LIMIT)));
+  } catch {}
+}
+
+function appendHistory(history: readonly string[], code: string): string[] {
+  const trimmed = code.trim();
+  if (!trimmed) return [...history];
+  const next = history.at(-1) === trimmed ? [...history] : [...history, trimmed];
+  return next.slice(-HISTORY_LIMIT);
+}
+
+function consoleCompletions(context: { matchBefore(pattern: RegExp): { from: number; text: string } | null }): { from: number; options: Array<{ label: string; type?: string; detail?: string }> } | null {
+  const word = context.matchBefore(/[$\w.]+$/);
+  if (!word) return null;
+  const add = (label: string, type = "variable", detail = "") => { if (label) options.set(label, { label, type, detail }); };
+  for (const label of ["$", "$$", "$0", "$_", "window", "document", "console", "localStorage", "sessionStorage", "devtools"]) add(label, "variable");
+
+  const dot = word.text.lastIndexOf(".");
+  if (dot >= 0) {
+    const rootName = word.text.slice(0, dot);
+    const prefix = word.text.slice(dot + 1);
+    const root = resolveCompletionRoot(rootName);
+    if (root) {
+      for (const key of collectPropertyNames(root, prefix)) add(key, "property", rootName);
+      return { from: word.from + dot + 1, options: [...options.values()].filter((item) => item.label.startsWith(prefix)).slice(0, 100) };
+    }
+  }
+
+  return { from: word.from, options: [...options.values()].filter((item) => item.label.startsWith(word.text)).slice(0, 100) };
+}
+
+function resolveCompletionRoot(name: string): unknown {
+  if (name === "window") return window;
+  if (name === "document") return document;
+  if (name === "console") return console;
+  if (name === "localStorage") return localStorage;
+  if (name === "sessionStorage") return sessionStorage;
+  return undefined;
+}
+
+function collectPropertyNames(value: unknown, prefix: string): string[] {
+  const names = new Set<string>();
+  let current = value;
+  let depth = 0;
+  while (current && depth < 4) {
+    try {
+      for (const name of Object.getOwnPropertyNames(current)) if (!prefix || name.startsWith(prefix)) names.add(name);
+    } catch {}
+    current = Object.getPrototypeOf(current);
+    depth += 1;
+  }
+  return [...names].sort();
 }

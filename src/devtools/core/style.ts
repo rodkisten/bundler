@@ -161,7 +161,9 @@ export const devtoolsStyles = sheet.css`
     minw: 320px
     pointer-events: none
     pos(fixed, inset: 0)
-    z: 2147483646
+    z: 2147483647
+    isolation: isolate
+    contain: layout style paint
     color: $foreground
     font-family: $font.ui
     font-size: 14px
@@ -264,7 +266,7 @@ export const devtoolsStyles = sheet.css`
     pos(absolute, left: 0, bottom: 0)
     w: 100%
     h: 80%
-    z: $$toolsZ
+    z: 2147483646
     display: none
     pt: $$tabHeight
     opacity: 0
@@ -283,21 +285,22 @@ export const devtoolsStyles = sheet.css`
   }
 
   .roderuda-resizer {
-    pos(absolute, left: 0, top: -8px)
+    pos(absolute, left: 0, top: -18px)
     w: 100%
-    h: 14px
+    h: 30px
     touch-action: none
     cursor: row-resize
-    z: 120
+    z: 2147483647
 
     &::after {
       content: ""
       display: block
-      w: 44px
-      h: 4px
-      m: 3px auto 0
+      w: 64px
+      h: 6px
+      m: 12px auto 0
       rounded: $pill
-      bg: mix($primary, transparent, 35%)
+      bg: mix($primary, transparent, 55%)
+      shadow: $shadow.entry
     }
   }
 
@@ -789,6 +792,19 @@ export const devtoolsStyles = sheet.css`
     color: $foreground
   }
 
+  .roderuda-source-editor,
+  .roderuda-source-codemirror {
+    h: 100%
+    minw: 0
+  }
+
+  .roderuda-source-codemirror .cm-editor {
+    h: calc(100% - 28px)
+    bg: $background
+    color: $foreground
+    outline: none
+  }
+
   .roderuda-dom-tree {
     minw: max-content
     p: 5px 0 12px 12px
@@ -821,6 +837,35 @@ export const devtoolsStyles = sheet.css`
   .roderuda-dom-attr-name { color: $attr }
   .roderuda-dom-attr-value { color: $string }
   .roderuda-dom-text { color: $foreground; white-space: pre }
+
+  .roderuda-elements-menu {
+    pos(fixed)
+    z: 2147483647
+    minw: 165px
+    p: 5px
+    bor: 1px solid $border
+    rounded: $section
+    bg: $backgroundDark
+    color: $primary
+    shadow: $notification
+
+    button {
+      block
+      w: 100%
+      p: 7px 9px
+      rounded: $sm
+      text-align: left
+      bg: transparent
+      color: inherit
+      cursor: pointer
+
+      &:hover,
+      &:focus-visible {
+        bg: $highlight
+        color: $selectedForeground
+      }
+    }
+  }
 
   .roderuda-crumbs {
     pos(absolute, left: 0, right: 0, bottom: 0)

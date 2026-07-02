@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added RodEruda devtools improvements: ShadowRoot-scoped runtime styles, CodeMirror-backed console/source editing, early console capture, command history persistence, Elements context actions, panel ordering controls and richer storage/source discovery.
 - Added `!property: value` declaration priority syntax for Cipó with idempotent important handling.
 - Added atomic promotion thresholds via `setup({ atomic: { minUses } })`, keeping single-use declarations scoped and promoting repeated declarations into shared atoms.
 - Added configurable generated-selector scoping with `scope: { strategy, selector }`, including low-specificity `:where(...)` support.
