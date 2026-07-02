@@ -82,8 +82,11 @@ describe('Cipó + Fábrica compiled build mode', () => {
       '/project/src/devtools/card.ts',
     )
 
-    expect(transformed && 'code' in transformed ? transformed.code : '').toContain("\\u0000cipo:compiled-style-tag.js")
-    expect(transformed && 'code' in transformed ? transformed.code : '').toContain('createCompiledElement("section"')
+    const code = transformed && 'code' in transformed ? transformed.code : ''
+    expect(code).toContain('insertCss as __cipoInsertCompiledCss')
+    expect(code).toContain('compileScopedSheetCss as __cipoCompileScopedSheetCss')
+    expect(code).toContain('color: red;')
+    expect(code).toContain('createCompiledElement("section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
     expect(runtimeModule).toContain('color:red')

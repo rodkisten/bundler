@@ -367,8 +367,12 @@ component("RodConsoleView", function RodConsoleView(props) {
               type="button"
               data-level=${level}
               aria-pressed=${() => String(view.state.enabledLevels().includes(level))}
-              @click=${event((levelEvent: Event) => { levelEvent.preventDefault(); view.toggleLevel(level); })}
-            >${level}</RodConsoleLevelButton>
+              @click=${event((levelEvent: Event) => { 
+                levelEvent.preventDefault(); 
+                view.toggleLevel(level); })}
+            >
+            ${level}
+          </RodConsoleLevelButton>
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer class="roderuda-control-spacer" />

@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi } from 'vitest'
-import { createStyledFactory } from './styled'
 import { notifyFabricaRegistryReady } from './registry'
+import { createStyledFactory } from './styled'
 import type { ElementsComponent, ElementsComponentRegistry } from './types'
 
 function createRegistry(initial: Record<string, ElementsComponent> = {}): ElementsComponentRegistry & { values: Map<string, ElementsComponent> } {
@@ -70,6 +70,17 @@ describe('Fabrica Elements named styled registry', () => {
     expect(link.hasAttribute('as')).toBe(false)
   })
 
+  it('preserves dynamic caller classes when adding generated classes', () => {
+    const registry = createRegistry()
+    const styled = createFactory(registry)
+    const Panel = styled.div('Panel').css`display:block;`
+    const panel = Panel({ class: () => 'caller active', 'aria-pressed': () => 'true' }) as HTMLDivElement
+
+    expect(panel.className).toBe('caller active styled-1')
+    expect(panel.className).not.toContain('=>')
+    expect(panel.getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('preserves the anonymous backwards-compatible API', () => {
     const registry = createRegistry()
     const styled = createFactory(registry)
@@ -77,6 +88,8 @@ describe('Fabrica Elements named styled registry', () => {
     const DirectAnonymous = styled.div`display: grid;`
 
     expect(Anonymous({ children: 'A' })).toBeInstanceOf(HTMLButtonElement)
+    expect(Anonymous.className).toBeDefined();
+    console.log({ className: Anonymous.className, styled, registry })
     expect(DirectAnonymous({ children: 'B' })).toBeInstanceOf(HTMLDivElement)
     expect(registry.values.size).toBe(0)
   })

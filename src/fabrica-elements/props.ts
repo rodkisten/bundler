@@ -24,8 +24,16 @@ export function mergeClassIntoProps(
   className: string,
 ): ElementsRecord {
   const next = props ? { ...props } : {}
-  next[classProp] = mergeClassNames(next[classProp] as never, className)
+  next[classProp] = mergeClassPropValue(next[classProp], className)
   return next
+}
+
+function mergeClassPropValue(value: unknown, className: string): unknown {
+  if (!className) return value
+  if (typeof value === 'function') {
+    return mergeClassNames((value as () => unknown)() as never, className)
+  }
+  return mergeClassNames(value as never, className)
 }
 
 /**
@@ -56,24 +64,26 @@ export function applyProps(element: Element, props: ElementsRecord): void {
     }
 
     if (key === 'class' || key === 'className') {
-      const className = mergeClassNames(value as never)
+      const className = mergeClassNames(readDomValue(rawValue) as never)
       if (className) element.setAttribute('class', className)
       else element.removeAttribute('class')
       continue
     }
 
     if (key === 'style') {
-      applyStyle(element as HTMLElement, value)
+      applyStyle(element as HTMLElement, readDomValue(rawValue))
       continue
     }
 
-    if (key === 'attrs' && isPlainObject(value)) {
-      applyProps(element, value)
+    const domValue = isEventProp(key) || key === 'ref' ? value : readDomValue(rawValue)
+
+    if (key === 'attrs' && isPlainObject(domValue)) {
+      applyProps(element, domValue)
       continue
     }
 
-    if (key === 'dataset' && isPlainObject(value)) {
-      applyDataset(element as HTMLElement, value)
+    if (key === 'dataset' && isPlainObject(domValue)) {
+      applyDataset(element as HTMLElement, domValue)
       continue
     }
 
@@ -87,12 +97,12 @@ export function applyProps(element: Element, props: ElementsRecord): void {
       continue
     }
 
-    if (key.startsWith('on') && typeof rawValue === 'function') {
+    if (isEventProp(key) && typeof rawValue === 'function') {
       setEvent(element, key.slice(2).toLowerCase(), rawValue as EventListener)
       continue
     }
 
-    setPropertyOrAttribute(element, key, value)
+    setPropertyOrAttribute(element, key, domValue)
   }
 }
 
@@ -120,6 +130,15 @@ function readElementValue(value: unknown): unknown {
   }
 
   return value
+}
+
+function readDomValue(value: unknown): unknown {
+  const resolved = readElementValue(value)
+  return typeof resolved === 'function' ? (resolved as () => unknown)() : resolved
+}
+
+function isEventProp(key: string): boolean {
+  return key.length > 2 && key.startsWith('on') && key.charCodeAt(2) >= 65 && key.charCodeAt(2) <= 90
 }
 
 /**
@@ -184,27 +203,29 @@ export function appendChildren(element: Element, children: unknown): void {
 }
 
 function applyStyle(element: HTMLElement, value: unknown): void {
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) applyStyle(element, value[index])
+  const resolved = readDomValue(value)
+
+  if (Array.isArray(resolved)) {
+    for (let index = 0; index < resolved.length; index += 1) applyStyle(element, resolved[index])
     return
   }
 
-  if (typeof value === 'string') {
-    element.setAttribute('style', value)
+  if (typeof resolved === 'string') {
+    element.setAttribute('style', resolved)
     return
   }
 
-  if (!isPlainObject(value)) return
+  if (!isPlainObject(resolved)) return
 
-  const maybeInline = value as { cssText?: unknown; kind?: unknown }
+  const maybeInline = resolved as { cssText?: unknown; kind?: unknown }
   if (maybeInline.kind === 'cipo.inline-css' && typeof maybeInline.cssText === 'string') {
     element.setAttribute('style', maybeInline.cssText)
     return
   }
 
   const style = element.style
-  for (const key in value) {
-    const item = readElementValue(value[key])
+  for (const key in resolved) {
+    const item = readDomValue(resolved[key])
     if (item === null || item === undefined) continue
     style.setProperty(key.startsWith('--') ? key : toKebabCase(key), String(item))
   }
@@ -212,7 +233,7 @@ function applyStyle(element: HTMLElement, value: unknown): void {
 
 function applyDataset(element: HTMLElement, value: ElementsRecord): void {
   for (const key in value) {
-    const item = readElementValue(value[key])
+    const item = readDomValue(value[key])
     if (item === null || item === undefined) delete element.dataset[key]
     else element.dataset[key] = String(item)
   }

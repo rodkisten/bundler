@@ -21,9 +21,10 @@ export default defineConfig({
     cipoVite({
       root: repoRoot,
       include: /[/\\]src[/\\]devtools[/\\].*\.[cm]?[jt]sx?$/,
+      exclude: /[/\\]src[/\\]devtools[/\\]core[/\\]style\.ts$/,
       mode: 'build',
       cssDelivery: 'style-tag', // default: compiled CSS is injected through Cipó runtime style tag
-      compileFabrica: true,
+      compileFabrica: false,
       transformCssTag: true,
     }),
   ],

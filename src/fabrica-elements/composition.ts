@@ -56,7 +56,7 @@ export function composeProps(...inputs: readonly (ElementsRecord | null | undefi
       const previous = output[key]
 
       if (key === 'class' || key === 'className') {
-        output[key] = mergeClassNames(previous as never, value as never)
+        output[key] = mergeClassValues(previous, value)
         continue
       }
 
@@ -80,6 +80,14 @@ export function composeProps(...inputs: readonly (ElementsRecord | null | undefi
   }
 
   return output
+}
+
+function mergeClassValues(previous: unknown, value: unknown): string {
+  return mergeClassNames(readClassValue(previous) as never, readClassValue(value) as never)
+}
+
+function readClassValue(value: unknown): unknown {
+  return typeof value === 'function' ? (value as () => unknown)() : value
 }
 
 /**

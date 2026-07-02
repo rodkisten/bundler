@@ -4,6 +4,10 @@ import { runtime } from './runtime'
 import type { CipoCssArtifact, CipoInjectStyleOptions, CipoInlineCssArtifact, CipoStylesheetArtifact } from './types'
 import { hashString, normalizeCss } from './utils'
 
+export type CipoRuntimeStyleTarget = HTMLElement | ShadowRoot | Document | null
+
+let runtimeStyleTarget: CipoRuntimeStyleTarget | undefined
+
 /**
  * Injects CSS into the runtime stylesheet sink.
  *
@@ -31,7 +35,7 @@ import { hashString, normalizeCss } from './utils'
 export function insertCss(cssText: string): void {
   if (!cssText || !cssText.trim()) return
 
-  const style = hasDocument() ? ensureStyleElement() : null
+  const style = hasDocument() && runtimeStyleTarget !== null ? ensureStyleElement() : null
 
   if (runtime.config.layers && !runtime.layerHeaderInserted) {
     const header = `${getLayerDeclaration()}\n`
@@ -58,6 +62,18 @@ export function insertCss(cssText: string): void {
       style.appendChild(document.createTextNode(formatted))
     }
   }
+}
+
+export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined): HTMLStyleElement | null {
+  runtimeStyleTarget = target
+  if (!hasDocument()) return null
+
+  removeDocumentStyleWhenRetargeting(target)
+  if (target === null) return null
+
+  const style = ensureStyleElement()
+  if (runtime.generatedCssText && !style.textContent) style.textContent = runtime.generatedCssText
+  return style
 }
 
 /**
@@ -112,7 +128,7 @@ export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles:
  */
 export function getCssText(): string {
   if (hasDocument()) {
-    const style = document.getElementById(STYLE_ELEMENT_ID)
+    const style = findStyleElement()
     if (style instanceof HTMLStyleElement) return style.textContent ?? ''
   }
 
@@ -125,7 +141,10 @@ export function getCssText(): string {
  * @returns Style element.
  */
 export function ensureStyleElement(): HTMLStyleElement {
-  const existing = document.getElementById(STYLE_ELEMENT_ID)
+  const parent = getRuntimeStyleParent()
+  if (!parent) throw new Error('[Cipó] Runtime style target is disabled')
+
+  const existing = findStyleElement(parent)
   if (existing instanceof HTMLStyleElement) {
     if (existing.parentNode && existing.nextSibling) existing.parentNode.appendChild(existing)
     return existing
@@ -134,12 +153,41 @@ export function ensureStyleElement(): HTMLStyleElement {
   const element = document.createElement('style')
   element.id = STYLE_ELEMENT_ID
   element.dataset.cipo = 'runtime'
-  document.head.appendChild(element)
+  parent.appendChild(element)
   return element
 }
 
 export function hasDocument(): boolean {
   return typeof document !== 'undefined' && Boolean(document.head)
+}
+
+function getRuntimeStyleParent(): HTMLElement | ShadowRoot | null {
+  if (runtimeStyleTarget === null) return null
+  if (typeof ShadowRoot !== 'undefined' && runtimeStyleTarget instanceof ShadowRoot) return runtimeStyleTarget
+  if (typeof Document !== 'undefined' && runtimeStyleTarget instanceof Document) return runtimeStyleTarget.head
+  if (typeof HTMLElement !== 'undefined' && runtimeStyleTarget instanceof HTMLElement) return runtimeStyleTarget
+  return document.head
+}
+
+function findStyleElement(parent = getRuntimeStyleParent()): HTMLStyleElement | null {
+  if (!parent) return null
+  if (
+    (typeof HTMLElement !== 'undefined' && parent instanceof HTMLElement) ||
+    (typeof ShadowRoot !== 'undefined' && parent instanceof ShadowRoot)
+  ) {
+    const existing = parent.querySelector?.(`#${STYLE_ELEMENT_ID}`)
+    return existing instanceof HTMLStyleElement ? existing : null
+  }
+
+  const existing = document.getElementById(STYLE_ELEMENT_ID)
+  return existing instanceof HTMLStyleElement ? existing : null
+}
+
+function removeDocumentStyleWhenRetargeting(target: CipoRuntimeStyleTarget | undefined): void {
+  if (target === undefined || (typeof Document !== 'undefined' && target instanceof Document)) return
+
+  const existing = document.getElementById(STYLE_ELEMENT_ID)
+  if (existing instanceof HTMLStyleElement && existing.parentElement === document.head) existing.remove()
 }
 
 function splitTopLevelRules(input: string): string[] {

@@ -12,7 +12,7 @@ import { configure, setup } from './config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
 import { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
-import { getCssText, injectStyle } from './injection'
+import { getCssText, injectStyle, setRuntimeStyleTarget } from './injection'
 import { inline } from './inline'
 import { compiledInlineCss, compileCipoSourceInline, createCompiledStyled } from './compiler/compiled-inline'
 import { compileCipoSourceBuild } from './compiler/compiled-build'
@@ -45,7 +45,7 @@ export type { CipoCompiledBuildManifestEntry, CipoCompiledBuildOptions, CipoComp
 export { cipoVite } from './vite/compiled-inline'
 export type { CipoViteCompiledInlineOptions, CipoViteTransformResult } from './vite/compiled-inline'
 export { injectGlobal } from './global'
-export { injectStyle, getCssText } from './injection'
+export { injectStyle, getCssText, setRuntimeStyleTarget } from './injection'
 export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed, typedProperty } from './properties'
 export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
@@ -89,6 +89,7 @@ export function html(strings: TemplateStringsArray, ...values: readonly unknown[
  * ```
  */
 export function reset(): void {
+  setRuntimeStyleTarget(undefined)
   runtime.sheet = null
   runtime.insertedCss.clear()
   runtime.atomicCache.clear()

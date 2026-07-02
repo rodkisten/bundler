@@ -5,11 +5,11 @@
  * @tags devtools console network elements mobile userscripts
  * @description Dependency-free browser developer tools implemented in TypeScript with Cipo and Fábrica.
  */
+import { installDevtoolsStyles } from "./core/style";
 import { renderShell, type ShellRefs } from "./components/shell";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./core/debug";
 import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./core/dom";
 import { NativeProtocol } from "./core/protocol";
-import { installDevtoolsStyles } from "./core/style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
 import { DevTools } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
@@ -142,10 +142,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       debugInfo("runtime", "using light dom root");
     }
 
-    this.style = installDevtoolsStyles(this.rootTarget);
-    debugLog("runtime", "styles installed", { root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light" });
     this.refs = renderShell(this.rootTarget, options.inline === true);
     debugLog("runtime", "shell rendered");
+    this.style = installDevtoolsStyles(this.rootTarget);
+    debugLog("runtime", "styles installed", { style: this.style, root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light" });
     this.chobitsu.setHost(this.host);
     this.devtools = new DevTools(this.host, this.shadowRoot, this.refs, options.inline === true, options.defaults);
     this.entryBtn = new EntryBtn(this.refs.entryButton, this.refs.root).on("click", () => this.devtools?.toggle());

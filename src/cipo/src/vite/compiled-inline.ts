@@ -80,10 +80,19 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         filename,
         classPrefix: options.classPrefix,
         cssImportId: options.cssDelivery === 'asset' ? VIRTUAL_CSS_ASSET_ID : VIRTUAL_CSS_ID,
+        injectCssImport: options.cssDelivery === 'asset',
         transformCssTag: options.transformCssTag ?? true,
       })
 
       let nextCode = cipo.code
+      if (cipo.manifest.length > 0 && options.cssDelivery !== 'asset') {
+        nextCode = prependStyleTagInjection(
+          nextCode,
+          cipo.manifest.map((entry) => ({ selector: `.${entry.className}`, css: entry.rawCss })),
+          createImportPath(filename, joinPath(root, 'src/cipo/src/injection.ts')),
+          createImportPath(filename, joinPath(root, 'src/cipo/src/compiler/sheet-compile.ts')),
+        )
+      }
       let fabrica: FabricaCompileSourceResult | undefined
       if (options.compileFabrica !== false) {
         fabrica = compileFabricaSource(nextCode, {
@@ -111,6 +120,21 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       }
     },
   }
+}
+
+function prependStyleTagInjection(
+  code: string,
+  entries: readonly { readonly selector: string; readonly css: string }[],
+  injectionImportPath: string,
+  compilerImportPath: string,
+): string {
+  const serializedEntries = JSON.stringify(entries.map((entry) => [entry.selector, entry.css]))
+  return [
+    `import { insertCss as __cipoInsertCompiledCss } from ${JSON.stringify(injectionImportPath)};`,
+    `import { compileScopedSheetCss as __cipoCompileScopedSheetCss } from ${JSON.stringify(compilerImportPath)};`,
+    `__cipoInsertCompiledCss(${serializedEntries}.map(([__cipoSelector, __cipoCss]) => String(__cipoCompileScopedSheetCss(__cipoSelector, [__cipoCss], [], false))).join("\\n"));`,
+    code,
+  ].join('\n')
 }
 
 function dedupeCss(css: string): string {

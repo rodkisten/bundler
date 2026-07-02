@@ -1,9 +1,12 @@
-import { injectStyle, css, sheet } from "../../cipo/src/index";
+import { css, sheet } from "../../cipo/src/index";
+import { insertCss, setRuntimeStyleTarget } from "../../cipo/src/injection";
 import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
 
 /* *************** */
 /* Design system   */
 /* *************** */
+
+setRuntimeStyleTarget(null);
 
 export const devtoolsTokens = css`
   @cipo {
@@ -1236,9 +1239,13 @@ export function installDevtoolsStyles(
   target: ShadowRoot | HTMLElement | Document,
   additionalStyles: readonly DevtoolsStyleArtifact[] = [],
 ): HTMLStyleElement {
-  return injectStyle(
-    target,
-    additionalStyles.length > 0 ? [devtoolsStyles, ...additionalStyles] : devtoolsStyles,
-    { dedupe: true, position: "prepend" },
-  );
+  const style = setRuntimeStyleTarget(target);
+  insertStyleArtifact(devtoolsStyles);
+  for (let index = 0; index < additionalStyles.length; index += 1) insertStyleArtifact(additionalStyles[index]!);
+  if (!style) throw new Error("[RodEruda] Unable to install styles");
+  return style;
+}
+
+function insertStyleArtifact(style: DevtoolsStyleArtifact): void {
+  insertCss(style.kind === "cipo.inline-css" || style.kind === "cipo.stylesheet" ? style.cssText : style.compiledCss);
 }

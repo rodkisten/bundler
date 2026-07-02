@@ -1,5 +1,7 @@
+/** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { configSheet, configure, configureCss, configureFromCss, getCssText, registerConfigPlugin, registerPreset, reset, sheet, setupFromCss } from '../src'
+import { insertCss, setRuntimeStyleTarget } from '../src/injection'
 import { runtime } from '../src/runtime'
 
 describe('Cipó CSS-first configuration', () => {
@@ -50,6 +52,35 @@ describe('Cipó CSS-first configuration', () => {
 }`)
     expect(css).toContain('background:color-mix')
     expect(css).toContain('border-radius:var(--rod-radius-lg)')
+  })
+
+  it('supports theme-root in CSS-first config', () => {
+    setupFromCss(`
+      @cipo { prefix: shadow; layers: false; theme-root: :host; }
+      @theme { colors: (background: var(--background), border: var(--border)); }
+    `)
+
+    const cssText = getCssText()
+    expect(cssText).toContain(':host')
+    expect(cssText).toContain('--shadow-colors-background:var(--background)')
+    expect(cssText).toContain('--shadow-colors-border:var(--border)')
+  })
+
+  it('can retarget runtime styles to a ShadowRoot without keeping a head style', () => {
+    insertCss('.before-target{color:red}')
+    expect(document.head.querySelector('#cipo-runtime-style')).toBeInstanceOf(HTMLStyleElement)
+
+    setRuntimeStyleTarget(null)
+    expect(document.head.querySelector('#cipo-runtime-style')).toBeNull()
+
+    const host = document.createElement('div')
+    const shadow = host.attachShadow({ mode: 'open' })
+    setRuntimeStyleTarget(shadow)
+    insertCss('.after-target{color:blue}')
+
+    expect(document.head.querySelector('#cipo-runtime-style')).toBeNull()
+    expect(shadow.querySelector('#cipo-runtime-style')?.textContent).toContain('.before-target')
+    expect(shadow.querySelector('#cipo-runtime-style')?.textContent).toContain('.after-target')
   })
 
   it('treats @tokens as @theme and supports configSheet/setupFromCss aliases', () => {

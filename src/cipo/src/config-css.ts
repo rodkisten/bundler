@@ -422,7 +422,7 @@ function parseCipoBlock(body: string): Partial<Mutable<CipoConfig>> {
     else if (key === 'debug-overlay' || key === 'debugOverlay') config.debugOverlay = parseBoolean(value)
     else if (key === 'color-mode' || key === 'colorMode') config.colorMode = stripQuotes(value) as NonNullable<CipoConfig['colorMode']>
     else if (key === 'dark-selector' || key === 'darkSelector') config.darkSelector = stripQuotes(value)
-    else if (key === 'theme-root' || key === 'themeRootSelector') config.themeRootSelector = stripQuotes(value)
+    else if (key === 'theme-root' || key === 'themeRoot' || key === 'themeRootSelector') config.themeRootSelector = stripQuotes(value)
     else if (key === 'theme-validation' || key === 'themeValidation') {
       const mode = stripQuotes(value)
       if (mode === 'strict' || mode === 'warn' || mode === 'off') config.themeValidation = mode
