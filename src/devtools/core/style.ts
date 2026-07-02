@@ -147,8 +147,16 @@ export const devtoolsStyles = sheet.css`
     all: initial
     contain: layout style
     color-scheme: dark light
-  }
 
+    $$safeBottom: env(safe-area-inset-bottom, 0px)
+    $$tabHeight: 40px
+    $$controlHeight: 40px
+    $$entrySize: 40px
+    $$entryZ: 1000
+    $$toolsZ: 500
+    $$overlayZ: 1200
+  }
+  
   .roderuda-container {
     $$safeBottom: env(safe-area-inset-bottom, 0px)
     $$tabHeight: 40px
