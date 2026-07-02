@@ -19,6 +19,13 @@ type StyleRuleInfo = {
   source?: string;
 };
 
+type SelectOptions = {
+  addHistory?: boolean;
+  expandAncestors?: boolean;
+  reveal?: boolean;
+  highlight?: boolean;
+};
+
 export class Elements extends Tool {
   readonly name = "elements";
   readonly title = "elements";
@@ -46,6 +53,12 @@ export class Elements extends Tool {
   private longPressPoint: { x: number; y: number } | null = null;
   private readonly scheduleRender = debounce(() => this.renderTree(), 80);
 
+  private isUserScrolling = false;
+  private suppressNextClickUntil = 0;
+  private scrollIdleTimer = 0;
+  private pointerStart: { x: number; y: number } | null = null;
+  private longPressCleanup: Array<() => void> = [];
+
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
     container.innerHTML = `
@@ -69,8 +82,30 @@ export class Elements extends Tool {
     this.tree = qs(container, "[data-elements-tree]");
     this.crumbs = qs(container, "[data-elements-crumbs]");
     this.detail = qs(container, "[data-elements-detail]");
+    const treeWrap = qs(container, ".roderuda-elements-tree-wrap");
     const host = context.shadowRoot?.host instanceof HTMLElement ? context.shadowRoot.host : context.root.parentElement;
     this.highlighter = new ElementHighlighter(host);
+
+    if (treeWrap) {
+      const onTreeScroll = (): void => {
+        this.isUserScrolling = true;
+        this.suppressNextClickUntil = Date.now() + 250;
+        this.cancelLongPress();
+
+        if (this.scrollIdleTimer) window.clearTimeout(this.scrollIdleTimer);
+
+        this.scrollIdleTimer = window.setTimeout(() => {
+          this.isUserScrolling = false;
+        }, 160);
+      };
+
+      treeWrap.addEventListener("scroll", onTreeScroll, { passive: true });
+      this.cleanup.push(() => {
+        treeWrap.removeEventListener("scroll", onTreeScroll);
+        if (this.scrollIdleTimer) window.clearTimeout(this.scrollIdleTimer);
+        this.scrollIdleTimer = 0;
+      });
+    }
 
     this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-node-id]", (event, element) => this.handleNodeClick(event, element)));
@@ -83,7 +118,12 @@ export class Elements extends Tool {
     this.cleanup.push(delegate(container, "click", "[data-elements-menu-action]", (event, element) => { void this.handleContextAction(event, element); }));
     this.cleanup.push(delegate(container, "pointerover", "[data-node-id]", (_event, element) => this.hoverNode(element)));
     this.cleanup.push(delegate(container, "pointerout", "[data-node-id]", () => this.highlighter?.hide()));
-    this.cleanup.push(delegate(container, "click", "[data-crumb-index]", (_event, element) => this.select(this.crumbElement(Number(element.dataset.crumbIndex)))));
+    this.cleanup.push(delegate(container, "click", "[data-crumb-index]", (_event, element) => {
+      this.select(this.crumbElement(Number(element.dataset.crumbIndex)), {
+        expandAncestors: true,
+        reveal: true,
+      });
+    }));
     this.cleanup.push(delegate(container, "change", "[data-attribute-name]", (event, element) => this.updateAttribute(event, element)));
     this.cleanup.push(delegate(container, "click", "[data-remove-attribute]", (_event, element) => this.removeAttribute(element)));
     this.cleanup.push(delegate(container, "change", "[data-style-property]", (event, element) => this.updateInlineStyle(event, element)));
@@ -95,25 +135,51 @@ export class Elements extends Tool {
     this.registerSettings(context);
     this.expanded.add(document.documentElement);
     this.expanded.add(document.body);
-    this.select(document.body || document.documentElement, false);
+    this.select(document.body || document.documentElement, {
+      addHistory: false,
+      expandAncestors: true,
+      reveal: false,
+    });
     this.renderTree();
   }
 
-  select(node: Node | null, addHistory = true): void {
+  private select(node: Node | null, options: SelectOptions = {}): void {
+    const {
+      addHistory = true,
+      expandAncestors = false,
+      reveal = false,
+      highlight = true,
+    } = options;
+
     const element = node instanceof Element ? node : node?.parentElement;
     if (!element || isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined)) return;
+
     this.selected = element;
-    this.expandAncestors(element);
+
+    if (expandAncestors) this.expandAncestors(element);
+
     if (addHistory) {
       this.history = this.history.slice(0, this.historyIndex + 1);
-      this.history.push(element);
-      this.historyIndex = this.history.length - 1;
+
+      if (this.history[this.history.length - 1] !== element) {
+        this.history.push(element);
+        this.historyIndex = this.history.length - 1;
+      }
     }
+
     this.renderTree();
     this.renderCrumbs();
     this.renderDetail();
-    this.highlighter?.highlight(element);
-    queueMicrotask(() => this.tree?.querySelector<HTMLElement>(".roderuda-dom-row.roderuda-selected")?.scrollIntoView({ block: "nearest" }));
+
+    if (highlight) this.highlighter?.highlight(element);
+
+    if (reveal) {
+      queueMicrotask(() => {
+        this.tree
+          ?.querySelector<HTMLElement>(".roderuda-dom-row.roderuda-selected")
+          ?.scrollIntoView({ block: "nearest" });
+      });
+    }
   }
 
   override show(): void {
@@ -289,22 +355,38 @@ export class Elements extends Tool {
   }
 
   private handleNodeClick(event: Event, element: HTMLElement): void {
+    if (Date.now() < this.suppressNextClickUntil || this.isUserScrolling) return;
+
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!node) return;
+
     if ((event.target as Element)?.hasAttribute("data-toggle-node")) {
       if (this.expanded.has(node)) this.expanded.delete(node);
       else this.expanded.add(node);
       this.renderTree();
       return;
     }
-    this.select(node);
+
+    this.select(node, {
+      addHistory: true,
+      expandAncestors: false,
+      reveal: false,
+      highlight: true,
+    });
   }
 
   private handleNodeOpen(event: Event, element: HTMLElement): void {
     event.preventDefault();
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!node) return;
-    this.select(node);
+
+    this.select(node, {
+      addHistory: true,
+      expandAncestors: true,
+      reveal: true,
+      highlight: true,
+    });
+
     this.detail?.classList.add("roderuda-active");
   }
 
@@ -312,7 +394,14 @@ export class Elements extends Tool {
     event.preventDefault();
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!(node instanceof Element)) return;
-    this.select(node);
+
+    this.select(node, {
+      addHistory: true,
+      expandAncestors: false,
+      reveal: false,
+      highlight: true,
+    });
+
     const pointer = event instanceof MouseEvent ? { x: event.clientX, y: event.clientY } : { x: 16, y: 16 };
     this.openContextMenu(node, pointer.x, pointer.y);
   }
@@ -320,44 +409,68 @@ export class Elements extends Tool {
   private startLongPress(event: Event, element: HTMLElement): void {
     if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
 
-    const target = event.target as HTMLElement;
-    if (target.closest("button,input,textarea,select,[contenteditable]")) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("button,input,textarea,select,[contenteditable]")) return;
+
+    const node = this.resolveNode(element.dataset.nodeId || "");
+    if (!(node instanceof Element)) return;
 
     this.cancelLongPress();
 
     const startX = event.clientX;
     const startY = event.clientY;
-    let cancelled = false;
 
-    const cancel = () => {
-      cancelled = true;
+    this.pointerStart = { x: startX, y: startY };
+    this.longPressPoint = { x: startX, y: startY };
+
+    const cancel = (): void => {
+      this.suppressNextClickUntil = Date.now() + 250;
       this.cancelLongPress();
-      window.removeEventListener("scroll", cancel, true);
     };
 
     window.addEventListener("scroll", cancel, true);
+    this.longPressCleanup.push(() => window.removeEventListener("scroll", cancel, true));
 
-    this.longPressPoint = { x: startX, y: startY };
     this.longPressTimer = window.setTimeout(() => {
-      if (cancelled) return;
-      const node = this.resolveNode(element.dataset.nodeId || "");
-      if (!(node instanceof Element)) return;
+      if (this.isUserScrolling) {
+        this.cancelLongPress();
+        return;
+      }
 
-      this.select(node);
+      this.select(node, {
+        addHistory: true,
+        expandAncestors: false,
+        reveal: false,
+        highlight: true,
+      });
+
       this.openContextMenu(node, startX, startY);
-      cancel();
+      this.cancelLongPress();
     }, 650);
   }
 
   private trackLongPress(event: Event): void {
-    if (typeof PointerEvent === "undefined" || !(event instanceof PointerEvent) || !this.longPressPoint || !this.longPressTimer) return;
-    if (Math.hypot(event.clientX - this.longPressPoint.x, event.clientY - this.longPressPoint.y) > 20) this.cancelLongPress();
+    if (!(event instanceof PointerEvent) || !this.longPressPoint || !this.longPressTimer) return;
+
+    const distance = Math.hypot(
+      event.clientX - this.longPressPoint.x,
+      event.clientY - this.longPressPoint.y,
+    );
+
+    if (distance > 10) {
+      this.suppressNextClickUntil = Date.now() + 250;
+      this.cancelLongPress();
+    }
   }
 
   private cancelLongPress(): void {
     if (this.longPressTimer) window.clearTimeout(this.longPressTimer);
+
     this.longPressTimer = 0;
     this.longPressPoint = null;
+    this.pointerStart = null;
+
+    for (const cleanup of this.longPressCleanup.splice(0)) cleanup();
   }
 
   private openContextMenu(element: Element, x: number, y: number): void {
@@ -404,7 +517,14 @@ export class Elements extends Tool {
     const node = this.resolveNode(button.closest<HTMLElement>("[data-elements-menu]")?.dataset.nodeId || "");
     this.closeContextMenu();
     if (!(node instanceof Element)) return;
-    this.select(node);
+
+    this.select(node, {
+      addHistory: true,
+      expandAncestors: false,
+      reveal: false,
+      highlight: true,
+    });
+
     switch (button.dataset.elementsMenuAction) {
       case "copy-element":
         await copyText(node.outerHTML);
@@ -430,6 +550,7 @@ export class Elements extends Tool {
   }
 
   private hoverNode(element: HTMLElement): void {
+    if (this.isUserScrolling) return;
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (node instanceof Element) this.highlighter?.highlight(node);
   }
@@ -467,7 +588,11 @@ export class Elements extends Tool {
     const next = this.historyIndex + delta;
     if (next < 0 || next >= this.history.length) return;
     this.historyIndex = next;
-    this.select(this.history[next]!, false);
+    this.select(this.history[next]!, {
+      addHistory: false,
+      expandAncestors: true,
+      reveal: true,
+    });
   }
 
   private deleteSelected(): void {
@@ -475,7 +600,14 @@ export class Elements extends Tool {
     if (!element || element === document.documentElement || element === document.body) return;
     const next = element.parentElement;
     element.remove();
-    if (next) this.select(next);
+
+    if (next) {
+      this.select(next, {
+        addHistory: true,
+        expandAncestors: false,
+        reveal: false,
+      });
+    }
   }
 
   private async editAttributes(element: Element): Promise<void> {
@@ -543,7 +675,13 @@ export class Elements extends Tool {
       const target = document.elementFromPoint(event.clientX, event.clientY);
       this.stopPicker();
       this.context?.devtools.show().showTool("elements");
-      if (target && !isDevtoolsNode(target, host)) this.select(target);
+
+      if (target && !isDevtoolsNode(target, host)) {
+        this.select(target, {
+          expandAncestors: true,
+          reveal: true,
+        });
+      }
     };
     const cancel = (event: KeyboardEvent): void => {
       if (event.key !== "Escape") return;
@@ -577,7 +715,7 @@ export class Elements extends Tool {
     const name = nameInput?.value.trim() || "";
     const value = valueInput?.value ?? "";
     try {
-      if (original && original !== name) selected.removeAttribute(original)
+      if (original && original !== name) selected.removeAttribute(original);
       if (name) {
         selected.setAttribute(name, value);
         if (row) row.dataset.originalName = name;
