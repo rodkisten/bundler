@@ -59,15 +59,18 @@ describe("RodEruda devtools mount", () => {
   });
 
   it("mounts the shell, settings and selected panels inside a shadow root", () => {
-    devtools.init({ autoScale: false, tool: ["console", "info", "snippets"] });
+    devtools.init({ autoScale: false, tool: ["console", "info", "snippets"], defaults: { theme: "AMOLED" } });
 
     const host = document.querySelector<HTMLElement>("#roderuda");
+    const root = host?.shadowRoot?.querySelector<HTMLElement>(".roderuda-container");
     expect(devtools.isInitialized()).toBe(true);
     expect(host).toBeInstanceOf(HTMLElement);
     expect(host?.shadowRoot).not.toBeNull();
-    expect(host?.shadowRoot?.querySelector(".roderuda-container")).toBeInstanceOf(HTMLElement);
+    expect(root).toBeInstanceOf(HTMLElement);
     expect(host?.shadowRoot?.querySelector(".roderuda-tabbar")).toBeInstanceOf(HTMLElement);
     expect(host?.shadowRoot?.querySelector(".roderuda-tools")).toBeInstanceOf(HTMLElement);
+    expect(host?.style.getPropertyValue("--background")).toBe("#000000");
+    expect(root?.style.getPropertyValue("--background")).toBe("#000000");
 
     expect(devtools.get("settings")).toBeDefined();
     expect(devtools.get("console")).toBeDefined();

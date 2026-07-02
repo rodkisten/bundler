@@ -378,7 +378,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private applyConfiguration(key?: string): void {
-    if (!key || key === "theme") applyTheme(this.refs.root, String(this.config.get("theme")));
+    if (!key || key === "theme") {
+      const themeName = String(this.config.get("theme"));
+      const host = this.shadowRoot?.host;
+      if (host instanceof HTMLElement) applyTheme(host, themeName);
+      applyTheme(this.refs.root, themeName);
+    }
     if (!key || key === "transparency") {
       if (this.visible || this.inline) this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
     }
