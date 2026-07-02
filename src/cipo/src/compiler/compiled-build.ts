@@ -1,5 +1,5 @@
-import { compileScopedSheetCss } from './sheet-compile'
 import { hashString } from '../utils'
+import { compileScopedSheetCss } from './sheet-compile'
 
 export interface CipoCompiledBuildOptions {
   readonly filename?: string

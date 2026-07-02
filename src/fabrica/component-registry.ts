@@ -81,6 +81,18 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     return this.#combinedVersion;
   }
 
+  #clearResolutionCaches(): void {
+    this.#inheritedResolveCache.clear();
+    this.#combinedParentVersion = -1;
+    this.#combinedVersion = this.#version;
+    this.#lastLocalName = "";
+    this.#lastLocalVersion = -1;
+    this.#lastLocalValue = undefined;
+    this.#lastInheritedName = "";
+    this.#lastInheritedParentVersion = -1;
+    this.#lastInheritedValue = undefined;
+  }
+
   register<T extends ComponentLike>(
     name: string,
     component: T,
@@ -209,7 +221,7 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     if (options.inherited) this.#parent?.clear({ inherited: true });
   }
 
-  import(
+  "import"(
     source: ComponentRegistry,
     options: RegistryRegistrationOptions & { namespace?: string } = {},
   ): number {
@@ -260,18 +272,6 @@ export class FabricaComponentRegistry implements ComponentRegistry {
     this.#lastInheritedName = name;
     this.#lastInheritedParentVersion = parentVersion;
     this.#lastInheritedValue = value;
-  }
-
-  #clearResolutionCaches(): void {
-    this.#inheritedResolveCache.clear();
-    this.#combinedParentVersion = -1;
-    this.#combinedVersion = this.#version;
-    this.#lastLocalName = "";
-    this.#lastLocalVersion = -1;
-    this.#lastLocalValue = undefined;
-    this.#lastInheritedName = "";
-    this.#lastInheritedParentVersion = -1;
-    this.#lastInheritedValue = undefined;
   }
 
   /** @deprecated Use `registry.register(name, component)` or `instance.use(component)`. */
@@ -376,7 +376,7 @@ function createLegacyRegistryAdapter(legacy: LegacyRegistryShape): ComponentRegi
     clear() {
       legacy.clearComponents?.();
     },
-    import(source, options) {
+    "import"(source, options) {
       let count = 0;
       for (const [name, component] of source.list()) {
         this.register(options?.namespace ? `${options.namespace}${name}` : name, component, options);

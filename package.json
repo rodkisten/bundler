@@ -26,7 +26,8 @@
     "bench:cipo:raw": "vitest bench src/cipo/tests/cipo.bench.ts --run",
     "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run",
     "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
-    "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3"
+    "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3",
+    "dev:devtools": "vite --config ./src/devtools/vite.config.ts"
   },
   "devDependencies": {
     "@types/node": "25.9.1",
@@ -36,7 +37,7 @@
     "typescript": "6.0.3",
     "vitest": "4.1.8",
     "@types/markdown-it": "^14.1.2",
-    "vite": "8.0.16"
+    "vite": "8.1.2"
   },
   "dependencies": {
     "markdown-it": "^14.1.0",
