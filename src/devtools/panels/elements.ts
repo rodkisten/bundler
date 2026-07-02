@@ -318,21 +318,40 @@ export class Elements extends Tool {
   }
 
   private startLongPress(event: Event, element: HTMLElement): void {
-    if (typeof PointerEvent === "undefined" || !(event instanceof PointerEvent) || event.pointerType === "mouse") return;
-    const node = this.resolveNode(element.dataset.nodeId || "");
-    if (!(node instanceof Element)) return;
+    if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest("button,input,textarea,select,[contenteditable]")) return;
+
     this.cancelLongPress();
-    this.longPressPoint = { x: event.clientX, y: event.clientY };
-    this.longPressTimer = window.setTimeout(() => {
-      this.select(node);
-      this.openContextMenu(node, this.longPressPoint?.x ?? event.clientX, this.longPressPoint?.y ?? event.clientY);
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let cancelled = false;
+
+    const cancel = () => {
+      cancelled = true;
       this.cancelLongPress();
-    }, 550);
+      window.removeEventListener("scroll", cancel, true);
+    };
+
+    window.addEventListener("scroll", cancel, true);
+
+    this.longPressPoint = { x: startX, y: startY };
+    this.longPressTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      const node = this.resolveNode(element.dataset.nodeId || "");
+      if (!(node instanceof Element)) return;
+
+      this.select(node);
+      this.openContextMenu(node, startX, startY);
+      cancel();
+    }, 650);
   }
 
   private trackLongPress(event: Event): void {
     if (typeof PointerEvent === "undefined" || !(event instanceof PointerEvent) || !this.longPressPoint || !this.longPressTimer) return;
-    if (Math.hypot(event.clientX - this.longPressPoint.x, event.clientY - this.longPressPoint.y) > 12) this.cancelLongPress();
+    if (Math.hypot(event.clientX - this.longPressPoint.x, event.clientY - this.longPressPoint.y) > 20) this.cancelLongPress();
   }
 
   private cancelLongPress(): void {
