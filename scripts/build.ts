@@ -127,10 +127,10 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const normalIife = path.join(DIST_DIR, `${entry.name}.iife.js`);
   const minIife = path.join(DIST_DIR, `${entry.name}.iife.min.js`);
 
-  const baseConfig = {
+  const createBaseConfig = () => ({
     configFile: false as const,
     root: ROOT_DIR,
-    plugins: [cipoVite({ root: ROOT_DIR })],
+    plugins: [cipoVite({ root: ROOT_DIR, mode: 'build', cssDelivery: 'style-tag', cssFileName: `${entry.name}.compiled.css`, compileFabrica: true, transformCssTag: true, include: [new RegExp('[/\\\\]src[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] })],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
@@ -147,38 +147,43 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
         output: {
           banner,
           extend: true,
+          assetFileNames: (assetInfo: { name?: string }) => assetInfo.name === `${entry.name}.compiled.css` ? `${entry.name}.compiled.css` : '[name][extname]',
         },
       },
     },
-  };
+  });
 
+  const normalConfig = createBaseConfig();
   await viteBuild({
-    ...baseConfig,
+    ...normalConfig,
     build: {
-      ...baseConfig.build,
+      ...normalConfig.build,
       minify: false,
       outDir: DIST_DIR,
       lib: {
-        ...baseConfig.build.lib,
+        ...normalConfig.build.lib,
         fileName: () => `${entry.name}.iife.js`,
       },
     },
   });
 
+  const minConfig = createBaseConfig();
   await viteBuild({
-    ...baseConfig,
+    ...minConfig,
     build: {
-      ...baseConfig.build,
+      ...minConfig.build,
       minify: true,
       outDir: DIST_DIR,
       lib: {
-        ...baseConfig.build.lib,
+        ...minConfig.build.lib,
         fileName: () => `${entry.name}.iife.min.js`,
       },
     },
   });
 
-  return [normalIife, minIife].map((file) => path.relative(DIST_DIR, file));
+  const emitted = [normalIife, minIife, path.join(DIST_DIR, 'cipo.compiled.manifest.json')];
+  const existing = await Promise.all(emitted.map(async (file) => { try { await fs.access(file); return file; } catch { return null; } }));
+  return existing.filter((file): file is string => Boolean(file)).map((file) => path.relative(DIST_DIR, file));
 }
 
 async function buildEntry(entry: RootEntry): Promise<string[]> {

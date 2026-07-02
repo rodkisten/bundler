@@ -7,3 +7,5 @@ export * from './atomic-compile'
 export * from './sheet-compile'
 export * from './inline-compile'
 export * from './detect-mode'
+
+export * from './compiled-build'

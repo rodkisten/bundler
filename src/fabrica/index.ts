@@ -72,6 +72,7 @@ export { html, hydrate, jsx, mount, render } from "./dom";
 export { batch, computed, effect, signal } from "../broto/reactivity";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
+export { applyCompiledProps, compileFabricaSource, createCompiledElement, createCompiledFragment, createCompiledTemplate } from "./compiler";
 
 import { createDefaultFabricaApi } from "./public-api";
 
