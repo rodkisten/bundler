@@ -367,7 +367,6 @@ export const devtoolsStyles = sheet.css`
   .roderuda-tools,
   .roderuda-tool,
   .roderuda-network-layout,
-  .roderuda-elements-layout,
   .roderuda-sources {
     relative
     w: 100%
@@ -441,7 +440,6 @@ export const devtoolsStyles = sheet.css`
   .roderuda-scroll,
   .roderuda-table-wrap,
   .roderuda-detail-body,
-  .roderuda-elements-tree-wrap,
   .roderuda-source-breadcrumb,
   .roderuda-source-object {
     touchScroll
@@ -704,15 +702,10 @@ export const devtoolsStyles = sheet.css`
   .roderuda-object-row { minh: 20px }
   .roderuda-object-key { color: $attr; mr: 5px }
 
-  .roderuda-network-list,
-  .roderuda-elements-tree-wrap {
+  .roderuda-network-list {
     h: 100%
     pt: 40px
     overflow: auto
-  }
-
-  .roderuda-elements-tree-wrap {
-    pb: calc(25px + $$safeBottom)
   }
 
   .roderuda-network-row { cursor: pointer }
@@ -813,182 +806,7 @@ export const devtoolsStyles = sheet.css`
     outline: none
   }
 
-  .roderuda-dom-tree {
-    minw: max-content
-    p: 5px 0 12px 12px
-    font: 12px / 1.45 $font.mono
-
-    ul {
-      m: 0
-      pl: 15px
-      list-style: none
-    }
-  }
-
-  .roderuda-dom-row {
-    relative
-    minh: 20px
-    p: 1px 8px 1px 2px
-    cursor: default
-    text(nowrap)
-
-    &:hover { bg: $highlight }
-
-    &.roderuda-selected {
-      bg: $contrast
-      color: $selectedForeground
-    }
-  }
-
-  .roderuda-dom-toggle { inline-block; w: 13px; color: $operator; cursor: pointer }
-  .roderuda-dom-tag { color: $tag }
-  .roderuda-dom-attr-name { color: $attr }
-  .roderuda-dom-attr-value { color: $string }
-  .roderuda-dom-text { color: $foreground; white-space: pre }
-
-  .roderuda-elements-menu {
-    pos(fixed)
-    z: 2147483647
-    minw: 165px
-    p: 5px
-    bor: 1px solid $border
-    rounded: $section
-    bg: $backgroundDark
-    color: $primary
-    shadow: $notification
-
-    button {
-      block
-      w: 100%
-      p: 7px 9px
-      rounded: $sm
-      text-align: left
-      bg: transparent
-      color: inherit
-      cursor: pointer
-
-      &:hover,
-      &:focus-visible {
-        bg: $highlight
-        color: $selectedForeground
-      }
-    }
-  }
-
-  .roderuda-crumbs {
-    pos(absolute, left: 0, right: 0, bottom: 0)
-    h: calc(25px + $$safeBottom)
-    pb: $$safeBottom
-    display: flex
-    items-center
-    overflow-x: auto
-    bg: $backgroundDark
-    border-top: 1px solid $border
-    font-size: 11px
-    text(nowrap)
-
-    button {
-      p: 5px 8px
-      bg: transparent
-      color: $primary
-      cursor: pointer
-
-      &:last-child { bg: $highlight }
-    }
-  }
-
-  .roderuda-element-detail .roderuda-section {
-    m: 10px 0
-    border-left: 0
-    border-right: 0
-    rounded: 0
-  }
-
-  .roderuda-element-attributes { display: grid; gap: 6px }
-
-  .roderuda-attribute-row {
-    display: grid
-    grid-template(cols: minmax(80px, .45fr) minmax(120px, 1fr) 30px)
-    gap: 6px
-
-    input {
-      minw: 0
-      p: 5px 7px
-      bor: 1px solid $border
-      rounded: $sm
-      bg: $background
-      select(text)
-    }
-  }
-
-  .roderuda-box-model {
-    minw: 300px
-    p: 10px
-    text-align: center
-    font: 11px / 1.35 $font.mono
-  }
-
-  .roderuda-box-layer {
-    m: 5px
-    p: 7px
-    border: 1px dashed $border
-    bg: mix($highlight, transparent, 55%)
-
-    &[data-layer="margin"] { bg: rgb(246 178 107 / .22) }
-    &[data-layer="border"] { bg: rgb(255 229 153 / .25) }
-    &[data-layer="padding"] { bg: rgb(147 196 125 / .24) }
-    &[data-layer="content"] { bg: rgb(111 168 220 / .24) }
-  }
-
-  .roderuda-style-rule,
-  .roderuda-listener {
-    mb: 9px
-    p: 8px
-    bor: 1px solid $border
-    rounded: $md
-    font: 12px / 1.45 $font.mono
-  }
-
-  .roderuda-style-selector { color: $tag; break(word) }
-
-  .roderuda-style-declaration {
-    display: grid
-    grid-template(cols: minmax(90px, .45fr) minmax(120px, 1fr))
-    gap: 6px
-    pl: 13px
-
-    input {
-      minw: 0
-      border: 0
-      outline: none
-      bg: transparent
-      select(text)
-      font: inherit
-
-      &:first-child { color: $var }
-      &:last-child { color: $string }
-    }
-  }
-
-  .roderuda-listener {
-    p: 0
-    overflow: hidden
-
-    strong {
-      display: block
-      p: 7px 9px
-      bg: $backgroundDark
-      color: $primary
-    }
-
-    pre {
-      m: 0
-      p: 8px
-      overflow: auto
-      select(text)
-      font: 11px / 1.4 $font.mono
-    }
-  }
+  /* Elements panel visuals live in panels/elements.ts as named Cipó/Fábrica styled components. */
 
   .roderuda-resources,
   .roderuda-cards,
@@ -1228,25 +1046,6 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-search-highlight-block { display: inline }
   .roderuda-search-highlight-block .roderuda-keyword { bg: $warningBg; color: $warningFg }
-
-  x:md {
-    .roderuda-elements-layout > .roderuda-elements-tree-side {
-      w: 50%
-      border-right: 1px solid $border
-    }
-
-    .roderuda-elements-layout > .roderuda-element-detail {
-      display: block
-      w: 50%
-      left: auto
-      right: 0
-      border-left: 1px solid $border
-    }
-
-    .roderuda-element-detail .roderuda-control [data-action="back"] {
-      display: none
-    }
-  }
 
   x:not(xs) {
     .roderuda-tab {
