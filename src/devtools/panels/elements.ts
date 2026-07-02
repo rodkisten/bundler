@@ -1,8 +1,10 @@
+import type { CipoCssArtifact } from "../../cipo";
 import { ConfigStore } from "../core/config";
-import { copyText, create, debounce, delegate, describeNode, escapeHtml, icon, isDevtoolsNode, nodePath, qs, truncate } from "../core/dom";
+import { copyText, debounce, delegate, describeNode, icon, isDevtoolsNode, nodePath, truncate } from "../core/dom";
 import { getEventListeners, installEventListenerRegistry } from "../core/event-listeners";
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
+import { devtoolsTokens } from "../core/style";
 import { Tool } from "../tool";
 import { component, event, html, ref, render, styled } from "../components/runtime";
 import type { ToolContext } from "../types";
@@ -26,6 +28,553 @@ type SelectOptions = {
   highlight?: boolean;
 };
 
+interface ElementsViewModel {
+  setTree(node: HTMLElement | null): void;
+  setTreeWrap(node: HTMLElement | null): void;
+  setCrumbs(node: HTMLElement | null): void;
+  setDetail(node: HTMLElement | null): void;
+  onAction(event: Event): void;
+  onTreeScroll(): void;
+}
+
+void devtoolsTokens;
+
+/* *************** */
+/* Styled elements */
+/* *************** */
+
+const ElementsLayout = styled.div("RodElementsLayout").css`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+`;
+
+const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  @media (min-width: 680px) {
+    width: 50%;
+    border-right: 1px solid $border;
+  }
+`;
+
+const ElementsControl = styled.div("RodElementsControl").css`
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 40px;
+  padding: 7px 8px;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+`;
+
+const ElementsControlSpacer = styled.div("RodElementsControlSpacer").css`
+  flex: 1 1 auto;
+  min-width: 4px;
+`;
+
+const ElementsIconButton = styled.button("RodElementsIconButton").css`
+  appearance: none;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: $control;
+  color: $primary;
+  background: transparent;
+  cursor: pointer;
+  font-size: 17px;
+  transition: color .18s, background .18s, transform .1s;
+
+  &:hover {
+    color: $selectedForeground;
+    background: $highlight;
+  }
+
+  &:active {
+    color: $accent;
+    transform: scale(.94);
+  }
+
+  &[data-active="true"] {
+    color: $accent;
+    background: $highlight;
+  }
+
+  &:disabled {
+    opacity: .45;
+    pointer-events: none;
+  }
+`;
+
+const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
+  width: 100%;
+  height: 100%;
+  padding-top: 40px;
+  padding-bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const DomTree = styled.div("RodElementsDomTree").css`
+  min-width: max-content;
+  padding: 5px 0 12px 12px;
+  font: 12px / 1.45 $font.mono;
+
+  ul {
+    margin: 0;
+    padding-left: 15px;
+    list-style: none;
+  }
+`;
+
+const DomRow = styled.div("RodElementsDomRow").css`
+  position: relative;
+  min-height: 20px;
+  padding: 1px 8px 1px 2px;
+  cursor: default;
+  white-space: nowrap;
+
+  &:hover {
+    background: $highlight;
+  }
+
+  &[data-selected="true"] {
+    color: $selectedForeground;
+    background: $contrast;
+  }
+`;
+
+const DomToggle = styled.span("RodElementsDomToggle").css`
+  display: inline-block;
+  width: 13px;
+  color: $operator;
+  cursor: pointer;
+`;
+
+const DomTag = styled.span("RodElementsDomTag").css`
+  color: $tag;
+`;
+
+const DomAttrName = styled.span("RodElementsDomAttrName").css`
+  color: $attr;
+`;
+
+const DomAttrValue = styled.span("RodElementsDomAttrValue").css`
+  color: $string;
+`;
+
+const DomText = styled.span("RodElementsDomText").css`
+  color: $foreground;
+  white-space: pre;
+`;
+
+const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  height: calc(25px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow-x: auto;
+  border-top: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+  font-size: 11px;
+  white-space: nowrap;
+`;
+
+const CrumbButton = styled.button("RodElementsCrumbButton").css`
+  appearance: none;
+  padding: 5px 8px;
+  border: 0;
+  color: $primary;
+  background: transparent;
+  cursor: pointer;
+
+  &[data-current="true"] {
+    background: $highlight;
+  }
+`;
+
+const DetailPanel = styled.section("RodElementsDetailPanel").css`
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: none;
+  padding-top: 40px;
+  background: $background;
+
+  &[data-active="true"] {
+    display: block;
+  }
+
+  @media (min-width: 680px) {
+    right: 0;
+    left: auto;
+    display: block;
+    width: 50%;
+    border-left: 1px solid $border;
+
+    [data-action="close-detail"] {
+      display: none;
+    }
+  }
+`;
+
+const DetailTitle = styled.div("RodElementsDetailTitle").css`
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: $primary;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const DetailBody = styled.div("RodElementsDetailBody").css`
+  height: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const DetailSection = styled.section("RodElementsDetailSection").css`
+  margin: 10px 0;
+  border-top: 1px solid $border;
+  border-bottom: 1px solid $border;
+  background: $background;
+  overflow: hidden;
+`;
+
+const SectionTitle = styled.button("RodElementsSectionTitle").css`
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+`;
+
+const SectionActions = styled.span("RodElementsSectionActions").css`
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+`;
+
+const SectionContent = styled.div("RodElementsSectionContent").css`
+  padding: 10px;
+  color: $foreground;
+
+  &[data-hidden="true"] {
+    display: none !important;
+  }
+`;
+
+const AttributesGrid = styled.div("RodElementsAttributesGrid").css`
+  display: grid;
+  gap: 6px;
+`;
+
+const AttributeRow = styled.div("RodElementsAttributeRow").css`
+  display: grid;
+  grid-template-columns: minmax(80px, .45fr) minmax(120px, 1fr) 30px;
+  gap: 6px;
+`;
+
+const AttributeInput = styled.input("RodElementsAttributeInput").css`
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid $border;
+  border-radius: $sm;
+  color: $primary;
+  background: $background;
+  user-select: text;
+`;
+
+const TableWrap = styled.div("RodElementsTableWrap").css`
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+`;
+
+const KvTable = styled.table("RodElementsKvTable").css`
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  td {
+    padding: 6px 8px;
+    border-bottom: 1px solid $border;
+    vertical-align: top;
+    word-break: break-word;
+    user-select: text;
+  }
+
+  td:first-child {
+    width: 140px;
+    color: $var;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 519px) {
+    td:first-child {
+      width: 105px;
+    }
+  }
+`;
+
+const PreBlock = styled.pre("RodElementsPreBlock").css`
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  color: $foreground;
+  font: 12px / 1.5 $font.mono;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+`;
+
+const BoxModel = styled.div("RodElementsBoxModel").css`
+  min-width: 300px;
+  padding: 10px;
+  text-align: center;
+  font: 11px / 1.35 $font.mono;
+`;
+
+const BoxLayer = styled.div("RodElementsBoxLayer").css`
+  margin: 5px;
+  padding: 7px;
+  border: 1px dashed $border;
+  background: mix($highlight, transparent, 55%);
+
+  &[data-layer="margin"] { background: rgb(246 178 107 / .22); }
+  &[data-layer="border"] { background: rgb(255 229 153 / .25); }
+  &[data-layer="padding"] { background: rgb(147 196 125 / .24); }
+  &[data-layer="content"] { background: rgb(111 168 220 / .24); }
+`;
+
+const StyleRule = styled.div("RodElementsStyleRule").css`
+  margin-bottom: 9px;
+  padding: 8px;
+  border: 1px solid $border;
+  border-radius: $md;
+  font: 12px / 1.45 $font.mono;
+`;
+
+const StyleSelector = styled.div("RodElementsStyleSelector").css`
+  color: $tag;
+  word-break: break-word;
+`;
+
+const StyleDeclaration = styled.div("RodElementsStyleDeclaration").css`
+  display: grid;
+  grid-template-columns: minmax(90px, .45fr) minmax(120px, 1fr);
+  gap: 6px;
+  padding-left: 13px;
+`;
+
+const StyleDeclarationInput = styled.input("RodElementsStyleDeclarationInput").css`
+  min-width: 0;
+  border: 0;
+  outline: none;
+  color: $string;
+  background: transparent;
+  font: inherit;
+  user-select: text;
+
+  &[data-kind="property"] {
+    color: $var;
+  }
+`;
+
+const ListenerBox = styled.div("RodElementsListenerBox").css`
+  margin-bottom: 9px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid $border;
+  border-radius: $md;
+  font: 12px / 1.45 $font.mono;
+`;
+
+const ListenerTitle = styled.strong("RodElementsListenerTitle").css`
+  display: block;
+  padding: 7px 9px;
+  color: $primary;
+  background: $backgroundDark;
+`;
+
+const ListenerPre = styled.pre("RodElementsListenerPre").css`
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  font: 11px / 1.4 $font.mono;
+  user-select: text;
+`;
+
+const EmptyState = styled.div("RodElementsEmptyState").css`
+  display: grid;
+  min-height: 80px;
+  place-content: center;
+  padding: 24px;
+  color: $foreground;
+  text-align: center;
+`;
+
+const ElementsMenu = styled.div("RodElementsMenu").css`
+  position: fixed;
+  z-index: 2147483647;
+  min-width: 165px;
+  padding: 5px;
+  border: 1px solid $border;
+  border-radius: $section;
+  color: $primary;
+  background: $backgroundDark;
+  box-shadow: $shadow.notification;
+`;
+
+const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: $sm;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: $selectedForeground;
+    background: $highlight;
+  }
+`;
+
+const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
+  ElementsLayout,
+  ElementsTreeSide,
+  ElementsControl,
+  ElementsControlSpacer,
+  ElementsIconButton,
+  ElementsTreeWrap,
+  DomTree,
+  DomRow,
+  DomToggle,
+  DomTag,
+  DomAttrName,
+  DomAttrValue,
+  DomText,
+  ElementsCrumbs,
+  CrumbButton,
+  DetailPanel,
+  DetailTitle,
+  DetailBody,
+  DetailSection,
+  SectionTitle,
+  SectionActions,
+  SectionContent,
+  AttributesGrid,
+  AttributeRow,
+  AttributeInput,
+  TableWrap,
+  KvTable,
+  PreBlock,
+  BoxModel,
+  BoxLayer,
+  StyleRule,
+  StyleSelector,
+  StyleDeclaration,
+  StyleDeclarationInput,
+  ListenerBox,
+  ListenerTitle,
+  ListenerPre,
+  EmptyState,
+  ElementsMenu,
+  ElementsMenuButton,
+]);
+
+export const elementsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  ELEMENTS_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
+    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+);
+
+component("RodElementsView", function RodElementsView(props) {
+  const view = props.view as ElementsViewModel;
+  return html`
+    <RodElementsLayout data-elements-layout>
+      <RodElementsTreeSide data-elements-tree-side>
+        <RodElementsControl data-elements-control>
+          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("back"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>›</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("refresh"))}</RodElementsIconButton>
+          <RodElementsControlSpacer />
+          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("inspect"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("copy"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("delete"))}</RodElementsIconButton>
+        </RodElementsControl>
+        <RodElementsTreeWrap
+          data-elements-tree-wrap
+          data-roderuda-scroll-key="elements-tree"
+          ref=${ref((node) => {
+            view.setTreeWrap(node as HTMLElement);
+            return () => view.setTreeWrap(null);
+          })}
+          @scroll=${event(() => view.onTreeScroll())}
+        >
+          <RodElementsDomTree
+            data-elements-tree
+            ref=${ref((node) => {
+              view.setTree(node as HTMLElement);
+              return () => view.setTree(null);
+            })}
+          />
+        </RodElementsTreeWrap>
+        <RodElementsCrumbs
+          data-elements-crumbs
+          ref=${ref((node) => {
+            view.setCrumbs(node as HTMLElement);
+            return () => view.setCrumbs(null);
+          })}
+        />
+      </RodElementsTreeSide>
+      <RodElementsDetailPanel
+        data-elements-detail
+        data-active="false"
+        ref=${ref((node) => {
+          view.setDetail(node as HTMLElement);
+          return () => view.setDetail(null);
+        })}
+      />
+    </RodElementsLayout>
+  `;
+});
+
 export class Elements extends Tool {
   readonly name = "elements";
   readonly title = "elements";
@@ -35,7 +584,9 @@ export class Elements extends Tool {
     observeElement: true,
     showWhitespace: false,
   });
+
   private tree: HTMLElement | null = null;
+  private treeWrap: HTMLElement | null = null;
   private crumbs: HTMLElement | null = null;
   private detail: HTMLElement | null = null;
   private selected: Element | null = null;
@@ -52,82 +603,51 @@ export class Elements extends Tool {
   private longPressTimer = 0;
   private longPressPoint: { x: number; y: number } | null = null;
   private readonly scheduleRender = debounce(() => this.renderTree(), 80);
-
   private isUserScrolling = false;
   private suppressNextClickUntil = 0;
   private scrollIdleTimer = 0;
   private pointerStart: { x: number; y: number } | null = null;
   private longPressCleanup: Array<() => void> = [];
+  private disposeView: (() => void) | null = null;
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <div class="roderuda-elements-layout">
-        <section class="roderuda-elements-tree-side">
-          <div class="roderuda-control">
-            <button class="roderuda-icon-btn" type="button" data-action="back" title="Back">${icon("back")}</button>
-            <button class="roderuda-icon-btn" type="button" data-action="forward" title="Forward">›</button>
-            <button class="roderuda-icon-btn" type="button" data-action="refresh" title="Refresh">${icon("refresh")}</button>
-            <div class="roderuda-control-spacer"></div>
-            <button class="roderuda-icon-btn" type="button" data-action="inspect" title="Select an element">${icon("inspect")}</button>
-            <button class="roderuda-icon-btn" type="button" data-action="copy" title="Copy element">${icon("copy")}</button>
-            <button class="roderuda-icon-btn" type="button" data-action="delete" title="Delete element">${icon("delete")}</button>
-          </div>
-          <div class="roderuda-elements-tree-wrap"><div class="roderuda-dom-tree" data-elements-tree></div></div>
-          <div class="roderuda-crumbs" data-elements-crumbs></div>
-        </section>
-        <section class="roderuda-detail roderuda-element-detail" data-elements-detail></section>
-      </div>
-    `;
-    this.tree = qs(container, "[data-elements-tree]");
-    this.crumbs = qs(container, "[data-elements-crumbs]");
-    this.detail = qs(container, "[data-elements-detail]");
-    const treeWrap = qs(container, ".roderuda-elements-tree-wrap");
+
+    const view: ElementsViewModel = {
+      setTree: (node) => { this.tree = node; },
+      setTreeWrap: (node) => { this.treeWrap = node; },
+      setCrumbs: (node) => { this.crumbs = node; },
+      setDetail: (node) => { this.detail = node; },
+      onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
+      onTreeScroll: () => this.handleTreeScroll(),
+    };
+
+    this.disposeView?.();
+    this.disposeView = render(container, html`<RodElementsView view=${view as never} />`);
+
     const host = context.shadowRoot?.host instanceof HTMLElement ? context.shadowRoot.host : context.root.parentElement;
     this.highlighter = new ElementHighlighter(host);
 
-    if (treeWrap) {
-      const onTreeScroll = (): void => {
-        this.isUserScrolling = true;
-        this.suppressNextClickUntil = Date.now() + 250;
-        this.cancelLongPress();
-
-        if (this.scrollIdleTimer) window.clearTimeout(this.scrollIdleTimer);
-
-        this.scrollIdleTimer = window.setTimeout(() => {
-          this.isUserScrolling = false;
-        }, 160);
-      };
-
-      treeWrap.addEventListener("scroll", onTreeScroll, { passive: true });
-      this.cleanup.push(() => {
-        treeWrap.removeEventListener("scroll", onTreeScroll);
-        if (this.scrollIdleTimer) window.clearTimeout(this.scrollIdleTimer);
-        this.scrollIdleTimer = 0;
-      });
-    }
-
-    this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-node-id]", (event, element) => this.handleNodeClick(event, element)));
-    this.cleanup.push(delegate(container, "dblclick", "[data-node-id]", (event, element) => this.handleNodeOpen(event, element)));
-    this.cleanup.push(delegate(container, "contextmenu", "[data-node-id]", (event, element) => this.handleNodeMenu(event, element)));
-    this.cleanup.push(delegate(container, "pointerdown", "[data-node-id]", (event, element) => this.startLongPress(event, element)));
+    this.cleanup.push(delegate(container, "click", "[data-node-id]", (click, element) => this.handleNodeClick(click, element)));
+    this.cleanup.push(delegate(container, "dblclick", "[data-node-id]", (dblclick, element) => this.handleNodeOpen(dblclick, element)));
+    this.cleanup.push(delegate(container, "contextmenu", "[data-node-id]", (menuEvent, element) => this.handleNodeMenu(menuEvent, element)));
+    this.cleanup.push(delegate(container, "pointerdown", "[data-node-id]", (pointerEvent, element) => this.startLongPress(pointerEvent, element)));
     this.cleanup.push(delegate(container, "pointerup", "[data-node-id]", () => this.cancelLongPress()));
     this.cleanup.push(delegate(container, "pointercancel", "[data-node-id]", () => this.cancelLongPress()));
-    this.cleanup.push(delegate(container, "pointermove", "[data-node-id]", (event) => this.trackLongPress(event)));
-    this.cleanup.push(delegate(container, "click", "[data-elements-menu-action]", (event, element) => { void this.handleContextAction(event, element); }));
-    this.cleanup.push(delegate(container, "pointerover", "[data-node-id]", (_event, element) => this.hoverNode(element)));
+    this.cleanup.push(delegate(container, "pointermove", "[data-node-id]", (pointerEvent) => this.trackLongPress(pointerEvent)));
+    this.cleanup.push(delegate(container, "click", "[data-elements-menu-action]", (click, element) => { void this.handleContextAction(click, element); }));
+    this.cleanup.push(delegate(container, "pointerover", "[data-node-id]", (_pointerEvent, element) => this.hoverNode(element)));
     this.cleanup.push(delegate(container, "pointerout", "[data-node-id]", () => this.highlighter?.hide()));
-    this.cleanup.push(delegate(container, "click", "[data-crumb-index]", (_event, element) => {
+    this.cleanup.push(delegate(container, "click", "[data-crumb-index]", (_click, element) => {
       this.select(this.crumbElement(Number(element.dataset.crumbIndex)), {
         expandAncestors: true,
         reveal: true,
       });
     }));
-    this.cleanup.push(delegate(container, "change", "[data-attribute-name]", (event, element) => this.updateAttribute(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-remove-attribute]", (_event, element) => this.removeAttribute(element)));
-    this.cleanup.push(delegate(container, "change", "[data-style-property]", (event, element) => this.updateInlineStyle(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-detail-section]", (_event, element) => this.toggleSection(element)));
+    this.cleanup.push(delegate(container, "change", "[data-attribute-name]", (change, element) => this.updateAttribute(change, element)));
+    this.cleanup.push(delegate(container, "click", "[data-remove-attribute]", (_click, element) => this.removeAttribute(element)));
+    this.cleanup.push(delegate(container, "change", "[data-style-property]", (change, element) => this.updateInlineStyle(change, element)));
+    this.cleanup.push(delegate(container, "click", "[data-detail-section]", (_click, element) => this.toggleSection(element)));
 
     this.config.on("change", this.onConfigChange);
     if (this.config.get("overrideEventTarget")) this.restoreEventRegistry = installEventListenerRegistry();
@@ -155,12 +675,10 @@ export class Elements extends Tool {
     if (!element || isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined)) return;
 
     this.selected = element;
-
     if (expandAncestors) this.expandAncestors(element);
 
     if (addHistory) {
       this.history = this.history.slice(0, this.historyIndex + 1);
-
       if (this.history[this.history.length - 1] !== element) {
         this.history.push(element);
         this.historyIndex = this.history.length - 1;
@@ -170,13 +688,12 @@ export class Elements extends Tool {
     this.renderTree();
     this.renderCrumbs();
     this.renderDetail();
-
     if (highlight) this.highlighter?.highlight(element);
 
     if (reveal) {
       queueMicrotask(() => {
         this.tree
-          ?.querySelector<HTMLElement>(".roderuda-dom-row.roderuda-selected")
+          ?.querySelector<HTMLElement>("[data-selected='true']")
           ?.scrollIntoView({ block: "nearest" });
       });
     }
@@ -204,6 +721,12 @@ export class Elements extends Tool {
     this.restoreEventRegistry = null;
     this.config.off("change", this.onConfigChange);
     for (const cleanup of this.cleanup.splice(0)) cleanup();
+    this.disposeView?.();
+    this.disposeView = null;
+    this.tree = null;
+    this.treeWrap = null;
+    this.crumbs = null;
+    this.detail = null;
     super.destroy();
   }
 
@@ -239,51 +762,62 @@ export class Elements extends Tool {
 
   private renderTree(): void {
     if (!this.tree || !document.documentElement) return;
-    const rootList = create("ul");
+    const rootList = document.createElement("ul");
     rootList.append(this.renderNode(document.documentElement, 0));
     this.tree.replaceChildren(rootList);
   }
 
   private renderNode(node: Node, depth: number): HTMLLIElement {
-    const item = create("li");
-    const row = create("div", {
-      className: `roderuda-dom-row${node === this.selected ? " roderuda-selected" : ""}`,
-      attrs: { "data-node-id": this.nodeId(node), "data-node-depth": depth },
-    });
+    const item = document.createElement("li");
+    const row = styledNode<HTMLDivElement>(DomRow({
+      attrs: {
+        "data-node-id": this.nodeId(node),
+        "data-node-depth": String(depth),
+        "data-selected": String(node === this.selected),
+      },
+    }));
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
-    const toggle = create("span", {
-      className: "roderuda-dom-toggle",
-      text: expandable ? (this.expanded.has(node) ? "▾" : "▸") : "",
+    const toggle = styledNode<HTMLSpanElement>(DomToggle({
       attrs: expandable ? { "data-toggle-node": "" } : undefined,
-    });
+      children: expandable ? (this.expanded.has(node) ? "▾" : "▸") : "",
+    }));
     row.append(toggle, this.renderNodeLabel(node));
     item.append(row);
 
     if (expandable && this.expanded.has(node)) {
-      const list = create("ul");
+      const list = document.createElement("ul");
       const limited = children.slice(0, 300);
       for (const child of limited) list.append(this.renderNode(child, depth + 1));
-      if (children.length > limited.length) list.append(create("li", { text: `… ${children.length - limited.length} more nodes` }));
+      if (children.length > limited.length) {
+        const more = document.createElement("li");
+        more.textContent = `… ${children.length - limited.length} more nodes`;
+        list.append(more);
+      }
       item.append(list);
     }
     return item;
   }
 
   private renderNodeLabel(node: Node): Node {
-    if (node.nodeType === Node.TEXT_NODE) return create("span", { className: "roderuda-dom-text", text: `"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"` });
-    if (node.nodeType === Node.COMMENT_NODE) return create("span", { className: "roderuda-dom-text", text: `<!--${truncate(node.textContent || "", 120)}-->` });
+    if (node.nodeType === Node.TEXT_NODE) {
+      return styledNode<HTMLSpanElement>(DomText({ children: `"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"` }));
+    }
+    if (node.nodeType === Node.COMMENT_NODE) {
+      return styledNode<HTMLSpanElement>(DomText({ children: `<!--${truncate(node.textContent || "", 120)}-->` }));
+    }
     if (!(node instanceof Element)) return document.createTextNode(node.nodeName);
+
     const fragment = document.createDocumentFragment();
-    fragment.append(create("span", { className: "roderuda-dom-tag", text: `<${node.tagName.toLowerCase()}` }));
+    fragment.append(styledNode<HTMLSpanElement>(DomTag({ children: `<${node.tagName.toLowerCase()}` })));
     for (const attribute of Array.from(node.attributes).slice(0, 12)) {
       fragment.append(document.createTextNode(" "));
-      fragment.append(create("span", { className: "roderuda-dom-attr-name", text: attribute.name }));
+      fragment.append(styledNode<HTMLSpanElement>(DomAttrName({ children: attribute.name })));
       fragment.append(document.createTextNode('="'));
-      fragment.append(create("span", { className: "roderuda-dom-attr-value", text: truncate(attribute.value, 100) }));
+      fragment.append(styledNode<HTMLSpanElement>(DomAttrValue({ children: truncate(attribute.value, 100) })));
       fragment.append(document.createTextNode('"'));
     }
-    fragment.append(create("span", { className: "roderuda-dom-tag", text: ">" }));
+    fragment.append(styledNode<HTMLSpanElement>(DomTag({ children: ">" })));
     return fragment;
   }
 
@@ -304,10 +838,14 @@ export class Elements extends Tool {
       elements.unshift(current);
       current = current.parentElement;
     }
-    this.crumbs.replaceChildren(...elements.map((element, index) => create("button", {
-      text: crumbLabel(element),
-      attrs: { type: "button", "data-crumb-index": index },
-    })));
+    this.crumbs.replaceChildren(...elements.map((element, index) => styledNode<HTMLButtonElement>(CrumbButton({
+      type: "button",
+      attrs: {
+        "data-crumb-index": String(index),
+        "data-current": String(index === elements.length - 1),
+      },
+      children: crumbLabel(element),
+    }))));
     this.crumbs.dataset.crumbPath = elements.map((element) => this.nodeId(element)).join(",");
     this.crumbs.scrollLeft = this.crumbs.scrollWidth;
   }
@@ -326,37 +864,53 @@ export class Elements extends Tool {
     const listeners = getEventListeners(element);
     const attributes = Array.from(element.attributes);
 
-    this.detail.innerHTML = `
-      <div class="roderuda-control">
-        <button class="roderuda-icon-btn" type="button" data-action="close-detail" title="Back">${icon("back")}</button>
-        <div class="roderuda-detail-title">${escapeHtml(describeNode(element))}</div>
-        <button class="roderuda-icon-btn" type="button" data-action="refresh-detail" title="Refresh">${icon("refresh")}</button>
-      </div>
-      <div class="roderuda-detail-body">
-        ${this.detailSection("Attributes", "attributes", `
-          <div class="roderuda-element-attributes">
-            ${attributes.map((attribute) => attributeRow(attribute.name, attribute.value)).join("")}
-            ${attributeRow("", "", true)}
-          </div>
-        `)}
-        ${this.detailSection("Text Content", "text", `<pre class="roderuda-pre">${escapeHtml(element.textContent || "")}</pre>`)}
-        ${this.detailSection("Box Model", "box", boxModelHtml(style, rect))}
-        ${this.detailSection("Computed Style", "computed", computedStyleHtml(style))}
-        ${this.detailSection("Styles", "styles", stylesHtml(element, matchedRules))}
-        ${this.detailSection("Event Listeners", "listeners", listenersHtml(listeners))}
-        ${this.detailSection("Properties", "properties", propertiesHtml(element))}
-      </div>
-    `;
-    this.detail.classList.add("roderuda-active");
+    const control = styledNode<HTMLDivElement>(ElementsControl());
+    control.append(
+      iconButton("back", "close-detail", "Back"),
+      styledNode<HTMLDivElement>(DetailTitle({ children: describeNode(element) })),
+      iconButton("refresh", "refresh-detail", "Refresh"),
+    );
+
+    const body = styledNode<HTMLDivElement>(DetailBody());
+    body.append(
+      this.detailSection("Attributes", "attributes", attributesHtml(attributes)),
+      this.detailSection("Text Content", "text", preBlock(element.textContent || "")),
+      this.detailSection("Box Model", "box", boxModelNode(style, rect)),
+      this.detailSection("Computed Style", "computed", computedStyleNode(style)),
+      this.detailSection("Styles", "styles", stylesNode(element, matchedRules)),
+      this.detailSection("Event Listeners", "listeners", listenersNode(listeners)),
+      this.detailSection("Properties", "properties", propertiesNode(element)),
+    );
+
+    this.detail.replaceChildren(control, body);
+    this.detail.dataset.active = "true";
   }
 
-  private detailSection(title: string, name: string, content: string): string {
-    return `<section class="roderuda-section" data-section="${name}"><button class="roderuda-section-title" type="button" data-detail-section="${name}"><span>${escapeHtml(title)}</span><span class="roderuda-section-actions">▾</span></button><div class="roderuda-section-content">${content}</div></section>`;
+  private detailSection(title: string, name: string, content: Node): HTMLElement {
+    const section = styledNode<HTMLElement>(DetailSection({ attrs: { "data-section": name } }));
+    const titleButton = styledNode<HTMLButtonElement>(SectionTitle({
+      type: "button",
+      attrs: { "data-detail-section": name },
+      children: [document.createTextNode(title), styledNode<HTMLSpanElement>(SectionActions({ children: "▾" }))],
+    }));
+    const contentElement = styledNode<HTMLDivElement>(SectionContent({ children: content }));
+    section.append(titleButton, contentElement);
+    return section;
+  }
+
+  private handleTreeScroll(): void {
+    this.isUserScrolling = true;
+    this.suppressNextClickUntil = Date.now() + 250;
+    this.cancelLongPress();
+
+    if (this.scrollIdleTimer) window.clearTimeout(this.scrollIdleTimer);
+    this.scrollIdleTimer = window.setTimeout(() => {
+      this.isUserScrolling = false;
+    }, 160);
   }
 
   private handleNodeClick(event: Event, element: HTMLElement): void {
     if (Date.now() < this.suppressNextClickUntil || this.isUserScrolling) return;
-
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!node) return;
 
@@ -379,47 +933,39 @@ export class Elements extends Tool {
     event.preventDefault();
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!node) return;
-
     this.select(node, {
       addHistory: true,
       expandAncestors: true,
       reveal: true,
       highlight: true,
     });
-
-    this.detail?.classList.add("roderuda-active");
+    if (this.detail) this.detail.dataset.active = "true";
   }
 
   private handleNodeMenu(event: Event, element: HTMLElement): void {
     event.preventDefault();
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!(node instanceof Element)) return;
-
     this.select(node, {
       addHistory: true,
       expandAncestors: false,
       reveal: false,
       highlight: true,
     });
-
     const pointer = event instanceof MouseEvent ? { x: event.clientX, y: event.clientY } : { x: 16, y: 16 };
     this.openContextMenu(node, pointer.x, pointer.y);
   }
 
   private startLongPress(event: Event, element: HTMLElement): void {
     if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
-
     const target = event.target as HTMLElement | null;
     if (target?.closest("button,input,textarea,select,[contenteditable]")) return;
-
     const node = this.resolveNode(element.dataset.nodeId || "");
     if (!(node instanceof Element)) return;
 
     this.cancelLongPress();
-
     const startX = event.clientX;
     const startY = event.clientY;
-
     this.pointerStart = { x: startX, y: startY };
     this.longPressPoint = { x: startX, y: startY };
 
@@ -436,14 +982,12 @@ export class Elements extends Tool {
         this.cancelLongPress();
         return;
       }
-
       this.select(node, {
         addHistory: true,
         expandAncestors: false,
         reveal: false,
         highlight: true,
       });
-
       this.openContextMenu(node, startX, startY);
       this.cancelLongPress();
     }, 650);
@@ -451,12 +995,7 @@ export class Elements extends Tool {
 
   private trackLongPress(event: Event): void {
     if (!(event instanceof PointerEvent) || !this.longPressPoint || !this.longPressTimer) return;
-
-    const distance = Math.hypot(
-      event.clientX - this.longPressPoint.x,
-      event.clientY - this.longPressPoint.y,
-    );
-
+    const distance = Math.hypot(event.clientX - this.longPressPoint.x, event.clientY - this.longPressPoint.y);
     if (distance > 10) {
       this.suppressNextClickUntil = Date.now() + 250;
       this.cancelLongPress();
@@ -465,17 +1004,21 @@ export class Elements extends Tool {
 
   private cancelLongPress(): void {
     if (this.longPressTimer) window.clearTimeout(this.longPressTimer);
-
     this.longPressTimer = 0;
     this.longPressPoint = null;
     this.pointerStart = null;
-
     for (const cleanup of this.longPressCleanup.splice(0)) cleanup();
   }
 
   private openContextMenu(element: Element, x: number, y: number): void {
     this.closeContextMenu();
-    const menu = create("div", { className: "roderuda-elements-menu", attrs: { role: "menu", "data-elements-menu": "", "data-node-id": this.nodeId(element) } });
+    const menu = styledNode<HTMLDivElement>(ElementsMenu({
+      attrs: {
+        role: "menu",
+        "data-elements-menu": "",
+        "data-node-id": this.nodeId(element),
+      },
+    }));
     const actions = [
       ["copy-element", "Copy element"],
       ["copy-selector", "Copy selector"],
@@ -485,21 +1028,25 @@ export class Elements extends Tool {
       ["delete-element", "Delete element"],
     ] as const;
     for (const [action, label] of actions) {
-      menu.append(create("button", { text: label, attrs: { type: "button", role: "menuitem", "data-elements-menu-action": action } }));
+      menu.append(styledNode<HTMLButtonElement>(ElementsMenuButton({
+        type: "button",
+        attrs: { role: "menuitem", "data-elements-menu-action": action },
+        children: label,
+      })));
     }
     this.contextMenu = menu;
     this.context?.root.append(menu);
     const rect = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
-    const close = (event: Event): void => {
-      if (event.target instanceof Node && menu.contains(event.target)) return;
+    const close = (closeEvent: Event): void => {
+      if (closeEvent.target instanceof Node && menu.contains(closeEvent.target)) return;
       this.closeContextMenu();
       document.removeEventListener("pointerdown", close, true);
       document.removeEventListener("keydown", onKey, true);
     };
-    const onKey = (event: Event): void => {
-      if (event instanceof KeyboardEvent && event.key === "Escape") close(event);
+    const onKey = (keyEvent: Event): void => {
+      if (keyEvent instanceof KeyboardEvent && keyEvent.key === "Escape") close(keyEvent);
     };
     queueMicrotask(() => {
       document.addEventListener("pointerdown", close, true);
@@ -517,7 +1064,6 @@ export class Elements extends Tool {
     const node = this.resolveNode(button.closest<HTMLElement>("[data-elements-menu]")?.dataset.nodeId || "");
     this.closeContextMenu();
     if (!(node instanceof Element)) return;
-
     this.select(node, {
       addHistory: true,
       expandAncestors: false,
@@ -579,7 +1125,7 @@ export class Elements extends Tool {
         this.deleteSelected();
         break;
       case "close-detail":
-        this.detail?.classList.remove("roderuda-active");
+        if (this.detail) this.detail.dataset.active = "false";
         break;
     }
   }
@@ -600,7 +1146,6 @@ export class Elements extends Tool {
     if (!element || element === document.documentElement || element === document.body) return;
     const next = element.parentElement;
     element.remove();
-
     if (next) {
       this.select(next, {
         addHistory: true,
@@ -662,20 +1207,19 @@ export class Elements extends Tool {
   private startPicker(button: HTMLElement): void {
     this.stopPicker();
     this.picking = true;
-    button.classList.add("roderuda-active");
+    button.dataset.active = "true";
     this.context?.devtools.hide();
     const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
-    const move = (event: PointerEvent): void => {
-      const target = document.elementFromPoint(event.clientX, event.clientY);
+    const move = (moveEvent: PointerEvent): void => {
+      const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
       if (target && !isDevtoolsNode(target, host)) this.highlighter?.highlight(target);
     };
-    const choose = (event: PointerEvent): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      const target = document.elementFromPoint(event.clientX, event.clientY);
+    const choose = (chooseEvent: PointerEvent): void => {
+      chooseEvent.preventDefault();
+      chooseEvent.stopPropagation();
+      const target = document.elementFromPoint(chooseEvent.clientX, chooseEvent.clientY);
       this.stopPicker();
       this.context?.devtools.show().showTool("elements");
-
       if (target && !isDevtoolsNode(target, host)) {
         this.select(target, {
           expandAncestors: true,
@@ -683,8 +1227,8 @@ export class Elements extends Tool {
         });
       }
     };
-    const cancel = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
+    const cancel = (keyEvent: KeyboardEvent): void => {
+      if (keyEvent.key !== "Escape") return;
       this.stopPicker();
       this.context?.devtools.show();
     };
@@ -695,7 +1239,7 @@ export class Elements extends Tool {
       () => document.removeEventListener("pointermove", move, true),
       () => document.removeEventListener("pointerdown", choose, true),
       () => document.removeEventListener("keydown", cancel, true),
-      () => button.classList.remove("roderuda-active"),
+      () => { delete button.dataset.active; },
     );
   }
 
@@ -708,7 +1252,7 @@ export class Elements extends Tool {
   private updateAttribute(event: Event, input: HTMLElement): void {
     const selected = this.selected;
     if (!(selected instanceof HTMLElement || selected instanceof SVGElement) || !(event.target instanceof HTMLInputElement)) return;
-    const row = input.closest<HTMLElement>(".roderuda-attribute-row");
+    const row = input.closest<HTMLElement>("[data-attribute-row]");
     const nameInput = row?.querySelector<HTMLInputElement>("[data-attribute-name]");
     const valueInput = row?.querySelector<HTMLInputElement>("[data-attribute-value]");
     const original = row?.dataset.originalName || "";
@@ -728,7 +1272,7 @@ export class Elements extends Tool {
 
   private removeAttribute(button: HTMLElement): void {
     if (!this.selected) return;
-    const row = button.closest<HTMLElement>(".roderuda-attribute-row");
+    const row = button.closest<HTMLElement>("[data-attribute-row]");
     const name = row?.dataset.originalName;
     if (name) this.selected.removeAttribute(name);
     row?.remove();
@@ -738,7 +1282,7 @@ export class Elements extends Tool {
   private updateInlineStyle(event: Event, input: HTMLElement): void {
     const selected = this.selected;
     if (!(selected instanceof HTMLElement || selected instanceof SVGElement) || !(event.target instanceof HTMLInputElement)) return;
-    const row = input.closest<HTMLElement>(".roderuda-style-declaration");
+    const row = input.closest<HTMLElement>("[data-style-declaration]");
     const propertyInput = row?.querySelector<HTMLInputElement>("[data-style-property]");
     const valueInput = row?.querySelector<HTMLInputElement>("[data-style-value]");
     const previous = row?.dataset.originalProperty || "";
@@ -757,11 +1301,12 @@ export class Elements extends Tool {
   }
 
   private toggleSection(button: HTMLElement): void {
-    const section = button.closest<HTMLElement>(".roderuda-section");
-    const content = section?.querySelector<HTMLElement>(".roderuda-section-content");
+    const section = button.closest<HTMLElement>("[data-section]");
+    const content = section?.querySelector<HTMLElement>("[data-section-content]");
     if (!section || !content) return;
-    const hidden = content.classList.toggle("roderuda-hidden");
-    const marker = button.querySelector<HTMLElement>(".roderuda-section-actions");
+    const hidden = content.dataset.hidden !== "true";
+    content.dataset.hidden = String(hidden);
+    const marker = button.querySelector<HTMLElement>("[data-section-actions]");
     if (marker) marker.textContent = hidden ? "▸" : "▾";
   }
 
@@ -793,39 +1338,147 @@ export class Elements extends Tool {
   }
 }
 
+function styledNode<T extends Element>(node: unknown): T {
+  return node as T;
+}
+
+function iconButton(iconName: string, action: string, title: string): HTMLButtonElement {
+  const button = styledNode<HTMLButtonElement>(ElementsIconButton({
+    type: "button",
+    title,
+    attrs: { "data-action": action },
+  }));
+  button.innerHTML = icon(iconName);
+  return button;
+}
+
 function crumbLabel(element: Element): string {
   return `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${Array.from(element.classList).slice(0, 1).map((name) => `.${name}`).join("")}`;
 }
 
-function attributeRow(name: string, value: string, empty = false): string {
-  return `<div class="roderuda-attribute-row" data-original-name="${escapeHtml(name)}"><input data-attribute-name value="${escapeHtml(name)}" placeholder="attribute"><input data-attribute-value value="${escapeHtml(value)}" placeholder="value"><button class="roderuda-icon-btn" type="button" data-remove-attribute title="Remove">${empty ? "+" : "×"}</button></div>`;
+function attributesHtml(attributes: Attr[]): HTMLElement {
+  const grid = styledNode<HTMLDivElement>(AttributesGrid());
+  for (const attribute of attributes) grid.append(attributeRow(attribute.name, attribute.value));
+  grid.append(attributeRow("", "", true));
+  return grid;
 }
 
-function boxModelHtml(style: CSSStyleDeclaration, rect: DOMRect): string {
+function attributeRow(name: string, value: string, empty = false): HTMLElement {
+  const row = styledNode<HTMLDivElement>(AttributeRow({
+    attrs: {
+      "data-attribute-row": "",
+      "data-original-name": name,
+    },
+  }));
+  row.append(
+    styledNode<HTMLInputElement>(AttributeInput({ attrs: { "data-attribute-name": "" }, value: name, placeholder: "attribute" })),
+    styledNode<HTMLInputElement>(AttributeInput({ attrs: { "data-attribute-value": "" }, value, placeholder: "value" })),
+    styledNode<HTMLButtonElement>(ElementsIconButton({
+      type: "button",
+      title: empty ? "Add" : "Remove",
+      attrs: { "data-remove-attribute": "" },
+      children: empty ? "+" : "×",
+    })),
+  );
+  return row;
+}
+
+function preBlock(value: string): HTMLElement {
+  return styledNode<HTMLElement>(PreBlock({ children: value }));
+}
+
+function boxModelNode(style: CSSStyleDeclaration, rect: DOMRect): HTMLElement {
   const values = (prefix: string, suffix = "") => ["top", "right", "bottom", "left"].map((side) => style.getPropertyValue(`${prefix}-${side}${suffix}`) || "0px").join(" · ");
   const contentWidth = Math.max(0, rect.width - number(style.paddingLeft) - number(style.paddingRight) - number(style.borderLeftWidth) - number(style.borderRightWidth));
   const contentHeight = Math.max(0, rect.height - number(style.paddingTop) - number(style.paddingBottom) - number(style.borderTopWidth) - number(style.borderBottomWidth));
-  return `<div class="roderuda-table-wrap"><div class="roderuda-box-model"><div class="roderuda-box-layer" data-layer="margin">margin ${escapeHtml(values("margin"))}<div class="roderuda-box-layer" data-layer="border">border ${escapeHtml(values("border", "-width"))}<div class="roderuda-box-layer" data-layer="padding">padding ${escapeHtml(values("padding"))}<div class="roderuda-box-layer" data-layer="content">${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}</div></div></div></div></div></div>`;
+
+  const wrap = styledNode<HTMLDivElement>(TableWrap());
+  const model = styledNode<HTMLDivElement>(BoxModel());
+  const margin = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "margin" }, children: `margin ${values("margin")}` }));
+  const border = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "border" }, children: `border ${values("border", "-width")}` }));
+  const padding = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "padding" }, children: `padding ${values("padding")}` }));
+  const content = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "content" }, children: `${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}` }));
+  padding.append(content);
+  border.append(padding);
+  margin.append(border);
+  model.append(margin);
+  wrap.append(model);
+  return wrap;
 }
 
-function computedStyleHtml(style: CSSStyleDeclaration): string {
-  const rows: string[] = [];
-  for (const property of Array.from(style).sort()) rows.push(`<tr><td>${escapeHtml(property)}</td><td>${escapeHtml(style.getPropertyValue(property))}</td></tr>`);
-  return `<div class="roderuda-table-wrap" style="max-height:300px"><table class="roderuda-kv"><tbody>${rows.join("")}</tbody></table></div>`;
+function computedStyleNode(style: CSSStyleDeclaration): HTMLElement {
+  const wrap = styledNode<HTMLDivElement>(TableWrap({ style: { "max-height": "300px" } }));
+  const table = styledNode<HTMLTableElement>(KvTable());
+  const body = document.createElement("tbody");
+  for (const property of Array.from(style).sort()) body.append(tableRow(property, style.getPropertyValue(property)));
+  table.append(body);
+  wrap.append(table);
+  return wrap;
 }
 
-function stylesHtml(element: Element, rules: StyleRuleInfo[]): string {
-  const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({ property, value: (element as HTMLElement).style.getPropertyValue(property), priority: (element as HTMLElement).style.getPropertyPriority(property) }));
+function stylesNode(element: Element, rules: StyleRuleInfo[]): HTMLElement {
+  const fragment = document.createDocumentFragment();
+  const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({
+    property,
+    value: (element as HTMLElement).style.getPropertyValue(property),
+    priority: (element as HTMLElement).style.getPropertyPriority(property),
+  }));
   const allRules = [{ selector: "element.style", declarations: [...inline, { property: "", value: "", priority: "" }] }, ...rules];
-  return allRules.map((rule, ruleIndex) => `<div class="roderuda-style-rule"><div class="roderuda-style-selector">${escapeHtml(rule.selector)}${rule.source ? ` <small>${escapeHtml(rule.source)}</small>` : ""}</div>${rule.declarations.map((declaration) => ruleIndex === 0
-    ? `<div class="roderuda-style-declaration" data-original-property="${escapeHtml(declaration.property)}"><input data-style-property value="${escapeHtml(declaration.property)}" placeholder="property"><input data-style-value value="${escapeHtml(`${declaration.value}${declaration.priority ? " !important" : ""}`)}" placeholder="value"></div>`
-    : `<div class="roderuda-style-declaration"><span>${escapeHtml(declaration.property)}</span><span>${escapeHtml(`${declaration.value}${declaration.priority ? " !important" : ""}`)}</span></div>`).join("")}</div>`).join("");
+
+  allRules.forEach((rule, ruleIndex) => {
+    const ruleElement = styledNode<HTMLDivElement>(StyleRule());
+    const selector = styledNode<HTMLDivElement>(StyleSelector());
+    selector.textContent = rule.selector;
+    if (rule.source) {
+      const small = document.createElement("small");
+      small.textContent = ` ${rule.source}`;
+      selector.append(small);
+    }
+    ruleElement.append(selector);
+
+    for (const declaration of rule.declarations) {
+      const declarationElement = styledNode<HTMLDivElement>(StyleDeclaration({
+        attrs: ruleIndex === 0 ? { "data-style-declaration": "", "data-original-property": declaration.property } : undefined,
+      }));
+      if (ruleIndex === 0) {
+        declarationElement.append(
+          styledNode<HTMLInputElement>(StyleDeclarationInput({ attrs: { "data-style-property": "", "data-kind": "property" }, value: declaration.property, placeholder: "property" })),
+          styledNode<HTMLInputElement>(StyleDeclarationInput({ attrs: { "data-style-value": "" }, value: `${declaration.value}${declaration.priority ? " !important" : ""}`, placeholder: "value" })),
+        );
+      } else {
+        const property = document.createElement("span");
+        const value = document.createElement("span");
+        property.textContent = declaration.property;
+        value.textContent = `${declaration.value}${declaration.priority ? " !important" : ""}`;
+        declarationElement.append(property, value);
+      }
+      ruleElement.append(declarationElement);
+    }
+    fragment.append(ruleElement);
+  });
+
+  const container = document.createElement("div");
+  container.append(fragment);
+  return container;
 }
 
-function listenersHtml(listeners: Readonly<Record<string, readonly { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[]>>): string {
+function listenersNode(listeners: Readonly<Record<string, readonly { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[]>>): HTMLElement {
+  const container = document.createElement("div");
   const entries = Object.entries(listeners);
-  if (!entries.length) return `<div class="roderuda-empty" style="height:auto;min-height:80px"><span>No tracked listeners.</span></div>`;
-  return entries.map(([type, values]) => `<div class="roderuda-listener"><strong>${escapeHtml(type)} (${values.length})</strong>${values.map((value) => `<pre>${escapeHtml(listenerText(value.listener))}\noptions: ${escapeHtml(JSON.stringify(value.options ?? false))}</pre>`).join("")}</div>`).join("");
+  if (!entries.length) {
+    container.append(styledNode<HTMLDivElement>(EmptyState({ children: "No tracked listeners." })));
+    return container;
+  }
+
+  for (const [type, values] of entries) {
+    const box = styledNode<HTMLDivElement>(ListenerBox());
+    box.append(styledNode<HTMLElement>(ListenerTitle({ children: `${type} (${values.length})` })));
+    for (const value of values) {
+      box.append(styledNode<HTMLPreElement>(ListenerPre({ children: `${listenerText(value.listener)}\noptions: ${JSON.stringify(value.options ?? false)}` })));
+    }
+    container.append(box);
+  }
+  return container;
 }
 
 function listenerText(listener: EventListenerOrEventListenerObject): string {
@@ -833,16 +1486,30 @@ function listenerText(listener: EventListenerOrEventListenerObject): string {
   return listener.handleEvent?.toString() || String(listener);
 }
 
-function propertiesHtml(element: Element): string {
-  const rows: string[] = [];
+function propertiesNode(element: Element): HTMLElement {
+  const wrap = styledNode<HTMLDivElement>(TableWrap());
+  const table = styledNode<HTMLTableElement>(KvTable());
+  const body = document.createElement("tbody");
+  body.append(tableRow("selector", nodePath(element)));
   const keys = Reflect.ownKeys(element).slice(0, 100);
   for (const key of keys) {
     let value: unknown;
     try { value = Reflect.get(element, key); } catch (error) { value = error; }
-    rows.push(`<tr><td>${escapeHtml(String(key))}</td><td>${escapeHtml(truncate(plainText(value), 300))}</td></tr>`);
+    body.append(tableRow(String(key), truncate(plainText(value), 300)));
   }
-  rows.unshift(`<tr><td>selector</td><td>${escapeHtml(nodePath(element))}</td></tr>`);
-  return `<div class="roderuda-table-wrap"><table class="roderuda-kv"><tbody>${rows.join("")}</tbody></table></div>`;
+  table.append(body);
+  wrap.append(table);
+  return wrap;
+}
+
+function tableRow(key: string, value: string): HTMLTableRowElement {
+  const row = document.createElement("tr");
+  const keyCell = document.createElement("td");
+  const valueCell = document.createElement("td");
+  keyCell.textContent = key;
+  valueCell.textContent = value;
+  row.append(keyCell, valueCell);
+  return row;
 }
 
 function getMatchedRules(element: Element): StyleRuleInfo[] {
