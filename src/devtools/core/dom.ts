@@ -274,7 +274,7 @@ export function isDevtoolsNode(value: EventTarget | Node | null, host?: HTMLElem
 
 export function detectMobile(): boolean {
   const mobile = (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-  debugLog("dom", "detectMobile", { mobile, userAgent: navigator.userAgent });
+ // debugLog("dom", "detectMobile", { mobile, userAgent: navigator.userAgent });
   return mobile;
 }
 
