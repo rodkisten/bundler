@@ -10,6 +10,8 @@ export interface CipoViteCompiledInlineOptions {
   readonly mode?: 'build' | 'inline'
   readonly classPrefix?: string
   readonly cssFileName?: string
+  /** Default keeps compiled CSS inside the JS bundle and injects it through Cipó's runtime style tag. */
+  readonly cssDelivery?: 'style-tag' | 'asset'
   readonly transformCssTag?: boolean
   readonly compileFabrica?: boolean
   readonly enabled?: boolean
@@ -27,7 +29,8 @@ export interface CipoViteTransformResult {
 
 const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/
 const DEFAULT_EXCLUDE = /(?:^|[/\\])node_modules(?:[/\\]|$)/
-const VIRTUAL_CSS_ID = '\0cipo:compiled.css'
+const VIRTUAL_CSS_ID = '\0cipo:compiled-style-tag.js'
+const VIRTUAL_CSS_ASSET_ID = '\0cipo:compiled.css'
 
 /** Vite adapter for Cipó/Fábrica compiled mode. */
 export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
@@ -42,11 +45,17 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
 
     resolveId(id) {
       if (id === VIRTUAL_CSS_ID) return VIRTUAL_CSS_ID
+      if (id === VIRTUAL_CSS_ASSET_ID) return VIRTUAL_CSS_ASSET_ID
       return null
     },
 
     load(id) {
-      if (id === VIRTUAL_CSS_ID) return cssChunks.join('\n')
+      if (id === VIRTUAL_CSS_ID) {
+        const css = dedupeCss(cssChunks.join('\n'))
+        const injectionPath = normalizePath(joinPath(root, 'src/cipo/src/injection.ts'))
+        return `import { insertCss } from ${JSON.stringify(injectionPath)};\ninsertCss(${JSON.stringify(css)});\n`
+      }
+      if (id === VIRTUAL_CSS_ASSET_ID) return dedupeCss(cssChunks.join('\n'))
       return null
     },
 
@@ -70,7 +79,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       const cipo = compileCipoSourceBuild(code, {
         filename,
         classPrefix: options.classPrefix,
-        cssImportId: VIRTUAL_CSS_ID,
+        cssImportId: options.cssDelivery === 'asset' ? VIRTUAL_CSS_ASSET_ID : VIRTUAL_CSS_ID,
         transformCssTag: options.transformCssTag ?? true,
       })
 
@@ -94,7 +103,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
 
     generateBundle() {
       const css = dedupeCss(cssChunks.join('\n'))
-      if (css.trim()) {
+      if (options.cssDelivery === 'asset' && css.trim()) {
         this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${css.trim()}\n` })
       }
       if (manifests.length > 0) {
