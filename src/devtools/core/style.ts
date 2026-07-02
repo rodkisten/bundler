@@ -827,8 +827,6 @@ export const devtoolsStyles = sheet.css`
   .roderuda-search-highlight-block { display: inline }
   .roderuda-search-highlight-block .roderuda-keyword { bg: $warningBg; color: $warningFg }
 
-  x:md {
-  }
 
   x:not(xs) {
     .roderuda-tab {
