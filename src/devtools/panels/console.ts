@@ -90,7 +90,7 @@ void devtoolsTokens;
 const ConsoleSurface = styled.div("RodConsoleSurface").css`
   width: 100%;
   height: 100%;
-  padding-bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(25px + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -234,8 +234,8 @@ const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   z-index: 20;
   display: flex;
   align-items: stretch;
-  height: calc(25px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: $safeBottom;
   border-top: 1px solid $border;
   background: $background;
 
@@ -246,7 +246,7 @@ const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   &.roderuda-expanded {
     top: 0;
     height: 100%;
-    padding: 40px 0 calc(44px + env(safe-area-inset-bottom, 0px));
+    padding: 40px 0 calc(44px + $safeBottom);
   }
 `;
 
@@ -290,7 +290,7 @@ const ConsoleCodeEditorHost = styled.div("RodConsoleCodeEditorHost").css`
 const ConsoleEditorActions = styled.div("RodConsoleEditorActions").css`
   position: absolute;
   right: 0;
-  bottom: env(safe-area-inset-bottom, 0px);
+  bottom: $safeBottom;
   left: 0;
   display: none;
   height: 44px;

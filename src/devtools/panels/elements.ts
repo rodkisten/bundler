@@ -1,4 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
+import type { RenderValue } from "../../fabrica";
 import { ConfigStore } from "../core/config";
 import { copyText, debounce, delegate, describeNode, icon, isDevtoolsNode, nodePath, truncate } from "../core/dom";
 import { getEventListeners, installEventListenerRegistry } from "../core/event-listeners";
@@ -6,7 +7,7 @@ import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
 import { devtoolsTokens } from "../core/style";
 import { Tool } from "../tool";
-import { component, event, html, ref, render, styled } from "../components/runtime";
+import { asNode, component, event, html, ref, render, styled } from "../components/runtime";
 import type { ToolContext } from "../types";
 
 interface ElementsConfig {
@@ -28,9 +29,38 @@ type SelectOptions = {
   highlight?: boolean;
 };
 
+type RenderPiece = RenderValue;
+
+type ElementAttributeModel = {
+  name: string;
+  value: string;
+};
+
+type StyleDeclarationModel = {
+  property: string;
+  value: string;
+  priority: string;
+};
+
+type StyleRuleModel = {
+  selector: string;
+  declarations: StyleDeclarationModel[];
+  source?: string;
+  editable: boolean;
+};
+
+type ListenerModel = {
+  type: string;
+  values: readonly { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[];
+};
+
+type PropertyModel = {
+  key: string;
+  value: string;
+};
+
 interface ElementsViewModel {
   setTree(node: HTMLElement | null): void;
-  setTreeWrap(node: HTMLElement | null): void;
   setCrumbs(node: HTMLElement | null): void;
   setDetail(node: HTMLElement | null): void;
   onAction(event: Event): void;
@@ -56,7 +86,7 @@ const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
   height: 100%;
   overflow: hidden;
 
-  @media (min-width: 680px) {
+  x:md {
     width: 50%;
     border-right: 1px solid $border;
   }
@@ -69,7 +99,7 @@ const ElementsControl = styled.div("RodElementsControl").css`
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 40px;
+  height: $$controlHeight;
   padding: 7px 8px;
   border-bottom: 1px solid $border;
   color: $primary;
@@ -93,18 +123,19 @@ const ElementsIconButton = styled.button("RodElementsIconButton").css`
   border-radius: $control;
   color: $primary;
   background: transparent;
-  cursor: pointer;
+  font: inherit;
   font-size: 17px;
+  cursor: pointer;
   transition: color .18s, background .18s, transform .1s;
 
   &:hover {
-    color: $selectedForeground;
     background: $highlight;
+    color: $selectedForeground;
   }
 
   &:active {
-    color: $accent;
     transform: scale(.94);
+    color: $accent;
   }
 
   &[data-active="true"] {
@@ -121,8 +152,8 @@ const ElementsIconButton = styled.button("RodElementsIconButton").css`
 const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
   width: 100%;
   height: 100%;
-  padding-top: 40px;
-  padding-bottom: calc(25px + env(safe-area-inset-bottom, 0px));
+  padding-top: $$controlHeight;
+  padding-bottom: calc(25px + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -140,6 +171,28 @@ const DomTree = styled.div("RodElementsDomTree").css`
   }
 `;
 
+const DomList = styled.ul("RodElementsDomList").css`
+  margin: 0;
+  padding-left: 15px;
+  list-style: none;
+
+  &[data-root="true"] {
+    padding-left: 0;
+  }
+`;
+
+const DomItem = styled.li("RodElementsDomItem").css`
+  margin: 0;
+  padding: 0;
+`;
+
+const DomMoreItem = styled.li("RodElementsDomMoreItem").css`
+  min-height: 20px;
+  padding: 1px 8px 1px 15px;
+  color: $comment;
+  white-space: nowrap;
+`;
+
 const DomRow = styled.div("RodElementsDomRow").css`
   position: relative;
   min-height: 20px;
@@ -152,8 +205,8 @@ const DomRow = styled.div("RodElementsDomRow").css`
   }
 
   &[data-selected="true"] {
-    color: $selectedForeground;
     background: $contrast;
+    color: $selectedForeground;
   }
 `;
 
@@ -188,18 +241,21 @@ const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
   left: 0;
   display: flex;
   align-items: center;
-  height: calc(25px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: $$safeBottom;
   overflow-x: auto;
   border-top: 1px solid $border;
   color: $primary;
   background: $backgroundDark;
   font-size: 11px;
   white-space: nowrap;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 `;
 
 const CrumbButton = styled.button("RodElementsCrumbButton").css`
   appearance: none;
+  flex: 0 0 auto;
   padding: 5px 8px;
   border: 0;
   color: $primary;
@@ -216,14 +272,14 @@ const DetailPanel = styled.section("RodElementsDetailPanel").css`
   inset: 0;
   z-index: 30;
   display: none;
-  padding-top: 40px;
+  padding-top: $$controlHeight;
   background: $background;
 
   &[data-active="true"] {
     display: block;
   }
 
-  @media (min-width: 680px) {
+  x:md {
     right: 0;
     left: auto;
     display: block;
@@ -248,7 +304,7 @@ const DetailTitle = styled.div("RodElementsDetailTitle").css`
 
 const DetailBody = styled.div("RodElementsDetailBody").css`
   height: 100%;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: $$safeBottom;
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -256,10 +312,10 @@ const DetailBody = styled.div("RodElementsDetailBody").css`
 
 const DetailSection = styled.section("RodElementsDetailSection").css`
   margin: 10px 0;
+  overflow: hidden;
   border-top: 1px solid $border;
   border-bottom: 1px solid $border;
   background: $background;
-  overflow: hidden;
 `;
 
 const SectionTitle = styled.button("RodElementsSectionTitle").css`
@@ -274,6 +330,7 @@ const SectionTitle = styled.button("RodElementsSectionTitle").css`
   border-bottom: 1px solid $border;
   color: $primary;
   background: $backgroundDark;
+  font: inherit;
   font-weight: 600;
   text-align: left;
   cursor: pointer;
@@ -312,6 +369,7 @@ const AttributeInput = styled.input("RodElementsAttributeInput").css`
   border-radius: $sm;
   color: $primary;
   background: $background;
+  font: inherit;
   user-select: text;
 `;
 
@@ -320,11 +378,16 @@ const TableWrap = styled.div("RodElementsTableWrap").css`
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  &[data-compact="computed"] {
+    max-height: 300px;
+  }
 `;
 
 const KvTable = styled.table("RodElementsKvTable").css`
   width: 100%;
   border-collapse: collapse;
+  color: inherit;
   font-size: 12px;
 
   td {
@@ -341,7 +404,7 @@ const KvTable = styled.table("RodElementsKvTable").css`
     white-space: nowrap;
   }
 
-  @media (max-width: 519px) {
+  x:xs {
     td:first-child {
       width: 105px;
     }
@@ -370,7 +433,7 @@ const BoxLayer = styled.div("RodElementsBoxLayer").css`
   margin: 5px;
   padding: 7px;
   border: 1px dashed $border;
-  background: mix($highlight, transparent, 55%);
+  background: rgb(255 255 255 / .04);
 
   &[data-layer="margin"] { background: rgb(246 178 107 / .22); }
   &[data-layer="border"] { background: rgb(255 229 153 / .25); }
@@ -391,11 +454,23 @@ const StyleSelector = styled.div("RodElementsStyleSelector").css`
   word-break: break-word;
 `;
 
+const StyleSource = styled.small("RodElementsStyleSource").css`
+  color: $comment;
+`;
+
 const StyleDeclaration = styled.div("RodElementsStyleDeclaration").css`
   display: grid;
   grid-template-columns: minmax(90px, .45fr) minmax(120px, 1fr);
   gap: 6px;
   padding-left: 13px;
+`;
+
+const StyleDeclarationText = styled.span("RodElementsStyleDeclarationText").css`
+  color: $string;
+
+  &[data-kind="property"] {
+    color: $var;
+  }
 `;
 
 const StyleDeclarationInput = styled.input("RodElementsStyleDeclarationInput").css`
@@ -466,6 +541,7 @@ const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
   border-radius: $sm;
   color: inherit;
   background: transparent;
+  font: inherit;
   text-align: left;
   cursor: pointer;
 
@@ -484,6 +560,9 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   ElementsIconButton,
   ElementsTreeWrap,
   DomTree,
+  DomList,
+  DomItem,
+  DomMoreItem,
   DomRow,
   DomToggle,
   DomTag,
@@ -509,7 +588,9 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   BoxLayer,
   StyleRule,
   StyleSelector,
+  StyleSource,
   StyleDeclaration,
+  StyleDeclarationText,
   StyleDeclarationInput,
   ListenerBox,
   ListenerTitle,
@@ -526,51 +607,34 @@ export const elementsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
 
 component("RodElementsView", function RodElementsView(props) {
   const view = props.view as ElementsViewModel;
+
   return html`
     <RodElementsLayout data-elements-layout>
       <RodElementsTreeSide data-elements-tree-side>
         <RodElementsControl data-elements-control>
-          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("back"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>›</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("refresh"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
           <RodElementsControlSpacer />
-          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("inspect"))}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("copy"))}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event((click: Event) => view.onAction(click))}>${html.unsafe(icon("delete"))}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event((click: Event) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
         </RodElementsControl>
-        <RodElementsTreeWrap
-          data-elements-tree-wrap
-          data-roderuda-scroll-key="elements-tree"
-          ref=${ref((node) => {
-            view.setTreeWrap(node as HTMLElement);
-            return () => view.setTreeWrap(null);
-          })}
-          @scroll=${event(() => view.onTreeScroll())}
-        >
-          <RodElementsDomTree
-            data-elements-tree
-            ref=${ref((node) => {
-              view.setTree(node as HTMLElement);
-              return () => view.setTree(null);
-            })}
-          />
+        <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event(() => view.onTreeScroll())}>
+          <RodElementsDomTree data-elements-tree ref=${ref((node) => {
+            view.setTree(node as HTMLElement);
+            return () => view.setTree(null);
+          })} />
         </RodElementsTreeWrap>
-        <RodElementsCrumbs
-          data-elements-crumbs
-          ref=${ref((node) => {
-            view.setCrumbs(node as HTMLElement);
-            return () => view.setCrumbs(null);
-          })}
-        />
+        <RodElementsCrumbs data-elements-crumbs ref=${ref((node) => {
+          view.setCrumbs(node as HTMLElement);
+          return () => view.setCrumbs(null);
+        })} />
       </RodElementsTreeSide>
-      <RodElementsDetailPanel
-        data-elements-detail
-        data-active="false"
-        ref=${ref((node) => {
-          view.setDetail(node as HTMLElement);
-          return () => view.setDetail(null);
-        })}
-      />
+      <RodElementsDetailPanel data-elements-detail data-active="false" ref=${ref((node) => {
+        view.setDetail(node as HTMLElement);
+        return () => view.setDetail(null);
+      })} />
     </RodElementsLayout>
   `;
 });
@@ -586,7 +650,6 @@ export class Elements extends Tool {
   });
 
   private tree: HTMLElement | null = null;
-  private treeWrap: HTMLElement | null = null;
   private crumbs: HTMLElement | null = null;
   private detail: HTMLElement | null = null;
   private selected: Element | null = null;
@@ -615,7 +678,6 @@ export class Elements extends Tool {
 
     const view: ElementsViewModel = {
       setTree: (node) => { this.tree = node; },
-      setTreeWrap: (node) => { this.treeWrap = node; },
       setCrumbs: (node) => { this.crumbs = node; },
       setDetail: (node) => { this.detail = node; },
       onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
@@ -724,7 +786,6 @@ export class Elements extends Tool {
     this.disposeView?.();
     this.disposeView = null;
     this.tree = null;
-    this.treeWrap = null;
     this.crumbs = null;
     this.detail = null;
     super.destroy();
@@ -762,63 +823,48 @@ export class Elements extends Tool {
 
   private renderTree(): void {
     if (!this.tree || !document.documentElement) return;
-    const rootList = document.createElement("ul");
-    rootList.append(this.renderNode(document.documentElement, 0));
-    this.tree.replaceChildren(rootList);
+    render(this.tree, html`<RodElementsDomList data-root="true">${this.renderNode(document.documentElement, 0)}</RodElementsDomList>`);
   }
 
-  private renderNode(node: Node, depth: number): HTMLLIElement {
-    const item = document.createElement("li");
-    const row = styledNode<HTMLDivElement>(DomRow({
-      attrs: {
-        "data-node-id": this.nodeId(node),
-        "data-node-depth": String(depth),
-        "data-selected": String(node === this.selected),
-      },
-    }));
+  private renderNode(node: Node, depth: number): RenderPiece {
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
-    const toggle = styledNode<HTMLSpanElement>(DomToggle({
-      attrs: expandable ? { "data-toggle-node": "" } : undefined,
-      children: expandable ? (this.expanded.has(node) ? "▾" : "▸") : "",
-    }));
-    row.append(toggle, this.renderNodeLabel(node));
-    item.append(row);
+    const expanded = this.expanded.has(node);
+    const limited = children.slice(0, 300);
+    const moreCount = children.length - limited.length;
 
-    if (expandable && this.expanded.has(node)) {
-      const list = document.createElement("ul");
-      const limited = children.slice(0, 300);
-      for (const child of limited) list.append(this.renderNode(child, depth + 1));
-      if (children.length > limited.length) {
-        const more = document.createElement("li");
-        more.textContent = `… ${children.length - limited.length} more nodes`;
-        list.append(more);
-      }
-      item.append(list);
-    }
-    return item;
+    return html`
+      <RodElementsDomItem>
+        <RodElementsDomRow data-node-id=${this.nodeId(node)} data-node-depth=${String(depth)} data-selected=${String(node === this.selected)}>
+          <RodElementsDomToggle data-toggle-node=${expandable ? "" : null}>${expandable ? (expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
+          ${this.renderNodeLabel(node)}
+        </RodElementsDomRow>
+        ${expandable && expanded ? html`
+          <RodElementsDomList>
+            ${limited.map((child) => this.renderNode(child, depth + 1))}
+            ${moreCount > 0 ? html`<RodElementsDomMoreItem>… ${moreCount} more nodes</RodElementsDomMoreItem>` : ""}
+          </RodElementsDomList>
+        ` : ""}
+      </RodElementsDomItem>
+    `;
   }
 
-  private renderNodeLabel(node: Node): Node {
+  private renderNodeLabel(node: Node): RenderPiece {
     if (node.nodeType === Node.TEXT_NODE) {
-      return styledNode<HTMLSpanElement>(DomText({ children: `"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"` }));
+      return html`<RodElementsDomText>"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"</RodElementsDomText>`;
     }
     if (node.nodeType === Node.COMMENT_NODE) {
-      return styledNode<HTMLSpanElement>(DomText({ children: `<!--${truncate(node.textContent || "", 120)}-->` }));
+      return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 120)}--&gt;</RodElementsDomText>`;
     }
-    if (!(node instanceof Element)) return document.createTextNode(node.nodeName);
+    if (!(node instanceof Element)) return node.nodeName;
 
-    const fragment = document.createDocumentFragment();
-    fragment.append(styledNode<HTMLSpanElement>(DomTag({ children: `<${node.tagName.toLowerCase()}` })));
-    for (const attribute of Array.from(node.attributes).slice(0, 12)) {
-      fragment.append(document.createTextNode(" "));
-      fragment.append(styledNode<HTMLSpanElement>(DomAttrName({ children: attribute.name })));
-      fragment.append(document.createTextNode('="'));
-      fragment.append(styledNode<HTMLSpanElement>(DomAttrValue({ children: truncate(attribute.value, 100) })));
-      fragment.append(document.createTextNode('"'));
-    }
-    fragment.append(styledNode<HTMLSpanElement>(DomTag({ children: ">" })));
-    return fragment;
+    return html`
+      <RodElementsDomTag>&lt;${node.tagName.toLowerCase()}</RodElementsDomTag>
+      ${Array.from(node.attributes).slice(0, 12).map((attribute) => html`
+        ${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 100)}</RodElementsDomAttrValue>"
+      `)}
+      <RodElementsDomTag>&gt;</RodElementsDomTag>
+    `;
   }
 
   private visibleChildren(node: Node): Node[] {
@@ -838,14 +884,12 @@ export class Elements extends Tool {
       elements.unshift(current);
       current = current.parentElement;
     }
-    this.crumbs.replaceChildren(...elements.map((element, index) => styledNode<HTMLButtonElement>(CrumbButton({
-      type: "button",
-      attrs: {
-        "data-crumb-index": String(index),
-        "data-current": String(index === elements.length - 1),
-      },
-      children: crumbLabel(element),
-    }))));
+
+    render(this.crumbs, html`
+      ${elements.map((element, index) => html`
+        <RodElementsCrumbButton type="button" data-crumb-index=${String(index)} data-current=${String(index === elements.length - 1)}>${crumbLabel(element)}</RodElementsCrumbButton>
+      `)}
+    `);
     this.crumbs.dataset.crumbPath = elements.map((element) => this.nodeId(element)).join(",");
     this.crumbs.scrollLeft = this.crumbs.scrollWidth;
   }
@@ -858,44 +902,53 @@ export class Elements extends Tool {
   private renderDetail(): void {
     const element = this.selected;
     if (!this.detail || !element) return;
+
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     const matchedRules = getMatchedRules(element);
-    const listeners = getEventListeners(element);
-    const attributes = Array.from(element.attributes);
+    const listeners = listenerModels(getEventListeners(element));
+    const attributes = Array.from(element.attributes).map((attribute) => ({ name: attribute.name, value: attribute.value }));
+    const rules = styleRuleModels(element, matchedRules);
+    const properties = propertyModels(element);
 
-    const control = styledNode<HTMLDivElement>(ElementsControl());
-    control.append(
-      iconButton("back", "close-detail", "Back"),
-      styledNode<HTMLDivElement>(DetailTitle({ children: describeNode(element) })),
-      iconButton("refresh", "refresh-detail", "Refresh"),
-    );
-
-    const body = styledNode<HTMLDivElement>(DetailBody());
-    body.append(
-      this.detailSection("Attributes", "attributes", attributesHtml(attributes)),
-      this.detailSection("Text Content", "text", preBlock(element.textContent || "")),
-      this.detailSection("Box Model", "box", boxModelNode(style, rect)),
-      this.detailSection("Computed Style", "computed", computedStyleNode(style)),
-      this.detailSection("Styles", "styles", stylesNode(element, matchedRules)),
-      this.detailSection("Event Listeners", "listeners", listenersNode(listeners)),
-      this.detailSection("Properties", "properties", propertiesNode(element)),
-    );
-
-    this.detail.replaceChildren(control, body);
+    render(this.detail, html`
+      <RodElementsControl data-elements-detail-control>
+        <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event((click: Event) => this.handleAction(click, click.currentTarget as HTMLElement))}>${icon("back")}</RodElementsIconButton>
+        <RodElementsDetailTitle>${describeNode(element)}</RodElementsDetailTitle>
+        <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event((click: Event) => this.handleAction(click, click.currentTarget as HTMLElement))}>${icon("refresh")}</RodElementsIconButton>
+      </RodElementsControl>
+      <RodElementsDetailBody>
+        ${this.detailSection("Attributes", "attributes", this.attributesTemplate(attributes))}
+        ${this.detailSection("Text Content", "text", html`<RodElementsPreBlock>${element.textContent || ""}</RodElementsPreBlock>`)}
+        ${this.detailSection("Box Model", "box", boxModelTemplate(style, rect))}
+        ${this.detailSection("Computed Style", "computed", computedStyleTemplate(style))}
+        ${this.detailSection("Styles", "styles", stylesTemplate(rules))}
+        ${this.detailSection("Event Listeners", "listeners", listenersTemplate(listeners))}
+        ${this.detailSection("Properties", "properties", propertiesTemplate(properties))}
+      </RodElementsDetailBody>
+    `);
     this.detail.dataset.active = "true";
   }
 
-  private detailSection(title: string, name: string, content: Node): HTMLElement {
-    const section = styledNode<HTMLElement>(DetailSection({ attrs: { "data-section": name } }));
-    const titleButton = styledNode<HTMLButtonElement>(SectionTitle({
-      type: "button",
-      attrs: { "data-detail-section": name },
-      children: [document.createTextNode(title), styledNode<HTMLSpanElement>(SectionActions({ children: "▾" }))],
-    }));
-    const contentElement = styledNode<HTMLDivElement>(SectionContent({ children: content }));
-    section.append(titleButton, contentElement);
-    return section;
+  private detailSection(title: string, name: string, content: RenderPiece): RenderPiece {
+    return html`
+      <RodElementsDetailSection data-section=${name}>
+        <RodElementsSectionTitle type="button" data-detail-section=${name}>
+          <span>${title}</span>
+          <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
+        </RodElementsSectionTitle>
+        <RodElementsSectionContent data-section-content>${content}</RodElementsSectionContent>
+      </RodElementsDetailSection>
+    `;
+  }
+
+  private attributesTemplate(attributes: ElementAttributeModel[]): RenderPiece {
+    return html`
+      <RodElementsAttributesGrid>
+        ${attributes.map((attribute) => attributeTemplate(attribute.name, attribute.value))}
+        ${attributeTemplate("", "", true)}
+      </RodElementsAttributesGrid>
+    `;
   }
 
   private handleTreeScroll(): void {
@@ -1012,13 +1065,6 @@ export class Elements extends Tool {
 
   private openContextMenu(element: Element, x: number, y: number): void {
     this.closeContextMenu();
-    const menu = styledNode<HTMLDivElement>(ElementsMenu({
-      attrs: {
-        role: "menu",
-        "data-elements-menu": "",
-        "data-node-id": this.nodeId(element),
-      },
-    }));
     const actions = [
       ["copy-element", "Copy element"],
       ["copy-selector", "Copy selector"],
@@ -1027,13 +1073,15 @@ export class Elements extends Tool {
       ["edit-class", "Edit class"],
       ["delete-element", "Delete element"],
     ] as const;
-    for (const [action, label] of actions) {
-      menu.append(styledNode<HTMLButtonElement>(ElementsMenuButton({
-        type: "button",
-        attrs: { role: "menuitem", "data-elements-menu-action": action },
-        children: label,
-      })));
-    }
+
+    const menu = asNode(html`
+      <RodElementsMenu role="menu" data-elements-menu data-node-id=${this.nodeId(element)}>
+        ${actions.map(([action, label]) => html`
+          <RodElementsMenuButton type="button" role="menuitem" data-elements-menu-action=${action}>${label}</RodElementsMenuButton>
+        `)}
+      </RodElementsMenu>
+    `) as HTMLElement;
+
     this.contextMenu = menu;
     this.context?.root.append(menu);
     const rect = menu.getBoundingClientRect();
@@ -1338,147 +1386,121 @@ export class Elements extends Tool {
   }
 }
 
-function styledNode<T extends Element>(node: unknown): T {
-  return node as T;
-}
-
-function iconButton(iconName: string, action: string, title: string): HTMLButtonElement {
-  const button = styledNode<HTMLButtonElement>(ElementsIconButton({
-    type: "button",
-    title,
-    attrs: { "data-action": action },
-  }));
-  button.innerHTML = icon(iconName);
-  return button;
-}
-
 function crumbLabel(element: Element): string {
   return `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${Array.from(element.classList).slice(0, 1).map((name) => `.${name}`).join("")}`;
 }
 
-function attributesHtml(attributes: Attr[]): HTMLElement {
-  const grid = styledNode<HTMLDivElement>(AttributesGrid());
-  for (const attribute of attributes) grid.append(attributeRow(attribute.name, attribute.value));
-  grid.append(attributeRow("", "", true));
-  return grid;
+function attributeTemplate(name: string, value: string, empty = false): RenderPiece {
+  return html`
+    <RodElementsAttributeRow data-attribute-row data-original-name=${name}>
+      <RodElementsAttributeInput data-attribute-name .value=${name} placeholder="attribute" />
+      <RodElementsAttributeInput data-attribute-value .value=${value} placeholder="value" />
+      <RodElementsIconButton type="button" title=${empty ? "Add" : "Remove"} data-remove-attribute>${empty ? "+" : "×"}</RodElementsIconButton>
+    </RodElementsAttributeRow>
+  `;
 }
 
-function attributeRow(name: string, value: string, empty = false): HTMLElement {
-  const row = styledNode<HTMLDivElement>(AttributeRow({
-    attrs: {
-      "data-attribute-row": "",
-      "data-original-name": name,
-    },
-  }));
-  row.append(
-    styledNode<HTMLInputElement>(AttributeInput({ attrs: { "data-attribute-name": "" }, value: name, placeholder: "attribute" })),
-    styledNode<HTMLInputElement>(AttributeInput({ attrs: { "data-attribute-value": "" }, value, placeholder: "value" })),
-    styledNode<HTMLButtonElement>(ElementsIconButton({
-      type: "button",
-      title: empty ? "Add" : "Remove",
-      attrs: { "data-remove-attribute": "" },
-      children: empty ? "+" : "×",
-    })),
-  );
-  return row;
-}
-
-function preBlock(value: string): HTMLElement {
-  return styledNode<HTMLElement>(PreBlock({ children: value }));
-}
-
-function boxModelNode(style: CSSStyleDeclaration, rect: DOMRect): HTMLElement {
+function boxModelTemplate(style: CSSStyleDeclaration, rect: DOMRect): RenderPiece {
   const values = (prefix: string, suffix = "") => ["top", "right", "bottom", "left"].map((side) => style.getPropertyValue(`${prefix}-${side}${suffix}`) || "0px").join(" · ");
   const contentWidth = Math.max(0, rect.width - number(style.paddingLeft) - number(style.paddingRight) - number(style.borderLeftWidth) - number(style.borderRightWidth));
   const contentHeight = Math.max(0, rect.height - number(style.paddingTop) - number(style.paddingBottom) - number(style.borderTopWidth) - number(style.borderBottomWidth));
 
-  const wrap = styledNode<HTMLDivElement>(TableWrap());
-  const model = styledNode<HTMLDivElement>(BoxModel());
-  const margin = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "margin" }, children: `margin ${values("margin")}` }));
-  const border = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "border" }, children: `border ${values("border", "-width")}` }));
-  const padding = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "padding" }, children: `padding ${values("padding")}` }));
-  const content = styledNode<HTMLDivElement>(BoxLayer({ attrs: { "data-layer": "content" }, children: `${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}` }));
-  padding.append(content);
-  border.append(padding);
-  margin.append(border);
-  model.append(margin);
-  wrap.append(model);
-  return wrap;
+  return html`
+    <RodElementsTableWrap>
+      <RodElementsBoxModel>
+        <RodElementsBoxLayer data-layer="margin">
+          margin ${values("margin")}
+          <RodElementsBoxLayer data-layer="border">
+            border ${values("border", "-width")}
+            <RodElementsBoxLayer data-layer="padding">
+              padding ${values("padding")}
+              <RodElementsBoxLayer data-layer="content">${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}</RodElementsBoxLayer>
+            </RodElementsBoxLayer>
+          </RodElementsBoxLayer>
+        </RodElementsBoxLayer>
+      </RodElementsBoxModel>
+    </RodElementsTableWrap>
+  `;
 }
 
-function computedStyleNode(style: CSSStyleDeclaration): HTMLElement {
-  const wrap = styledNode<HTMLDivElement>(TableWrap({ style: { "max-height": "300px" } }));
-  const table = styledNode<HTMLTableElement>(KvTable());
-  const body = document.createElement("tbody");
-  for (const property of Array.from(style).sort()) body.append(tableRow(property, style.getPropertyValue(property)));
-  table.append(body);
-  wrap.append(table);
-  return wrap;
+function computedStyleTemplate(style: CSSStyleDeclaration): RenderPiece {
+  return html`
+    <RodElementsTableWrap data-compact="computed">
+      <RodElementsKvTable>
+        <tbody>
+          ${Array.from(style).sort().map((property) => html`<tr><td>${property}</td><td>${style.getPropertyValue(property)}</td></tr>`)}
+        </tbody>
+      </RodElementsKvTable>
+    </RodElementsTableWrap>
+  `;
 }
 
-function stylesNode(element: Element, rules: StyleRuleInfo[]): HTMLElement {
-  const fragment = document.createDocumentFragment();
+function stylesTemplate(rules: StyleRuleModel[]): RenderPiece {
+  return html`
+    <div>
+      ${rules.map((rule) => html`
+        <RodElementsStyleRule>
+          <RodElementsStyleSelector>
+            ${rule.selector}${rule.source ? html`<RodElementsStyleSource> ${rule.source}</RodElementsStyleSource>` : ""}
+          </RodElementsStyleSelector>
+          ${rule.declarations.map((declaration) => html`
+            <RodElementsStyleDeclaration data-style-declaration=${rule.editable ? "" : null} data-original-property=${rule.editable ? declaration.property : null}>
+              ${rule.editable ? html`
+                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" />
+                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" />
+              ` : html`
+                <RodElementsStyleDeclarationText data-kind="property">${declaration.property}</RodElementsStyleDeclarationText>
+                <RodElementsStyleDeclarationText>${declaration.value}${declaration.priority ? " !important" : ""}</RodElementsStyleDeclarationText>
+              `}
+            </RodElementsStyleDeclaration>
+          `)}
+        </RodElementsStyleRule>
+      `)}
+    </div>
+  `;
+}
+
+function listenersTemplate(listeners: ListenerModel[]): RenderPiece {
+  if (!listeners.length) return html`<RodElementsEmptyState>No tracked listeners.</RodElementsEmptyState>`;
+
+  return html`
+    <div>
+      ${listeners.map((entry) => html`
+        <RodElementsListenerBox>
+          <RodElementsListenerTitle>${entry.type} (${entry.values.length})</RodElementsListenerTitle>
+          ${entry.values.map((value) => html`<RodElementsListenerPre>${listenerText(value.listener)}\noptions: ${JSON.stringify(value.options ?? false)}</RodElementsListenerPre>`)}
+        </RodElementsListenerBox>
+      `)}
+    </div>
+  `;
+}
+
+function propertiesTemplate(properties: PropertyModel[]): RenderPiece {
+  return html`
+    <RodElementsTableWrap>
+      <RodElementsKvTable>
+        <tbody>
+          ${properties.map((property) => html`<tr><td>${property.key}</td><td>${property.value}</td></tr>`)}
+        </tbody>
+      </RodElementsKvTable>
+    </RodElementsTableWrap>
+  `;
+}
+
+function styleRuleModels(element: Element, rules: StyleRuleInfo[]): StyleRuleModel[] {
   const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({
     property,
     value: (element as HTMLElement).style.getPropertyValue(property),
     priority: (element as HTMLElement).style.getPropertyPriority(property),
   }));
-  const allRules = [{ selector: "element.style", declarations: [...inline, { property: "", value: "", priority: "" }] }, ...rules];
-
-  allRules.forEach((rule, ruleIndex) => {
-    const ruleElement = styledNode<HTMLDivElement>(StyleRule());
-    const selector = styledNode<HTMLDivElement>(StyleSelector());
-    selector.textContent = rule.selector;
-    if (rule.source) {
-      const small = document.createElement("small");
-      small.textContent = ` ${rule.source}`;
-      selector.append(small);
-    }
-    ruleElement.append(selector);
-
-    for (const declaration of rule.declarations) {
-      const declarationElement = styledNode<HTMLDivElement>(StyleDeclaration({
-        attrs: ruleIndex === 0 ? { "data-style-declaration": "", "data-original-property": declaration.property } : undefined,
-      }));
-      if (ruleIndex === 0) {
-        declarationElement.append(
-          styledNode<HTMLInputElement>(StyleDeclarationInput({ attrs: { "data-style-property": "", "data-kind": "property" }, value: declaration.property, placeholder: "property" })),
-          styledNode<HTMLInputElement>(StyleDeclarationInput({ attrs: { "data-style-value": "" }, value: `${declaration.value}${declaration.priority ? " !important" : ""}`, placeholder: "value" })),
-        );
-      } else {
-        const property = document.createElement("span");
-        const value = document.createElement("span");
-        property.textContent = declaration.property;
-        value.textContent = `${declaration.value}${declaration.priority ? " !important" : ""}`;
-        declarationElement.append(property, value);
-      }
-      ruleElement.append(declarationElement);
-    }
-    fragment.append(ruleElement);
-  });
-
-  const container = document.createElement("div");
-  container.append(fragment);
-  return container;
+  return [
+    { selector: "element.style", declarations: [...inline, { property: "", value: "", priority: "" }], editable: true },
+    ...rules.map((rule) => ({ ...rule, editable: false })),
+  ];
 }
 
-function listenersNode(listeners: Readonly<Record<string, readonly { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[]>>): HTMLElement {
-  const container = document.createElement("div");
-  const entries = Object.entries(listeners);
-  if (!entries.length) {
-    container.append(styledNode<HTMLDivElement>(EmptyState({ children: "No tracked listeners." })));
-    return container;
-  }
-
-  for (const [type, values] of entries) {
-    const box = styledNode<HTMLDivElement>(ListenerBox());
-    box.append(styledNode<HTMLElement>(ListenerTitle({ children: `${type} (${values.length})` })));
-    for (const value of values) {
-      box.append(styledNode<HTMLPreElement>(ListenerPre({ children: `${listenerText(value.listener)}\noptions: ${JSON.stringify(value.options ?? false)}` })));
-    }
-    container.append(box);
-  }
-  return container;
+function listenerModels(listeners: Readonly<Record<string, readonly { listener: EventListenerOrEventListenerObject; options?: boolean | AddEventListenerOptions }[]>>): ListenerModel[] {
+  return Object.entries(listeners).map(([type, values]) => ({ type, values }));
 }
 
 function listenerText(listener: EventListenerOrEventListenerObject): string {
@@ -1486,30 +1508,15 @@ function listenerText(listener: EventListenerOrEventListenerObject): string {
   return listener.handleEvent?.toString() || String(listener);
 }
 
-function propertiesNode(element: Element): HTMLElement {
-  const wrap = styledNode<HTMLDivElement>(TableWrap());
-  const table = styledNode<HTMLTableElement>(KvTable());
-  const body = document.createElement("tbody");
-  body.append(tableRow("selector", nodePath(element)));
+function propertyModels(element: Element): PropertyModel[] {
+  const rows: PropertyModel[] = [{ key: "selector", value: nodePath(element) }];
   const keys = Reflect.ownKeys(element).slice(0, 100);
   for (const key of keys) {
     let value: unknown;
     try { value = Reflect.get(element, key); } catch (error) { value = error; }
-    body.append(tableRow(String(key), truncate(plainText(value), 300)));
+    rows.push({ key: String(key), value: truncate(plainText(value), 300) });
   }
-  table.append(body);
-  wrap.append(table);
-  return wrap;
-}
-
-function tableRow(key: string, value: string): HTMLTableRowElement {
-  const row = document.createElement("tr");
-  const keyCell = document.createElement("td");
-  const valueCell = document.createElement("td");
-  keyCell.textContent = key;
-  valueCell.textContent = value;
-  row.append(keyCell, valueCell);
-  return row;
+  return rows;
 }
 
 function getMatchedRules(element: Element): StyleRuleInfo[] {
