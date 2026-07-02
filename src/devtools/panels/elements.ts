@@ -128,8 +128,8 @@ export class Elements extends Tool {
 
   override destroy(): void {
     this.stopPicker();
+    this.cancelLongPress();
     this.closeContextMenu();
-    this.highlighter?.destroy();
     this.highlighter = null;
     this.observer?.disconnect();
     this.observer = null;
@@ -325,6 +325,7 @@ export class Elements extends Tool {
     this.longPressTimer = window.setTimeout(() => {
       this.select(node);
       this.openContextMenu(node, this.longPressPoint?.x ?? event.clientX, this.longPressPoint?.y ?? event.clientY);
+      this.cancelLongPress();
     }, 550);
   }
 

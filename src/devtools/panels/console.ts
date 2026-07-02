@@ -958,9 +958,8 @@ function appendHistory(history: readonly string[], code: string): string[] {
 }
 
 function consoleCompletions(context: { matchBefore(pattern: RegExp): { from: number; text: string } | null }): { from: number; options: Array<{ label: string; type?: string; detail?: string }> } | null {
-  const word = context.matchBefore(/[$\w.]*$/);
-  if (!word || (word.from === word.text.length && !word.text)) return null;
-  const options = new Map<string, { label: string; type?: string; detail?: string }>();
+  const word = context.matchBefore(/[$\w.]+$/);
+  if (!word) return null;
   const add = (label: string, type = "variable", detail = "") => { if (label) options.set(label, { label, type, detail }); };
   for (const label of ["$", "$$", "$0", "$_", "window", "document", "console", "localStorage", "sessionStorage", "devtools"]) add(label, "variable");
 
