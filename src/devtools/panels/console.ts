@@ -957,17 +957,26 @@ function appendHistory(history: readonly string[], code: string): string[] {
   return next.slice(-HISTORY_LIMIT);
 }
 
-function consoleCompletions(context: { matchBefore(pattern: RegExp): { from: number; text: string } | null }): { from: number; options: Array<{ label: string; type?: string; detail?: string }> } | null {
+function consoleCompletions(context: { 
+    matchBefore(pattern: RegExp): { from: number; text: string } | null }
+    ): { from: number; options: Array<{ label: string; type?: string; detail?: string }> } | null {
+  const options = new Map<string, { label: string; type?: string; detail?: string }>();
   const word = context.matchBefore(/[$\w.]+$/);
+  
   if (!word) return null;
+  
   const add = (label: string, type = "variable", detail = "") => { if (label) options.set(label, { label, type, detail }); };
-  for (const label of ["$", "$$", "$0", "$_", "window", "document", "console", "localStorage", "sessionStorage", "devtools"]) add(label, "variable");
+  for (const label of ["$", "$$", "$0", "$_", "window", "document", "console", "localStorage", "sessionStorage", "devtools"]) { 
+    add(label, "variable"); 
+  }
 
   const dot = word.text.lastIndexOf(".");
+ 
   if (dot >= 0) {
     const rootName = word.text.slice(0, dot);
     const prefix = word.text.slice(dot + 1);
     const root = resolveCompletionRoot(rootName);
+   
     if (root) {
       for (const key of collectPropertyNames(root, prefix)) add(key, "property", rootName);
       return { from: word.from + dot + 1, options: [...options.values()].filter((item) => item.label.startsWith(prefix)).slice(0, 100) };
