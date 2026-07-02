@@ -14,7 +14,7 @@ import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
 import { DevTools } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
 import { Console, consoleStyleArtifacts } from "./panels/console";
-import { Elements } from "./panels/elements";
+import { Elements, elementsStyleArtifacts } from "./panels/elements";
 import { Info } from "./panels/info";
 import { Network } from "./panels/network";
 import { Resources } from "./panels/resources";
@@ -144,7 +144,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
     this.refs = renderShell(this.rootTarget, options.inline === true);
     debugLog("runtime", "shell rendered");
-    this.style = installDevtoolsStyles(this.rootTarget);
+    this.style = installDevtoolsStyles(this.rootTarget, [...consoleStyleArtifacts, ...elementsStyleArtifacts]);
     debugLog("runtime", "styles installed", { style: this.style, root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light" });
     this.chobitsu.setHost(this.host);
     this.devtools = new DevTools(this.host, this.shadowRoot, this.refs, options.inline === true, options.defaults);
