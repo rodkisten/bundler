@@ -430,7 +430,7 @@ function emitNode(node: ParsedNode): string {
 }
 
 function emitChild(child: ParsedChild): string {
-  return child.type === 'text' ? JSON.stringify(collapseWhitespace(child.value)) : emitNode(child)
+  return child.type === 'text' ? JSON.stringify(child.value) : emitNode(child)
 }
 
 function emitCompiledTemplateExpression(strings: readonly string[], expressions: readonly string[]): string {
