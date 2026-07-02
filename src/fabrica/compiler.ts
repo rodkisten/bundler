@@ -243,7 +243,7 @@ function appendCompiledNode(parent: Node, node: RuntimeNode, values: readonly Re
     return
   }
 
-  const element = document.createElement(node.tag)
+  const element = /^(svg|path|circle|rect|line|polyline|polygon|ellipse|g|defs|symbol|use|text|tspan|linearGradient|radialGradient|stop|clipPath|mask)$/i.test(node.tag) ? document.createElementNS('http://www.w3.org/2000/svg', node.tag) : document.createElement(node.tag)
   const props: Record<string, unknown> = {}
 
   for (const prop of node.props) {
