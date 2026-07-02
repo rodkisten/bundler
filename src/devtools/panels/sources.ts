@@ -202,16 +202,13 @@ export class Sources extends Tool {
     const sources = collectSources();
     this.renderedText = sources.map((source) => `${source.type}\t${source.title}`).join("\n");
     this.body.innerHTML = `<div class="roderuda-source-breadcrumb">All sources</div><ul class="roderuda-link-list">${sources.map((source, index) => `<li><button class="roderuda-text-btn" type="button" data-source-index="${index}">${escapeHtml(source.type)} · ${escapeHtml(source.title)}</button></li>`).join("")}</ul>`;
-    this.body.dataset.sourcesIndex = JSON.stringify(sources);
   }
 
   private openIndexedSource(event: Event, element: HTMLElement): void {
     event.preventDefault();
-    try {
-      const sources = JSON.parse(this.body?.dataset.sourcesIndex || "[]") as SourcePayload[];
-      const source = sources[Number(element.dataset.sourceIndex)];
-      if (source) this.set(source);
-    } catch {}
+    const sources = collectSources();
+    const source = sources[Number(element.dataset.sourceIndex)];
+    if (source) this.set(source);
   }
 }
 
