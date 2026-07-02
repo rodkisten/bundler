@@ -4,6 +4,7 @@ import { getEventListeners, installEventListenerRegistry } from "../core/event-l
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
+import { component, event, html, ref, render, styled } from "../components/runtime";
 import type { ToolContext } from "../types";
 
 interface ElementsConfig {
