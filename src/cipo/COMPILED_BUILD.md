@@ -1,13 +1,16 @@
 # Cipó + Fábrica compiled build mode
 
-Compiled build mode turns the existing Cipó/Fábrica authoring model into production assets:
+Compiled build mode keeps the authoring model exactly the same and moves the expensive work out of the hot path:
 
 - Cipó `styled.*(...).css\`...\`` blocks become deterministic class names.
-- The generated CSS is emitted by Vite as a real `.css` asset.
-- Fábrica static `html\`...\`` / `jsx.html\`...\`` templates are lowered to `document.createElement` helpers when the template is safe to compile.
-- Dynamic/complex templates stay on the current runtime compiler path.
+- The generated CSS is real Cipó CSS compiled by the existing runtime compiler.
+- By default, Vite bundles that CSS as a virtual JS module and injects it with `insertCss()`, so the browser still receives the same runtime `<style id="cipo-runtime-style">` behavior.
+- `cssDelivery: 'asset'` is available when a separate `.css` file is wanted.
+- Fábrica `html\`...\`` / `jsx.html\`...\`` templates are lowered to `document.createElement` helpers where safe.
+- Dynamic templates use `createCompiledTemplate(...)`, which parses the static HTML once and hydrates values through Fábrica runtime primitives.
+- Unsupported or risky Fábrica shapes fall back to `html\`...\`` inside the helper, preserving all current runtime behavior.
 
-The important design point: this is not a second CSS engine. The build compiler calls the existing Cipó compiler, so helpers, aliases, nesting, variants, theme config and formatting stay aligned with runtime behavior.
+The important design point: **this is not a second engine**. Cipó build mode calls the existing stylesheet compiler. Fábrica build mode delegates props, events and children to `applyProps`, `bindEvent` and `appendValue`.
 
 ## Vite usage
 
@@ -19,11 +22,21 @@ export default defineConfig({
   plugins: [
     cipoVite({
       mode: 'build',
-      cssFileName: 'devtools.compiled.css',
+      cssDelivery: 'style-tag', // default: compiled CSS is injected through Cipó runtime style tag
       compileFabrica: true,
       transformCssTag: true,
     }),
   ],
+})
+```
+
+To emit a physical CSS asset instead:
+
+```ts
+cipoVite({
+  mode: 'build',
+  cssDelivery: 'asset',
+  cssFileName: 'devtools.compiled.css',
 })
 ```
 
@@ -40,54 +53,73 @@ const Panel = styled.div('Panel').css`
 `
 ```
 
-## Build output shape
+## Default build output shape
 
 ```ts
-import '\0cipo:compiled.css'
+import '\0cipo:compiled-style-tag.js'
 
 const Panel = styled.div('Panel')('cp-Panel-abcd123')
 ```
 
-and the Vite asset contains CSS similar to:
+The virtual style module is JS, not a CSS file:
 
-```css
+```ts
+import { insertCss } from './src/cipo/src/injection'
+
+insertCss(`
 .cp-Panel-abcd123{display:flex;gap:8px;}
 .cp-Panel-abcd123:hover{opacity:0.9;}
+`)
 ```
+
+That keeps build mode hydrated with the same `<style>` tag and dedupe behavior used by runtime mode.
 
 ## Fábrica input
 
 ```ts
-const view = html`<button class="save">Salvar</button>`
+const view = html`<button class="save" @click=${save}>Salvar</button>`
 ```
 
 ## Fábrica build output shape
 
 ```ts
-import { createCompiledElement } from './fabrica/compiler'
+import { createCompiledElement, createCompiledTemplate } from './fabrica/compiler'
 
+const view = createCompiledTemplate([
+  '<button class="save" @click=',
+  '>Salvar</button>',
+] as unknown as TemplateStringsArray, save)
+```
+
+For fully static single-root templates, the compiler can lower further:
+
+```ts
 const view = createCompiledElement('button', { class: 'save' }, 'Salvar')
 ```
 
-The helper uses `document.createElement`, applies props/events with Fábrica semantics and appends children with the existing `appendValue` pipeline. That keeps directives, arrays, nodes and component outputs compatible when they appear as children from compiled code.
+## Runtime reuse contract
 
-## Safety rules
+Compiled Fábrica helpers intentionally call existing runtime code:
 
-The compiler only rewrites templates it can prove are static enough:
+| Feature | Runtime primitive reused |
+|---|---|
+| `@click`, `@input.prevent`, delegated modifiers | `bindEvent()` |
+| `class`, `style`, `attrs`, `dataset`, `on` maps | `applyProps()` |
+| children, arrays, DOM nodes, raw HTML, component output, directives | `appendValue()` |
+| unsupported component-tag syntax or risky templates | `html()` fallback |
 
-- static Cipó CSS templates compile to CSS assets;
-- dynamic Cipó CSS templates with `${...}` stay on runtime;
-- simple single-root Fábrica HTML compiles to createElement;
-- components, spreads, comments, `<template>`, interpolations and complex templates stay on runtime.
-
-This makes the mode production-safe by default: when uncertain, the compiler preserves the current runtime behavior.
+This keeps `@evento` behavior aligned with runtime and avoids maintaining a shadow implementation.
 
 ## DevTools build
 
-The repository build script now routes the `devtools` root entry through Vite:
+The repository build script routes the `devtools` root entry through Vite and scopes the transform to `src/devtools/**`:
 
 ```txt
-src/devtools.ts -> Vite -> cipoVite({ mode: 'build' })
+src/devtools.ts -> Vite -> cipoVite({
+  mode: 'build',
+  cssDelivery: 'style-tag',
+  compileFabrica: true,
+})
 ```
 
 The build emits:
@@ -95,6 +127,7 @@ The build emits:
 ```txt
 dist/devtools.iife.js
 dist/devtools.iife.min.js
-dist/devtools.compiled.css
 dist/cipo.compiled.manifest.json
 ```
+
+No CSS file is emitted by default because the compiled CSS is hydrated through Cipó's runtime style tag. Use `cssDelivery: 'asset'` when you explicitly want a real asset next to the bundle.
