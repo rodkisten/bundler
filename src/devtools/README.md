@@ -40,3 +40,85 @@ The default export also exposes the compatibility aliases `eruda`, `chobitsu`, a
 ## Bundler output
 
 The implementation lives in `src/devtools/`. The thin `src/devtools.ts` root entry follows the same pattern as Cipo, Fábrica and Broto, allowing the existing discovery pipeline to emit the `devtools` IIFE and ESM artifacts.
+
+## Initialization options
+
+`devtools.init(options)` accepts every runtime-level option and can also patch DevTools and panel configs before panels mount.
+
+```ts
+devtools.init({
+  container: document.querySelector("#debug-root") ?? undefined,
+  tool: ["console", "elements", "network", "resources"],
+  autoScale: true,
+  useShadowDom: true,
+  inline: false,
+  defaults: {
+    transparency: 0.95,
+    displaySize: 80,
+    theme: "System preference",
+  },
+  config: {
+    devtools: {
+      transparency: 0.95,
+      displaySize: 80,
+      theme: "AMOLED",
+      panelOrder: ["console", "elements", "network"],
+      disabledPanels: [],
+    },
+    panels: {
+      console: {
+        asyncRender: true,
+        jsExecution: true,
+        catchGlobalErr: true,
+        overrideConsole: true,
+        displayExtraInfo: false,
+        displayUnenumerable: true,
+        displayGetterVal: false,
+        lazyEvaluation: true,
+        displayIfErr: true,
+        maxLogNum: "250",
+      },
+      elements: {
+        overrideEventTarget: true,
+        observeElement: true,
+        showWhitespace: false,
+      },
+      network: {
+        preserveLog: true,
+        captureResponseBody: true,
+        filter: "",
+      },
+      resources: {
+        hideDevtoolsSetting: true,
+        observeElement: true,
+      },
+      sources: {
+        showLineNum: true,
+        formatCode: true,
+        indentSize: "2",
+        wrapLines: false,
+      },
+    },
+  },
+  debug: {
+    enabled: false,
+    level: "info",
+  },
+});
+```
+
+### Option reference
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `container` | `HTMLElement` | created fixed host | Mount target. When omitted, RodEruda owns and watchdogs `#roderuda`. |
+| `tool` | `string \| readonly string[]` | all default panels | Panel or panels to add on boot. `settings` is always mounted internally. |
+| `autoScale` | `boolean` | `true` | On mobile, compensates for viewport scale. |
+| `useShadowDom` | `boolean` | `true` | Mounts inside an open shadow root when available. |
+| `inline` | `boolean` | `false` | Renders as an inline panel instead of the fixed overlay. |
+| `defaults` | `DevtoolsDefaults` | see runtime defaults | Initial DevTools defaults for theme, opacity and dock size. |
+| `config.devtools` | object | `{}` | Patches root DevTools config before panels are added. |
+| `config.panels` | object | `{}` | Patches individual panel `ConfigStore`s before `init()`. |
+| `debug` | `boolean \| DevtoolsDebugOptions` | `false` | Enables runtime debug logs. |
+
+The floating entry button is rendered outside the panel dock stacking context and keeps the highest RodEruda z-index so it remains reachable above the shell and every panel.

@@ -1,4 +1,4 @@
-import { asNode, event, html, styled } from "../components/runtime";
+import { asNode, event, html, ref, styled } from "../components/runtime";
 
 export interface PanelAction {
   readonly label: string;
@@ -103,12 +103,12 @@ export function renderPanelShell(target: HTMLElement, options: PanelShellOptions
       <RodPanelBody
         class=${options.bodyClassName ?? ""}
         data-scroll=${String(options.scroll !== false)}
-        ref=${(node: unknown) => {
-          bodyRef.current = node as HTMLElement | null;
+        ref=${ref((node) => {
+          bodyRef.current = node as HTMLElement;
           return () => {
             bodyRef.current = null;
           };
-        }}
+        })}
       />
     </RodPanelShell>
   `) as HTMLElement;
@@ -144,7 +144,7 @@ function panelActionTemplate(item: PanelAction, options: PanelShellOptions) {
       title=${item.title ?? item.label}
       data-action=${item.action}
       @click=${event((click: Event) => options.onAction?.(click, item.action))}
-      ...${attrs(item.attrs)}
+      ...${attrs(item.attrs) as never}
     >
       ${item.label}
     </RodPanelTextButton>

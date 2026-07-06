@@ -1,22 +1,23 @@
 import { ConfigStore } from "../core/config";
-import { debounce, delegate, isDevtoolsNode } from "../core/dom";
+import { debounce, icon, isDevtoolsNode, truncate } from "../core/dom";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { SourcePayload, ToolContext } from "../types";
-import { html, render } from "../components/runtime";
+import { event, html, render } from "../components/runtime";
 import {
-  capabilityItems,
-  capabilitySectionTemplate,
-  cookieSectionTemplate,
-  formatJsonValue,
-  imageSectionTemplate,
-  linkSectionTemplate,
+  ResourcesIconButton,
+  ResourcesImageCard,
+  ResourcesImageList,
+  ResourcesInput,
+  ResourcesLinkList,
+  ResourcesSection,
+  ResourcesSectionActions,
+  ResourcesSectionContent,
+  ResourcesSectionTitle,
+  ResourcesTable,
+  ResourcesTableWrap,
   resourcesStyleArtifacts,
-  resourcesTemplate,
-  storageRows,
-  storageSectionTemplate,
   type ResourcesViewModel,
-  type StorageType,
 } from "./resources-components";
 
 export { resourcesStyleArtifacts };
@@ -25,6 +26,13 @@ interface ResourcesConfig {
   hideDevtoolsSetting: boolean;
   observeElement: boolean;
 }
+
+type StorageType = "local" | "session";
+
+type CapabilityModel = {
+  name: string;
+  available: boolean;
+};
 
 export class Resources extends Tool {
   readonly name = "resources";
@@ -36,7 +44,6 @@ export class Resources extends Tool {
   });
 
   private body: HTMLElement | null = null;
-  private cleanup: Array<() => void> = [];
   private observer: MutationObserver | null = null;
   private disposeView: (() => void) | null = null;
   private readonly scheduleRefresh = debounce(() => this.refresh(), 120);
@@ -53,12 +60,7 @@ export class Resources extends Tool {
     this.disposeView?.();
     this.disposeView = render(container, html`<RodResourcesView view=${view as never} />`);
 
-    this.cleanup.push(delegate(container, "click", "[data-resource-action]", (event, element) => this.handleAction(event, element)));
-    this.cleanup.push(delegate(container, "change", "[data-storage-key]", (event, element) => this.handleStorageChange(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-source-type]", (event, element) => this.openSource(event, element)));
-
     this.config.on("change", this.onConfigChange);
-
     this.observe();
     this.registerSettings(context);
     this.refresh();
@@ -67,53 +69,30 @@ export class Resources extends Tool {
   refresh(): void {
     if (!this.body) return;
 
-    render(this.body, resourcesTemplate([
-      storageSectionTemplate("Local Storage", "local", storageRows("local", safeStorage("local"))),
-      storageSectionTemplate("Session Storage", "session", storageRows("session", safeStorage("session"))),
-      cookieSectionTemplate(parseCookies()),
-      capabilitySectionTemplate(capabilityItems()),
-      linkSectionTemplate("Scripts", "script", this.scriptUrls()),
-      linkSectionTemplate("Stylesheets", "style", this.stylesheetUrls()),
-      linkSectionTemplate("Iframes", "iframe", this.iframeUrls()),
-      imageSectionTemplate(this.imageUrls()),
-    ]));
+    render(this.body, html`
+      ${this.storageSection("Local Storage", "local", safeStorage("local"))}
+      ${this.storageSection("Session Storage", "session", safeStorage("session"))}
+      ${this.cookieSection(parseCookies())}
+      ${this.capabilitySection()}
+      ${this.linkSection("Scripts", "script", this.scriptUrls())}
+      ${this.linkSection("Stylesheets", "style", this.stylesheetUrls())}
+      ${this.linkSection("Iframes", "iframe", this.iframeUrls())}
+      ${this.imageSection(this.imageUrls())}
+    `);
   }
 
-  refreshScript(): void {
-    this.refresh();
-  }
-
-  refreshStylesheet(): void {
-    this.refresh();
-  }
-
-  refreshIframe(): void {
-    this.refresh();
-  }
-
-  refreshLocalStorage(): void {
-    this.refresh();
-  }
-
-  refreshSessionStorage(): void {
-    this.refresh();
-  }
-
-  refreshCookie(): void {
-    this.refresh();
-  }
-
-  refreshImage(): void {
-    this.refresh();
-  }
+  refreshScript(): void { this.refresh(); }
+  refreshStylesheet(): void { this.refresh(); }
+  refreshIframe(): void { this.refresh(); }
+  refreshLocalStorage(): void { this.refresh(); }
+  refreshSessionStorage(): void { this.refresh(); }
+  refreshCookie(): void { this.refresh(); }
+  refreshImage(): void { this.refresh(); }
 
   override destroy(): void {
     this.observer?.disconnect();
     this.observer = null;
-
     this.config.off("change", this.onConfigChange);
-
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
 
     this.disposeView?.();
     this.disposeView = null;
@@ -158,6 +137,164 @@ export class Resources extends Tool {
     });
   }
 
+  private storageSection(title: string, type: StorageType, storage: Storage) {
+    const rows = storageRows(type, storage);
+    const body = rows.length
+      ? rows.map((row) => this.storageRow(row))
+      : html`<tr><td colspan="3">Empty</td></tr>`;
+
+    return html`
+      <ResourcesSection>
+        <ResourcesSectionTitle>
+          <span>${title} (${rows.length})</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addStorage(type))}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Clear" @click=${event(() => this.clearStorage(type))}>${icon("clear")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+        <ResourcesTableWrap>
+          <ResourcesTable>
+            <thead>
+              <tr><th>Key</th><th>Value</th><th></th></tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </ResourcesTable>
+        </ResourcesTableWrap>
+      </ResourcesSection>
+    `;
+  }
+
+  private storageRow(row: { type: StorageType; key: string; value: string; json: boolean }) {
+    const jsonButton = row.json ? html`
+      <ResourcesIconButton type="button" title="Edit JSON" @click=${event(() => void this.editJsonStorage(row.type, row.key))}>{ }</ResourcesIconButton>
+    ` : "";
+
+    return html`
+      <tr>
+        <td>
+          <ResourcesInput .value=${row.key} @change=${event((change: Event) => this.updateStorageKey(change, row.type, row.key))} />
+        </td>
+        <td>
+          <ResourcesInput .value=${row.json ? formatJsonValue(row.value) : row.value} @change=${event((change: Event) => this.updateStorageValue(change, row.type, row.key))} />
+        </td>
+        <td>
+          ${jsonButton}
+          <ResourcesIconButton type="button" title="Remove" @click=${event(() => this.removeStorage(row.type, row.key))}>×</ResourcesIconButton>
+        </td>
+      </tr>
+    `;
+  }
+
+  private cookieSection(cookies: Array<{ name: string; value: string }>) {
+    return html`
+      <ResourcesSection>
+        <ResourcesSectionTitle>
+          <span>Cookies (${cookies.length})</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addCookie())}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+
+        <ResourcesTableWrap>
+          <ResourcesTable>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Value</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cookies.length ? cookies.map((cookie) => html`
+                <tr>
+                  <td>${cookie.name}</td>
+                  <td>${cookie.value}</td>
+                  <td>
+                    <ResourcesIconButton
+                      type="button"
+                      title="Remove"
+                      @click=${event(() => this.removeCookie(cookie.name))}
+                    >
+                      ×
+                    </ResourcesIconButton>
+                  </td>
+                </tr>
+              `) : html`<tr><td colspan="3">No script-visible cookies</td></tr>`}
+            </tbody>
+          </ResourcesTable>
+        </ResourcesTableWrap>
+      </ResourcesSection>
+    `;
+  }
+
+  private capabilitySection() {
+    const items = capabilityItems();
+
+    return html`
+      <ResourcesSection>
+        <ResourcesSectionTitle>
+          <span>Storage capabilities</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+
+        <ResourcesLinkList>
+          ${items.map((item) => html`
+            <li>${item.name}: ${item.available ? "available" : "unavailable"}</li>
+          `)}
+        </ResourcesLinkList>
+      </ResourcesSection>
+    `;
+  }
+
+  private linkSection(title: string, type: string, urls: string[]) {
+    return html`
+      <ResourcesSection>
+        <ResourcesSectionTitle>
+          <span>${title} (${urls.length})</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+
+        <ResourcesLinkList>
+          ${urls.length ? urls.map((url) => html`
+            <li>
+              <a href=${url} @click=${event((click: Event) => this.openSource(click, type, url))}>${url}</a>
+            </li>
+          `) : html`<li>None</li>`}
+        </ResourcesLinkList>
+      </ResourcesSection>
+    `;
+  }
+
+  private imageSection(urls: string[]) {
+    return html`
+      <ResourcesSection>
+        <ResourcesSectionTitle>
+          <span>Images (${urls.length})</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+
+        <ResourcesSectionContent>
+          <ResourcesImageList>
+            ${urls.length ? urls.slice(0, 500).map((url) => html`
+              <ResourcesImageCard type="button" @click=${event((click: Event) => this.openSource(click, "image", url))}>
+                <img src=${url} loading="lazy" alt="" />
+                <span title=${url}>${truncate(url, 100)}</span>
+              </ResourcesImageCard>
+            `) : "None"}
+          </ResourcesImageList>
+        </ResourcesSectionContent>
+      </ResourcesSection>
+    `;
+  }
+
   private scriptUrls(): string[] {
     return unique(Array.from(document.scripts)
       .map((script) => script.src)
@@ -196,9 +333,7 @@ export class Resources extends Tool {
       const value = getComputedStyle(element).backgroundImage;
 
       for (const match of value.matchAll(/url\(["']?(.+?)["']?\)/g)) {
-        if (match[1]) {
-          backgrounds.push(new URL(match[1], location.href).href);
-        }
+        if (match[1]) backgrounds.push(new URL(match[1], location.href).href);
       }
     }
 
@@ -209,103 +344,46 @@ export class Resources extends Tool {
     return this.config.get("hideDevtoolsSetting") && /roderuda|devtools|__chobitsu-hide__/i.test(url);
   }
 
-  private handleAction(event: Event, element: HTMLElement): void {
-    event.preventDefault();
-
-    const action = element.dataset.resourceAction;
-
-    if (action === "refresh") {
-      this.refresh();
-      return;
-    }
-
-    if (action === "clear-storage") {
-      const type = element.dataset.storageType as StorageType;
-      safeStorage(type).clear();
-      this.refresh();
-      return;
-    }
-
-    if (action === "add-storage") {
-      void this.addStorage(element.dataset.storageType as StorageType);
-      return;
-    }
-
-    if (action === "remove-storage") {
-      const type = element.dataset.storageType as StorageType;
-      safeStorage(type).removeItem(element.dataset.storageKey || "");
-      this.refresh();
-      return;
-    }
-
-    if (action === "edit-json-storage") {
-      void this.editJsonStorage(element.dataset.storageType as StorageType, element.dataset.storageKey || "");
-      return;
-    }
-
-    if (action === "add-cookie") {
-      void this.addCookie();
-      return;
-    }
-
-    if (action === "remove-cookie") {
-      removeCookie(element.dataset.cookieName || "");
-      this.refresh();
-    }
+  private clearStorage(type: StorageType): void {
+    safeStorage(type).clear();
+    this.refresh();
   }
 
-  private handleStorageChange(event: Event, element: HTMLElement): void {
+  private removeStorage(type: StorageType, key: string): void {
+    safeStorage(type).removeItem(key);
+    this.refresh();
+  }
+
+  private updateStorageKey(event: Event, type: StorageType, originalKey: string): void {
     if (!(event.target instanceof HTMLInputElement)) return;
 
-    const row = element.closest<HTMLElement>("tr");
-    const type = row?.dataset.storageType as StorageType;
-    const original = row?.dataset.originalKey || "";
-    const key = row?.querySelector<HTMLInputElement>("[data-storage-key]")?.value.trim() || "";
-    const value = row?.querySelector<HTMLInputElement>("[data-storage-value]")?.value ?? "";
+    const nextKey = event.target.value.trim();
     const storage = safeStorage(type);
+    const currentValue = storage.getItem(originalKey) ?? "";
 
-    if (original && original !== key) {
-      storage.removeItem(original);
-    }
-
-    if (key) {
-      storage.setItem(key, value);
-    }
+    if (originalKey && originalKey !== nextKey) storage.removeItem(originalKey);
+    if (nextKey) storage.setItem(nextKey, currentValue);
 
     this.refresh();
   }
 
-  private openSource(event: Event, element: HTMLElement): void {
+  private updateStorageValue(event: Event, type: StorageType, key: string): void {
+    if (!(event.target instanceof HTMLInputElement)) return;
+    if (!key) return;
+
+    safeStorage(type).setItem(key, event.target.value);
+    this.refresh();
+  }
+
+  private openSource(event: Event, type: string, url: string): void {
     event.preventDefault();
 
-    const url = element.dataset.url || "";
-    const type = element.dataset.sourceType || "text";
     const sources = this.context?.devtools.get<{ set(type: string | SourcePayload, value?: unknown): unknown } & Tool>("sources");
-
     if (!sources) return;
 
-    if (type === "image") {
-      sources.set({
-        type: "image",
-        value: url,
-        url,
-        title: url,
-      });
-    } else if (type === "iframe") {
-      sources.set({
-        type: "iframe",
-        value: url,
-        url,
-        title: url,
-      });
-    } else {
-      sources.set({
-        type: type === "style" ? "css" : "javascript",
-        value: url,
-        url,
-        title: url,
-      });
-    }
+    if (type === "image") sources.set({ type: "image", value: url, url, title: url });
+    else if (type === "iframe") sources.set({ type: "iframe", value: url, url, title: url });
+    else sources.set({ type: type === "style" ? "css" : "javascript", value: url, url, title: url });
 
     this.context?.devtools.showTool("sources");
   }
@@ -334,6 +412,11 @@ export class Resources extends Tool {
     this.refresh();
   }
 
+  private removeCookie(name: string): void {
+    removeCookie(name);
+    this.refresh();
+  }
+
   private async editJsonStorage(type: StorageType, key: string): Promise<void> {
     const storage = safeStorage(type);
     const current = storage.getItem(key) ?? "";
@@ -351,6 +434,31 @@ export class Resources extends Tool {
   }
 }
 
+function storageRows(type: StorageType, storage: Storage): Array<{ type: StorageType; key: string; value: string; json: boolean }> {
+  const rows: Array<{ type: StorageType; key: string; value: string; json: boolean }> = [];
+
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key == null) continue;
+
+    const value = storage.getItem(key) ?? "";
+    rows.push({ type, key, value, json: isJsonValue(value) });
+  }
+
+  return rows;
+}
+
+function capabilityItems(): CapabilityModel[] {
+  return [
+    ["IndexedDB", typeof indexedDB !== "undefined"],
+    ["Cache Storage", typeof caches !== "undefined"],
+    ["WebSQL", typeof (window as unknown as { openDatabase?: unknown }).openDatabase === "function"],
+    ["localStorage", canUseStorage("local")],
+    ["sessionStorage", canUseStorage("session")],
+    ["Cookies", typeof document.cookie === "string"],
+  ].map(([name, available]) => ({ name: String(name), available: Boolean(available) }));
+}
+
 function parseCookies(): Array<{ name: string; value: string }> {
   if (!document.cookie) return [];
 
@@ -360,10 +468,7 @@ function parseCookies(): Array<{ name: string; value: string }> {
     const value = index < 0 ? "" : chunk.slice(index + 1);
 
     try {
-      return {
-        name: decodeURIComponent(name),
-        value: decodeURIComponent(value),
-      };
+      return { name: decodeURIComponent(name), value: decodeURIComponent(value) };
     } catch {
       return { name, value };
     }
@@ -372,15 +477,9 @@ function parseCookies(): Array<{ name: string; value: string }> {
 
 function removeCookie(name: string): void {
   const encoded = encodeURIComponent(name);
-  const paths = [
-    "/",
-    location.pathname,
-    location.pathname.replace(/\/[^/]*$/, "") || "/",
-  ];
+  const paths = ["/", location.pathname, location.pathname.replace(/\/[^/]*$/, "") || "/"];
 
-  for (const path of unique(paths)) {
-    document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
-  }
+  for (const path of unique(paths)) document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
 }
 
 function safeStorage(type: StorageType): Storage {
@@ -390,19 +489,45 @@ function safeStorage(type: StorageType): Storage {
     const memory = new Map<string, string>();
 
     return {
-      get length() {
-        return memory.size;
-      },
+      get length() { return memory.size; },
       clear: () => memory.clear(),
       getItem: (key) => memory.get(key) ?? null,
       key: (index) => [...memory.keys()][index] ?? null,
-      removeItem: (key) => {
-        memory.delete(key);
-      },
-      setItem: (key, value) => {
-        memory.set(key, String(value));
-      },
+      removeItem: (key) => { memory.delete(key); },
+      setItem: (key, value) => { memory.set(key, String(value)); },
     };
+  }
+}
+
+function canUseStorage(type: StorageType): boolean {
+  try {
+    const storage = type === "local" ? localStorage : sessionStorage;
+    const key = "__roderuda_storage_probe__";
+    storage.setItem(key, "1");
+    storage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isJsonValue(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return false;
+
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function formatJsonValue(value: string): string {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
   }
 }
 

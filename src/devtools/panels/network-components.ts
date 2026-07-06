@@ -13,6 +13,7 @@ export interface NetworkViewModel {
   setFilterInput(node: HTMLInputElement | null): void;
   onAction(event: Event): void;
   onFilterInput(event: Event): void;
+  openRequest(id: string): void;
 }
 
 const NetworkLayout = styled.div("RodNetworkLayout").css`
@@ -109,14 +110,8 @@ const NetworkTable = styled.table("RodNetworkTable").css`
   color: $foreground;
   font-size: 12px;
 
-  th,
-  td {
-    padding: 7px 8px;
-    border-bottom: 1px solid $border;
-    text-align: left;
-    vertical-align: middle;
-    white-space: nowrap;
-  }
+  th { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; white-space: nowrap; }
 
   th {
     position: sticky;
@@ -409,7 +404,7 @@ component("RodNetworkView", function RodNetworkView(props) {
   `;
 });
 
-export function networkListTemplate(records: NetworkRecord[], selectedId: string | null): RenderPiece {
+export function networkListTemplate(records: NetworkRecord[], selectedId: string | null, onOpen: (id: string) => void): RenderPiece {
   if (!records.length) {
     return html`
       <RodNetworkEmpty>
@@ -432,19 +427,19 @@ export function networkListTemplate(records: NetworkRecord[], selectedId: string
         </tr>
       </thead>
       <tbody>
-        ${records.map((record) => networkRowTemplate(record, selectedId))}
+        ${records.map((record) => networkRowTemplate(record, selectedId, onOpen))}
       </tbody>
     </RodNetworkTable>
   `;
 }
 
-export function networkRowTemplate(record: NetworkRecord, selectedId: string | null): RenderPiece {
+export function networkRowTemplate(record: NetworkRecord, selectedId: string | null, onOpen: (id: string) => void): RenderPiece {
   const url = safeUrl(record.url);
   const name = url.pathname.split("/").filter(Boolean).at(-1) || url.hostname || record.url;
   const status = record.status == null ? (record.state === "pending" ? "…" : "—") : String(record.status);
 
   return html`
-    <RodNetworkRow data-request-id=${record.id} data-state=${record.state} data-selected=${String(record.id === selectedId)}>
+    <RodNetworkRow data-state=${record.state} data-selected=${String(record.id === selectedId)} @click=${event(() => onOpen(record.id))}>
       <td><RodNetworkName title=${record.url}>${truncate(name, 80)}</RodNetworkName></td>
       <td><RodNetworkStatus data-status=${status}>${status}</RodNetworkStatus></td>
       <td><RodNetworkMethod data-method=${record.method}>${record.method}</RodNetworkMethod></td>

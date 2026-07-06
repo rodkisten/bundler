@@ -1,7 +1,7 @@
 import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { NetworkCapture } from "../core/network-capture";
-import { copyText, delegate } from "../core/dom";
+import { copyText } from "../core/dom";
 import { Tool } from "../tool";
 import { html, render } from "../components/runtime";
 import type { NetworkRecord, ToolContext } from "../types";
@@ -34,7 +34,6 @@ export class Network extends Tool {
   private list: HTMLElement | null = null;
   private detail: HTMLElement | null = null;
   private filterInput: HTMLInputElement | null = null;
-  private cleanup: Array<() => void> = [];
   private disposeView: (() => void) | null = null;
   private activeDetailTab = "headers";
   private readonly state = store({ selectedId: null as string | null });
@@ -51,6 +50,7 @@ export class Network extends Tool {
       setList: (node) => { this.list = node; },
       setDetail: (node) => { this.detail = node; },
       setFilterInput: (node) => { this.filterInput = node; },
+      openRequest: (id) => this.openDetail(id),
       onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
       onFilterInput: (inputEvent) => this.handleFilterInput(inputEvent),
     };
@@ -64,7 +64,6 @@ export class Network extends Tool {
       />
     `);
 
-    this.cleanup.push(delegate(container, "click", "[data-request-id]", (_event, element) => this.openDetail(element.dataset.requestId || "")));
 
     this.capture.on("request", this.onRequest);
     this.capture.on("update", this.onUpdate);
@@ -89,7 +88,6 @@ export class Network extends Tool {
     this.capture.off("clear", this.onClear);
     this.capture.destroy();
 
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
 
     this.disposeView?.();
     this.disposeView = null;
@@ -131,7 +129,7 @@ export class Network extends Tool {
     const selectedId = this.state.snapshot().selectedId;
     const records = this.capture.requests().filter((record) => this.matches(record));
 
-    render(this.list, networkListTemplate(records, selectedId));
+    render(this.list, networkListTemplate(records, selectedId, (id) => this.openDetail(id)));
   }
 
   private matches(record: NetworkRecord): boolean {

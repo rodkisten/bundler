@@ -1,9 +1,7 @@
 import { debugLog } from "../core/debug";
-import { event, html, onMount, onUnmount, portal, ref, renderInto, repeat, signal, styled, suspense, uiState } from "./runtime";
+import { event, html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
 
 const EMPTY_PANELS = signal<string[]>([]);
-const READY_RESOURCE = signal({ loading: false, error: undefined as unknown, value: true });
-
 const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   position: relative;
   width: 100%;
@@ -78,61 +76,52 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
         ref=${ref((node) => { refs.entryButton = node as HTMLButtonElement; })}
       >⌘</RodDevtoolsEntryButton>
 
-      ${suspense(READY_RESOURCE, () => html`
-          <RodDevtoolsDock
-            class="roderuda-dev-tools"
-            aria-label="Developer tools"
-            aria-hidden="true"
-            data-roderuda-shell-ref="devtools"
-            ref=${ref((node) => { refs.devtools = node as HTMLElement; })}
-          >
-            <RodDevtoolsResizer
-              class="roderuda-resizer"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize developer tools"
-              data-roderuda-shell-ref="resizer"
-              ref=${ref((node) => { refs.resizer = node as HTMLElement; })}
-                />
-            <RodDevtoolsTabbar
-              class="roderuda-tabbar"
-              aria-label="Developer tools panels"
-              data-roderuda-shell-ref="tabbar"
-              ref=${ref((node) => { refs.tabbar = node as HTMLElement; })}
-            >
-              ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
-            </RodDevtoolsTabbar>
-            <RodDevtoolsTools
-              class="roderuda-tools"
-              data-roderuda-shell-ref="tools"
-              ref=${ref((node) => { refs.tools = node as HTMLElement; })}
-                />
-            <RodDevtoolsNotifications
-              class="roderuda-notifications"
-              aria-live="polite"
-              data-roderuda-shell-ref="notifications"
-              ref=${ref((node) => { refs.notifications = node as HTMLElement; })}
-                />
-            <RodDevtoolsModalRoot
-              class="roderuda-modal-root"
-              role="presentation"
-              data-roderuda-shell-ref="modalRoot"
-              ref=${ref((node) => { refs.modalRoot = node as HTMLElement; })}
-                />
-            ${portal(target, html`<span hidden data-roderuda-portal-probe></span>`)}
-          </RodDevtoolsDock>
-        `, () => html`<div class="roderuda-empty">Loading devtools shell…</div>`, (error) => html`<div class="roderuda-empty">${String(error)}</div>`)}
+      <RodDevtoolsDock
+        class="roderuda-dev-tools"
+        aria-label="Developer tools"
+        aria-hidden="true"
+        data-roderuda-shell-ref="devtools"
+        ref=${ref((node) => { refs.devtools = node as HTMLElement; })}
+      >
+        <RodDevtoolsResizer
+          class="roderuda-resizer"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize developer tools"
+          data-roderuda-shell-ref="resizer"
+          ref=${ref((node) => { refs.resizer = node as HTMLElement; })}
+        />
+        <RodDevtoolsTabbar
+          class="roderuda-tabbar"
+          aria-label="Developer tools panels"
+          data-roderuda-shell-ref="tabbar"
+          ref=${ref((node) => { refs.tabbar = node as HTMLElement; })}
+        >
+          ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
+        </RodDevtoolsTabbar>
+        <RodDevtoolsTools
+          class="roderuda-tools"
+          data-roderuda-shell-ref="tools"
+          ref=${ref((node) => { refs.tools = node as HTMLElement; })}
+        />
+        <RodDevtoolsNotifications
+          class="roderuda-notifications"
+          aria-live="polite"
+          data-roderuda-shell-ref="notifications"
+          ref=${ref((node) => { refs.notifications = node as HTMLElement; })}
+        />
+        <RodDevtoolsModalRoot
+          class="roderuda-modal-root"
+          role="presentation"
+          data-roderuda-shell-ref="modalRoot"
+          ref=${ref((node) => { refs.modalRoot = node as HTMLElement; })}
+        />
+      </RodDevtoolsDock>
     </RodDevtoolsShellRoot>
   `);
 
-  onMount(() => {
-    debugLog("shell", "mounted");
-    uiState.setPath("shell.mounted", true);
-  });
-  onUnmount(() => {
-    debugLog("shell", "unmounted");
-    uiState.setPath("shell.mounted", false);
-  });
+  debugLog("shell", "mounted");
+  uiState.setPath("shell.mounted", true);
 
   const shellRefs = assertShellRefs(refs, target);
   debugLog("shell", "render:end", { refs: Object.keys(shellRefs) });
