@@ -11,6 +11,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
 `;
 
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
+  z-index: 99999999;
   touch-action: none;
   user-select: none;
 `;
