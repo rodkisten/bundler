@@ -122,4 +122,64 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(runtimeModule).toContain('insertCss')
     expect(runtimeModule).toContain('color:red')
   })
+  it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
+    const source = `
+      const view = html` + '`' + `<RodProbe @click=${'${'}onClick} class="tone ${'${'}tone}" ref=${'${'}refCallback}>
+        <button .value=${'${'}value}>${'${'}label}</button>
+      </RodProbe>` + '`' + `
+    `
+
+    const result = compileFabricaSource(source, {
+      filename: '/project/src/devtools/console.ts',
+      importPath: '../fabrica/compiler',
+    })
+
+    expect(result.changed).toBe(true)
+    expect(result.code).toContain('createCompiledTemplate({"nodes"')
+    expect(result.code).toContain('"tag":"RodProbe"')
+    expect(result.code).toContain('"type":"compound"')
+    expect(result.code).not.toContain('html`')
+    expect(result.code).not.toContain('<RodProbe')
+    expect(result.code).not.toContain('@click=')
+    expect(result.code).not.toContain('ref=')
+  })
+
+  it('hydrates compiled instruction payloads with components, events, refs and property bindings', () => {
+    let clicked = 0
+    let refNode: Element | null = null
+    const Probe = (props: Record<string, unknown>) => createCompiledElement(
+      'section',
+      { class: props.class, '@click': props['@click'], ref: props.ref },
+      props.children as never,
+    )
+
+    const view = createCompiledTemplate({
+      nodes: [{
+        type: 'element',
+        tag: 'div',
+        props: [],
+        children: [{
+          type: 'element',
+          tag: 'button',
+          props: [
+            { type: 'value', name: '@click', index: 0 },
+            { type: 'compound', name: 'class', strings: ['btn ', ''], indices: [1] },
+            { type: 'value', name: 'ref', index: 2 },
+            { type: 'value', name: '.value', index: 3 },
+          ],
+          children: [{ type: 'value', index: 4 }],
+        }],
+      }],
+    }, () => { clicked += 1 }, 'primary', (node: Element) => { refNode = node }, 'typed value', 'Save')
+
+    const button = view.querySelector('button') as HTMLButtonElement
+    expect(button.className).toBe('btn primary')
+    expect(button.value).toBe('typed value')
+    expect(button.textContent).toBe('Save')
+    expect(refNode).toBe(button)
+    button.click()
+    expect(clicked).toBe(1)
+    expect(Probe).toBeTypeOf('function')
+  })
+
 })
