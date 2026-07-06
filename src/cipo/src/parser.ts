@@ -2,7 +2,7 @@ import type { CipoAstNode, CipoDeclarationNode, CipoWarning } from './types'
 import { findMatchingBrace, findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from './utils'
 import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyDeclaration, parseGeneratedDeclarations } from './values'
 import { runtime } from './runtime'
-import { styleObjectToCss } from './style-object'
+import { getStandaloneAliasName, stringifyAlias } from './transform'
 
 const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', 'grid-flow', 'text', 'break', 'stack', 'cluster', 'center', 'cover', 'sidebar', 'scroll', 'scrollbar', 'snap', 'snap-item', 'overscroll', 'tap', 'select', 'drag', 'focus-ring', 'transition', 'animate'])
 
@@ -177,9 +177,9 @@ export function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: str
         continue
       }
 
-      const aliasName = getParserStandaloneAliasName(source)
+      const aliasName = getStandaloneAliasName(source)
       if (aliasName && runtime.aliasRegistry.has(aliasName)) {
-        nodes.push(...parseBlockBody(stringifyParserAlias(aliasName, warnings), warnings))
+        nodes.push(...parseBlockBody(stringifyAlias(aliasName, warnings), warnings))
         continue
       }
 
@@ -257,31 +257,6 @@ export function tokenizeDeclarations(input: string): string[] {
   return output
 }
 
-
-function getParserStandaloneAliasName(source: string): string {
-  let normalized = source.trim().replace(/;$/g, '').trim()
-  if (normalized[0] === '$') normalized = normalized.slice(1)
-  return /^[a-zA-Z_][\w-]*$/.test(normalized) ? normalized : ''
-}
-
-function stringifyParserAlias(name: string, warnings: CipoWarning[], stack = new Set<string>()): string {
-  if (stack.has(name)) {
-    warn(runtime, warnings, 'cyclic-alias', `Alias "${name}" expands into itself.`, name)
-    return ''
-  }
-
-  const value = runtime.aliasRegistry.get(name)
-  if (value === undefined) return ''
-  stack.add(name)
-  const resolved = typeof value === 'function' ? value() : value
-  const cssText = typeof resolved === 'string' ? resolved : styleObjectToCss(resolved)
-  const output = cssText.replace(/(^|[;\n\r]\s*)\$?([a-zA-Z_][\w-]*)(?=\s*(?:;|\n|\r|$))/g, (match, prefix: string, nested: string) => {
-    if (!runtime.aliasRegistry.has(nested)) return match
-    return `${prefix}${stringifyParserAlias(nested, warnings, stack)}`
-  })
-  stack.delete(name)
-  return output
-}
 
 /**
  * Parses old directive syntax.
