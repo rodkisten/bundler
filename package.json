@@ -27,7 +27,8 @@
     "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run",
     "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
     "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3",
-    "dev:devtools": "vite --config ./src/devtools/vite.config.ts"
+    "dev:devtools": "vite --config ./src/devtools/vite.config.ts",
+    "build:devtools": "vite --config ./src/devtools/vite.config.ts build"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
