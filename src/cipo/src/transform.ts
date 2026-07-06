@@ -358,7 +358,7 @@ function isStandaloneAliasName(source: string): boolean {
  * @param source - Trimmed statement.
  * @returns Alias name without `$`, or empty string.
  */
-function getStandaloneAliasName(source: string): string {
+export function getStandaloneAliasName(source: string): string {
   let normalized = source.endsWith(';') ? source.slice(0, -1).trim() : source.trim()
   if (normalized[0] === '$') normalized = normalized.slice(1)
   return /^[a-zA-Z_][\w-]*$/.test(normalized) ? normalized : ''
@@ -410,7 +410,7 @@ function expandWithArguments(args: string, warnings: CipoWarning[]): string {
  * @param warnings - Warning sink.
  * @returns CSS source.
  */
-function stringifyAlias(name: string, warnings: CipoWarning[]): string {
+export function stringifyAlias(name: string, warnings: CipoWarning[]): string {
   return stringifyAliasWithStack(name, warnings, new Set<string>())
 }
 

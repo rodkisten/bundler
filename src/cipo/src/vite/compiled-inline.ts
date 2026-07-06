@@ -2,6 +2,9 @@ import type { Plugin } from 'vite'
 import { compileCipoSourceBuild, type CipoCompiledBuildResult } from '../compiler/compiled-build'
 import { compileCipoSourceInline, type CipoCompiledInlineSourceResult } from '../compiler/compiled-inline'
 import { compileFabricaSource, type FabricaCompileSourceResult } from '../../../fabrica/compiler'
+import { installBuiltInAliases } from '../aliases'
+import { installBuiltInHelpers } from '../helpers'
+import { installNativePropertyGuards } from '../native-property-guards'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
@@ -25,6 +28,15 @@ export interface CipoViteTransformResult {
     readonly cipo?: CipoCompiledBuildResult | CipoCompiledInlineSourceResult
     readonly fabrica?: FabricaCompileSourceResult
   }
+}
+
+const BUILTINS_FLAG = '__cipoBuiltinsInstalled__'
+const target = globalThis as unknown as Record<string, unknown>
+if (!target[BUILTINS_FLAG]) {
+  target[BUILTINS_FLAG] = true
+  installBuiltInHelpers()
+  installBuiltInAliases()
+  installNativePropertyGuards()
 }
 
 const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/

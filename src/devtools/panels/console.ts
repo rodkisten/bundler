@@ -235,7 +235,7 @@ const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   display: flex;
   align-items: stretch;
   height: calc(25px + var(--rd-safe-bottom));
-  padding-bottom: $safeBottom;
+  padding-bottom: $$safeBottom;
   border-top: 1px solid $border;
   background: $background;
 
@@ -246,7 +246,7 @@ const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   &.roderuda-expanded {
     top: 0;
     height: 100%;
-    padding: 40px 0 calc(44px + $safeBottom);
+    padding: 40px 0 calc(44px + $$safeBottom);
   }
 `;
 

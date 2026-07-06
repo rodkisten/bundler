@@ -2,6 +2,7 @@ import type { CipoAstNode, CipoDeclarationNode, CipoWarning } from './types'
 import { findMatchingBrace, findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from './utils'
 import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyDeclaration, parseGeneratedDeclarations } from './values'
 import { runtime } from './runtime'
+import { getStandaloneAliasName, stringifyAlias } from './transform'
 
 const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', 'grid-flow', 'text', 'break', 'stack', 'cluster', 'center', 'cover', 'sidebar', 'scroll', 'scrollbar', 'snap', 'snap-item', 'overscroll', 'tap', 'select', 'drag', 'focus-ring', 'transition', 'animate'])
 
@@ -176,6 +177,12 @@ export function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: str
         continue
       }
 
+      const aliasName = getStandaloneAliasName(source)
+      if (aliasName && runtime.aliasRegistry.has(aliasName)) {
+        nodes.push(...parseBlockBody(stringifyAlias(aliasName, warnings), warnings))
+        continue
+      }
+
       warn(runtime, warnings, 'invalid-declaration', `Invalid declaration "${source}".`, source)
       continue
     }
@@ -249,6 +256,7 @@ export function tokenizeDeclarations(input: string): string[] {
   pushToken(output, buffer)
   return output
 }
+
 
 /**
  * Parses old directive syntax.
