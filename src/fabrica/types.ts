@@ -140,9 +140,11 @@ export type VirtualRepeatOptions = RepeatOptions & {
 };
 
 /** Element ref directive. */
-export type RefDirective = Directive & {
+export type RefCallback<T extends Element = Element> = (node: T) => void | Cleanup;
+
+export type RefDirective<T extends Element = Element> = Directive & {
   readonly kind: "ref";
-  callback: (node: Element) => void | Cleanup;
+  callback: RefCallback<T>;
 };
 
 /** Class map directive. */
