@@ -455,45 +455,49 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
     const capture = this;
 
-    Object.defineProperty = function patchedDefineProperty<T>(
-      target: T,
-      propertyKey: PropertyKey,
-      attributes: PropertyDescriptor & ThisType<unknown>,
-    ): T {
-      if (
-        isConsoleTarget(target) &&
-        methods.includes(propertyKey as ConsoleMethod)
-      ) {
-        const method = propertyKey as ConsoleMethod;
-        const wrapper = capture.wrappers.get(method);
+ Object.defineProperty = function patchedDefineProperty<T>(
+  target: T,
+  propertyKey: PropertyKey,
+  attributes: PropertyDescriptor & ThisType<unknown>,
+): T {
+  if (
+    isConsoleTarget(target) &&
+    methods.includes(propertyKey as ConsoleMethod)
+  ) {
+    const method = propertyKey as ConsoleMethod;
+    const wrapper = capture.wrappers.get(method);
 
-        const incoming =
-          "value" in attributes
-            ? attributes.value
-            : typeof attributes.get === "function"
-              ? attributes.get.call(console)
-              : undefined;
+    const incoming =
+      "value" in attributes
+        ? attributes.value
+        : typeof attributes.get === "function"
+          ? attributes.get.call(console)
+          : undefined;
 
-        if (incoming && incoming !== wrapper) {
-          capture.current.set(method, safeBind(incoming));
-        }
+    if (incoming && incoming !== wrapper) {
+      capture.current.set(method, safeBind(incoming));
+    }
 
-        if (wrapper) {
-          return capture.originalDefineProperty!.call(Object, target, propertyKey, {
-            configurable: false,
-            enumerable: true,
-            get: () => wrapper,
-            set: (value: unknown) => {
-              if (value !== wrapper && typeof value === "function") {
-                capture.current.set(method, safeBind(value));
-              }
-            },
-          });
-        }
-      }
+    if (wrapper) {
+      capture.originalDefineProperty!.call(Object, target, propertyKey, {
+        configurable: false,
+        enumerable: true,
+        get: () => wrapper,
+        set: (value: unknown) => {
+          if (value !== wrapper && typeof value === "function") {
+            capture.current.set(method, safeBind(value));
+          }
+        },
+      });
 
-      return capture.originalDefineProperty!.call(Object, target, propertyKey, attributes);
-    } as typeof Object.defineProperty;
+      return target;
+    }
+  }
+
+  capture.originalDefineProperty!.call(Object, target, propertyKey, attributes);
+  return target;
+} as typeof Object.defineProperty;
+    
 
     Reflect.defineProperty = function patchedReflectDefineProperty(
       target: object,
