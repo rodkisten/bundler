@@ -80,13 +80,8 @@ export const ResourcesTable = styled.table("RodResourcesTable").css`
   color: $foreground;
   font-size: 12px;
 
-  th,
-  td {
-    padding: 7px 8px;
-    border-bottom: 1px solid $border;
-    text-align: left;
-    vertical-align: middle;
-  }
+  th { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; }
+  td { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; }
 
   th {
     color: $primary;

@@ -1,361 +1,208 @@
-import { ConfigStore } from "../core/config";
-import { debounce, delegate, isDevtoolsNode } from "../core/dom";
-import { plainText } from "../core/serialize";
+import { event, html, render } from "../components/runtime";
+import type { ConfigLike, RangeOptions, ToolContext } from "../types";
 import { Tool } from "../tool";
-import type { SourcePayload, ToolContext } from "../types";
-import { html, render } from "../components/runtime";
 import {
-  capabilityItems,
-  capabilitySectionTemplate,
-  cookieSectionTemplate,
-  formatJsonValue,
-  imageSectionTemplate,
-  linkSectionTemplate,
-  resourcesStyleArtifacts,
-  resourcesTemplate,
-  storageRows,
-  storageSectionTemplate,
-  type ResourcesViewModel,
-  type StorageType,
+  SettingsButton,
+  SettingsInput,
+  SettingsRow,
+  SettingsSection,
+  SettingsSectionTitle,
+  SettingsSelect,
+  SettingsSeparator,
+  SettingsText,
+  settingsStyleArtifacts,
+  type SettingsViewModel,
 } from "./settings-components";
 
-export { resourcesStyleArtifacts };
+export { settingsStyleArtifacts };
 
-interface ResourcesConfig {
-  hideDevtoolsSetting: boolean;
-  observeElement: boolean;
-}
+type SettingKind = "text" | "separator" | "button" | "switch" | "select" | "range";
 
-export class Resources extends Tool {
-  readonly name = "resources";
-  readonly title = "resources";
-  readonly icon = "▦";
-  readonly config = new ConfigStore<ResourcesConfig>("resources", {
-    hideDevtoolsSetting: true,
-    observeElement: true,
-  });
+type SettingEntry = {
+  id: string;
+  kind: SettingKind;
+  label?: string;
+  handler?: () => void | Promise<void>;
+  config?: ConfigLike;
+  key?: string;
+  selections?: readonly string[];
+  range?: RangeOptions;
+  dispose?: () => void;
+};
+
+export class Settings extends Tool {
+  readonly name = "settings";
+  readonly title = "settings";
+  readonly icon = "⚙";
 
   private body: HTMLElement | null = null;
-  private cleanup: Array<() => void> = [];
-  private observer: MutationObserver | null = null;
   private disposeView: (() => void) | null = null;
-  private readonly scheduleRefresh = debounce(() => this.refresh(), 120);
+  private sequence = 0;
+  private readonly entries: SettingEntry[] = [];
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
 
-    const view: ResourcesViewModel = {
-      setBody: (node) => { this.body = node; },
+    const view: SettingsViewModel = {
+      setBody: (node) => {
+        this.body = node;
+      },
     };
 
     this.disposeView?.();
-    this.disposeView = render(container, html`<RodResourcesView view=${view as never} />`);
-
-    this.cleanup.push(delegate(container, "click", "[data-resource-action]", (event, element) => this.handleAction(event, element)));
-    this.cleanup.push(delegate(container, "change", "[data-storage-key]", (event, element) => this.handleStorageChange(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-source-type]", (event, element) => this.openSource(event, element)));
-
-    this.config.on("change", this.onConfigChange);
-
-    this.observe();
-    this.registerSettings(context);
-    this.refresh();
+    this.disposeView = render(container, html`<RodSettingsView view=${view as never} />`);
+    this.render();
   }
-
-  refresh(): void {
-    if (!this.body) return;
-
-    render(this.body, resourcesTemplate([
-      storageSectionTemplate("Local Storage", "local", storageRows("local", safeStorage("local"))),
-      storageSectionTemplate("Session Storage", "session", storageRows("session", safeStorage("session"))),
-      cookieSectionTemplate(parseCookies()),
-      capabilitySectionTemplate(capabilityItems()),
-      linkSectionTemplate("Scripts", "script", this.scriptUrls()),
-      linkSectionTemplate("Stylesheets", "style", this.stylesheetUrls()),
-      linkSectionTemplate("Iframes", "iframe", this.iframeUrls()),
-      imageSectionTemplate(this.imageUrls()),
-    ]));
-  }
-
-  refreshScript(): void { this.refresh(); }
-  refreshStylesheet(): void { this.refresh(); }
-  refreshIframe(): void { this.refresh(); }
-  refreshLocalStorage(): void { this.refresh(); }
-  refreshSessionStorage(): void { this.refresh(); }
-  refreshCookie(): void { this.refresh(); }
-  refreshImage(): void { this.refresh(); }
 
   override destroy(): void {
-    this.observer?.disconnect();
-    this.observer = null;
-    this.config.off("change", this.onConfigChange);
-
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
-
+    for (const entry of this.entries) entry.dispose?.();
+    this.entries.length = 0;
     this.disposeView?.();
     this.disposeView = null;
     this.body = null;
-
     super.destroy();
   }
 
-  private readonly onConfigChange = (key: string, value: unknown): void => {
-    if (key === "observeElement") value ? this.observe() : this.observer?.disconnect();
-    this.refresh();
-  };
-
-  private registerSettings(context: ToolContext): void {
-    context.settings.registerSeparator();
-    context.settings.registerText("Resources");
-    context.settings.registerSwitch(this.config, "hideDevtoolsSetting", "Hide RodEruda resources from lists");
-    context.settings.registerSwitch(this.config, "observeElement", "Automatically refresh resource mutations");
+  registerText(text: string): string {
+    return this.add({ kind: "text", label: text });
   }
 
-  private observe(): void {
-    this.observer?.disconnect();
-
-    if (!this.config.get("observeElement") || !document.documentElement) return;
-
-    this.observer = new MutationObserver((mutations) => {
-      const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
-      if (mutations.some((mutation) => !isDevtoolsNode(mutation.target, host))) this.scheduleRefresh();
-    });
-
-    this.observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["src", "href"],
-    });
+  registerSeparator(): string {
+    return this.add({ kind: "separator" });
   }
 
-  private scriptUrls(): string[] {
-    return unique(Array.from(document.scripts)
-      .map((script) => script.src)
-      .filter(Boolean))
-      .filter((url) => !this.hidden(url));
+  registerButton(label: string, handler: () => void | Promise<void>): string {
+    return this.add({ kind: "button", label, handler });
   }
 
-  private stylesheetUrls(): string[] {
-    const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'))
-      .map((link) => link.href);
-
-    const sheets = Array.from(document.styleSheets)
-      .map((sheet) => sheet.href)
-      .filter((href): href is string => Boolean(href));
-
-    return unique([...links, ...sheets]).filter((url) => !this.hidden(url));
+  registerSwitch(config: ConfigLike, key: string, description: string): string {
+    return this.addConfigEntry({ kind: "switch", label: description, config, key });
   }
 
-  private iframeUrls(): string[] {
-    return unique(Array.from(document.querySelectorAll<HTMLIFrameElement>("iframe[src]"))
-      .map((frame) => frame.src)
-      .filter(Boolean))
-      .filter((url) => !this.hidden(url));
+  registerSelect(config: ConfigLike, key: string, description: string, selections: readonly string[]): string {
+    return this.addConfigEntry({ kind: "select", label: description, config, key, selections });
   }
 
-  private imageUrls(): string[] {
-    const images = Array.from(document.images)
-      .flatMap((image) => [image.currentSrc, image.src])
-      .filter(Boolean);
-
-    const backgrounds: string[] = [];
-
-    for (const element of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
-      if (backgrounds.length > 1000) break;
-
-      const value = getComputedStyle(element).backgroundImage;
-
-      for (const match of value.matchAll(/url\(["']?(.+?)["']?\)/g)) {
-        if (match[1]) backgrounds.push(new URL(match[1], location.href).href);
-      }
-    }
-
-    return unique([...images, ...backgrounds]).filter((url) => !this.hidden(url));
+  registerRange(config: ConfigLike, key: string, description: string, options: RangeOptions = {}): string {
+    return this.addConfigEntry({ kind: "range", label: description, config, key, range: options });
   }
 
-  private hidden(url: string): boolean {
-    return this.config.get("hideDevtoolsSetting") && /roderuda|devtools|__chobitsu-hide__/i.test(url);
+  removeSetting(id: string): void {
+    const index = this.entries.findIndex((entry) => entry.id === id);
+    if (index < 0) return;
+    const [entry] = this.entries.splice(index, 1);
+    entry?.dispose?.();
+    this.render();
   }
 
-  private handleAction(event: Event, element: HTMLElement): void {
-    event.preventDefault();
-
-    const action = element.dataset.resourceAction;
-
-    if (action === "refresh") {
-      this.refresh();
-      return;
-    }
-
-    if (action === "clear-storage") {
-      const type = element.dataset.storageType as StorageType;
-      safeStorage(type).clear();
-      this.refresh();
-      return;
-    }
-
-    if (action === "add-storage") {
-      void this.addStorage(element.dataset.storageType as StorageType);
-      return;
-    }
-
-    if (action === "remove-storage") {
-      const type = element.dataset.storageType as StorageType;
-      safeStorage(type).removeItem(element.dataset.storageKey || "");
-      this.refresh();
-      return;
-    }
-
-    if (action === "edit-json-storage") {
-      void this.editJsonStorage(element.dataset.storageType as StorageType, element.dataset.storageKey || "");
-      return;
-    }
-
-    if (action === "add-cookie") {
-      void this.addCookie();
-      return;
-    }
-
-    if (action === "remove-cookie") {
-      removeCookie(element.dataset.cookieName || "");
-      this.refresh();
-    }
+  private add(entry: Omit<SettingEntry, "id">): string {
+    const id = `setting-${++this.sequence}`;
+    this.entries.push({ ...entry, id });
+    this.render();
+    return id;
   }
 
-  private handleStorageChange(event: Event, element: HTMLElement): void {
-    if (!(event.target instanceof HTMLInputElement)) return;
-
-    const row = element.closest<HTMLElement>("tr");
-    const type = row?.dataset.storageType as StorageType;
-    const original = row?.dataset.originalKey || "";
-    const key = row?.querySelector<HTMLInputElement>("[data-storage-key]")?.value.trim() || "";
-    const value = row?.querySelector<HTMLInputElement>("[data-storage-value]")?.value ?? "";
-    const storage = safeStorage(type);
-
-    if (original && original !== key) storage.removeItem(original);
-    if (key) storage.setItem(key, value);
-
-    this.refresh();
-  }
-
-  private openSource(event: Event, element: HTMLElement): void {
-    event.preventDefault();
-
-    const url = element.dataset.url || "";
-    const type = element.dataset.sourceType || "text";
-    const sources = this.context?.devtools.get<{ set(type: string | SourcePayload, value?: unknown): unknown } & Tool>("sources");
-
-    if (!sources) return;
-
-    if (type === "image") {
-      sources.set({ type: "image", value: url, url, title: url });
-    } else if (type === "iframe") {
-      sources.set({ type: "iframe", value: url, url, title: url });
-    } else {
-      sources.set({
-        type: type === "style" ? "css" : "javascript",
-        value: url,
-        url,
-        title: url,
-      });
-    }
-
-    this.context?.devtools.showTool("sources");
-  }
-
-  private async addStorage(type: StorageType): Promise<void> {
-    const key = await this.context?.prompt(`New ${type}Storage key`);
-    if (!key) return;
-
-    const value = await this.context?.prompt("Value", "");
-    if (value == null) return;
-
-    safeStorage(type).setItem(key, value);
-    this.refresh();
-  }
-
-  private async addCookie(): Promise<void> {
-    const name = await this.context?.prompt("Cookie name");
-    if (!name) return;
-
-    const value = await this.context?.prompt("Cookie value", "");
-    if (value == null) return;
-
-    const attributes = await this.context?.prompt("Cookie attributes", "path=/; SameSite=Lax");
-
-    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; ${attributes || "path=/"}`
-    this.refresh();
-  }
-
-  private async editJsonStorage(type: StorageType, key: string): Promise<void> {
-    const storage = safeStorage(type);
-    const current = storage.getItem(key) ?? "";
-    const next = await this.context?.prompt(`Edit JSON for ${key}`, formatJsonValue(current));
-
-    if (next == null) return;
-
-    try {
-      JSON.parse(next);
-      storage.setItem(key, next);
-      this.refresh();
-    } catch (error) {
-      this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
-    }
-  }
-}
-
-function parseCookies(): Array<{ name: string; value: string }> {
-  if (!document.cookie) return [];
-
-  return document.cookie.split(/;\s*/).filter(Boolean).map((chunk) => {
-    const index = chunk.indexOf("=");
-    const name = index < 0 ? chunk : chunk.slice(0, index);
-    const value = index < 0 ? "" : chunk.slice(index + 1);
-
-    try {
-      return {
-        name: decodeURIComponent(name),
-        value: decodeURIComponent(value),
-      };
-    } catch {
-      return { name, value };
-    }
-  });
-}
-
-function removeCookie(name: string): void {
-  const encoded = encodeURIComponent(name);
-  const paths = ["/", location.pathname, location.pathname.replace(/\/[^/]*$/, "") || "/"];
-
-  for (const path of unique(paths)) {
-    document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
-  }
-}
-
-function safeStorage(type: StorageType): Storage {
-  try {
-    return type === "local" ? localStorage : sessionStorage;
-  } catch {
-    const memory = new Map<string, string>();
-
-    return {
-      get length() {
-        return memory.size;
-      },
-      clear: () => memory.clear(),
-      getItem: (key) => memory.get(key) ?? null,
-      key: (index) => [...memory.keys()][index] ?? null,
-      removeItem: (key) => {
-        memory.delete(key);
-      },
-      setItem: (key, value) => {
-        memory.set(key, String(value));
-      },
+  private addConfigEntry(entry: Omit<SettingEntry, "id" | "dispose"> & { config: ConfigLike; key: string }): string {
+    const id = `setting-${++this.sequence}`;
+    const listener = (changedKey: string) => {
+      if (changedKey === entry.key) this.render();
     };
+    entry.config.on("change", listener);
+    this.entries.push({
+      ...entry,
+      id,
+      dispose: () => entry.config.off("change", listener),
+    });
+    this.render();
+    return id;
   }
-}
 
-function unique<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
+  private render(): void {
+    if (!this.body) return;
+
+    render(this.body, html`
+      <SettingsSection>
+        <SettingsSectionTitle>Settings</SettingsSectionTitle>
+        ${this.entries.length ? this.entries.map((entry) => this.renderEntry(entry)) : html`
+          <SettingsRow>
+            <SettingsText>No settings registered.</SettingsText>
+          </SettingsRow>
+        `}
+      </SettingsSection>
+    `);
+  }
+
+  private renderEntry(entry: SettingEntry) {
+    if (entry.kind === "separator") return html`<SettingsSeparator />`;
+    if (entry.kind === "text") return html`<SettingsSectionTitle>${entry.label ?? ""}</SettingsSectionTitle>`;
+
+    if (entry.kind === "button") {
+      return html`
+        <SettingsRow>
+          <SettingsText>${entry.label ?? ""}</SettingsText>
+          <SettingsButton type="button" @click=${event(() => void entry.handler?.())}>Run</SettingsButton>
+        </SettingsRow>
+      `;
+    }
+
+    if (!entry.config || !entry.key) return "";
+
+    if (entry.kind === "switch") {
+      return html`
+        <SettingsRow>
+          <SettingsText>${entry.label ?? entry.key}</SettingsText>
+          <SettingsInput
+            type="checkbox"
+            .checked=${Boolean(entry.config.get(entry.key))}
+            @change=${event((change: Event) => {
+              const checked = change.target instanceof HTMLInputElement ? change.target.checked : false;
+              entry.config?.set(entry.key!, checked);
+            })}
+          />
+        </SettingsRow>
+      `;
+    }
+
+    if (entry.kind === "select") {
+      const value = String(entry.config.get(entry.key) ?? "");
+      return html`
+        <SettingsRow>
+          <SettingsText>${entry.label ?? entry.key}</SettingsText>
+          <SettingsSelect
+            .value=${value}
+            @change=${event((change: Event) => {
+              const next = change.target instanceof HTMLSelectElement ? change.target.value : value;
+              entry.config?.set(entry.key!, next);
+            })}
+          >
+            ${(entry.selections ?? []).map((selection) => html`
+              <option value=${selection} .selected=${selection === value}>${selection}</option>
+            `)}
+          </SettingsSelect>
+        </SettingsRow>
+      `;
+    }
+
+    if (entry.kind === "range") {
+      const value = Number(entry.config.get(entry.key) ?? 0);
+      return html`
+        <SettingsRow>
+          <SettingsText>${entry.label ?? entry.key}: ${String(entry.config.get(entry.key))}</SettingsText>
+          <SettingsInput
+            type="range"
+            min=${String(entry.range?.min ?? 0)}
+            max=${String(entry.range?.max ?? 100)}
+            step=${String(entry.range?.step ?? 1)}
+            .value=${String(value)}
+            @input=${event((input: Event) => {
+              const next = input.target instanceof HTMLInputElement ? Number(input.target.value) : value;
+              entry.config?.set(entry.key!, next);
+            })}
+          />
+        </SettingsRow>
+      `;
+    }
+
+    return "";
+  }
 }
