@@ -2,6 +2,7 @@ import type {
   ClassMapDirective,
   Directive,
   RefDirective,
+  RefCallback,
   RenderValue,
   RepeatContext,
   RepeatDirective,
@@ -258,7 +259,7 @@ function appendFragmentValue(parent: DocumentFragment, value: RenderValue): void
  * html`<input ref=${ref((node) => node.focus())} />`;
  * ```
  */
-export function ref(callback: (node: Element) => void | (() => void)): RefDirective {
+export function ref<T extends Element = Element>(callback: RefCallback<T>): RefDirective<T> {
   return createDirective({ kind: "ref", callback });
 }
 
