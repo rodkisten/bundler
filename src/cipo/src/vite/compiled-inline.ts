@@ -96,7 +96,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       if (options.compileFabrica !== false) {
         fabrica = compileFabricaSource(nextCode, {
           filename,
-          importPath: createImportPath(filename, joinPath(root, 'src/fabrica/compiler.ts')),
+          importPath: createImportPath(filename, joinPath(root, 'src/fabrica/compiler-runtime.ts')),
         })
         nextCode = fabrica.code
       }
