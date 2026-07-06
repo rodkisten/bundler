@@ -6,6 +6,8 @@ import { parseStylesheet } from '../parser'
 import { formatCss, wrapLayer } from '../format'
 import { createDeclaration, hashString } from '../utils'
 import { compilePropertyBlock } from '../properties'
+import { configureFromCss } from '../config-css'
+import { splitPolymorphicCssSource } from '../css-mode'
 import { addImportant } from './important'
 import { compileAtomicRule } from './atomic-compile'
 import { applyConfiguredScopeToSelectors } from './selector-compile'
@@ -39,16 +41,17 @@ function importWrapContext(rule: string, context: import('../types').CipoRuleCon
 
 /** Compiles explicit full stylesheet CSS. */
 export function compileSheetCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
-  const rawCss = buildSafeSource(strings, values)
-  const cacheKey = createArtifactCacheKey(rawCss, important ? 'sheet-important' : 'sheet')
+  const sourceCss = buildSafeSource(strings, values)
+  const prepared = prepareSheetSource(sourceCss)
+  const cacheKey = createArtifactCacheKey(prepared.css, important ? 'sheet-important' : 'sheet')
   const cached = getCachedArtifact(cacheKey)
 
   if (cached && isStylesheetArtifactLike(cached)) return cached
 
   const warnings: CipoWarning[] = []
-  const transformedCss = transformCss(rawCss, warnings)
+  const transformedCss = transformCss(prepared.css, warnings)
   const ast = parseStylesheet(transformedCss, warnings)
-  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
+  const artifact = createStylesheetArtifact(prepared.css, transformedCss, ast, warnings, important)
 
   setCachedArtifact(cacheKey, artifact)
   return artifact
@@ -56,17 +59,29 @@ export function compileSheetCss(strings: TemplateStringsArray, values: readonly 
 
 /** Compiles a stylesheet wrapped in a scope selector. */
 export function compileScopedSheetCss(selector: string, strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoStylesheetArtifact {
-  const rawCss = buildSafeSource(strings, values)
-  const scopedSource = `${selector}{${rawCss}}`
+  const sourceCss = buildSafeSource(strings, values)
+  const prepared = prepareSheetSource(sourceCss)
+  const scopedSource = `${selector}{${prepared.css}}`
   const cacheKey = createArtifactCacheKey(scopedSource, important ? 'sheet-scoped-important' : 'sheet-scoped')
   const cached = getCachedArtifact(cacheKey)
   if (cached && isStylesheetArtifactLike(cached)) return cached
   const warnings: CipoWarning[] = []
   const transformedCss = transformCss(scopedSource, warnings)
   const ast = parseStylesheet(transformedCss, warnings)
-  const artifact = createStylesheetArtifact(rawCss, transformedCss, ast, warnings, important)
+  const artifact = createStylesheetArtifact(prepared.css, transformedCss, ast, warnings, important)
   setCachedArtifact(cacheKey, artifact)
   return artifact
+}
+
+
+/**
+ * Applies same-template @cipo/@theme/@alias blocks before compiling the remaining sheet.
+ * This lets design-system sheets define aliases and immediately use them without warning storms.
+ */
+function prepareSheetSource(sourceCss: string): { readonly css: string } {
+  const source = splitPolymorphicCssSource(sourceCss)
+  if (source.configCss) configureFromCss(source.configCss)
+  return { css: source.css }
 }
 
 /** Wraps a stylesheet artifact in a named cascade layer. */
