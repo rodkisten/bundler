@@ -1,3 +1,5 @@
+import { asNode, event, html, styled } from "../components/runtime";
+
 export interface PanelAction {
   readonly label: string;
   readonly action: string;
@@ -21,56 +23,141 @@ export interface PanelShellRefs {
   readonly body: HTMLElement;
 }
 
-export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
-  target.replaceChildren();
-  const root = document.createElement("section");
-  root.className = ["roderuda-panel-shell", options.className].filter(Boolean).join(" ");
+const PanelShell = styled.section("RodPanelShell").css`
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+`;
 
-  if (options.title != null) {
-    root.append(renderPanelHeader(options));
+const PanelHeader = styled.header("RodPanelHeader").css`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 10px;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+  font: inherit;
+  font-weight: 600;
+`;
+
+const PanelTitle = styled.span("RodPanelTitle").css`
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const PanelActions = styled.div("RodPanelActions").css`
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+`;
+
+const PanelTextButton = styled.button("RodPanelTextButton").css`
+  appearance: none;
+  padding: 4px 8px;
+  border: 1px solid $border;
+  border-radius: $sm;
+  color: $primary;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: $selectedForeground;
+    background: $highlight;
   }
 
-  const body = document.createElement("div");
-  body.className = [options.bodyClassName, options.scroll === false ? "" : "roderuda-scroll"].filter(Boolean).join(" ");
+  &:active {
+    transform: scale(.96);
+    color: $accent;
+  }
+`;
+
+const PanelBody = styled.div("RodPanelBody").css`
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+
+  &[data-scroll="true"] {
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+`;
+
+export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
+  const bodyRef = { current: null as HTMLElement | null };
+
+  const root = asNode(html`
+    <RodPanelShell class=${options.className ?? ""}>
+      ${options.title != null ? panelHeaderTemplate(options) : ""}
+      <RodPanelBody
+        class=${options.bodyClassName ?? ""}
+        data-scroll=${String(options.scroll !== false)}
+        ref=${(node: unknown) => {
+          bodyRef.current = node as HTMLElement | null;
+          return () => {
+            bodyRef.current = null;
+          };
+        }}
+      />
+    </RodPanelShell>
+  `) as HTMLElement;
+
+  const body = bodyRef.current ?? root.querySelector<HTMLElement>("[data-scroll]");
+  if (!body) throw new Error("Panel shell body was not rendered.");
+
   if (options.bodyAttr) body.setAttribute(options.bodyAttr, "");
 
-  root.append(body);
-  target.append(root);
+  target.replaceChildren(root);
+
   return { root, body };
 }
 
-function renderPanelHeader(options: PanelShellOptions): HTMLElement {
-  const header = document.createElement("header");
-  header.className = "roderuda-section-title";
-
-  const title = document.createElement("span");
-  title.textContent = options.title ?? "";
-  header.append(title);
-
-  if (options.actions?.length) {
-    const actions = document.createElement("div");
-    actions.className = "roderuda-section-actions";
-    for (const item of options.actions) {
-      const button = document.createElement("button");
-      button.className = item.className ?? "roderuda-text-btn";
-      button.type = "button";
-      button.title = item.title ?? item.label;
-      button.dataset.action = item.action;
-      button.textContent = item.label;
-      button.addEventListener("click", (click) => options.onAction?.(click, item.action));
-      applyAttrs(button, item.attrs);
-      actions.append(button);
-    }
-    header.append(actions);
-  }
-
-  return header;
+function panelHeaderTemplate(options: PanelShellOptions) {
+  return html`
+    <RodPanelHeader>
+      <RodPanelTitle>${options.title ?? ""}</RodPanelTitle>
+      ${options.actions?.length ? html`
+        <RodPanelActions>
+          ${options.actions.map((item) => panelActionTemplate(item, options))}
+        </RodPanelActions>
+      ` : ""}
+    </RodPanelHeader>
+  `;
 }
 
-function applyAttrs(element: HTMLElement, attrs?: PanelAction["attrs"]): void {
-  if (!attrs) return;
-  for (const [name, value] of Object.entries(attrs)) {
-    if (value == null || value === false) element.removeAttribute(name);
-    else element.setAttribute(name, value === true ? "" : String(value));
+function panelActionTemplate(item: PanelAction, options: PanelShellOptions) {
+  return html`
+    <RodPanelTextButton
+      class=${item.className ?? ""}
+      type="button"
+      title=${item.title ?? item.label}
+      data-action=${item.action}
+      @click=${event((click: Event) => options.onAction?.(click, item.action))}
+      ...${attrs(item.attrs)}
+    >
+      ${item.label}
+    </RodPanelTextButton>
+  `;
+}
+
+function attrs(values?: PanelAction["attrs"]): Record<string, string | null> {
+  const output: Record<string, string | null> = {};
+  if (!values) return output;
+
+  for (const [name, value] of Object.entries(values)) {
+    output[name] = value == null || value === false ? null : value === true ? "" : String(value);
   }
+
+  return output;
 }
