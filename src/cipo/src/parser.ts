@@ -360,11 +360,31 @@ function findDeclarationBlockBoundary(input: string): number {
       const after = input.slice(index + 1).trim()
 
       if (!after) return -1
+
+      // Selector lists can span lines before a nested block:
+      //
+      //   th,
+      //   td { ... }
+      //
+      // When scanning backwards, the newline after `th,` looks like the last
+      // possible split point. Do not split there, otherwise `th,` is parsed as
+      // a declaration and the compiled build silently drops that selector.
+      if ((char === '\n' || char === '\r') && getLastNonEmptyLine(before).endsWith(',')) continue
+
       if (before && containsDeclarationLikeStatement(before)) return index + 1
     }
   }
 
   return -1
+}
+
+function getLastNonEmptyLine(input: string): string {
+  const lines = input.split(/\r?\n/g)
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim() ?? ''
+    if (line) return line
+  }
+  return ''
 }
 
 /**
