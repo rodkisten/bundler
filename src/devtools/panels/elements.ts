@@ -29,7 +29,7 @@ import {
   type ElementsViewModel,
   type RenderPiece,
   type StyleRuleInfo,
-} from "./elements.components";
+} from "./elements-components";
 
 export { elementsStyleArtifacts };
 
