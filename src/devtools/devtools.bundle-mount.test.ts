@@ -59,7 +59,10 @@ describe("RodEruda IIFE bundle mount", () => {
 
   afterEach(() => {
     const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
-    api?.destroy?.();
+    const runtime = (api as { devtools?: typeof devtools; default?: typeof devtools; destroy?: typeof devtools.destroy } | undefined)?.devtools
+      ?? (api as { default?: typeof devtools } | undefined)?.default
+      ?? api;
+    runtime?.destroy?.();
     vi.restoreAllMocks();
   });
 

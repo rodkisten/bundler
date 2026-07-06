@@ -102,7 +102,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private ownsHost = false;
   private reattachTimer = 0;
   private hostObserver: MutationObserver | null = null;
-  private readonly reattachHost = () => this.forceMountHost();
+  private readonly reattachHost = () => { if (typeof document !== "undefined") this.forceMountHost(); };
 
   init(options: DevtoolsInitOptions = {}): this {
     configureDebug(options.debug);
