@@ -73,6 +73,37 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(clicked).toBe(1)
   })
 
+
+
+  it('compiles same-sheet Cipó config aliases and theme tokens without leaking DSL tokens', () => {
+    const result = compileCipoSourceBuild(`
+      import { sheet } from '../src'
+      export const styles = sheet.css\`
+        @cipo { prefix: rd; minify: true; }
+        @theme { colors<color>: (primary: red); }
+        @alias noScrollbar {
+          scrollbar-width: none
+          &::-webkit-scrollbar { display: none }
+        }
+        .panel {
+          noScrollbar
+          color: $primary
+        }
+      \`
+    `, {
+      filename: '/project/src/devtools/core/style.ts',
+      injectCssImport: false,
+    })
+
+    expect(result.changed).toBe(true)
+    expect(result.css).toContain('scrollbar-width:none')
+    expect(result.css).toContain('color:var(--rd-colors-primary)')
+    expect(result.css).not.toContain('noScrollbar')
+    expect(result.css).not.toContain('$primary')
+    expect(result.code).not.toContain('.css`')
+    expect(result.code).not.toContain('$primary')
+  })
+
   it('Vite plugin injects compiled CSS through Cipó runtime style tag and compiles Fabrica in build mode', () => {
     const plugin = cipoVite({ root: '/project', mode: 'build', compileFabrica: true })
     const context = { emitFile: () => 'asset' } as never
@@ -84,8 +115,8 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
     const code = transformed && 'code' in transformed ? transformed.code : ''
     expect(code).toContain('insertCss as __cipoInsertCompiledCss')
-    expect(code).toContain('compileScopedSheetCss as __cipoCompileScopedSheetCss')
-    expect(code).toContain('color: red;')
+    expect(code).not.toContain('.css`')
+    expect(code).toContain('color:red')
     expect(code).toContain('createCompiledElement("section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
