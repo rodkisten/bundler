@@ -4,6 +4,7 @@ import type { CipoCssInterpolation, CipoCssResult } from '../types'
 import { inline } from '../inline'
 import { runtime } from '../runtime'
 import { insertCss } from '../injection'
+import { findStyledCssTemplates, ensureNamedImport } from './source'
 
 /** Options for Cipó's compiled-inline surface. */
 export interface CipoCompiledInlineOptions {
@@ -162,80 +163,6 @@ export function compileCipoSourceInline(source: string, options: CompileCipoSour
   }
 }
 
-interface StyledCssTemplateHit {
-  readonly start: number
-  readonly receiver: string
-  readonly templateStart: number
-  readonly templateEnd: number
-}
-
-function findStyledCssTemplates(source: string): StyledCssTemplateHit[] {
-  const hits: StyledCssTemplateHit[] = []
-  const marker = '.css`'
-  let searchFrom = 0
-
-  while (searchFrom < source.length) {
-    const markerIndex = source.indexOf(marker, searchFrom)
-    if (markerIndex < 0) break
-
-    const receiverStart = findReceiverStart(source, markerIndex)
-    const templateStart = markerIndex + '.css'.length
-    const templateEnd = findTemplateEnd(source, templateStart)
-
-    if (receiverStart >= 0 && templateEnd >= 0) {
-      const receiver = source.slice(receiverStart, markerIndex)
-      if (isCompilableReceiver(receiver)) {
-        hits.push({ start: receiverStart, receiver, templateStart, templateEnd })
-        searchFrom = templateEnd + 1
-        continue
-      }
-    }
-
-    searchFrom = markerIndex + marker.length
-  }
-
-  return hits
-}
-
-function findReceiverStart(source: string, cssDotIndex: number): number {
-  let index = cssDotIndex - 1
-  let parenDepth = 0
-  let bracketDepth = 0
-  let quote = ''
-  let escaped = false
-
-  for (; index >= 0; index -= 1) {
-    const char = source[index]!
-
-    if (quote) {
-      if (escaped) escaped = false
-      else if (char === '\\') escaped = true
-      else if (char === quote) quote = ''
-      continue
-    }
-
-    if (char === '"' || char === "'" || char === '`') { quote = char; continue }
-    if (char === ')') { parenDepth += 1; continue }
-    if (char === '(') { parenDepth -= 1; continue }
-    if (char === ']') { bracketDepth += 1; continue }
-    if (char === '[') { bracketDepth -= 1; continue }
-
-    if (parenDepth < 0 || bracketDepth < 0) return index + 1
-    if (parenDepth === 0 && bracketDepth === 0 && !isReceiverChar(char)) return index + 1
-  }
-
-  return 0
-}
-
-function isReceiverChar(char: string): boolean {
-  return /[A-Za-z0-9_$.[\]()'",\s:-]/.test(char)
-}
-
-function isCompilableReceiver(receiver: string): boolean {
-  const compact = receiver.replace(/\s+/g, '')
-  return /^(?:styled|cipo)(?:\.[A-Za-z_$][\w$]*|\(|\[)/.test(compact)
-}
-
 function tryCompileRawTemplate(rawCss: string): string {
   try {
     const cooked = rawCss.replace(/\\`/g, '`')
@@ -271,8 +198,7 @@ function findTemplateEnd(source: string, start: number): number {
 }
 
 function ensureCompiledInlineImport(source: string, importPath = './compiler/compiled-inline'): string {
-  if (/import\s+\{[^}]*\bcompiledInlineCss\b[^}]*\}\s+from\s+['"][^'"]+['"]/.test(source)) return source
-  return `import { compiledInlineCss } from '${importPath}'\n${source}`
+  return ensureNamedImport(source, 'compiledInlineCss', importPath)
 }
 
 function needsObjectStyleAdapter(): boolean {

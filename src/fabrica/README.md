@@ -1144,3 +1144,14 @@ Registry collision behavior is owned by the styled factory. New integrations
 should connect Cipó to `instance.registry` or use `Cipo.createStyled({ fabrica:
 instance })`. The legacy `registerComponent()` surface remains available with a
 deduplicated deprecation warning.
+
+## Build/runtime compiler split
+
+Fábrica now keeps build-time source rewriting separate from runtime DOM semantics:
+
+- `compiler-core.ts` scans source files and rewrites `html` / `jsx.html` tagged templates.
+- `compiler-runtime.ts` owns the helpers emitted by build mode, but still delegates props, events and children to the normal runtime primitives.
+- `compiler-utils.ts` holds tiny parser utilities shared by both layers.
+- `compiler.ts` is only a compatibility barrel.
+
+This keeps the Vite compiler from becoming a second runtime. Build mode decides *where* code is emitted; the runtime still decides *how* Fábrica behaves.
