@@ -79,7 +79,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       const cipo = compileCipoSourceBuild(code, {
         filename,
         classPrefix: options.classPrefix,
-        cssImportId: options.cssDelivery === 'asset' ? VIRTUAL_CSS_ASSET_ID : VIRTUAL_CSS_ID,
+        cssImportId: VIRTUAL_CSS_ASSET_ID,
         injectCssImport: options.cssDelivery === 'asset',
         transformCssTag: options.transformCssTag ?? true,
       })
@@ -88,9 +88,8 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       if (cipo.manifest.length > 0 && options.cssDelivery !== 'asset') {
         nextCode = prependStyleTagInjection(
           nextCode,
-          cipo.manifest.map((entry) => ({ selector: `.${entry.className}`, css: entry.rawCss })),
+          cipo.manifest.map((entry) => entry.cssText).join('\n'),
           createImportPath(filename, joinPath(root, 'src/cipo/src/injection.ts')),
-          createImportPath(filename, joinPath(root, 'src/cipo/src/compiler/sheet-compile.ts')),
         )
       }
       let fabrica: FabricaCompileSourceResult | undefined
@@ -124,15 +123,12 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
 
 function prependStyleTagInjection(
   code: string,
-  entries: readonly { readonly selector: string; readonly css: string }[],
+  cssText: string,
   injectionImportPath: string,
-  compilerImportPath: string,
 ): string {
-  const serializedEntries = JSON.stringify(entries.map((entry) => [entry.selector, entry.css]))
   return [
     `import { insertCss as __cipoInsertCompiledCss } from ${JSON.stringify(injectionImportPath)};`,
-    `import { compileScopedSheetCss as __cipoCompileScopedSheetCss } from ${JSON.stringify(compilerImportPath)};`,
-    `__cipoInsertCompiledCss(${serializedEntries}.map(([__cipoSelector, __cipoCss]) => String(__cipoCompileScopedSheetCss(__cipoSelector, [__cipoCss], [], false))).join("\\n"));`,
+    `__cipoInsertCompiledCss(${JSON.stringify(cssText)});`,
     code,
   ].join('\n')
 }
