@@ -351,6 +351,9 @@ jobs:
       - name: Build browser bundles
         run: pnpm build
 
+      - name: Build via Vite
+        run: pnpm build:devtools
+
       - name: Collect release assets
         id: assets
         run: |
