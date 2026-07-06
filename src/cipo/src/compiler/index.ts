@@ -9,3 +9,5 @@ export * from './inline-compile'
 export * from './detect-mode'
 
 export * from './compiled-build'
+
+export * from './source'
