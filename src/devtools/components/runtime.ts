@@ -38,7 +38,7 @@ const baseRender = devtoolsFabrica.render;
 const baseMount = devtoolsFabrica.mount;
 
 function resolveRenderInput(value: RenderInput): RenderValue {
-  return typeof value === "function" ? value() : value;
+  return typeof value === "function" ? (value as () => RenderValue)() : value;
 }
 
 /** Renders inside the isolated devtools Fabrica runtime so styled components resolve correctly. */
@@ -100,8 +100,9 @@ export function uiElement<K extends keyof HTMLElementTagNameMap>(tag: K, options
   };
   const element = factory(props) as HTMLElementTagNameMap[K];
   if (options.html != null) {
+    const unsafeHtml = options.html;
     element.replaceChildren();
-    devtoolsFabrica.run(() => baseRender(element, html.unsafe(options.html)));
+    devtoolsFabrica.run(() => baseRender(element, html.unsafe(unsafeHtml)));
   }
   return element;
 }
