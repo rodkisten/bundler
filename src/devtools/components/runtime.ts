@@ -10,8 +10,6 @@ export const devtoolsFabrica = createFabrica({
 
 export const html = devtoolsFabrica.html;
 export const jsx = devtoolsFabrica.jsx;
-export const render = devtoolsFabrica.render;
-export const mount = devtoolsFabrica.mount;
 export const component = devtoolsFabrica.component;
 export const signal = devtoolsFabrica.signal;
 export const computed = devtoolsFabrica.computed;
@@ -30,6 +28,27 @@ export const onDispose = devtoolsFabrica.onDispose;
 
 export const styled = createCompiledStyled({ fabrica: devtoolsFabrica });
 export const compiledStyled = styled;
+
+styled.connectRegistry(devtoolsFabrica);
+styled.flushRegistry();
+
+type RenderInput = RenderValue | (() => RenderValue);
+
+const baseRender = devtoolsFabrica.render;
+const baseMount = devtoolsFabrica.mount;
+
+function resolveRenderInput(value: RenderInput): RenderValue {
+  return typeof value === "function" ? value() : value;
+}
+
+/** Renders inside the isolated devtools Fabrica runtime so styled components resolve correctly. */
+export function render(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): () => void {
+  return devtoolsFabrica.run(() => baseRender(container, resolveRenderInput(value)));
+}
+
+export function mount(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): () => void {
+  return devtoolsFabrica.run(() => baseMount(container, resolveRenderInput(value)));
+}
 
 export interface DevtoolsUiState extends Record<string, unknown> {
   shell: { inline: boolean; mounted: boolean };
@@ -82,18 +101,22 @@ export function uiElement<K extends keyof HTMLElementTagNameMap>(tag: K, options
   const element = factory(props) as HTMLElementTagNameMap[K];
   if (options.html != null) {
     element.replaceChildren();
-    render(element, html.unsafe(options.html));
+    devtoolsFabrica.run(() => baseRender(element, html.unsafe(options.html)));
   }
   return element;
 }
 
-export function renderInto(target: HTMLElement | ShadowRoot | DocumentFragment, value: RenderValue): void {
-  render(target, value);
+export function renderInto(target: HTMLElement | ShadowRoot | DocumentFragment, value: RenderInput): void {
+  devtoolsFabrica.run(() => {
+    baseRender(target, resolveRenderInput(value));
+  });
 }
 
-export function asNode(value: RenderValue): Node {
+export function asNode(value: RenderInput): Node {
   const fragment = document.createDocumentFragment();
-  render(fragment, value);
+  devtoolsFabrica.run(() => {
+    baseRender(fragment, resolveRenderInput(value));
+  });
   return fragment.childNodes.length === 1 ? fragment.firstChild! : fragment;
 }
 

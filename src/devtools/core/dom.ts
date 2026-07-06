@@ -242,19 +242,32 @@ export function applyImportantStyle(element: HTMLElement, styles: Record<string,
 }
 
 export function forceAppendToPage(element: HTMLElement): boolean {
-  const roots: Array<ParentNode | null> = [document.body, document.documentElement, document.head];
+  const roots = collectMountRoots();
   for (const root of roots) {
     if (!root) continue;
     try {
       if (!element.isConnected) {
         (root as HTMLElement).appendChild(element);
       }
-      debugLog("dom", "forceAppendToPage", { target: describeTarget(element), root: describeTarget(root), connected: element.isConnected });
-      return element.isConnected;
+      if (element.isConnected) {
+        debugLog("dom", "forceAppendToPage", { target: describeTarget(element), root: describeTarget(root), connected: element.isConnected });
+        return true;
+      }
     } catch (error) {
       debugWarn("dom", "forceAppendToPage root failed", { root: describeTarget(root), error: error instanceof Error ? error.message : String(error) });
     }
   }
+
+  try {
+    const adopted = adoptOpenShadowRoot(element);
+    if (adopted) {
+      debugLog("dom", "forceAppendToPage shadow", { target: describeTarget(element), root: describeTarget(adopted), connected: element.isConnected });
+      return element.isConnected;
+    }
+  } catch (error) {
+    debugWarn("dom", "forceAppendToPage shadow failed", { error: error instanceof Error ? error.message : String(error) });
+  }
+
   try {
     document.appendChild(element);
     debugLog("dom", "forceAppendToPage document", { connected: element.isConnected });
@@ -263,6 +276,42 @@ export function forceAppendToPage(element: HTMLElement): boolean {
     debugWarn("dom", "forceAppendToPage failed", { error: error instanceof Error ? error.message : String(error) });
     return element.isConnected;
   }
+}
+
+function collectMountRoots(): Array<ParentNode | null> {
+  const roots: Array<ParentNode | null> = [
+    document.body,
+    document.getElementById("app"),
+    document.querySelector("main"),
+    document.querySelector("[data-roderuda-mount]"),
+    document.documentElement,
+    document.head,
+  ];
+
+  const seen = new Set<ParentNode>();
+  const unique: ParentNode[] = [];
+  for (const root of roots) {
+    if (!root || seen.has(root)) continue;
+    seen.add(root);
+    unique.push(root);
+  }
+  return unique;
+}
+
+function adoptOpenShadowRoot(element: HTMLElement): ParentNode | null {
+  const hosts = document.querySelectorAll<HTMLElement>("*");
+  for (let index = 0; index < hosts.length; index += 1) {
+    const host = hosts[index];
+    if (!host?.shadowRoot || host === element || host.contains(element)) continue;
+    try {
+      host.shadowRoot.appendChild(element);
+      if (element.isConnected) return host.shadowRoot;
+      element.remove();
+    } catch {
+      // try the next open shadow root
+    }
+  }
+  return null;
 }
 
 export function isDevtoolsNode(value: EventTarget | Node | null, host?: HTMLElement | null): boolean {

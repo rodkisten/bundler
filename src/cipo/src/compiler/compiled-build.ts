@@ -1,5 +1,5 @@
 import { hashString } from '../utils'
-import { compileScopedSheetCss } from './sheet-compile'
+import { compileScopedSheetCss, compileSheetCss } from './sheet-compile'
 import { applyEdits, findBareCssTemplates, findStyledCssTemplates, hasTemplateInterpolation, type SourceEdit } from './source'
 
 export interface CipoCompiledBuildOptions {
@@ -15,7 +15,7 @@ export interface CipoCompiledBuildManifestEntry {
   readonly filename?: string
   readonly start: number
   readonly end: number
-  readonly kind: 'styled-css' | 'css-tag'
+  readonly kind: 'styled-css' | 'css-tag' | 'sheet-css'
   readonly receiver?: string
   readonly className: string
   readonly rawCss: string
@@ -48,6 +48,16 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
   for (const hit of findStyledCssTemplates(source)) {
     if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
     const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
+    const receiverName = hit.receiver.replace(/\s+/g, '')
+
+    if (receiverName === 'sheet') {
+      const cssText = compileRawSheetCss(rawCss)
+      const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver)
+      entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
+      edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
+      continue
+    }
+
     const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver)
     const cssText = compileRawCssForClass(className, rawCss)
     entries.push(createManifestEntry('styled-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
@@ -58,6 +68,15 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
     for (const hit of findBareCssTemplates(source, edits)) {
       if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
       const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
+
+      if (shouldCompileAsSheetConfig(rawCss)) {
+        const cssText = compileRawSheetCss(rawCss)
+        const className = createCompiledClassName(prefix, options.filename, rawCss, 'css')
+        entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
+        edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
+        continue
+      }
+
       const className = createCompiledClassName(prefix, options.filename, rawCss, 'css')
       const cssText = compileRawCssForClass(className, rawCss)
       entries.push(createManifestEntry('css-tag', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
@@ -79,11 +98,29 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
   }
 }
 
+function shouldCompileAsSheetConfig(rawCss: string): boolean {
+  return /@cipo\b|@theme\b|@breakpoints\b|@alias\b/.test(rawCss)
+}
+
+function compileRawSheetCss(rawCss: string): string {
+  try {
+    const cooked = rawCss.replace(/\\`/g, '`')
+    const artifact = compileSheetCss([cooked] as unknown as TemplateStringsArray, [], false)
+    return artifact.cssText
+  } catch {
+    return ''
+  }
+}
+
+function createStylesheetArtifactLiteral(cssText: string): string {
+  return `{kind:"cipo.stylesheet",cssText:${JSON.stringify(cssText)}}`
+}
+
 function compileRawCssForClass(className: string, rawCss: string): string {
   try {
     return String(compileScopedSheetCss(`.${className}`, [rawCss] as unknown as TemplateStringsArray, [], false))
   } catch {
-    return `.${className}{${rawCss}}`
+    return ''
   }
 }
 

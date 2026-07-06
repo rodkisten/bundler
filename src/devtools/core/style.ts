@@ -1,4 +1,4 @@
-import { css, sheet } from "../../cipo/src/index";
+import { sheet } from "../../cipo/src/index";
 import { insertCss, setRuntimeStyleTarget } from "../../cipo/src/injection";
 import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
 
@@ -8,7 +8,7 @@ import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } f
 
 setRuntimeStyleTarget(null);
 
-export const devtoolsTokens = css`
+export const devtoolsStyles = sheet.css`
   @cipo {
     prefix: rd;
     layers: false;
@@ -140,9 +140,7 @@ export const devtoolsTokens = css`
     bg: $background
     bor: 1px solid $border
   }
-`;
 
-export const devtoolsStyles = sheet.css`
   :host {
     all: initial
     contain: layout style
@@ -865,6 +863,9 @@ export const devtoolsStyles = sheet.css`
     }
   }
 `;
+
+/** Side-effect import used by panels to ensure the devtools theme sheet is evaluated. */
+export const devtoolsTokens = devtoolsStyles;
 
 export type DevtoolsStyleArtifact = CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact;
 
