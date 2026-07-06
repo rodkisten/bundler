@@ -84,12 +84,20 @@ export function applyCompiledProps(element: Element, props: FabricaCompiledEleme
 
     if (rawName === 'children') continue
 
-    if (rawName === 'ref' && typeof value === 'function') {
-      const cleanup = (value as (node: Element) => void | (() => void))(element)
-      if (typeof cleanup === 'function') {
-        // `appendValue`/render disposal owns the subtree cleanup; ref cleanup is already handled by
-        // the runtime template path. In direct compiled creation we keep the call synchronous and
-        // intentionally avoid importing cleanup internals here.
+    if (rawName === 'ref') {
+      const callback = typeof value === 'function'
+        ? value
+        : value && typeof value === 'object' && (value as { kind?: unknown }).kind === 'ref'
+          ? (value as { callback?: unknown }).callback
+          : null
+
+      if (typeof callback === 'function') {
+        const cleanup = (callback as (node: Element) => void | (() => void))(element)
+        if (typeof cleanup === 'function') {
+          // Compiled templates call refs synchronously during DOM creation. The owned runtime path
+          // still manages subtree disposal; this direct path intentionally avoids importing owner
+          // internals so compiled build remains small and side-effect free.
+        }
       }
       continue
     }
