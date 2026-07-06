@@ -241,7 +241,7 @@ const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
   left: 0;
   display: flex;
   align-items: center;
-  height: calc(25px + var(--rd-safe-bottom));
+  height: calc(25px + $$safeBottom);
   padding-bottom: $$safeBottom;
   overflow-x: auto;
   border-top: 1px solid $border;
@@ -1074,13 +1074,9 @@ export class Elements extends Tool {
       ["delete-element", "Delete element"],
     ] as const;
 
-    const menu = asNode(html`
-      <RodElementsMenu role="menu" data-elements-menu data-node-id=${this.nodeId(element)}>
-        ${actions.map(([action, label]) => html`
-          <RodElementsMenuButton type="button" role="menuitem" data-elements-menu-action=${action}>${label}</RodElementsMenuButton>
-        `)}
-      </RodElementsMenu>
-    `) as HTMLElement;
+    const menu = asNode(html`<RodElementsMenu role="menu" data-elements-menu data-node-id=${this.nodeId(element)}>
+      ${actions.map(([action, label]) => html`<RodElementsMenuButton type="button" role="menuitem" data-elements-menu-action=${action}>${label}</RodElementsMenuButton>`)}
+    </RodElementsMenu>`) as HTMLElement;
 
     this.contextMenu = menu;
     this.context?.root.append(menu);
