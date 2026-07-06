@@ -21,6 +21,26 @@ export interface DevtoolsDebugOptions {
   level?: DebugLevel;
 }
 
+export interface DevtoolsInitPanelConfig {
+  readonly console?: Record<string, unknown>;
+  readonly elements?: Record<string, unknown>;
+  readonly network?: Record<string, unknown>;
+  readonly resources?: Record<string, unknown>;
+  readonly sources?: Record<string, unknown>;
+  readonly info?: Record<string, unknown>;
+  readonly snippets?: Record<string, unknown>;
+  readonly settings?: Record<string, unknown>;
+  readonly [panel: string]: Record<string, unknown> | undefined;
+}
+
+export interface DevtoolsInitConfig {
+  readonly devtools?: Partial<DevtoolsDefaults & {
+    panelOrder: string[];
+    disabledPanels: string[];
+  }>;
+  readonly panels?: DevtoolsInitPanelConfig;
+}
+
 export interface DevtoolsInitOptions {
   container?: HTMLElement;
   tool?: string | readonly string[];
@@ -28,6 +48,7 @@ export interface DevtoolsInitOptions {
   useShadowDom?: boolean;
   inline?: boolean;
   defaults?: DevtoolsDefaults;
+  config?: DevtoolsInitConfig;
   debug?: boolean | DevtoolsDebugOptions;
 }
 

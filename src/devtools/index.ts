@@ -16,9 +16,9 @@ import { EntryBtn } from "./entry-button";
 import { Console, consoleStyleArtifacts } from "./panels/console";
 import { Elements, elementsStyleArtifacts } from "./panels/elements";
 import { Info } from "./panels/info";
-import { Network } from "./panels/network";
-import { Resources } from "./panels/resources";
-import { Settings } from "./panels/settings";
+import { Network, networkStyleArtifacts } from "./panels/network";
+import { Resources, resourcesStyleArtifacts } from "./panels/resources";
+import { Settings, settingsStyleArtifacts } from "./panels/settings";
 import { Snippets } from "./panels/snippets";
 import { Sources } from "./panels/sources";
 import { Tool } from "./tool";
@@ -149,15 +149,23 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.refs = renderShell(this.rootTarget, options.inline === true);
     debugLog("runtime", "shell rendered");
 
-    this.style = installDevtoolsStyles(this.rootTarget, [...consoleStyleArtifacts, ...elementsStyleArtifacts]);
+    this.style = installDevtoolsStyles(this.rootTarget, [
+      ...consoleStyleArtifacts,
+      ...elementsStyleArtifacts,
+      ...networkStyleArtifacts,
+      ...resourcesStyleArtifacts,
+      ...settingsStyleArtifacts,
+    ]);
     //this.style = installDevtoolsStyles(this.rootTarget, elementsStyleArtifacts);
     debugLog("runtime", "styles installed", { style: this.style, root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light" });
    
     this.chobitsu.setHost(this.host);
     this.devtools = new DevTools(this.host, this.shadowRoot, this.refs, options.inline === true, options.defaults);
+    if (options.config?.devtools) this.devtools.config.patch(options.config.devtools);
     this.entryBtn = new EntryBtn(this.refs.entryButton, this.refs.root).on("click", () => this.devtools?.toggle());
 
     const settings = new Settings();
+    applyToolConfig(settings, options.config?.panels?.settings);
     this.devtools.add(settings);
     this.entryBtn.initCfg(settings);
     this.devtools.initCfg(settings);
@@ -177,6 +185,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     
       try {
         const instance = new Constructor();
+        applyToolConfig(instance, options.config?.panels?.[name.toLowerCase()]);
         if (instance instanceof Network) this.chobitsu.attachNetworkCapture(instance.capture);
         this.devtools.add(instance);
         debugLog("runtime", "tool added", { name });
@@ -413,6 +422,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     if (!this.initialized) console.error('[RodEruda] Please call "devtools.init()" first');
     return this.initialized;
   }
+}
+
+
+function applyToolConfig(tool: ToolLike, values: Record<string, unknown> | undefined): void {
+  if (!values) return;
+  const configurable = tool as ToolLike & { config?: { patch?: (values: Record<string, unknown>) => void } };
+  configurable.config?.patch?.(values);
 }
 
 export const api = new RodDevtoolsRuntime();
