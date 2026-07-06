@@ -152,7 +152,7 @@ export const devtoolsStyles = sheet.css`
     $$tabHeight: 40px
     $$controlHeight: 40px
     $$entrySize: 40px
-    $$entryZ: 1000
+    $$entryZ: 2147483647
     $$toolsZ: 500
     $$overlayZ: 1200
   }
@@ -162,7 +162,7 @@ export const devtoolsStyles = sheet.css`
     $$tabHeight: 40px
     $$controlHeight: 40px
     $$entrySize: 40px
-    $$entryZ: 1000
+    $$entryZ: 2147483647
     $$toolsZ: 500
     $$overlayZ: 1200
 
@@ -274,7 +274,7 @@ export const devtoolsStyles = sheet.css`
     pos(absolute, left: 0, bottom: 0)
     w: 100%
     h: 80%
-    z: 2147483646
+    z: 2147483645
     display: none
     pt: $$tabHeight
     opacity: 0
