@@ -5,8 +5,8 @@ import { readValue } from './value'
 import type { RenderValue } from './types'
 import {
   createElementForTag,
-  FABRICA_FABRICA_SPREAD_PREFIX,
-  FABRICA_FABRICA_SPREAD_SUFFIX,
+  FABRICA_SPREAD_PREFIX,
+  FABRICA_SPREAD_SUFFIX,
   FABRICA_VALUE_PREFIX,
   FABRICA_VALUE_SUFFIX,
   isVoidTag,

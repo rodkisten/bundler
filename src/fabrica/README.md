@@ -1149,7 +1149,7 @@ deduplicated deprecation warning.
 
 Fábrica now keeps build-time source rewriting separate from runtime DOM semantics:
 
-- `compiler-core.ts` scans source files and rewrites `html``...``/`jsx.html``...`` tags.
+- `compiler-core.ts` scans source files and rewrites `html` / `jsx.html` tagged templates.
 - `compiler-runtime.ts` owns the helpers emitted by build mode, but still delegates props, events and children to the normal runtime primitives.
 - `compiler-utils.ts` holds tiny parser utilities shared by both layers.
 - `compiler.ts` is only a compatibility barrel.

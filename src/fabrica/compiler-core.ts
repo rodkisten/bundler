@@ -78,7 +78,6 @@ export function compileFabricaSource(source: string, options: FabricaCompileSour
   return { code, changed: true, manifest }
 }
 
-interface SourceEdit { readonly start: number; readonly end: number; readonly value: string }
 interface CompiledTemplateExpression { readonly expression: string; readonly rootTag: string }
 
 interface ParsedNode { type: 'element'; tag: string; props: Record<string, string | true>; children: ParsedChild[] }
@@ -162,10 +161,7 @@ function parseStaticAttributes(source: string): Record<string, string | true> | 
   return props
 }
 
-function normalizeAttributeName(name: string): string {
-  if (name === 'className') return 'class'
-  return name
-}
+// normalizeAttributeName is imported from './compiler-utils'
 
 function emitNode(node: ParsedNode): string {
   const props = Object.keys(node.props).length > 0 ? JSON.stringify(node.props) : 'null'
