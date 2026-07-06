@@ -63,11 +63,30 @@ describe("RodEruda IIFE bundle mount", () => {
     vi.restoreAllMocks();
   });
 
-  it("mounts the shell from the built IIFE bundle", () => {
+  it("mounts the shell from the built IIFE bundle", async () => {
+    if (!fs.existsSync(bundlePath)) {
+      const { build } = await import("vite");
+      const config = ((await import("./vite.config")).default as any);
+      await build({
+        ...config,
+        configFile: false,
+        build: {
+          ...config.build,
+          emptyOutDir: false,
+          outDir: path.resolve(process.cwd(), "dist"),
+          minify: false,
+          lib: {
+            ...config.build.lib,
+            formats: ["iife"],
+            fileName: () => "devtools.iife.js",
+          },
+        },
+      });
+    }
+
     expect(fs.existsSync(bundlePath)).toBe(true);
 
     window.eval(fs.readFileSync(bundlePath, "utf8"));
-
     const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
     expect(api).toBeDefined();
 

@@ -280,10 +280,10 @@ export function forceAppendToPage(element: HTMLElement): boolean {
 
 function collectMountRoots(): Array<ParentNode | null> {
   const roots: Array<ParentNode | null> = [
-    document.body,
     document.getElementById("app"),
     document.querySelector("main"),
     document.querySelector("[data-roderuda-mount]"),
+    document.body,
     document.documentElement,
     document.head,
   ];
@@ -299,19 +299,27 @@ function collectMountRoots(): Array<ParentNode | null> {
 }
 
 function adoptOpenShadowRoot(element: HTMLElement): ParentNode | null {
-  const hosts = document.querySelectorAll<HTMLElement>("*");
-  for (let index = 0; index < hosts.length; index += 1) {
-    const host = hosts[index];
-    if (!host?.shadowRoot || host === element || host.contains(element)) continue;
-    try {
-      host.shadowRoot.appendChild(element);
-      if (element.isConnected) return host.shadowRoot;
-      element.remove();
-    } catch {
-      // try the next open shadow root
+  const root = document.documentElement
+  if (!root) return null
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+  let current: Node | null = walker.currentNode
+
+  while (current) {
+    const host = current as HTMLElement
+    if (host.shadowRoot && host !== element && !host.contains(element)) {
+      try {
+        host.shadowRoot.appendChild(element)
+        if (element.isConnected) return host.shadowRoot
+        element.remove()
+      } catch {
+        // try the next open shadow root
+      }
     }
+    current = walker.nextNode()
   }
-  return null;
+
+  return null
 }
 
 export function isDevtoolsNode(value: EventTarget | Node | null, host?: HTMLElement | null): boolean {

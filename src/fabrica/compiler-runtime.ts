@@ -344,6 +344,6 @@ function collectCompiledChildValue(node: RuntimeNode, values: readonly RenderVal
     else props[prop.name] = prop.type === 'value' ? values[prop.index] : prop.value
   }
   applyCompiledProps(element, props)
-  for (const child of node.children) collectCompiledChildValue(child, values, output)
+  for (const child of node.children) appendCompiledNode(element, child, values)
   output.push(element)
 }
