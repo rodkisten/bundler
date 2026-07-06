@@ -1,4 +1,5 @@
 import { appendValue, html } from './dom'
+import { resolveRuntimeComponent, runWithCurrentFabricaRuntime } from './runtime-context'
 import { bindEvent } from './events'
 import { applyProps, setPropertyOrAttribute } from './props'
 import { readValue } from './value'
@@ -56,17 +57,19 @@ export function createCompiledFragment(...children: readonly RenderValue[]): Doc
  * existing Fábrica feature instead of maintaining a second implementation.
  */
 export function createCompiledTemplate(strings: TemplateStringsArray | readonly string[], ...values: readonly RenderValue[]): DocumentFragment {
-  const normalized = normalizeTemplateStrings(strings)
-  const compiled = getCachedCompiledRuntimeTemplate(normalized)
-  if (!compiled) return html(normalized as TemplateStringsArray, ...values)
+  return runWithCurrentFabricaRuntime(() => {
+    const normalized = normalizeTemplateStrings(strings)
+    const compiled = getCachedCompiledRuntimeTemplate(normalized)
+    if (!compiled) return html(normalized as TemplateStringsArray, ...values)
 
-  try {
-    const fragment = document.createDocumentFragment()
-    for (const node of compiled.nodes) appendCompiledNode(fragment, node, values)
-    return fragment
-  } catch {
-    return html(normalized as TemplateStringsArray, ...values)
-  }
+    try {
+      const fragment = document.createDocumentFragment()
+      for (const node of compiled.nodes) appendCompiledNode(fragment, node, values)
+      return fragment
+    } catch {
+      return html(normalized as TemplateStringsArray, ...values)
+    }
+  })
 }
 
 /** Applies compiled props and event listeners to an element using runtime semantics. */
@@ -148,7 +151,6 @@ function containsUnsupportedTemplateShape(strings: readonly string[]): boolean {
   for (let index = 0; index < strings.length; index += 1) {
     const chunk = strings[index] ?? ''
     if (chunk.endsWith('<') || chunk.endsWith('</')) return true
-    if (/<\/?[A-Z][A-Za-z0-9_$.-]*/.test(chunk)) return true
   }
   return false
 }
@@ -175,6 +177,20 @@ function appendCompiledNode(parent: Node, node: RuntimeNode, values: readonly Re
   }
   if (node.type === 'value') {
     appendValue(parent, values[node.index])
+    return
+  }
+
+  const component = resolveCompiledComponentTag(node.tag)
+  if (component) {
+    const props: Record<string, unknown> = {}
+    for (const prop of node.props) {
+      if (prop.type === 'spread') {
+        Object.assign(props, values[prop.index] as FabricaCompiledElementProps)
+        continue
+      }
+      props[prop.name] = prop.type === 'value' ? values[prop.index] : prop.value
+    }
+    appendValue(parent, createCompiledElement(component, props, ...collectCompiledChildValues(node.children, values)))
     return
   }
 
@@ -247,7 +263,6 @@ function parseRuntimeOpenTag(open: string): RuntimeElementNode | null {
   const match = open.match(/^([A-Za-z][A-Za-z0-9:-]*)([\s\S]*)$/)
   if (!match) return null
   const tag = match[1]!
-  if (/^[A-Z]/.test(tag)) return null
   const props = parseRuntimeAttributes(match[2] ?? '')
   if (!props) return null
   return { type: 'element', tag, props, children: [] }
@@ -283,4 +298,52 @@ function isEventPropName(name: string): boolean {
 function eventNameFromProp(name: string): string {
   const raw = name.startsWith('on') ? name.slice(2) : name
   return raw.charAt(0).toLowerCase() + raw.slice(1)
+}
+
+function resolveCompiledComponentTag(tag: string): string | ((props: FabricaCompiledElementProps) => RenderValue) | null {
+  if (!/^[A-Z]/.test(tag)) return null
+  try {
+    const component = resolveRuntimeComponent(tag)
+    return typeof component === 'function' ? component as (props: FabricaCompiledElementProps) => RenderValue : null
+  } catch {
+    return null
+  }
+}
+
+function collectCompiledChildValues(children: readonly RuntimeNode[], values: readonly RenderValue[]): RenderValue[] {
+  const output: RenderValue[] = []
+  for (const child of children) collectCompiledChildValue(child, values, output)
+  return output
+}
+
+function collectCompiledChildValue(node: RuntimeNode, values: readonly RenderValue[], output: RenderValue[]): void {
+  if (node.type === 'text') {
+    if (node.value) output.push(node.value)
+    return
+  }
+  if (node.type === 'value') {
+    output.push(values[node.index] as RenderValue)
+    return
+  }
+
+  const component = resolveCompiledComponentTag(node.tag)
+  if (component) {
+    const props: Record<string, unknown> = {}
+    for (const prop of node.props) {
+      if (prop.type === 'spread') Object.assign(props, values[prop.index] as FabricaCompiledElementProps)
+      else props[prop.name] = prop.type === 'value' ? values[prop.index] : prop.value
+    }
+    output.push(createCompiledElement(component, props, ...collectCompiledChildValues(node.children, values)))
+    return
+  }
+
+  const element = createElementForTag(node.tag)
+  const props: Record<string, unknown> = {}
+  for (const prop of node.props) {
+    if (prop.type === 'spread') Object.assign(props, values[prop.index] as FabricaCompiledElementProps)
+    else props[prop.name] = prop.type === 'value' ? values[prop.index] : prop.value
+  }
+  applyCompiledProps(element, props)
+  for (const child of node.children) appendCompiledNode(element, child, values)
+  output.push(element)
 }

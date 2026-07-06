@@ -55,7 +55,7 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
   debugLog("shell", "render:start", { inline, target: target instanceof ShadowRoot ? "shadow" : "element" });
   uiState.setPath("shell.inline", inline);
 
-  renderInto(target, html`
+  renderInto(target, () => html`
     <RodDevtoolsShellRoot
       class=${`roderuda-container${inline ? " roderuda-inline" : ""}`}
       data-roderuda-root

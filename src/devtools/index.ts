@@ -148,6 +148,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
     this.refs = renderShell(this.rootTarget, options.inline === true);
     debugLog("runtime", "shell rendered");
+    this.assertShellMounted();
 
     this.style = installDevtoolsStyles(this.rootTarget, [
       ...consoleStyleArtifacts,
@@ -364,27 +365,40 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private forceMountHost(): void {
     if (!this.host || !this.ownsHost) return;
     if (this.host.isConnected) return;
+    if (this.tryMountHost()) return;
+
+    debugWarn("runtime", "host attach deferred");
+    this.scheduleMountRetries();
+  }
+
+  private tryMountHost(): boolean {
+    if (!this.host || this.host.isConnected) return Boolean(this.host?.isConnected);
     if (forceAppendToPage(this.host)) {
       debugLog("runtime", "host attached");
-      return;
+      return true;
     }
-   
-    debugWarn("runtime", "host attach deferred");
-    
+    return false;
+  }
+
+  private scheduleMountRetries(): void {
     const retry = () => {
       if (!this.initialized || !this.host || this.host.isConnected) return;
-      if (!forceAppendToPage(this.host)) {
-        window.setTimeout(retry, 16);
-      } else {
+      if (this.tryMountHost()) {
         debugLog("runtime", "host attached after retry");
+        return;
       }
+      window.setTimeout(retry, 16);
     };
-   
+
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", retry, { once: true, capture: true });
     }
-   
+
+    window.addEventListener("load", retry, { once: true, capture: true });
+    window.setTimeout(retry, 0);
     window.setTimeout(retry, 16);
+    window.setTimeout(retry, 64);
+    window.setTimeout(retry, 250);
   }
 
   private installHostWatchdog(): void {
@@ -416,6 +430,23 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
    
     window.removeEventListener("pageshow", this.reattachHost, true);
     window.removeEventListener("focus", this.reattachHost, true);
+  }
+
+  private assertShellMounted(): void {
+    if (!this.refs?.root?.isConnected) {
+      throw new Error("[RodEruda] Shell root is not connected to the document.");
+    }
+
+    const required: Array<[string, Element | null | undefined]> = [
+      ["entryButton", this.refs.entryButton],
+      ["devtools", this.refs.devtools],
+      ["tools", this.refs.tools],
+    ];
+
+    const missing = required.filter(([, node]) => !(node instanceof Element)).map(([name]) => name);
+    if (missing.length) {
+      throw new Error(`[RodEruda] Shell refs are missing after render: ${missing.join(", ")}`);
+    }
   }
 
   private checkInitialized(): boolean {

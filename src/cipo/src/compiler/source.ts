@@ -111,6 +111,7 @@ function isReceiverChar(char: string): boolean {
 
 function isCompilableReceiver(receiver: string): boolean {
   const compact = receiver.replace(/\s+/g, '')
+  if (compact === 'sheet') return true
   return /^(?:styled|cipo)(?:\.[A-Za-z_$][\w$]*|\(|\[)/.test(compact)
 }
 

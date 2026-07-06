@@ -24,10 +24,10 @@ export default defineConfig({
     cipoVite({
       root: repoRoot,
       include: /[/\\]src[/\\]devtools[/\\].*\.[cm]?[jt]sx?$/,
-      //exclude: /[/\\]src[/\\]devtools[/\\]core[/\\]style\.ts$/,
       mode: "build",
+      enabled: false,
       cssDelivery: "style-tag",
-      compileFabrica: true,
+      compileFabrica: false,
       transformCssTag: true,
     }),
   ],
