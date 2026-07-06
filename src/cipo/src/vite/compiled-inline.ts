@@ -30,9 +30,14 @@ export interface CipoViteTransformResult {
   }
 }
 
-installBuiltInHelpers()
-installBuiltInAliases()
-installNativePropertyGuards()
+const BUILTINS_FLAG = '__cipoBuiltinsInstalled__'
+const target = globalThis as unknown as Record<string, unknown>
+if (!target[BUILTINS_FLAG]) {
+  target[BUILTINS_FLAG] = true
+  installBuiltInHelpers()
+  installBuiltInAliases()
+  installNativePropertyGuards()
+}
 
 const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/
 const DEFAULT_EXCLUDE = /(?:^|[/\\])node_modules(?:[/\\]|$)/
