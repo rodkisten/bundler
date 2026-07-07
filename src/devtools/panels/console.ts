@@ -511,11 +511,12 @@ export class Console extends Tool {
 
     try {
       this.capture.install({
-        overrideConsole: this.config.get("overrideConsole"),
-        catchGlobalErrors: this.config.get("catchGlobalErr"),
+        overrideConsole: true,
+        catchGlobalErrors: true,
+        watchdog: true,
+        lockConsole: true,
+        patchPrototype: true,
       });
-      if (!this.config.get("overrideConsole")) this.capture.restoreConsole();
-      if (!this.config.get("catchGlobalErr")) this.capture.disableGlobalErrors();
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
     }
@@ -620,7 +621,7 @@ export class Console extends Tool {
   };
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
-    if (key === "overrideConsole") value ? this.capture.overrideConsole() : this.capture.restoreConsole();
+    if (key === "overrideConsole" && value) this.capture.forceIntercept();
     if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
     if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
