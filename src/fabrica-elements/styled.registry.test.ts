@@ -94,6 +94,34 @@ describe('Fabrica Elements named styled registry', () => {
     expect(registry.values.size).toBe(0)
   })
 
+  it('exposes native tag helpers as own properties', () => {
+    const registry = createRegistry()
+    const styled = createFactory(registry)
+    const Table = styled.table('Table').css`border-collapse: collapse;`
+
+    expect(Object.prototype.hasOwnProperty.call(styled, 'table')).toBe(true)
+    expect(registry.values.get('Table')).toBe(Table)
+    expect(Table({ children: [] })).toBeInstanceOf(HTMLTableElement)
+  })
+
+  it('keeps tag helpers working when a prototype property has the same name', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Function.prototype, 'table')
+    Object.defineProperty(Function.prototype, 'table', {
+      configurable: true,
+      value: undefined,
+    })
+
+    try {
+      const styled = createFactory()
+      const Table = styled.table('ShadowedTable').css`border-collapse: collapse;`
+
+      expect(Table({ children: [] })).toBeInstanceOf(HTMLTableElement)
+    } finally {
+      if (descriptor) Object.defineProperty(Function.prototype, 'table', descriptor)
+      else delete (Function.prototype as Function & { table?: unknown }).table
+    }
+  })
+
   it('queues named components and flushes them when Fabrica connects later', () => {
     const styled = createFactory()
     const Panel = styled.section('DeferredPanel').css`display: grid;`
