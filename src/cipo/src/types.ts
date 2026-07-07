@@ -333,11 +333,15 @@ export interface CipoCssArtifact {
  * // '.card { padding-inline: ... }'
  * ```
  */
-export interface CipoStylesheetArtifact {
+export interface CipoStylesheetTextArtifact {
+  readonly kind: "cipo.stylesheet";
+  readonly cssText: string;
+}
+
+export interface CipoStylesheetArtifact extends CipoStylesheetTextArtifact {
   readonly kind: "cipo.stylesheet";
   readonly rawCss: string;
   readonly transformedCss: string;
-  readonly cssText: string;
   readonly debug: {
     readonly id: string;
     readonly ast: readonly CipoAstNode[];
@@ -375,6 +379,12 @@ export interface CipoInlineCssArtifact {
   [Symbol.toPrimitive](): string;
   readonly [Symbol.toStringTag]: string;
 }
+
+export type CipoInjectableStyleArtifact =
+  | CipoCssArtifact
+  | CipoInlineCssArtifact
+  | CipoStylesheetArtifact
+  | CipoStylesheetTextArtifact;
 
 export interface CipoExplainResult {
   readonly found: boolean;
