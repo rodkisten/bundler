@@ -3,13 +3,15 @@
  * @global RodDevtools
  * @package devtools
  * @tags devtools console network elements mobile userscripts
- * @description Dependency-free browser developer tools implemented in TypeScript with Cipo and Fábrica.
+ * @description Dependency-free browser developer tools implemented in TypeScript with Cipó and Fábrica.
  */
-import { installDevtoolsStyles } from "./core/style";
 import { renderShell, shellStyleArtifacts, type ShellRefs } from "./components/shell";
+import { asNode, event, html, ref, uiState } from "./components/runtime";
+import { ConfigStore } from "./core/config";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./core/debug";
 import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./core/dom";
 import { NativeProtocol } from "./core/protocol";
+import { installDevtoolsStyles } from "./core/style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
 import { DevTools } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
@@ -66,6 +68,7 @@ const util = Object.freeze({
 });
 
 const defaultTools = ["console", "elements", "network", "resources", "sources", "info", "snippets"] as const;
+
 const toolConstructors: Record<string, new () => ToolLike> = {
   console: Console,
   elements: Elements,
@@ -90,6 +93,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   readonly Info = Info;
   readonly Snippets = Snippets;
   readonly Settings = Settings;
+
   private initialized = false;
   private host: HTMLElement | null = null;
   private rootTarget: HTMLElement | ShadowRoot | null = null;
@@ -101,130 +105,128 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private currentScale = 1;
   private ownsHost = false;
   private reattachTimer = 0;
+  private mountRetryTimer = 0;
   private hostObserver: MutationObserver | null = null;
-  private readonly reattachHost = () => { if (typeof document !== "undefined") this.forceMountHost(); };
+
+  private readonly reattachHost = (): void => {
+    if (typeof document !== "undefined") this.forceMountHost();
+  };
 
   init(options: DevtoolsInitOptions = {}): this {
     configureDebug(options.debug);
-   
+
+    const normalizedOptions = normalizeInitOptions(options);
     const finishDebug = debugGroup("runtime", "init", {
       version: VERSION,
-      inline: options.inline === true,
-      useShadowDom: options.useShadowDom !== false,
-      autoScale: options.autoScale !== false,
-      tool: options.tool ?? "default",
+      inline: normalizedOptions.inline,
+      useShadowDom: normalizedOptions.useShadowDom,
+      autoScale: normalizedOptions.autoScale,
+      tool: normalizedOptions.tools,
     });
-   
+
     if (this.initialized) {
       debugWarn("runtime", "init skipped: already initialized");
       finishDebug();
       return this;
     }
-  
-    if (typeof document === "undefined") throw new Error("RodEruda requires a browser document");
 
-    this.host = options.container ?? document.createElement("div");
-    this.ownsHost = !options.container;
-    debugLog("runtime", "host prepared", { ownsHost: this.ownsHost, id: this.host.id || "pending" });
-    this.prepareHost(this.host, options.inline === true);
-    this.forceMountHost();
+    if (typeof document === "undefined") {
+      finishDebug();
+      throw new Error("RodEruda requires a browser document");
+    }
 
-    const useShadowDom = options.useShadowDom !== false;
-   
-    if (useShadowDom && this.host.attachShadow) {
-      try {
-        this.shadowRoot = this.host.shadowRoot ?? this.host.attachShadow({ mode: "open" });
-        this.rootTarget = this.shadowRoot;
-        debugInfo("runtime", "shadow root mounted", { reused: Boolean(this.host.shadowRoot) });
-      } catch (error) {
-        this.shadowRoot = null;
-        this.rootTarget = this.host;
-        debugWarn("runtime", "shadow root fallback", { error: error instanceof Error ? error.message : String(error) });
+    try {
+      this.host = normalizedOptions.container ?? document.createElement("div");
+      this.ownsHost = !normalizedOptions.container;
+
+      debugLog("runtime", "host prepared", {
+        ownsHost: this.ownsHost,
+        id: this.host.id || "pending",
+      });
+
+      this.prepareHost(this.host, normalizedOptions.inline);
+      this.forceMountHost();
+
+      this.rootTarget = this.createRenderTarget(this.host, normalizedOptions.useShadowDom);
+      this.refs = renderShell(this.rootTarget, normalizedOptions.inline);
+
+      debugLog("runtime", "shell rendered");
+      this.assertShellMounted();
+
+      this.style = installDevtoolsStyles(this.rootTarget, [
+        ...shellStyleArtifacts,
+        ...consoleStyleArtifacts,
+        ...elementsStyleArtifacts,
+        ...networkStyleArtifacts,
+        ...resourcesStyleArtifacts,
+        ...settingsStyleArtifacts,
+      ]);
+
+      debugLog("runtime", "styles installed", {
+        style: Boolean(this.style),
+        root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light",
+      });
+
+      this.chobitsu.setHost(this.host);
+
+      this.devtools = new DevTools(
+        this.host,
+        this.shadowRoot,
+        this.refs,
+        normalizedOptions.inline,
+        normalizedOptions.defaults,
+      );
+
+      if (normalizedOptions.config?.devtools) {
+        this.devtools.config.patch(normalizedOptions.config.devtools);
       }
-    } else {
-      this.rootTarget = this.host;
-      debugInfo("runtime", "using light dom root");
-    }
 
-    this.refs = renderShell(this.rootTarget, options.inline === true);
-    debugLog("runtime", "shell rendered");
-    this.assertShellMounted();
+      this.entryBtn = new EntryBtn(this.refs.entryButton, this.refs.root);
+      this.entryBtn.initCfg(this.createSettingsTool(normalizedOptions));
 
-    this.style = installDevtoolsStyles(this.rootTarget, [
-      ...shellStyleArtifacts,
-      ...consoleStyleArtifacts,
-      ...elementsStyleArtifacts,
-      ...networkStyleArtifacts,
-      ...resourcesStyleArtifacts,
-      ...settingsStyleArtifacts,
-    ]);
-    //this.style = installDevtoolsStyles(this.rootTarget, elementsStyleArtifacts);
-    debugLog("runtime", "styles installed", { style: this.style, root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light" });
-   
-    this.chobitsu.setHost(this.host);
-    this.devtools = new DevTools(this.host, this.shadowRoot, this.refs, options.inline === true, options.defaults);
-    if (options.config?.devtools) this.devtools.config.patch(options.config.devtools);
-    this.entryBtn = new EntryBtn(this.refs.entryButton, this.refs.root).on("click", () => this.devtools?.toggle());
+      this.mountSettings(normalizedOptions);
+      this.mountTools(normalizedOptions.tools, normalizedOptions);
 
-    const settings = new Settings();
-    applyToolConfig(settings, options.config?.panels?.settings);
-    this.devtools.add(settings);
-    this.entryBtn.initCfg(settings);
-    this.devtools.initCfg(settings);
+      const first = this.firstMountedTool(normalizedOptions.tools) ?? "settings";
+      this.devtools.showTool(first);
 
-    const selected = options.tool == null
-      ? [...defaultTools]
-      : Array.isArray(options.tool)
-        ? [...options.tool]
-        : [options.tool];
-  
-    debugInfo("runtime", "mounting tools", { selected });
-   
-    for (const name of selected) {
-      const Constructor = toolConstructors[name.toLowerCase()];
-   
-      if (!Constructor || name.toLowerCase() === "settings") continue;
-    
-      try {
-        const instance = new Constructor();
-        applyToolConfig(instance, options.config?.panels?.[name.toLowerCase()]);
-        if (instance instanceof Network) this.chobitsu.attachNetworkCapture(instance.capture);
-        this.devtools.add(instance);
-        debugLog("runtime", "tool added", { name });
-      } catch (error) {
-        debugError("runtime", "tool init failed", { name, error: error instanceof Error ? error.message : String(error) });
-        queueMicrotask(() => console.error(`[RodEruda] Unable to initialize ${name}`, error));
+      this.initialized = true;
+      this.installHostWatchdog();
+      this.forceMountHost();
+
+      if (normalizedOptions.autoScale && detectMobile()) {
+        this.scale(1 / viewportScale());
       }
-    }
 
-    const first = selected.find((name) => this.devtools?.get(name)) ?? "settings";
-    this.devtools.showTool(first);
-    this.initialized = true;
-    this.installHostWatchdog();
-    this.forceMountHost();
+      if (normalizedOptions.inline) {
+        this.entryBtn.hide();
+        this.devtools.show();
+      }
 
-    if (options.autoScale !== false && detectMobile()) this.scale(1 / viewportScale());
-   
-    if (options.inline) {
-      this.entryBtn.hide();
-      this.devtools.show();
+      finishDebug();
+      return this;
+    } catch (error) {
+      finishDebug();
+      this.rollbackFailedInit();
+      throw error;
     }
-    finishDebug();
-    return this;
   }
 
   destroy(): this {
-    if (!this.initialized) return this;
+    if (!this.initialized && !this.host) return this;
+
     const finishDebug = debugGroup("runtime", "destroy");
+
     this.entryBtn?.destroy();
     this.devtools?.destroy();
     this.style?.remove();
     this.chobitsu.destroy();
     this.uninstallHostWatchdog();
-   
+    this.clearMountRetry();
+
     if (this.ownsHost) this.host?.remove();
     else this.host?.replaceChildren();
-   
+
     this.initialized = false;
     this.host = null;
     this.rootTarget = null;
@@ -235,9 +237,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.style = null;
     this.currentScale = 1;
     this.ownsHost = false;
-   
+
     finishDebug();
-    
     return this;
   }
 
@@ -245,48 +246,51 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     if (!this.checkInitialized()) return undefined;
     if (!name) return this.devtools as T;
     if (name === "entryBtn") return this.entryBtn as T;
-   
-    return this.devtools?.get(name) as T | undefined;
+    return this.devtools?.get(normalizeToolName(name)) as T | undefined;
   }
 
   add(tool: ToolFactory): this {
     if (!this.checkInitialized()) return this;
-   
+
     const value = typeof tool === "function" ? tool(this) : tool;
+
     debugLog("runtime", "api.add", { name: value.name });
-   
+
     this.devtools?.add(value);
-    
+
     return this;
   }
 
   remove(name: string): this {
     if (!this.checkInitialized()) return this;
-   
-    debugLog("runtime", "api.remove", { name });
-    
-    this.devtools?.remove(name);
-    
+
+    const normalized = normalizeToolName(name);
+
+    debugLog("runtime", "api.remove", { name: normalized });
+
+    this.devtools?.remove(normalized);
+
     return this;
   }
 
   show(name?: string): this {
     if (!this.checkInitialized()) return this;
+
     debugLog("runtime", "api.show", { name: name ?? "current" });
-    
-    if (name) this.devtools?.showTool(name);
+
+    if (name) this.devtools?.showTool(normalizeToolName(name));
     else this.devtools?.show();
-   
+
     return this;
   }
 
   hide(): this {
     if (!this.checkInitialized()) return this;
-  
+
     debugLog("runtime", "api.hide");
-    
+
     this.devtools?.hide();
-    
+
     return this;
   }
 
@@ -294,13 +298,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   scale(value: number): this;
   scale(value?: number): number | this {
     if (value == null) return this.currentScale;
-   
+
     this.currentScale = Number.isFinite(value) && value > 0 ? value : 1;
-    
+
     debugLog("runtime", "scale", { value: this.currentScale });
 
     this.devtools?.setScale(this.currentScale);
-    
+
     return this;
   }
 
@@ -308,14 +312,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   position(value: Position): this;
   position(value?: Position): Position | undefined | this {
     if (!this.checkInitialized()) return value ? this : undefined;
-   
+
     if (value) {
       debugLog("runtime", "position:set", { x: value.x, y: value.y });
-     
       this.entryBtn?.setPos(value);
-      
       return this;
     }
+
     return this.entryBtn?.getPos();
   }
 
@@ -323,16 +326,92 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     return this.initialized;
   }
 
+  private createRenderTarget(host: HTMLElement, useShadowDom: boolean): HTMLElement | ShadowRoot {
+    if (!useShadowDom || !host.attachShadow) {
+      this.shadowRoot = null;
+      debugInfo("runtime", "using light dom root");
+      return host;
+    }
+
+    try {
+      this.shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+      debugInfo("runtime", "shadow root mounted", { reused: Boolean(host.shadowRoot) });
+      return this.shadowRoot;
+    } catch (error) {
+      this.shadowRoot = null;
+      debugWarn("runtime", "shadow root fallback", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return host;
+    }
+  }
+
+  private createSettingsTool(options: NormalizedInitOptions): Settings {
+    const settings = new Settings();
+    applyToolConfig(settings, options.config?.panels?.settings);
+    return settings;
+  }
+
+  private mountSettings(options: NormalizedInitOptions): void {
+    if (!this.devtools || !this.entryBtn) return;
+
+    const settings = this.createSettingsTool(options);
+
+    this.devtools.add(settings);
+    this.entryBtn.initCfg(settings);
+    this.devtools.initCfg(settings);
+  }
+
+  private mountTools(selected: string[], options: NormalizedInitOptions): void {
+    if (!this.devtools) return;
+
+    debugInfo("runtime", "mounting tools", { selected });
+
+    for (const name of selected) {
+      if (name === "settings") continue;
+
+      const Constructor = toolConstructors[name];
+
+      if (!Constructor) {
+        debugWarn("runtime", "unknown tool skipped", { name });
+        continue;
+      }
+
+      try {
+        const instance = new Constructor();
+        applyToolConfig(instance, options.config?.panels?.[name]);
+
+        if (instance instanceof Network) {
+          this.chobitsu.attachNetworkCapture(instance.capture);
+        }
+
+        this.devtools.add(instance);
+
+        debugLog("runtime", "tool added", { name });
+      } catch (error) {
+        debugError("runtime", "tool init failed", {
+          name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        queueMicrotask(() => console.error(`[RodEruda] Unable to initialize ${name}`, error));
+      }
+    }
+  }
+
+  private firstMountedTool(selected: string[]): string | undefined {
+    return selected.find((name) => this.devtools?.get(name));
+  }
+
   private prepareHost(host: HTMLElement, inline: boolean): void {
     if (!host.id) host.id = "roderuda";
 
-    host.classList.add("__roderuda-host__");
-    //host.classList.add("__chobitsu-hide__", "__roderuda-host__");
+    host.classList.add("__chobitsu-hide__", "__roderuda-host__");
     host.setAttribute("data-roderuda-force-mounted", "true");
     host.contentEditable = "false";
     host.setAttribute("aria-live", "off");
     host.setAttribute("role", "presentation");
-   
+
     applyImportantStyle(host, inline ? {
       all: "initial",
       display: "block",
@@ -344,6 +423,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       zIndex: "2147483647",
       pointerEvents: "auto",
       contain: "layout style paint",
+      isolation: "isolate",
     } : {
       all: "initial",
       display: "block",
@@ -375,21 +455,34 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
   private tryMountHost(): boolean {
     if (!this.host || this.host.isConnected) return Boolean(this.host?.isConnected);
+
     if (forceAppendToPage(this.host)) {
       debugLog("runtime", "host attached");
       return true;
     }
+
     return false;
   }
 
   private scheduleMountRetries(): void {
-    const retry = () => {
-      if (!this.initialized || !this.host || this.host.isConnected) return;
+    this.clearMountRetry();
+
+    let attempt = 0;
+
+    const retry = (): void => {
+      if (!this.host || this.host.isConnected) return;
+
       if (this.tryMountHost()) {
-        debugLog("runtime", "host attached after retry");
+        debugLog("runtime", "host attached after retry", { attempt });
         return;
       }
-      window.setTimeout(retry, 16);
+
+      attempt += 1;
+
+      // Keep this cheap: short burst while the document is being created, then stop.
+      if (attempt <= 10) {
+        this.mountRetryTimer = window.setTimeout(retry, attempt < 4 ? 16 : 100);
+      }
     };
 
     if (document.readyState === "loading") {
@@ -397,25 +490,31 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     }
 
     window.addEventListener("load", retry, { once: true, capture: true });
-    window.setTimeout(retry, 0);
-    window.setTimeout(retry, 16);
-    window.setTimeout(retry, 64);
-    window.setTimeout(retry, 250);
+    this.mountRetryTimer = window.setTimeout(retry, 0);
+  }
+
+  private clearMountRetry(): void {
+    if (!this.mountRetryTimer) return;
+
+    window.clearTimeout(this.mountRetryTimer);
+    this.mountRetryTimer = 0;
   }
 
   private installHostWatchdog(): void {
     if (!this.host || !this.ownsHost) return;
-  
+
     this.uninstallHostWatchdog();
-  
+
     try {
       this.hostObserver = new MutationObserver(this.reattachHost);
       this.hostObserver.observe(document, { childList: true, subtree: true });
       debugLog("runtime", "host watchdog observer installed");
     } catch (error) {
-      debugWarn("runtime", "host watchdog observer fallback", { error: error instanceof Error ? error.message : String(error) });
+      debugWarn("runtime", "host watchdog observer fallback", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-   
+
     this.reattachTimer = window.setInterval(this.reattachHost, 1000);
     window.addEventListener("pageshow", this.reattachHost, true);
     window.addEventListener("focus", this.reattachHost, true);
@@ -426,29 +525,60 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       window.clearInterval(this.reattachTimer);
       this.reattachTimer = 0;
     }
-   
+
     this.hostObserver?.disconnect();
     this.hostObserver = null;
-   
+
     window.removeEventListener("pageshow", this.reattachHost, true);
     window.removeEventListener("focus", this.reattachHost, true);
   }
 
   private assertShellMounted(): void {
-    if (!this.refs?.root?.isConnected) {
-      throw new Error("[RodEruda] Shell root is not connected to the document.");
+    if (!this.refs?.root) {
+      throw new Error("[RodEruda] Shell refs were not created.");
+    }
+
+    if (!this.host?.isConnected && this.ownsHost) {
+      throw new Error("[RodEruda] Shell host is not connected to the document.");
     }
 
     const required: Array<[string, Element | null | undefined]> = [
+      ["root", this.refs.root],
       ["entryButton", this.refs.entryButton],
       ["devtools", this.refs.devtools],
       ["tools", this.refs.tools],
+      ["tabbar", this.refs.tabbar],
     ];
 
-    const missing = required.filter(([, node]) => !(node instanceof Element)).map(([name]) => name);
+    const missing = required
+      .filter(([, node]) => !(node instanceof Element))
+      .map(([name]) => name);
+
     if (missing.length) {
       throw new Error(`[RodEruda] Shell refs are missing after render: ${missing.join(", ")}`);
     }
+  }
+
+  private rollbackFailedInit(): void {
+    this.entryBtn?.destroy();
+    this.devtools?.destroy();
+    this.style?.remove();
+    this.uninstallHostWatchdog();
+    this.clearMountRetry();
+
+    if (this.ownsHost) this.host?.remove();
+    else this.host?.replaceChildren();
+
+    this.initialized = false;
+    this.host = null;
+    this.rootTarget = null;
+    this.shadowRoot = null;
+    this.refs = null;
+    this.devtools = null;
+    this.entryBtn = null;
+    this.style = null;
+    this.currentScale = 1;
+    this.ownsHost = false;
   }
 
   private checkInitialized(): boolean {
@@ -457,11 +587,49 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   }
 }
 
+type NormalizedInitOptions = DevtoolsInitOptions & {
+  inline: boolean;
+  useShadowDom: boolean;
+  autoScale: boolean;
+  tools: string[];
+};
+
+function normalizeInitOptions(options: DevtoolsInitOptions): NormalizedInitOptions {
+  const toolInput = options.tool == null
+    ? [...defaultTools]
+    : Array.isArray(options.tool)
+      ? options.tool
+      : [options.tool];
+
+  const tools = unique(toolInput.map(normalizeToolName)).filter(Boolean);
+
+  return {
+    ...options,
+    inline: options.inline === true,
+    useShadowDom: options.useShadowDom !== false,
+    autoScale: options.autoScale !== false,
+    tools,
+  };
+}
+
+function normalizeToolName(name: string): string {
+  return String(name || "").trim().toLowerCase();
+}
 
 function applyToolConfig(tool: ToolLike, values: Record<string, unknown> | undefined): void {
   if (!values) return;
-  const configurable = tool as ToolLike & { config?: { patch?: (values: Record<string, unknown>) => void } };
+
+  const configurable = tool as ToolLike & {
+    config?: {
+      patch?: (values: Record<string, unknown>) => void;
+    };
+  };
+
   configurable.config?.patch?.(values);
+}
+
+function unique<T>(values: readonly T[]): T[] {
+  return [...new Set(values)];
 }
 
 export const api = new RodDevtoolsRuntime();
@@ -486,6 +654,7 @@ export {
   resolveTheme,
   themes,
 };
+
 export type * from "./types";
 
 export default api;
