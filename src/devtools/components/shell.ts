@@ -57,6 +57,9 @@ export const shellStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
+debugLog("shell", "styleArtifacts", { shellStyleArtifacts })
+debugLog("shell", "SHELL_STYLED_COMPONENTS", { SHELL_STYLED_COMPONENTS })
+
 export interface ShellRefs {
   root: HTMLElement;
   entryButton: HTMLButtonElement;
@@ -141,7 +144,7 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
   uiState.setPath("shell.mounted", true);
 
   const shellRefs = assertShellRefs(refs, target);
-  debugLog("shell", "render:end", { refs: Object.keys(shellRefs) });
+  debugLog("shell", "render:end", { refs, target });
   return shellRefs;
 }
 
