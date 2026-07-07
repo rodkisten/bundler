@@ -351,7 +351,10 @@ function compilePolymorphicCss(
   const cacheable = runtime.config.atomic.minUses <= 1;
   const cached = cacheable ? getCachedArtifact(cacheKey) : undefined;
 
-  if (cached) return cached;
+  if (cached) {
+    if (isAtomicCssArtifact(cached)) insertCss(cached.compiledCss);
+    return cached;
+  }
 
   const warnings: CipoWarning[] = [];
   const transformedCss = transformCss(polymorphic.css, warnings);
