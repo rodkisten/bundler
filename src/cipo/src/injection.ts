@@ -1,7 +1,7 @@
 import { STYLE_ELEMENT_ID } from './constants'
 import { formatCss, getLayerDeclaration } from './format'
 import { runtime } from './runtime'
-import type { CipoCssArtifact, CipoInjectStyleOptions, CipoInlineCssArtifact, CipoStylesheetArtifact } from './types'
+import type { CipoInjectableStyleArtifact, CipoInjectStyleOptions } from './types'
 import { hashString, normalizeCss } from './utils'
 
 export type CipoRuntimeStyleTarget = HTMLElement | ShadowRoot | Document | null
@@ -92,7 +92,7 @@ export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined
  * injectStyle(shadow, cardStyles)
  * ```
  */
-export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact | readonly (CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact)[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
+export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoInjectableStyleArtifact | readonly CipoInjectableStyleArtifact[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
   const list = Array.isArray(styles) ? styles : [styles]
   let cssText = ''
 
