@@ -469,6 +469,7 @@ export class Console extends Tool {
   private codeEditor: CodeEditorHandle | null = null;
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
+  private restoreCaptureRecord: (() => void) | null = null;
 
   constructor({ name = "console" }: { name?: string } = {}) {
     super();
@@ -500,6 +501,7 @@ export class Console extends Tool {
     this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
+    this.patchCaptureRecord();
     this.hydrateCapturedRecords();
     this.hydrateHistory();
 
@@ -553,6 +555,8 @@ export class Console extends Tool {
   override destroy(): void {
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
+    this.restoreCaptureRecord?.();
+    this.restoreCaptureRecord = null;
     this.config.off("change", this.onConfigChange);
     this.disposeView?.();
     this.disposeView = null;
@@ -590,6 +594,20 @@ export class Console extends Tool {
     this.scrollToBottom();
     if (record.level === "error" && this.config.get("displayIfErr")) this.context?.devtools.show().showTool(this.name);
   };
+
+  private patchCaptureRecord(): void {
+    if (this.restoreCaptureRecord) return;
+    const capture = this.capture;
+    const original = capture.record.bind(capture);
+    capture.record = ((level: ConsoleLevel, args: unknown[], extra: Partial<ConsoleRecord> = {}) => {
+      const record = original(level, args, extra);
+      if (!this.state.records.peek().some((candidate) => candidate.id === record.id)) this.onRecord(record);
+      return record;
+    }) as ConsoleCapture["record"];
+    this.restoreCaptureRecord = () => {
+      if (capture.record !== original) capture.record = original as ConsoleCapture["record"];
+    };
+  }
 
   private readonly onClear = (): void => {
     this.state.patch({ records: [], selectedRecordId: null }, { cause: "console:clear" });
