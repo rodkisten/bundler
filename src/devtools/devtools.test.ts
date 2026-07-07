@@ -72,7 +72,9 @@ describe("RodEruda native devtools", () => {
   it("injects shell and styled panel CSS into the shadow root", () => {
     devtools.init({ autoScale: false, tool: ["console", "elements"] });
     const shadow = document.querySelector("#roderuda")?.shadowRoot;
-    const styleText = shadow?.querySelector("style")?.textContent ?? "";
+    const styleText = Array.from(shadow?.querySelectorAll("style") ?? [])
+      .map((style) => style.textContent ?? "")
+      .join("\n");
 
     expect(styleText).toContain(".roderuda-container");
     expect(styleText).toContain(".roderuda-lucide-icon");
