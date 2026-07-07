@@ -339,14 +339,29 @@ function looksLikeJavaScript(value: string): boolean {
   return /\b(?:const|let|var|function|class|import|export|return|async|await)\b/.test(value);
 }
 
-function isError(value: unknown): value is Error {
-  return value instanceof Error || (
-    Boolean(value) &&
-    typeof value === "object" &&
-    "name" in value &&
-    "message" in value &&
-    typeof (value as { name?: unknown }).name === "string" &&
-    typeof (value as { message?: unknown }).message === "string"
+/**
+ * Returns whether a value behaves like an Error.
+ *
+ * Supports:
+ * - native Error
+ * - subclasses of Error
+ * - cross-realm Errors (iframe, workers)
+ * - serialized / plain error objects
+ */
+export function isError(value: unknown): value is Error {
+  if (value instanceof Error) {
+    return true;
+  }
+
+  if (value == null || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<Error>;
+
+  return (
+    typeof candidate.name === "string" &&
+    typeof candidate.message === "string"
   );
 }
 
