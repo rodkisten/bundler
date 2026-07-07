@@ -93,6 +93,9 @@ export class Elements extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`<RodElementsView view=${view as never} />`);
+    this.tree = container.querySelector<HTMLElement>("[data-elements-tree]");
+    this.crumbs = container.querySelector<HTMLElement>("[data-elements-crumbs]");
+    this.detail = container.querySelector<HTMLElement>("[data-elements-detail]");
 
     const host = context.shadowRoot?.host instanceof HTMLElement ? context.shadowRoot.host : context.root.parentElement;
     this.highlighter = new ElementHighlighter(host);

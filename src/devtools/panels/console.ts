@@ -499,6 +499,10 @@ export class Console extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
+    this.body = container.querySelector<HTMLElement>("[data-console-body]");
+    this.setList(container.querySelector<HTMLElement>("[data-console-list]"));
+    const input = container.querySelector("[data-console-input]");
+    if (input instanceof HTMLTextAreaElement) this.setInput(input);
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
     this.patchCaptureRecord();
