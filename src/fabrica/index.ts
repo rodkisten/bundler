@@ -23,6 +23,7 @@ export type {
   FabricaInstanceOptions,
   InstallOptions,
   RawHtml,
+  RefDirective,
   RegistryCollision,
   RegistryImportMode,
   RenderValue,
