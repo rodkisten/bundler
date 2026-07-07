@@ -4,7 +4,7 @@ import type { ToolContext, ToolLike } from "./types";
 export abstract class Tool implements ToolLike {
   abstract readonly name: string;
   readonly title?: string;
-  readonly icon?: string;
+  readonly icon?: Node | string;
   active = false;
   protected container: HTMLElement | null = null;
   protected context: ToolContext | null = null;

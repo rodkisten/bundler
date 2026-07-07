@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setStyles } from "./dom";
 import { ElementHighlighter } from "./highlighter";
 
 describe("ElementHighlighter", () => {
@@ -55,6 +56,20 @@ describe("ElementHighlighter", () => {
 
     expect(document.querySelectorAll(".__roderuda-overlay__")).toHaveLength(1);
     highlighter.destroy();
+  });
+
+  it("writes overlay styles through setProperty-compatible names", () => {
+    const element = document.createElement("div");
+
+    setStyles(element.style, {
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      "--roderuda-test": "ok",
+    });
+
+    expect(element.style.getPropertyValue("pointer-events")).toBe("none");
+    expect(element.style.getPropertyValue("z-index")).toBe("2147483647");
+    expect(element.style.getPropertyValue("--roderuda-test")).toBe("ok");
   });
 });
 

@@ -1,5 +1,5 @@
 import { ConfigStore } from "../core/config";
-import { copyText, debounce, delegate, isDevtoolsNode, nodePath } from "../core/dom";
+import { copyText, debounce, delegate, icon, isDevtoolsNode, nodePath } from "../core/dom";
 import { getEventListeners, installEventListenerRegistry } from "../core/event-listeners";
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
@@ -49,7 +49,7 @@ type SelectOptions = {
 export class Elements extends Tool {
   readonly name = "elements";
   readonly title = "elements";
-  readonly icon = "◇";
+  readonly icon = icon("elements");
   readonly config = new ConfigStore<ElementsConfig>("elements", {
     overrideEventTarget: true,
     observeElement: true,
@@ -84,7 +84,7 @@ export class Elements extends Tool {
     super.init(container, context);
 
     const view: ElementsViewModel = {
-      setTree: (node) => { this.tree = node; },
+      setTree: (node) => this.setTree(node),
       setCrumbs: (node) => { this.crumbs = node; },
       setDetail: (node) => { this.detail = node; },
       onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
@@ -93,6 +93,9 @@ export class Elements extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`<RodElementsView view=${view as never} />`);
+    this.tree = container.querySelector<HTMLElement>("[data-elements-tree]");
+    this.crumbs = container.querySelector<HTMLElement>("[data-elements-crumbs]");
+    this.detail = container.querySelector<HTMLElement>("[data-elements-detail]");
 
     const host = context.shadowRoot?.host instanceof HTMLElement ? context.shadowRoot.host : context.root.parentElement;
     this.highlighter = new ElementHighlighter(host);
@@ -252,6 +255,11 @@ export class Elements extends Tool {
   private renderTree(): void {
     if (!this.tree || !document.documentElement) return;
     render(this.tree, domTreeTemplate(this.renderNode(document.documentElement, 0)));
+  }
+
+  private setTree(node: HTMLElement | null): void {
+    this.tree = node;
+    if (node) this.renderTree();
   }
 
   private renderNode(node: Node, depth: number): RenderPiece {

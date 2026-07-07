@@ -10,6 +10,7 @@ type ConsoleMethod = keyof Pick<
   Console,
   | "log"
   | "debug"
+  | "trace"
   | "info"
   | "warn"
   | "error"
@@ -30,6 +31,7 @@ type ConsoleMethod = keyof Pick<
 const methods: readonly ConsoleMethod[] = [
   "log",
   "debug",
+  "trace",
   "info",
   "warn",
   "error",
@@ -120,6 +122,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private originalDefineProperty: typeof Object.defineProperty | null = null;
   private originalReflectDefineProperty: typeof Reflect.defineProperty | null = null;
   private originalObjectAssign: typeof Object.assign | null = null;
+  private originalConsoleDescriptor: PropertyDescriptor | undefined;
 
   install(options: InstallOptions = {}): void {
     if (options.overrideConsole !== false) {
@@ -139,6 +142,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     try {
       if (options.lockConsole !== false) {
         this.installConsoleLock();
+        this.installConsoleObjectLock();
       }
 
       for (const method of methods) {
@@ -546,8 +550,49 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     } as typeof Object.assign;
   }
 
+  private installConsoleObjectLock(): void {
+    if (this.originalConsoleDescriptor) return;
+
+    try {
+      this.originalConsoleDescriptor = Object.getOwnPropertyDescriptor(globalThis, "console");
+      const capturedConsole = console;
+      Object.defineProperty(globalThis, "console", {
+        configurable: true,
+        enumerable: true,
+        get: () => capturedConsole,
+        set: (nextConsole: unknown) => {
+          if (!nextConsole || typeof nextConsole !== "object") return;
+          for (const method of methods) {
+            const nextMethod = (nextConsole as Record<string, unknown>)[method];
+            if (typeof nextMethod === "function") {
+              const wrapper = this.wrappers.get(method);
+              if (nextMethod !== wrapper) this.current.set(method, safeBind(nextMethod));
+            }
+          }
+        },
+      });
+    } catch {
+      this.originalConsoleDescriptor = undefined;
+    }
+  }
+
+  private restoreConsoleObjectLock(): void {
+    if (!this.originalConsoleDescriptor) return;
+    try {
+      Object.defineProperty(globalThis, "console", this.originalConsoleDescriptor);
+    } catch {
+      // Ignore hostile descriptors. Individual methods are restored separately.
+    }
+    this.originalConsoleDescriptor = undefined;
+  }
+
   private restoreConsoleLock(): void {
-    if (!this.lockInstalled) return;
+    if (!this.lockInstalled) {
+      this.restoreConsoleObjectLock();
+      return;
+    }
+
+    this.restoreConsoleObjectLock();
 
     if (this.originalDefineProperty) {
       Object.defineProperty = this.originalDefineProperty;
@@ -637,6 +682,12 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
       case "dir":
         this.record("dir", args);
+        return;
+
+      case "trace":
+        this.record("trace", args.length ? args : ["console.trace"], {
+          stack: new Error("console.trace").stack,
+        });
         return;
 
       default:

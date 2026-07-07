@@ -73,7 +73,21 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(clicked).toBe(1)
   })
 
+  it('hydrates dynamic template spread props without emitting invalid attribute names', () => {
+    let clicked = 0
+    const view = createCompiledTemplate(['<button ...', '>Save</button>'] as unknown as TemplateStringsArray, {
+      type: 'button',
+      class: 'spread',
+      onClick: () => { clicked += 1 },
+    })
+    const button = view.firstChild as HTMLButtonElement
 
+    expect(button.type).toBe('button')
+    expect(button.className).toBe('spread')
+    expect(button.getAttribute('...%%fabrica_value_0%%')).toBeNull()
+    button.click()
+    expect(clicked).toBe(1)
+  })
 
   it('compiles same-sheet Cipó config aliases and theme tokens without leaking DSL tokens', () => {
     const result = compileCipoSourceBuild(`

@@ -106,6 +106,11 @@ export function applyProps(element: Element, props: ElementsRecord): void {
       continue
     }
 
+    if (isAtEventProp(key) && typeof rawValue === 'function') {
+      setEvent(element, key.slice(1), rawValue as EventListener)
+      continue
+    }
+
     if (isEventProp(key) && typeof rawValue === 'function') {
       setEvent(element, key.slice(2).toLowerCase(), rawValue as EventListener)
       continue
@@ -148,6 +153,10 @@ function readDomValue(value: unknown): unknown {
 
 function isEventProp(key: string): boolean {
   return key.length > 2 && key.startsWith('on') && key.charCodeAt(2) >= 65 && key.charCodeAt(2) <= 90
+}
+
+function isAtEventProp(key: string): boolean {
+  return key.length > 1 && key.charCodeAt(0) === 64
 }
 
 /**

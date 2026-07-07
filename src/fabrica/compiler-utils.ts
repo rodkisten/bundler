@@ -21,8 +21,11 @@ export function readValueMarker(value: string): number | null {
 }
 
 export function readSpreadMarker(value: string): number | null {
-  const match = value.match(/^%%fabrica_spread_(\d+)%%$/)
-  return match ? Number(match[1]) : null
+  const spread = value.match(/^%%fabrica_spread_(\d+)%%$/)
+  if (spread) return Number(spread[1])
+
+  const legacySpread = value.match(/^\.\.\.%%fabrica_value_(\d+)%%$/)
+  return legacySpread ? Number(legacySpread[1]) : null
 }
 
 export function isVoidTag(tag: string): boolean {

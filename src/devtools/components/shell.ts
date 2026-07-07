@@ -1,5 +1,7 @@
 import { debugLog } from "../core/debug";
-import { event, html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
+import { icon } from "../core/dom";
+import type { CipoCssArtifact } from "../../cipo";
+import { html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
 
 const EMPTY_PANELS = signal<string[]>([]);
 const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
@@ -39,6 +41,22 @@ const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
   pointer-events: none;
 `;
 
+const SHELL_STYLED_COMPONENTS = Object.freeze([
+  ShellRoot,
+  EntryButtonView,
+  DevtoolsDock,
+  Resizer,
+  Tabbar,
+  Tools,
+  Notifications,
+  ModalRoot,
+]);
+
+export const shellStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  SHELL_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
+    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+);
+
 export interface ShellRefs {
   root: HTMLElement;
   entryButton: HTMLButtonElement;
@@ -60,8 +78,8 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
       class=${`roderuda-container${inline ? " roderuda-inline" : ""}`}
       data-roderuda-root
       data-roderuda-shell-ref="root"
-      ref=${ref((node) => {
-        refs.root = node as HTMLElement;
+      ref=${ref<HTMLElement>((node) => {
+        refs.root = node;
         uiState.setPath("shell.mounted", true);
         return () => uiState.setPath("shell.mounted", false);
       })}
@@ -72,16 +90,15 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
         aria-label="Open developer tools"
         title="RodEruda"
         data-roderuda-shell-ref="entryButton"
-        @click=${event((event: Event) => event.stopPropagation())}
-        ref=${ref((node) => { refs.entryButton = node as HTMLButtonElement; })}
-      >⌘</RodDevtoolsEntryButton>
+        ref=${ref<HTMLButtonElement>((node) => { refs.entryButton = node; })}
+      >${icon("bug")}</RodDevtoolsEntryButton>
 
       <RodDevtoolsDock
         class="roderuda-dev-tools"
         aria-label="Developer tools"
         aria-hidden="true"
         data-roderuda-shell-ref="devtools"
-        ref=${ref((node) => { refs.devtools = node as HTMLElement; })}
+        ref=${ref<HTMLElement>((node) => { refs.devtools = node; })}
       >
         <RodDevtoolsResizer
           class="roderuda-resizer"
@@ -89,32 +106,32 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
           aria-orientation="horizontal"
           aria-label="Resize developer tools"
           data-roderuda-shell-ref="resizer"
-          ref=${ref((node) => { refs.resizer = node as HTMLElement; })}
+          ref=${ref<HTMLElement>((node) => { refs.resizer = node; })}
         />
         <RodDevtoolsTabbar
           class="roderuda-tabbar"
           aria-label="Developer tools panels"
           data-roderuda-shell-ref="tabbar"
-          ref=${ref((node) => { refs.tabbar = node as HTMLElement; })}
+          ref=${ref<HTMLElement>((node) => { refs.tabbar = node; })}
         >
           ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
         </RodDevtoolsTabbar>
         <RodDevtoolsTools
           class="roderuda-tools"
           data-roderuda-shell-ref="tools"
-          ref=${ref((node) => { refs.tools = node as HTMLElement; })}
+          ref=${ref<HTMLElement>((node) => { refs.tools = node; })}
         />
         <RodDevtoolsNotifications
           class="roderuda-notifications"
           aria-live="polite"
           data-roderuda-shell-ref="notifications"
-          ref=${ref((node) => { refs.notifications = node as HTMLElement; })}
+          ref=${ref<HTMLElement>((node) => { refs.notifications = node; })}
         />
         <RodDevtoolsModalRoot
           class="roderuda-modal-root"
           role="presentation"
           data-roderuda-shell-ref="modalRoot"
-          ref=${ref((node) => { refs.modalRoot = node as HTMLElement; })}
+          ref=${ref<HTMLElement>((node) => { refs.modalRoot = node; })}
         />
       </RodDevtoolsDock>
     </RodDevtoolsShellRoot>

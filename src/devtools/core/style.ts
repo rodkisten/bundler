@@ -1,5 +1,5 @@
 import { sheet } from "../../cipo/src/index";
-import { insertCss, setRuntimeStyleTarget } from "../../cipo/src/injection";
+import { injectStyle, setRuntimeStyleTarget } from "../../cipo/src/injection";
 import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
 
 /* *************** */
@@ -130,7 +130,7 @@ export const devtoolsStyles = sheet.css`
     select(text)
   }
 
-  @alias rdTextEllipsis {
+  @alias overflow: hidden; text-overflow: ellipsis; white-space: nowrap {
     overflow: hidden
     text-overflow: ellipsis
     text(nowrap)
@@ -317,7 +317,9 @@ export const devtoolsStyles = sheet.css`
     items-stretch
     overflow-x: auto
     overflow-y: hidden
-    noScrollbar
+    scrollbar-width: none
+
+    &::-webkit-scrollbar { display: none }
     bg: $backgroundDark
     border-bottom: 1px solid $border
     color: $primary
@@ -358,8 +360,18 @@ export const devtoolsStyles = sheet.css`
   }
 
   .roderuda-tab-icon {
+    display: inline-grid
+    place-items: center
     font-size: 15px
     line-height: 1
+  }
+
+  .roderuda-lucide-icon {
+    display: block
+    flex: 0 0 auto
+    width: 1em
+    height: 1em
+    stroke: currentColor
   }
 
   .roderuda-tools,
@@ -385,7 +397,12 @@ export const devtoolsStyles = sheet.css`
     z: 12
     h: $$controlHeight
     p: 7px 8px
-    controlStrip
+    display: flex
+    align-items: center
+    gap: 5px
+    background: $backgroundDark
+    color: $primary
+    border-bottom: 1px solid $border
   }
 
   .roderuda-control-spacer {
@@ -395,7 +412,17 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-icon-btn,
   .roderuda-text-btn {
-    rdControlButton
+    flex: 0 0 auto
+    min-width: 28px
+    height: 28px
+    display: inline-grid
+    place-items: center
+    padding: 0 7px
+    border-radius: $control
+    background: transparent
+    color: $primary
+    cursor: pointer
+    transition: color .18s, background .18s, transform .1s
 
     &:hover {
       bg: $highlight
@@ -422,7 +449,12 @@ export const devtoolsStyles = sheet.css`
   .roderuda-text-btn { font-size: 12px }
 
   .roderuda-search {
-    rdInput
+    min-width: 0
+    border: 1px solid $border
+    outline: none
+    background: $background
+    color: $primary
+    user-select: text
     h: 27px
     flex: 1 1 120px
     maxw: 260px
@@ -440,7 +472,8 @@ export const devtoolsStyles = sheet.css`
   .roderuda-detail-body,
   .roderuda-source-breadcrumb,
   .roderuda-source-object {
-    touchScroll
+    overscroll-behavior: contain
+    -webkit-overflow-scrolling: touch
   }
 
   .roderuda-scroll {
@@ -472,7 +505,8 @@ export const devtoolsStyles = sheet.css`
   .roderuda-info-card,
   .roderuda-snippet-card {
     m: 10px
-    rdPanelSurface
+    background: $background
+    border: 1px solid $border
     rounded: $section
     overflow: hidden
   }
@@ -605,7 +639,8 @@ export const devtoolsStyles = sheet.css`
     display: flex
     flex-direction: column
     overflow: hidden
-    rdPanelSurface
+    background: $background
+    border: 1px solid $border
     rounded: $modal
     shadow: $shadow.modal
   }
@@ -625,7 +660,12 @@ export const devtoolsStyles = sheet.css`
   }
 
   .roderuda-modal-input {
-    rdInput
+    min-width: 0
+    border: 1px solid $border
+    outline: none
+    background: $background
+    color: $primary
+    user-select: text
     w: 100%
     mt: 12px
     p: 9px 10px
@@ -708,7 +748,7 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-network-row { cursor: pointer }
   .roderuda-network-row[data-state="failed"] { bg: $errorBg; color: $errorFg }
-  .roderuda-network-name { maxw: 300px; rdTextEllipsis; color: $primary }
+  .roderuda-network-name { maxw: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $primary }
   .roderuda-network-method { font-weight: 700 }
   .roderuda-network-method[data-method="GET"],
   .roderuda-status[data-status^="2"] { color: $success }
@@ -728,7 +768,7 @@ export const devtoolsStyles = sheet.css`
     &.roderuda-active { display: block }
   }
 
-  .roderuda-detail-title { minw: 0; flex: 1; rdTextEllipsis; font-size: 12px }
+  .roderuda-detail-title { minw: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px }
   .roderuda-detail-body { h: 100%; overflow: auto; pb: $$safeBottom }
 
   .roderuda-detail-tabs {
@@ -873,13 +913,13 @@ export function installDevtoolsStyles(
   target: ShadowRoot | HTMLElement | Document,
   additionalStyles: readonly DevtoolsStyleArtifact[] = [],
 ): HTMLStyleElement {
-  const style = setRuntimeStyleTarget(target);
-  insertStyleArtifact(devtoolsStyles);
-  for (let index = 0; index < additionalStyles.length; index += 1) insertStyleArtifact(additionalStyles[index]!);
-  if (!style) throw new Error("[RodEruda] Unable to install styles");
-  return style;
-}
+  setRuntimeStyleTarget(target);
 
-function insertStyleArtifact(style: DevtoolsStyleArtifact): void {
-  insertCss(style.kind === "cipo.inline-css" || style.kind === "cipo.stylesheet" ? style.cssText : style.compiledCss);
+  const parent = target instanceof Document ? target.head : target;
+  parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]').forEach((node) => node.remove());
+
+  const style = injectStyle(target, [devtoolsStyles, ...additionalStyles], { dedupe: false, position: "prepend" });
+  style.dataset.roderudaDevtoolsStyle = "true";
+  if (!style.textContent?.trim()) throw new Error("[RodEruda] Unable to install styles");
+  return style;
 }

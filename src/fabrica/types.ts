@@ -292,7 +292,7 @@ export type ComponentContext = {
   onDispose(callback: Cleanup): void;
   provide<Value>(context: ContextToken<Value>, value: Value): Value;
   useContext<Value>(context: ContextToken<Value>): Value;
-  ref(callback: (node: Element) => void | Cleanup): RefDirective;
+  ref<T extends Element = Element>(callback: RefCallback<T>): RefDirective<T>;
 };
 
 /** Error boundary options. */

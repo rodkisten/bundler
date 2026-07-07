@@ -6,7 +6,7 @@
  * @description Dependency-free browser developer tools implemented in TypeScript with Cipo and Fábrica.
  */
 import { installDevtoolsStyles } from "./core/style";
-import { renderShell, type ShellRefs } from "./components/shell";
+import { renderShell, shellStyleArtifacts, type ShellRefs } from "./components/shell";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./core/debug";
 import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./core/dom";
 import { NativeProtocol } from "./core/protocol";
@@ -151,6 +151,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.assertShellMounted();
 
     this.style = installDevtoolsStyles(this.rootTarget, [
+      ...shellStyleArtifacts,
       ...consoleStyleArtifacts,
       ...elementsStyleArtifacts,
       ...networkStyleArtifacts,
@@ -324,8 +325,9 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
   private prepareHost(host: HTMLElement, inline: boolean): void {
     if (!host.id) host.id = "roderuda";
-  
-    host.classList.add("__chobitsu-hide__", "__roderuda-host__");
+
+    host.classList.add("__roderuda-host__");
+    //host.classList.add("__chobitsu-hide__", "__roderuda-host__");
     host.setAttribute("data-roderuda-force-mounted", "true");
     host.contentEditable = "false";
     host.setAttribute("aria-live", "off");

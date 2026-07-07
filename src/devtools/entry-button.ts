@@ -13,6 +13,7 @@ export class EntryBtn {
   private clickListener: (() => void) | null = null;
   private dragging = false;
   private moved = false;
+  private lastPointerActivation = 0;
   private start = { x: 0, y: 0 };
   private origin = { x: 0, y: 0 };
 
@@ -68,7 +69,7 @@ export class EntryBtn {
 
   private bind(): void {
     this.cleanup.push(on(this.element, "pointerdown", (event: PointerEvent) => {
-      if (event.button !== 0) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
       this.dragging = true;
       this.moved = false;
@@ -90,8 +91,17 @@ export class EntryBtn {
       this.dragging = false;
       this.element.classList.remove("roderuda-active");
       this.element.releasePointerCapture?.(event.pointerId);
-      if (!this.moved) this.clickListener?.();
+      if (!this.moved) {
+        this.lastPointerActivation = Date.now();
+        this.clickListener?.();
+      }
       if (this.config.get<boolean>("rememberPos")) this.config.set("pos", this.getPos());
+    }));
+    this.cleanup.push(on(this.element, "click", (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (Date.now() - this.lastPointerActivation < 350) return;
+      if (!this.dragging && !this.moved) this.clickListener?.();
     }));
     this.cleanup.push(on(window, "resize", () => this.resetPosition(false)));
     this.cleanup.push(on(screen.orientation ?? window, "change", () => this.resetPosition(true)));

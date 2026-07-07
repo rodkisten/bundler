@@ -1,5 +1,5 @@
 import { store } from "../../broto";
-import { createCompiledStyled } from "../../cipo";
+import { createStyled } from "../../cipo";
 import { createFabrica } from "../../fabrica";
 import type { Component, RenderValue } from "../../fabrica";
 
@@ -26,7 +26,7 @@ export const onMount = devtoolsFabrica.onMount;
 export const onUnmount = devtoolsFabrica.onUnmount;
 export const onDispose = devtoolsFabrica.onDispose;
 
-export const styled = createCompiledStyled({ fabrica: devtoolsFabrica });
+export const styled = createStyled({ fabrica: devtoolsFabrica });
 export const compiledStyled = styled;
 
 styled.connectRegistry(devtoolsFabrica);

@@ -15,7 +15,7 @@ interface SourcesConfig {
 export class Sources extends Tool {
   readonly name = "sources";
   readonly title = "sources";
-  readonly icon = "{ }";
+  readonly icon = icon("sources");
   readonly config = new ConfigStore<SourcesConfig>("sources", {
     showLineNum: true,
     formatCode: true,

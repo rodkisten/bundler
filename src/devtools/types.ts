@@ -1,5 +1,5 @@
 export type AnyRecord = Record<string, unknown>;
-export type ConsoleLevel = "debug" | "log" | "info" | "warn" | "error" | "table" | "dir" | "result" | "command" | "html";
+export type ConsoleLevel = "debug" | "trace" | "log" | "info" | "warn" | "error" | "table" | "dir" | "result" | "command" | "html";
 export type NetworkKind = "fetch" | "xhr" | "websocket" | "resource";
 export type NetworkState = "pending" | "complete" | "failed";
 export type SourceType = "auto" | "text" | "raw" | "html" | "css" | "javascript" | "json" | "object" | "image" | "iframe";
@@ -71,7 +71,7 @@ export interface NotificationOptions {
 export interface ToolLike {
   readonly name: string;
   readonly title?: string;
-  readonly icon?: string;
+  readonly icon?: Node | string;
   active?: boolean;
   init(container: HTMLElement, context: ToolContext): void | Promise<void>;
   show(): void;
