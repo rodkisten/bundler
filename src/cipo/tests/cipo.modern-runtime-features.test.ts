@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { reset, setup, sheet } from "../src";
+import { cipo, html, reset, setup, sheet } from "../src";
 
 describe("Cipó modern runtime features", () => {
+  it("keeps the callable html tag factory while exposing template html separately", () => {
+    expect(typeof cipo.html).toBe("function");
+    expect(cipo.html).not.toBe(html);
+    expect(html`<span>${"ok"}</span>`).toBe("<span>ok</span>");
+  });
+
   it("compiles reactive CSS values, dark blocks and context variables", () => {
     reset();
     setup({

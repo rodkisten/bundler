@@ -6,7 +6,7 @@
  * @description Browser-first atomic CSS runtime and semantic CSS DSL bundled as a standalone browser global.
  */
 import { STYLE_ELEMENT_ID } from './constants'
-import { createCipoCallable, type CipoStyledFactoryOptions } from './adapters'
+import { createCipoCallable, type CipoCallableRuntime, type CipoStyledFactoryOptions } from './adapters'
 import { installBuiltInAliases } from './aliases'
 import { configure, setup } from './config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
@@ -128,7 +128,7 @@ export const configureFabricaRegistry = cipo.configureRegistry
 export const flushFabricaRegistry = cipo.flushRegistry
 export const pendingFabricaComponents = cipo.pendingComponents
 
-Object.assign(cipo, {
+assignPublicApi(cipo, {
   css,
   styled,
   createStyled,
@@ -273,4 +273,13 @@ installNativePropertyGuards()
 
 if (typeof window !== 'undefined') {
   installBrowserGlobal('Cipo')
+}
+
+function assignPublicApi(target: CipoCallableRuntime, api: Record<string, unknown>): void {
+  const writableTarget = target as unknown as Record<string, unknown>
+  for (const [key, value] of Object.entries(api)) {
+    const descriptor = Object.getOwnPropertyDescriptor(target, key)
+    if (descriptor && !descriptor.writable && typeof descriptor.set !== 'function') continue
+    writableTarget[key] = value
+  }
 }

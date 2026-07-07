@@ -61,6 +61,16 @@ export function create<K extends keyof HTMLElementTagNameMap>(
   return uiElement(tag, options) as HTMLElementTagNameMap[K];
 }
 
+export function setStyles(
+  style: CSSStyleDeclaration,
+  properties: Record<string, string | number | null | undefined>,
+): void {
+  for (const [property, value] of Object.entries(properties)) {
+    if (value == null) continue;
+    style.setProperty(toCssPropertyName(property), String(value));
+  }
+}
+
 export function on<K extends keyof HTMLElementEventMap>(
   target: EventTarget,
   type: K,
@@ -408,4 +418,8 @@ function describeEventOptions(options?: AddEventListenerOptions | boolean): stri
   if (typeof options === "boolean") return options ? "capture" : "bubble";
   if (!options) return "default";
   return Object.entries(options).filter(([, value]) => value != null).map(([key, value]) => `${key}:${String(value)}`).join(",") || "default";
+}
+
+function toCssPropertyName(property: string): string {
+  return property.startsWith("--") ? property : property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 }

@@ -75,7 +75,7 @@ export function applyProps(element: Element, props: ElementsRecord): void {
       continue
     }
 
-    const domValue = isEventProp(key) || key === 'ref' ? value : readDomValue(rawValue)
+    const domValue = isEventProp(key) || isAtEventProp(key) || key === 'ref' ? value : readDomValue(rawValue)
 
     if (key === 'attrs' && isPlainObject(domValue)) {
       applyProps(element, domValue)
@@ -94,6 +94,11 @@ export function applyProps(element: Element, props: ElementsRecord): void {
 
     if (key === 'on' && isPlainObject(value)) {
       applyEventMap(element, value)
+      continue
+    }
+
+    if (isAtEventProp(key) && typeof rawValue === 'function') {
+      setEvent(element, key.slice(1), rawValue as EventListener)
       continue
     }
 
@@ -139,6 +144,10 @@ function readDomValue(value: unknown): unknown {
 
 function isEventProp(key: string): boolean {
   return key.length > 2 && key.startsWith('on') && key.charCodeAt(2) >= 65 && key.charCodeAt(2) <= 90
+}
+
+function isAtEventProp(key: string): boolean {
+  return key.length > 1 && key.charCodeAt(0) === 64
 }
 
 /**
