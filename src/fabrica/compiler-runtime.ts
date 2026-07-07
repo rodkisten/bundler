@@ -236,13 +236,14 @@ function containsUnsupportedTemplateShape(strings: readonly string[]): boolean {
 
 function buildCompiledRuntimeSource(strings: readonly string[]): string {
   let output = "";
+  let inTag = false;
   for (let index = 0; index < strings.length; index += 1) {
     const chunk = strings[index] ?? "";
-    if (
-      index < strings.length - 1 &&
-      /\.\.\.\s*$/.test(chunk) &&
-      chunk.lastIndexOf("<") > chunk.lastIndexOf(">")
-    ) {
+    for (let i = 0; i < chunk.length; i++) {
+      if (chunk[i] === "<") inTag = true;
+      else if (chunk[i] === ">") inTag = false;
+    }
+    if (index < strings.length - 1 && /\.\.\.\s*$/.test(chunk) && inTag) {
       output += chunk.replace(/\.\.\.\s*$/, "");
       output += ` ${FABRICA_SPREAD_PREFIX}${index}${FABRICA_SPREAD_SUFFIX}`;
       continue;
