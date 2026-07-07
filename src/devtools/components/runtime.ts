@@ -1,7 +1,7 @@
 import { store } from "../../broto";
 import { createStyled } from "../../cipo";
 import { createFabrica } from "../../fabrica";
-import type { Component, RenderValue } from "../../fabrica";
+import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica";
 
 export const devtoolsFabrica = createFabrica({
   name: "roderuda-devtools",
@@ -15,7 +15,6 @@ export const signal = devtoolsFabrica.signal;
 export const computed = devtoolsFabrica.computed;
 export const effect = devtoolsFabrica.effect;
 export const batch = devtoolsFabrica.batch;
-export const ref = devtoolsFabrica.ref;
 export const repeat = devtoolsFabrica.repeat;
 export const portal = devtoolsFabrica.portal;
 export const suspense = devtoolsFabrica.suspense;
@@ -26,13 +25,17 @@ export const onMount = devtoolsFabrica.onMount;
 export const onUnmount = devtoolsFabrica.onUnmount;
 export const onDispose = devtoolsFabrica.onDispose;
 
+export function ref<T extends Element = HTMLElement>(callback: (node: T) => void | Cleanup): RefDirective<T> {
+  return devtoolsFabrica.ref(callback);
+}
+
 export const styled = createStyled({ fabrica: devtoolsFabrica });
 export const compiledStyled = styled;
 
 styled.connectRegistry(devtoolsFabrica);
 styled.flushRegistry();
 
-type RenderInput = RenderValue | (() => RenderValue);
+export type RenderInput = RenderValue | (() => RenderValue);
 
 const baseRender = devtoolsFabrica.render;
 const baseMount = devtoolsFabrica.mount;
@@ -41,13 +44,31 @@ function resolveRenderInput(value: RenderInput): RenderValue {
   return typeof value === "function" ? (value as () => RenderValue)() : value;
 }
 
-/** Renders inside the isolated devtools Fabrica runtime so styled components resolve correctly. */
-export function render(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): () => void {
+/**
+ * Runs all devtools rendering inside the isolated Fabrica instance.
+ *
+ * This is important because styled component tags are resolved through this
+ * instance registry. Rendering through the global/default Fabrica instance can
+ * make styled tags render as inert custom elements instead of real DOM nodes.
+ */
+export function render(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): Cleanup {
   return devtoolsFabrica.run(() => baseRender(container, resolveRenderInput(value)));
 }
 
-export function mount(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): () => void {
+export function mount(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): Cleanup {
   return devtoolsFabrica.run(() => baseMount(container, resolveRenderInput(value)));
+}
+
+export function renderInto(target: Element | ShadowRoot | DocumentFragment, value: RenderInput): Cleanup {
+  return render(target, value);
+}
+
+export function asNode(value: RenderInput): Node {
+  const fragment = document.createDocumentFragment();
+
+  render(fragment, value);
+
+  return fragment.childNodes.length === 1 ? fragment.firstChild! : fragment;
 }
 
 export interface DevtoolsUiState extends Record<string, unknown> {
@@ -70,55 +91,73 @@ export const uiState = store<DevtoolsUiState>({
   },
 });
 
+/**
+ * Type helper for template event bindings.
+ *
+ * Fabrica consumes the returned function through the `@event=${...}` binding.
+ * The `never` return keeps template interpolation types permissive without
+ * leaking event handler functions into normal RenderValue positions.
+ */
 export function event<T extends Event = Event>(handler: (event: T) => void): never {
   return handler as never;
 }
 
-export type UiElementOptions = {
+export type UiElementOptions<TElement extends Element = Element> = {
   className?: string;
   text?: string;
   html?: string;
   attrs?: Record<string, string | number | boolean | null | undefined>;
   children?: RenderValue;
-  ref?: (node: Element) => void | (() => void);
+  ref?: (node: TElement) => void | Cleanup;
   on?: Record<string, EventListener>;
 };
 
-const elementFactories = devtoolsFabrica.elements as unknown as Record<string, (props?: Record<string, unknown>) => Element>;
+type ElementFactory = (props?: Record<string, unknown>) => Element;
 
-export function uiElement<K extends keyof HTMLElementTagNameMap>(tag: K, options: UiElementOptions = {}): HTMLElementTagNameMap[K] {
+const elementFactories = devtoolsFabrica.elements as unknown as Record<string, ElementFactory>;
+
+export function uiElement<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  options: UiElementOptions<HTMLElementTagNameMap[K]> = {},
+): HTMLElementTagNameMap[K] {
   const factory = elementFactories[tag as string];
-  if (!factory) throw new Error(`[RodEruda] Unsupported Fabrica element: ${String(tag)}`);
-  const attrs = options.attrs ?? {};
+
+  if (!factory) {
+    throw new Error(`[RodEruda] Unsupported Fabrica element: ${String(tag)}`);
+  }
+
   const props: Record<string, unknown> = {
-    ...attrs,
+    ...normalizeAttrs(options.attrs),
     class: options.className,
-    attrs,
     ref: options.ref,
     on: options.on,
     children: options.children ?? options.text ?? undefined,
   };
+
   const element = factory(props) as HTMLElementTagNameMap[K];
+
   if (options.html != null) {
-    const unsafeHtml = options.html;
     element.replaceChildren();
-    devtoolsFabrica.run(() => baseRender(element, html.unsafe(unsafeHtml)));
+
+    // Explicitly marked unsafe to keep callers honest. This path exists only
+    // for legacy DevTools surfaces that already provide trusted HTML.
+    render(element, html.unsafe(options.html));
   }
+
   return element;
 }
 
-export function renderInto(target: HTMLElement | ShadowRoot | DocumentFragment, value: RenderInput): void {
-  devtoolsFabrica.run(() => {
-    baseRender(target, resolveRenderInput(value));
-  });
-}
+function normalizeAttrs(attrs?: UiElementOptions["attrs"]): Record<string, string | number | boolean> {
+  const output: Record<string, string | number | boolean> = {};
 
-export function asNode(value: RenderInput): Node {
-  const fragment = document.createDocumentFragment();
-  devtoolsFabrica.run(() => {
-    baseRender(fragment, resolveRenderInput(value));
-  });
-  return fragment.childNodes.length === 1 ? fragment.firstChild! : fragment;
+  if (!attrs) return output;
+
+  for (const [name, value] of Object.entries(attrs)) {
+    if (value == null || value === false) continue;
+    output[name] = value === true ? "" : value;
+  }
+
+  return output;
 }
 
 export type DevtoolsComponent<Props extends object = Record<string, unknown>> = Component<Props>;
