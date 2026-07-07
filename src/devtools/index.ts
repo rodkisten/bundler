@@ -162,8 +162,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         ...settingsStyleArtifacts,
       ]);
 
+      const styles = extractStyleSheet(
+        this.styles!.sheet as CSSStyleSheet
+      );
+
       debugLog("runtime", "styles installed", {
         style: this.style,
+        styles,
         root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light",
       });
 
@@ -631,6 +636,32 @@ function applyToolConfig(tool: ToolLike, values: Record<string, unknown> | undef
 function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }
+
+
+function extractStyleSheet(sheet: CSSStyleSheet) {
+  const result: Record<string, Record<string, string>> = {};
+
+  for (const rule of sheet.cssRules) {
+    if (!(rule instanceof CSSStyleRule)) continue;
+
+    const declarations: Record<string, string> = {};
+
+    for (const property of rule.style) {
+      declarations[property] = rule.style.getPropertyValue(property);
+    }
+
+    result[rule.selectorText] = declarations;
+  }
+
+  return result;
+}
+
+
+
+
+// 
+
+
 
 export const api = new RodDevtoolsRuntime();
 export const devtools = api;
