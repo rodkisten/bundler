@@ -276,7 +276,7 @@ if (typeof window !== 'undefined') {
 }
 
 function assignPublicApi(target: CipoCallableRuntime, api: Record<string, unknown>): void {
-  const writableTarget = target as Record<string, unknown>
+  const writableTarget = target as unknown as Record<string, unknown>
   for (const [key, value] of Object.entries(api)) {
     const descriptor = Object.getOwnPropertyDescriptor(target, key)
     if (descriptor && !descriptor.writable && typeof descriptor.set !== 'function') continue
