@@ -116,19 +116,16 @@ export function applyCompiledProps(
   const plainProps: Record<string, unknown> = {};
 
   for (const [rawName, rawValue] of Object.entries(props)) {
-    const value = readValue(rawValue);
-    if (value == null || value === false) continue;
-
     if (rawName === "children") continue;
 
     if (rawName === "ref") {
       const callback =
-        typeof value === "function"
-          ? value
-          : value &&
-              typeof value === "object" &&
-              (value as { kind?: unknown }).kind === "ref"
-            ? (value as { callback?: unknown }).callback
+        typeof rawValue === "function"
+          ? rawValue
+          : rawValue &&
+              typeof rawValue === "object" &&
+              (rawValue as { kind?: unknown }).kind === "ref"
+            ? (rawValue as { callback?: unknown }).callback
             : null;
 
       if (typeof callback === "function") {
@@ -145,14 +142,17 @@ export function applyCompiledProps(
     }
 
     if (rawName.startsWith("@")) {
-      bindEvent(element, rawName.slice(1), value as RenderValue);
+      bindEvent(element, rawName.slice(1), rawValue as RenderValue);
       continue;
     }
 
     if (isEventPropName(rawName)) {
-      bindEvent(element, eventNameFromProp(rawName), value as RenderValue);
+      bindEvent(element, eventNameFromProp(rawName), rawValue as RenderValue);
       continue;
     }
+
+    const value = readValue(rawValue);
+    if (value == null || value === false) continue;
 
     if (rawName.startsWith(".")) {
       setPropertyOrAttribute(element, rawName.slice(1), value);
