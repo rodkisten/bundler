@@ -37,7 +37,7 @@ type CapabilityModel = {
 export class Resources extends Tool {
   readonly name = "resources";
   readonly title = "resources";
-  readonly icon = "▦";
+  readonly icon = icon("resources");
   readonly config = new ConfigStore<ResourcesConfig>("resources", {
     hideDevtoolsSetting: true,
     observeElement: true,

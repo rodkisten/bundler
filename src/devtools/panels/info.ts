@@ -1,4 +1,4 @@
-import { copyText, create, delegate, safeStringify } from "../core/dom";
+import { copyText, create, delegate, icon, safeStringify } from "../core/dom";
 import { Tool } from "../tool";
 import type { InfoItem, ToolContext } from "../types";
 import { renderPanelShell } from "./panel-ui";
@@ -114,7 +114,7 @@ function defaultItems(): InfoItem[] {
 export class Info extends Tool {
   readonly name = "info";
   readonly title = "info";
-  readonly icon = "ⓘ";
+  readonly icon = icon("info");
   private items: InfoItem[] = defaultItems();
   private body: HTMLElement | null = null;
   private cleanup: Array<() => void> = [];

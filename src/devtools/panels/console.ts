@@ -442,7 +442,7 @@ component("RodConsoleView", function RodConsoleView(props) {
 export class Console extends Tool {
   readonly name: string;
   readonly title = "console";
-  readonly icon = "⌘";
+  readonly icon = icon("console");
   readonly config: ConfigStore<ConsoleConfig>;
 
   private readonly capture = sharedCapture;
@@ -469,6 +469,7 @@ export class Console extends Tool {
   private codeEditor: CodeEditorHandle | null = null;
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
+  private restoreCaptureRecord: (() => void) | null = null;
 
   constructor({ name = "console" }: { name?: string } = {}) {
     super();
@@ -482,7 +483,7 @@ export class Console extends Tool {
     const view: ConsoleViewModel = {
       state: this.state,
       setBody: (node) => { this.body = node; },
-      setList: (node) => { this.list = node; },
+      setList: (node) => { this.setList(node); },
       setInput: (node) => { this.setInput(node); },
       clear: () => this.clear(),
       copy: () => { void this.copyVisibleRecords(); },
@@ -498,8 +499,13 @@ export class Console extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
+    this.body = container.querySelector<HTMLElement>("[data-console-body]");
+    this.setList(container.querySelector<HTMLElement>("[data-console-list]"));
+    const input = container.querySelector("[data-console-input]");
+    if (input instanceof HTMLTextAreaElement) this.setInput(input);
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
+    this.patchCaptureRecord();
     this.hydrateCapturedRecords();
     this.hydrateHistory();
 
@@ -553,6 +559,8 @@ export class Console extends Tool {
   override destroy(): void {
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
+    this.restoreCaptureRecord?.();
+    this.restoreCaptureRecord = null;
     this.config.off("change", this.onConfigChange);
     this.disposeView?.();
     this.disposeView = null;
@@ -590,6 +598,20 @@ export class Console extends Tool {
     this.scrollToBottom();
     if (record.level === "error" && this.config.get("displayIfErr")) this.context?.devtools.show().showTool(this.name);
   };
+
+  private patchCaptureRecord(): void {
+    if (this.restoreCaptureRecord) return;
+    const capture = this.capture;
+    const original = capture.record.bind(capture);
+    capture.record = ((level: ConsoleLevel, args: unknown[], extra: Partial<ConsoleRecord> = {}) => {
+      const record = original(level, args, extra);
+      if (!this.state.records.peek().some((candidate) => candidate.id === record.id)) this.onRecord(record);
+      return record;
+    }) as ConsoleCapture["record"];
+    this.restoreCaptureRecord = () => {
+      if (capture.record !== original) capture.record = original as ConsoleCapture["record"];
+    };
+  }
 
   private readonly onClear = (): void => {
     this.state.patch({ records: [], selectedRecordId: null }, { cause: "console:clear" });
@@ -681,6 +703,11 @@ export class Console extends Tool {
       return;
     }
     this.mountCodeEditor(node);
+  }
+
+  private setList(node: HTMLElement | null): void {
+    this.list = node;
+    if (node) this.renderRecords();
   }
 
   private mountCodeEditor(textarea: HTMLTextAreaElement): void {
@@ -898,6 +925,7 @@ function stringifyCell(value: unknown): string {
 }
 
 function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
+  if (level === "trace") return "debug";
   return level === "command" || level === "result" || level === "html" || level === "table" || level === "dir" ? "log" : level;
 }
 

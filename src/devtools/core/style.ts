@@ -358,8 +358,18 @@ export const devtoolsStyles = sheet.css`
   }
 
   .roderuda-tab-icon {
+    display: inline-grid
+    place-items: center
     font-size: 15px
     line-height: 1
+  }
+
+  .roderuda-lucide-icon {
+    display: block
+    flex: 0 0 auto
+    width: 1em
+    height: 1em
+    stroke: currentColor
   }
 
   .roderuda-tools,

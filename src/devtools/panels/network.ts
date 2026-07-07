@@ -1,7 +1,7 @@
 import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { NetworkCapture } from "../core/network-capture";
-import { copyText } from "../core/dom";
+import { copyText, icon } from "../core/dom";
 import { Tool } from "../tool";
 import { html, render } from "../components/runtime";
 import type { NetworkRecord, ToolContext } from "../types";
@@ -23,7 +23,7 @@ interface NetworkConfig {
 export class Network extends Tool {
   readonly name = "network";
   readonly title = "network";
-  readonly icon = "⇄";
+  readonly icon = icon("network");
   readonly config = new ConfigStore<NetworkConfig>("network", {
     preserveLog: true,
     captureResponseBody: true,

@@ -1,4 +1,6 @@
 import { debugLog } from "../core/debug";
+import { icon } from "../core/dom";
+import type { CipoCssArtifact } from "../../cipo";
 import { event, html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
 
 const EMPTY_PANELS = signal<string[]>([]);
@@ -39,6 +41,22 @@ const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
   pointer-events: none;
 `;
 
+const SHELL_STYLED_COMPONENTS = Object.freeze([
+  ShellRoot,
+  EntryButtonView,
+  DevtoolsDock,
+  Resizer,
+  Tabbar,
+  Tools,
+  Notifications,
+  ModalRoot,
+]);
+
+export const shellStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  SHELL_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
+    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+);
+
 export interface ShellRefs {
   root: HTMLElement;
   entryButton: HTMLButtonElement;
@@ -74,7 +92,7 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
         data-roderuda-shell-ref="entryButton"
         @click=${event((event: Event) => event.stopPropagation())}
         ref=${ref((node) => { refs.entryButton = node as HTMLButtonElement; })}
-      >⌘</RodDevtoolsEntryButton>
+      >${icon("bug")}</RodDevtoolsEntryButton>
 
       <RodDevtoolsDock
         class="roderuda-dev-tools"

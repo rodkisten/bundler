@@ -10,6 +10,7 @@ type ConsoleMethod = keyof Pick<
   Console,
   | "log"
   | "debug"
+  | "trace"
   | "info"
   | "warn"
   | "error"
@@ -30,6 +31,7 @@ type ConsoleMethod = keyof Pick<
 const methods: readonly ConsoleMethod[] = [
   "log",
   "debug",
+  "trace",
   "info",
   "warn",
   "error",
@@ -637,6 +639,12 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
       case "dir":
         this.record("dir", args);
+        return;
+
+      case "trace":
+        this.record("trace", args.length ? args : ["console.trace"], {
+          stack: new Error("console.trace").stack,
+        });
         return;
 
       default:
