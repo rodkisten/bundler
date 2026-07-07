@@ -69,6 +69,42 @@ describe("RodEruda native devtools", () => {
     expect(devtools.get()?.isVisible()).toBe(false);
   });
 
+  it("injects shell and styled panel CSS into the shadow root", () => {
+    devtools.init({ autoScale: false, tool: ["console", "elements"] });
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const styleText = shadow?.querySelector("style")?.textContent ?? "";
+
+    expect(styleText).toContain(".roderuda-container");
+    expect(styleText).toContain(".rd-RodDevtoolsShellRoot");
+    expect(styleText).toContain(".rd-RodConsoleSurface");
+    expect(styleText).toContain(".rd-RodElementsLayout");
+  });
+
+  it("renders the Elements panel tree with page DOM nodes", () => {
+    devtools.init({ autoScale: false, tool: ["elements"] });
+    devtools.show("elements");
+
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const tree = shadow?.querySelector<HTMLElement>("[data-elements-tree]");
+
+    expect(tree).toBeInstanceOf(HTMLElement);
+    expect(tree?.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
+    expect(tree?.textContent).toContain("main");
+    expect(shadow?.querySelector("RodElementsView, rodelementsview")).toBeNull();
+  });
+
+  it("captures console methods emitted on window.console", () => {
+    devtools.init({ autoScale: false, tool: ["console"] });
+    console.log("captured window log");
+    console.trace("captured trace");
+
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const consoleText = shadow?.querySelector("[data-console-list]")?.textContent ?? "";
+
+    expect(consoleText).toContain("captured window log");
+    expect(consoleText).toContain("captured trace");
+  });
+
   it("supports the public plugin API", () => {
     devtools.init({ tool: [], autoScale: false });
     const custom = {

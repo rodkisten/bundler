@@ -442,7 +442,7 @@ component("RodConsoleView", function RodConsoleView(props) {
 export class Console extends Tool {
   readonly name: string;
   readonly title = "console";
-  readonly icon = "⌘";
+  readonly icon = icon("console");
   readonly config: ConfigStore<ConsoleConfig>;
 
   private readonly capture = sharedCapture;
@@ -898,6 +898,7 @@ function stringifyCell(value: unknown): string {
 }
 
 function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
+  if (level === "trace") return "debug";
   return level === "command" || level === "result" || level === "html" || level === "table" || level === "dir" ? "log" : level;
 }
 

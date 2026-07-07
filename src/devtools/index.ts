@@ -6,7 +6,7 @@
  * @description Dependency-free browser developer tools implemented in TypeScript with Cipo and Fábrica.
  */
 import { installDevtoolsStyles } from "./core/style";
-import { renderShell, type ShellRefs } from "./components/shell";
+import { renderShell, shellStyleArtifacts, type ShellRefs } from "./components/shell";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./core/debug";
 import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./core/dom";
 import { NativeProtocol } from "./core/protocol";
@@ -151,6 +151,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.assertShellMounted();
 
     this.style = installDevtoolsStyles(this.rootTarget, [
+      ...shellStyleArtifacts,
       ...consoleStyleArtifacts,
       ...elementsStyleArtifacts,
       ...networkStyleArtifacts,

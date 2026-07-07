@@ -1,4 +1,5 @@
 import { event, html, render } from "../components/runtime";
+import { icon } from "../core/dom";
 import type { ConfigLike, RangeOptions, ToolContext } from "../types";
 import { Tool } from "../tool";
 import {
@@ -33,7 +34,7 @@ type SettingEntry = {
 export class Settings extends Tool {
   readonly name = "settings";
   readonly title = "settings";
-  readonly icon = "⚙";
+  readonly icon = icon("settings");
 
   private body: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;

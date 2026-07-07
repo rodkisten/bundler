@@ -1,4 +1,4 @@
-import { copyText, create, delegate, escapeHtml, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
+import { copyText, create, delegate, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
 
@@ -143,7 +143,7 @@ function featureRows(): Array<[string, boolean]> {
 export class Snippets extends Tool {
   readonly name = "snippets";
   readonly title = "snippets";
-  readonly icon = "✂";
+  readonly icon = icon("snippets");
   private snippets: SnippetItem[] = [];
   private body: HTMLElement | null = null;
   private cleanup: Array<() => void> = [];

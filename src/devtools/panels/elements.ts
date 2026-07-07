@@ -1,5 +1,5 @@
 import { ConfigStore } from "../core/config";
-import { copyText, debounce, delegate, isDevtoolsNode, nodePath } from "../core/dom";
+import { copyText, debounce, delegate, icon, isDevtoolsNode, nodePath } from "../core/dom";
 import { getEventListeners, installEventListenerRegistry } from "../core/event-listeners";
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
@@ -49,7 +49,7 @@ type SelectOptions = {
 export class Elements extends Tool {
   readonly name = "elements";
   readonly title = "elements";
-  readonly icon = "◇";
+  readonly icon = icon("elements");
   readonly config = new ConfigStore<ElementsConfig>("elements", {
     overrideEventTarget: true,
     observeElement: true,

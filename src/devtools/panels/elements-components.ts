@@ -595,7 +595,7 @@ component("RodElementsView", function RodElementsView(props) {
       <RodElementsTreeSide data-elements-tree-side>
         <RodElementsControl data-elements-control>
           <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>›</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
           <RodElementsControlSpacer />
           <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
