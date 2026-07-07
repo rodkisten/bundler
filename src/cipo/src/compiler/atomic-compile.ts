@@ -95,7 +95,10 @@ export function compileAtomicCss(strings: TemplateStringsArray, values: readonly
   const cacheable = runtime.config.atomic.minUses <= 1
   const cached = cacheable ? getCachedArtifact(cacheKey) : undefined
 
-  if (cached && isAtomicCssArtifactLike(cached)) return cached
+  if (cached && isAtomicCssArtifactLike(cached)) {
+    insertCss(cached.compiledCss)
+    return cached
+  }
 
   const warnings: CipoWarning[] = []
   const transformedCss = transformCss(rawCss, warnings)

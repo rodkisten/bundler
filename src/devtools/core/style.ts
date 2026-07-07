@@ -1,5 +1,5 @@
 import { sheet } from "../../cipo/src/index";
-import { injectStyle, setRuntimeStyleTarget } from "../../cipo/src/injection";
+import { getCssText, injectStyle, setRuntimeStyleTarget } from "../../cipo/src/injection";
 import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
 
 /* *************** */
@@ -918,7 +918,15 @@ export function installDevtoolsStyles(
   const parent = target instanceof Document ? target.head : target;
   parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]').forEach((node) => node.remove());
 
-  const style = injectStyle(target, [devtoolsStyles, ...additionalStyles], { dedupe: false, position: "prepend" });
+  const runtimeStyledComponentStyles = getCssText().trim()
+    ? [{ kind: "cipo.stylesheet" as const, cssText: getCssText() }]
+    : [];
+
+  const style = injectStyle(target, [
+    ...runtimeStyledComponentStyles,
+    devtoolsStyles,
+    ...additionalStyles,
+  ], { dedupe: false, position: "prepend" });
   style.dataset.roderudaDevtoolsStyle = "true";
   if (!style.textContent?.trim()) throw new Error("[RodEruda] Unable to install styles");
   return style;

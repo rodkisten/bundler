@@ -72,7 +72,9 @@ export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined
   if (target === null) return null
 
   const style = ensureStyleElement()
-  if (runtime.generatedCssText && !style.textContent) style.textContent = runtime.generatedCssText
+  if (runtime.generatedCssText && style.textContent !== runtime.generatedCssText) {
+    style.textContent = runtime.generatedCssText
+  }
   return style
 }
 
