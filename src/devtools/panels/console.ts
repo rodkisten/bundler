@@ -482,7 +482,7 @@ export class Console extends Tool {
     const view: ConsoleViewModel = {
       state: this.state,
       setBody: (node) => { this.body = node; },
-      setList: (node) => { this.list = node; },
+      setList: (node) => { this.setList(node); },
       setInput: (node) => { this.setInput(node); },
       clear: () => this.clear(),
       copy: () => { void this.copyVisibleRecords(); },
@@ -681,6 +681,11 @@ export class Console extends Tool {
       return;
     }
     this.mountCodeEditor(node);
+  }
+
+  private setList(node: HTMLElement | null): void {
+    this.list = node;
+    if (node) this.renderRecords();
   }
 
   private mountCodeEditor(textarea: HTMLTextAreaElement): void {

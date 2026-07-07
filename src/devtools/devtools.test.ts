@@ -75,9 +75,9 @@ describe("RodEruda native devtools", () => {
     const styleText = shadow?.querySelector("style")?.textContent ?? "";
 
     expect(styleText).toContain(".roderuda-container");
-    expect(styleText).toContain(".rd-RodDevtoolsShellRoot");
-    expect(styleText).toContain(".rd-RodConsoleSurface");
-    expect(styleText).toContain(".rd-RodElementsLayout");
+    expect(styleText).toContain(".roderuda-lucide-icon");
+    expect(styleText).toContain(".roderuda-console-no-execution");
+    expect(styleText).toContain("[data-selected=\"true\"]");
   });
 
   it("renders the Elements panel tree with page DOM nodes", () => {

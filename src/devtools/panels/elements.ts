@@ -84,7 +84,7 @@ export class Elements extends Tool {
     super.init(container, context);
 
     const view: ElementsViewModel = {
-      setTree: (node) => { this.tree = node; },
+      setTree: (node) => this.setTree(node),
       setCrumbs: (node) => { this.crumbs = node; },
       setDetail: (node) => { this.detail = node; },
       onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
@@ -252,6 +252,11 @@ export class Elements extends Tool {
   private renderTree(): void {
     if (!this.tree || !document.documentElement) return;
     render(this.tree, domTreeTemplate(this.renderNode(document.documentElement, 0)));
+  }
+
+  private setTree(node: HTMLElement | null): void {
+    this.tree = node;
+    if (node) this.renderTree();
   }
 
   private renderNode(node: Node, depth: number): RenderPiece {
