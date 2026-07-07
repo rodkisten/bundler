@@ -218,7 +218,7 @@ const ConsoleGroup = styled.span("RodConsoleGroup").css`
   color: $operator;
 `;
 
-const ConsoleTime = styled.time("RodConsoleTime").css`
+const ConsoleTime = styled.span("RodConsoleTime").css`
   position: absolute;
   top: 5px;
   right: 7px;
