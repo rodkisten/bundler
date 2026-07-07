@@ -318,9 +318,13 @@ function readCompiledPropValue(
   let output = "";
   for (let index = 0; index < prop.indices.length; index += 1) {
     output += prop.strings[index] ?? "";
-    output += String(readValue(values[prop.indices[index]!] ?? ""));
+    const segment = readValue(values[prop.indices[index]!] ?? "");
+    if (segment == null || segment === false) continue;
+    if (segment === true) output += "true";
+    else if (segment && typeof segment === "object" && "nodeType" in (segment as object))
+      output += (segment as Node).textContent ?? "";
+    else output += String(segment);
   }
-  output += prop.strings[prop.indices.length] ?? "";
   return output;
 }
 
