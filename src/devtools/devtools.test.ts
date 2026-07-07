@@ -93,6 +93,7 @@ describe("RodEruda native devtools", () => {
     expect(tree?.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
     expect(tree?.textContent).toContain("main");
     expect(shadow?.querySelector("RodElementsView, rodelementsview")).toBeNull();
+    expect(shadow?.querySelector("RodElementsDomText, rodelementsdomtext, RodElementsDomTag, rodelementsdomtag")).toBeNull();
   });
 
   it("captures console methods emitted on window.console", () => {

@@ -786,7 +786,7 @@ export function preBlockTemplate(value: string): RenderPiece {
 }
 
 export function domTreeTemplate(content: RenderPiece): RenderPiece {
-  return html`<ul class=${DomList.className} data-root="true">${content}</ul>`;
+  return html`<RodElementsDomList data-root="true">${content}</RodElementsDomList>`;
 }
 
 export function domNodeTemplate(options: {
@@ -800,39 +800,39 @@ export function domNodeTemplate(options: {
   moreCount?: number;
 }): RenderPiece {
   return html`
-    <li class=${DomItem.className}>
-      <div class=${DomRow.className} data-node-id=${options.nodeId} data-node-depth=${String(options.depth)} data-selected=${String(options.selected)}>
-        <span class=${DomToggle.className} data-toggle-node=${options.expandable ? "" : null}>${options.expandable ? (options.expanded ? "▾" : "▸") : ""}</span>
+    <RodElementsDomItem>
+      <RodElementsDomRow data-node-id=${options.nodeId} data-node-depth=${String(options.depth)} data-selected=${String(options.selected)}>
+        <RodElementsDomToggle data-toggle-node=${options.expandable ? "" : null}>${options.expandable ? (options.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
         ${options.label}
-      </div>
+      </RodElementsDomRow>
 
       ${options.expandable && options.expanded ? html`
-        <ul class=${DomList.className}>
+        <RodElementsDomList>
           ${options.children ?? ""}
-          ${(options.moreCount ?? 0) > 0 ? html`<li class=${DomMoreItem.className}>... ${options.moreCount} more nodes</li>` : ""}
-        </ul>
+          ${(options.moreCount ?? 0) > 0 ? html`<RodElementsDomMoreItem>... ${options.moreCount} more nodes</RodElementsDomMoreItem>` : ""}
+        </RodElementsDomList>
       ` : ""}
-    </li>
+    </RodElementsDomItem>
   `;
 }
 
 export function nodeLabelTemplate(node: Node): RenderPiece {
   if (node.nodeType === Node.TEXT_NODE) {
-    return html`<span class=${DomText.className}>"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"</span>`;
+    return html`<RodElementsDomText>"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"</RodElementsDomText>`;
   }
 
   if (node.nodeType === Node.COMMENT_NODE) {
-    return html`<span class=${DomText.className}>&lt;!--${truncate(node.textContent || "", 120)}--&gt;</span>`;
+    return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 120)}--&gt;</RodElementsDomText>`;
   }
 
   if (!(node instanceof Element)) return node.nodeName;
 
   return html`
-    <span class=${DomTag.className}>&lt;${node.tagName.toLowerCase()}</span>
+    <RodElementsDomTag>&lt;${node.tagName.toLowerCase()}</RodElementsDomTag>
     ${Array.from(node.attributes).slice(0, 12).map((attribute) => html`
-      ${" "}<span class=${DomAttrName.className}>${attribute.name}</span>="<span class=${DomAttrValue.className}>${truncate(attribute.value, 100)}</span>"
+      ${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 100)}</RodElementsDomAttrValue>"
     `)}
-    <span class=${DomTag.className}>&gt;</span>
+    <RodElementsDomTag>&gt;</RodElementsDomTag>
   `;
 }
 
