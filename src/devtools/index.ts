@@ -163,7 +163,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       ]);
 
       const styles = extractStyleSheet(
-        this.styles!.sheet as CSSStyleSheet
+        this.style!.sheet as CSSStyleSheet
       );
 
       debugLog("runtime", "styles installed", {
