@@ -1,4 +1,4 @@
-import { isDevtoolsNode } from "./dom";
+import { isDevtoolsNode, setStyles } from "./dom";
 
 const HIGHLIGHT_DURATION = 850;
 const OVERLAY_CLASS = "__roderuda-overlay__";
@@ -120,7 +120,7 @@ export class ElementHighlighter {
     for (let index = 0; index < this.boxes.length; index += 1) {
       const layer = layers[index]!;
       const box = this.boxes[index]!;
-      Object.assign(box.style, {
+      setStyles(box.style, {
         left: `${Math.round(layer.left)}px`,
         top: `${Math.round(layer.top)}px`,
         width: `${Math.max(0, Math.round(layer.width))}px`,

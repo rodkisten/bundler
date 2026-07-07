@@ -1,4 +1,4 @@
-import { copyText, create, delegate, escapeHtml, isDevtoolsNode, safeStringify } from "../core/dom";
+import { copyText, create, delegate, escapeHtml, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
 
@@ -25,7 +25,7 @@ function addBorderOverlay(): OverlayController {
 function startMonitor(): OverlayController {
   const panel = document.createElement("div");
   panel.dataset.roderudaSnippet = "monitor";
-  Object.assign(panel.style, {
+  setStyles(panel.style, {
     position: "fixed",
     inset: "8px 8px auto auto",
     zIndex: "2147483647",
@@ -74,7 +74,7 @@ function startMonitor(): OverlayController {
 function startTouchVisualizer(): OverlayController {
   const layer = document.createElement("div");
   layer.dataset.roderudaSnippet = "touches";
-  Object.assign(layer.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483647" });
+  setStyles(layer.style, { position: "fixed", inset: "0", pointerEvents: "none", zIndex: "2147483647" });
   document.documentElement.append(layer);
   const circles = new Map<number, HTMLElement>();
   const render = (event: TouchEvent) => {
@@ -84,7 +84,7 @@ function startTouchVisualizer(): OverlayController {
       let circle = circles.get(touch.identifier);
       if (!circle) {
         circle = document.createElement("div");
-        Object.assign(circle.style, {
+        setStyles(circle.style, {
           position: "absolute",
           width: "42px",
           height: "42px",
