@@ -1,6 +1,6 @@
 import type { ShellRefs } from "./components/shell";
 import { ConfigStore } from "./core/config";
-import { delegate, on } from "./core/dom";
+import { on } from "./core/dom";
 import { asNode, event, html, ref, uiState } from "./components/runtime";
 import { Emitter } from "./core/emitter";
 import { applyTheme, themes } from "./core/theme";
@@ -79,7 +79,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   add(tool: ToolLike): this {
     const name = String(tool.name || "").trim();
+   
     if (!name) throw new Error("A tool must have a name");
+    
     if (this.tools.has(name)) {
       this.notify(`Tool “${name}” already exists`, { type: "warning" });
       return this;
@@ -95,7 +97,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         ref=${ref((node) => { panel = node as HTMLElement; })}
       />
     `;
+   
     asNode(panelFragment);
+    
     this.refs.tools.prepend(panel);
 
     let tab!: HTMLButtonElement;
@@ -107,22 +111,27 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-tool-tab=${name}
         aria-selected="false"
         draggable=${name === "settings" ? "false" : "true"}
-        @click=${event(() => this.showTool(name))}
+        @click=${() => this.showTool(name)}
         ref=${ref((node) => { tab = node as HTMLButtonElement; })}
       >
         <span class="roderuda-tab-icon">${tool.icon ?? name.slice(0, 1).toUpperCase()}</span>
         <span class="roderuda-tab-label">${tool.title ?? name}</span>
       </button>
     `;
+   
     asNode(tabFragment);
+    
     const settingsTab = this.refs.tabbar.querySelector('[data-tool-tab="settings"]');
+    
     if (name !== "settings" && settingsTab) this.refs.tabbar.insertBefore(tab, settingsTab);
     else this.refs.tabbar.append(tab);
 
     this.tools.set(name, tool);
     this.tabs.set(name, tab);
     this.applyPanelPreferences();
+   
     uiState.setPath("panels.names", [...this.tools.keys()]);
+    
     if (name === "settings") this.settings = tool as SettingsLike;
 
     try {
@@ -132,8 +141,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     } catch (error) {
       panel.remove();
       tab.remove();
+      
       this.tools.delete(name);
       this.tabs.delete(name);
+      
       throw error;
     }
 
@@ -143,14 +154,21 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   remove(name: string): this {
     const tool = this.tools.get(name);
+   
     if (!tool) return this;
+    
     const wasActive = tool.active;
+    
     tool.destroy();
+    
     this.tabs.get(name)?.remove();
     this.tabs.delete(name);
     this.tools.delete(name);
+   
     uiState.setPath("panels.names", [...this.tools.keys()]);
+    
     if (this.settings === tool) this.settings = null;
+    
     if (wasActive) {
       this.currentTool = "";
       const fallback = [...this.tools.keys()].find((key) => key !== "settings") ?? this.tools.keys().next().value;
@@ -360,56 +378,59 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private bind(): void {
-    this.cleanup.push(delegate(this.refs.tabbar, "click", "[data-tool-tab]", (_event, tab) => this.showTool(tab.dataset.toolTab ?? "")));
-    this.cleanup.push(delegate(this.refs.tabbar, "dragstart", "[data-tool-tab]", (event, tab) => {
-      if (tab.dataset.toolTab === "settings" || !(event instanceof DragEvent)) return;
-      event.dataTransfer?.setData("text/plain", tab.dataset.toolTab ?? "");
-      event.dataTransfer?.setDragImage?.(tab, 8, 8);
-    }));
-    this.cleanup.push(delegate(this.refs.tabbar, "dragover", "[data-tool-tab]", (event) => {
-      if (event instanceof DragEvent) event.preventDefault();
-    }));
-    this.cleanup.push(delegate(this.refs.tabbar, "drop", "[data-tool-tab]", (event, tab) => {
-      if (!(event instanceof DragEvent)) return;
-      event.preventDefault();
-      const source = event.dataTransfer?.getData("text/plain") || "";
-      const target = tab.dataset.toolTab || "";
-      if (!source || !target || source === target || source === "settings") return;
-      this.movePanel(source, target);
-    }));
-    this.cleanup.push(on(this.refs.resizer, "pointerdown", (event: PointerEvent) => {
-      if (this.inline) return;
-      event.preventDefault();
-      this.resizing = true;
-      this.resizeStartY = event.clientY;
-      this.resizeStartSize = this.config.get<number>("displaySize");
-      this.refs.resizer.setPointerCapture?.(event.pointerId);
-      this.refs.resizer.style.height = "100%";
-    }));
-    this.cleanup.push(on(window, "pointermove", (event: PointerEvent) => {
-      if (!this.resizing) return;
-      const delta = ((this.resizeStartY - event.clientY) / innerHeight) * 100;
-      this.config.set("displaySize", Math.max(40, Math.min(100, Math.round(this.resizeStartSize + delta))));
-    }));
-    this.cleanup.push(on(window, "pointerup", (event: PointerEvent) => {
-      if (!this.resizing) return;
-      this.resizing = false;
-      this.refs.resizer.releasePointerCapture?.(event.pointerId);
-      this.refs.resizer.style.height = "";
-    }));
-    const onConfigChange = (key: string) => this.applyConfiguration(key);
-    this.config.on("change", onConfigChange);
-    this.cleanup.push(() => this.config.off("change", onConfigChange));
-    if (typeof matchMedia === "function") {
-      const media = matchMedia("(prefers-color-scheme: dark)");
-      const listener = () => {
-        if (this.config.get<string>("theme") === "System preference") this.applyConfiguration("theme");
-      };
-      media.addEventListener?.("change", listener);
-      this.cleanup.push(() => media.removeEventListener?.("change", listener));
-    }
-  }
+  this.cleanup.push(on(this.refs.entryButton, "click", (click: MouseEvent) => {
+    click.preventDefault();
+    click.stopPropagation();
+    this.toggle();
+  }));
 
+  this.cleanup.push(on(this.refs.resizer, "pointerdown", (pointer: PointerEvent) => {
+    if (this.inline) return;
+
+    pointer.preventDefault();
+    this.resizing = true;
+    this.resizeStartY = pointer.clientY;
+    this.resizeStartSize = this.config.get<number>("displaySize");
+    this.refs.resizer.setPointerCapture?.(pointer.pointerId);
+    this.refs.resizer.style.height = "100%";
+  }));
+
+  this.cleanup.push(on(window, "pointermove", (pointer: PointerEvent) => {
+    if (!this.resizing) return;
+
+    const delta = ((this.resizeStartY - pointer.clientY) / innerHeight) * 100;
+    this.config.set(
+      "displaySize",
+      Math.max(40, Math.min(100, Math.round(this.resizeStartSize + delta))),
+    );
+  }));
+
+  this.cleanup.push(on(window, "pointerup", (pointer: PointerEvent) => {
+    if (!this.resizing) return;
+
+    this.resizing = false;
+    this.refs.resizer.releasePointerCapture?.(pointer.pointerId);
+    this.refs.resizer.style.height = "";
+  }));
+
+  const onConfigChange = (key: string) => this.applyConfiguration(key);
+  this.config.on("change", onConfigChange);
+  this.cleanup.push(() => this.config.off("change", onConfigChange));
+
+  if (typeof matchMedia === "function") {
+    const media = matchMedia("(prefers-color-scheme: dark)");
+
+    const listener = () => {
+      if (this.config.get<string>("theme") === "System preference") {
+        this.applyConfiguration("theme");
+      }
+    };
+
+    media.addEventListener?.("change", listener);
+    this.cleanup.push(() => media.removeEventListener?.("change", listener));
+  }
+}
+  
   private applyConfiguration(key?: string): void {
     if (!key || key === "theme") {
       const themeName = String(this.config.get("theme"));
