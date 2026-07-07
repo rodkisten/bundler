@@ -11,7 +11,11 @@ on:
         description: "Minimum hours between automatic builds"
         required: false
         default: "2"
-
+      should_run_tests:
+        type: boolean
+        description: "Wanna run all tests?"
+        default: true
+        
 concurrency:
   group: publish-browser-bundle-${{ github.ref }}
   cancel-in-progress: true
@@ -125,7 +129,7 @@ jobs:
   changes:
     name: "📋 Check incoming changes"
     needs: guard
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    if: ${{ inputs.should_run_tests == true && (github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true') }}
     runs-on: ubuntu-24.04
 
     outputs:
@@ -206,7 +210,7 @@ jobs:
     needs:
       - guard
       - changes
-    if: ${{ github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') || inputs.should_run_tests == true }}
     runs-on: ubuntu-24.04
     continue-on-error: true
 
