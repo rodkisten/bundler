@@ -79,14 +79,15 @@ export function createStyledFactory<Artifact = unknown>(options: StyledFactoryOp
     pendingComponents: { enumerable: false, value: registry.pendingNames.bind(registry) },
   })
 
+  installStyledTagFactories(base, getStyledTagFactory)
+
   if (typeof Proxy === 'undefined') {
-    installStyledTagFactories(base, getStyledTagFactory)
     return base
   }
 
   return new Proxy(base, {
     get(target, property, receiver) {
-      if (property in target) return Reflect.get(target, property, receiver)
+      if (Object.prototype.hasOwnProperty.call(target, property)) return Reflect.get(target, property, receiver)
       if (typeof property === 'string') return getStyledTagFactory(property)
       return undefined
     },
