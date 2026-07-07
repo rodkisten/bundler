@@ -275,12 +275,11 @@ if (typeof window !== 'undefined') {
   installBrowserGlobal('Cipo')
 }
 
-function assignPublicApi(target: CipoPublicApiTarget, api: Record<string, unknown>): void {
+function assignPublicApi(target: CipoCallableRuntime, api: Record<string, unknown>): void {
+  const writableTarget = target as Record<string, unknown>
   for (const [key, value] of Object.entries(api)) {
     const descriptor = Object.getOwnPropertyDescriptor(target, key)
     if (descriptor && !descriptor.writable && typeof descriptor.set !== 'function') continue
-    target[key] = value
+    writableTarget[key] = value
   }
 }
-
-type CipoPublicApiTarget = CipoCallableRuntime & Record<string, unknown>
