@@ -163,7 +163,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       ]);
 
       debugLog("runtime", "styles installed", {
-        style: Boolean(this.style),
+        style: this.style,
         root: this.rootTarget instanceof ShadowRoot ? "shadow" : "light",
       });
 
