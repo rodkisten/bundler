@@ -57,7 +57,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
     attrs?: Record<string, string | number | boolean | null | undefined>;
   } = {},
 ): HTMLElementTagNameMap[K] {
-  debugTrace("dom", "create", { tag, className: options.className, attrs: Object.keys(options.attrs ?? {}) });
+ // debugTrace("dom", "create", { tag, className: options.className, attrs: Object.keys(options.attrs ?? {}) });
   return uiElement(tag, options) as HTMLElementTagNameMap[K];
 }
 
@@ -92,7 +92,7 @@ export function on(
   debugTrace("dom", "on", { target: describeTarget(target), type, options: describeEventOptions(options) });
   target.addEventListener(type, listener, options);
   return () => {
-    debugTrace("dom", "off", { target: describeTarget(target), type });
+  //  debugTrace("dom", "off", { target: describeTarget(target), type });
     target.removeEventListener(type, listener, options);
   };
 }
@@ -260,22 +260,22 @@ export function forceAppendToPage(element: HTMLElement): boolean {
         (root as HTMLElement).appendChild(element);
       }
       if (element.isConnected) {
-        debugLog("dom", "forceAppendToPage", { target: describeTarget(element), root: describeTarget(root), connected: element.isConnected });
+        debugLog("dom", "forceAppendToPage", { target: element, root, connected: element.isConnected });
         return true;
       }
     } catch (error) {
-      debugWarn("dom", "forceAppendToPage root failed", { root: describeTarget(root), error: error instanceof Error ? error.message : String(error) });
+      debugWarn("dom", "forceAppendToPage root failed", { root, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
   try {
     const adopted = adoptOpenShadowRoot(element);
     if (adopted) {
-      debugLog("dom", "forceAppendToPage shadow", { target: describeTarget(element), root: describeTarget(adopted), connected: element.isConnected });
+      debugLog("dom", "forceAppendToPage shadow", { target: describeTarget(element), element, root: describeTarget(adopted), adopted, connected: element.isConnected });
       return element.isConnected;
     }
   } catch (error) {
-    debugWarn("dom", "forceAppendToPage shadow failed", { error: error instanceof Error ? error.message : String(error) });
+    debugWarn("dom", "forceAppendToPage shadow failed", { err: error, error: error instanceof Error ? error.message : String(error) });
   }
 
   try {
@@ -283,19 +283,20 @@ export function forceAppendToPage(element: HTMLElement): boolean {
     debugLog("dom", "forceAppendToPage document", { connected: element.isConnected });
     return element.isConnected;
   } catch (error) {
-    debugWarn("dom", "forceAppendToPage failed", { error: error instanceof Error ? error.message : String(error) });
+    debugWarn("dom", "forceAppendToPage failed", { err: error, error: error instanceof Error ? error.message : String(error) });
     return element.isConnected;
   }
 }
 
 function collectMountRoots(): Array<ParentNode | null> {
   const roots: Array<ParentNode | null> = [
+    document.body,
     document.getElementById("app"),
     document.querySelector("main"),
     document.querySelector("[data-roderuda-mount]"),
-    document.body,
+   // document.body,
     document.documentElement,
-    document.head,
+   // document.head,
   ];
 
   const seen = new Set<ParentNode>();
@@ -350,7 +351,7 @@ export function viewportScale(): number {
   const content = viewport?.content ?? "";
   const match = content.match(/initial-scale\s*=\s*([\d.]+)/i);
   const scale = match ? Number(match[1]) || 1 : 1;
-  debugLog("dom", "viewportScale", { scale, content });
+ // debugLog("dom", "viewportScale", { scale, content });
   return scale;
 }
 
@@ -363,10 +364,10 @@ export function eventPoint(event: PointerEvent | MouseEvent | TouchEvent): { x: 
 export function debounce<T extends (...args: never[]) => void>(fn: T, wait: number): T {
   let timer = 0;
   return ((...args: never[]) => {
-    debugTrace("dom", "debounce:schedule", { wait });
+  //  debugTrace("dom", "debounce:schedule", { wait });
     window.clearTimeout(timer);
     timer = window.setTimeout(() => {
-      debugTrace("dom", "debounce:run", { wait });
+     // debugTrace("dom", "debounce:run", { wait });
       fn(...args);
     }, wait);
   }) as T;
@@ -406,7 +407,9 @@ export function icon(name: string): SVGSVGElement | Text | string {
   };
   const body = icons[name];
   if (typeof document === "undefined") return "•";
+
   if (!body) return document.createTextNode("•");
+
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", "1em");
