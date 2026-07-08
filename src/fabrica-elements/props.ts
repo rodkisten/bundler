@@ -254,6 +254,14 @@ function applyRef(element: Element, value: unknown): void {
     return
   }
 
+  if (isPlainObject(value) && value.kind === 'ref' && typeof value.callback === 'function') {
+    // Fábrica passes ref() as a directive object when a styled component is used
+    // through a registered component tag. Styled must unwrap that directive;
+    // otherwise refs inside styled panels never fire and controller state stays null.
+    ;(value.callback as (element: Element) => void)(element)
+    return
+  }
+
   if (isPlainObject(value) && 'current' in value) {
     ;(value as { current: Element | null }).current = element
   }
