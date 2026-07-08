@@ -6,6 +6,7 @@ import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabric
 export const devtoolsFabrica = createFabrica({
   name: "roderuda-devtools",
   isolated: true,
+  setAsDefault: true,
 });
 
 export const html = devtoolsFabrica.html;
