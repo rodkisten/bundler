@@ -13,7 +13,7 @@ import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, v
 import { NativeProtocol } from "./core/protocol";
 import { installDevtoolsStyles } from "./core/style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./core/theme";
-import { DevTools } from "./devtools-controller";
+import { DevTools, devtoolsControllerStyleArtifacts } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
 import { Console, consoleStyleArtifacts } from "./panels/console";
 import { Elements, elementsStyleArtifacts } from "./panels/elements";
@@ -154,6 +154,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       this.assertShellMounted();
 
       this.style = installDevtoolsStyles(this.rootTarget, [
+        ...devtoolsControllerStyleArtifacts,
         ...shellStyleArtifacts,
         ...consoleStyleArtifacts,
         ...elementsStyleArtifacts,
