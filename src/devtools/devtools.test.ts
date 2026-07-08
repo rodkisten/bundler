@@ -77,10 +77,12 @@ describe("RodEruda native devtools", () => {
       .join("\n");
 
     expect(styleText.length).toBeGreaterThan(1000);
-    expect(styleText).toContain('@layer cipo');
+    expect(styleText).toContain("var(--rd-colors-background)");
     expect(styleText).toContain('[data-js-execution="false"]');
     expect(styleText).toContain('[data-selected="true"]');
-    expect(styleText).not.toMatch(/\$(?:background|border|primary|foreground|accent|backgroundDark)/);
+    expect(styleText).not.toMatch(/(?:^|[^A-Za-z0-9_-])\$(?:background|border|primary|foreground|accent|backgroundDark)\b/);
+    expect(shadow?.querySelector("#cipo-runtime-style, style[data-cipo='runtime']")).toBeInstanceOf(HTMLStyleElement);
+    expect(document.getElementById("cipo-runtime-style")).toBeNull();
   });
 
   it("renders the Elements panel tree with page DOM nodes", () => {

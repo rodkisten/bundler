@@ -30,6 +30,7 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
+      classPrefix: "rd",
       configCss: devtoolsCipoConfigCss,
     }),
   ],

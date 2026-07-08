@@ -2,6 +2,11 @@ import { store } from "../../broto";
 import { createStyled } from "../../cipo";
 import { createFabrica } from "../../fabrica";
 import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica";
+import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
+
+// Theme tokens (`$background`, `$font.ui`, prefix `rd`, …) must exist before
+// any styled component template is evaluated.
+bootstrapDevtoolsCipo();
 
 export const devtoolsFabrica = createFabrica({
   name: "roderuda-devtools",
