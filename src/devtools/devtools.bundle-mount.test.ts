@@ -47,6 +47,70 @@ function polyfillBrowserApis(): void {
 
   window.scrollTo = vi.fn();
   Element.prototype.scrollIntoView = vi.fn();
+
+  if (!HTMLElement.prototype.setPointerCapture) {
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+  }
+
+  if (!HTMLElement.prototype.releasePointerCapture) {
+    HTMLElement.prototype.releasePointerCapture = vi.fn();
+  }
+}
+
+function runtimeFromWindow(): typeof devtools | undefined {
+  const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
+
+  return (
+    (api as { devtools?: typeof devtools; default?: typeof devtools } | undefined)?.devtools
+    ?? (api as { default?: typeof devtools } | undefined)?.default
+    ?? api
+  );
+}
+
+function shadowRoot(): ShadowRoot {
+  const host = document.querySelector<HTMLElement>("#roderuda");
+  expect(host).toBeInstanceOf(HTMLElement);
+  expect(host?.shadowRoot).not.toBeNull();
+  return host!.shadowRoot!;
+}
+
+function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
+  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+
+  expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
+  expect(panel?.hidden, `panel "${name}" should not be hidden`).toBe(false);
+  expect(panel?.childElementCount, `panel "${name}" should render children`).toBeGreaterThan(0);
+  expect(panel?.textContent?.trim(), `panel "${name}" should not be empty`).not.toBe("");
+
+  return panel!;
+}
+
+function expectHiddenPanel(root: ShadowRoot, name: string): HTMLElement {
+  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+
+  expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
+  expect(panel?.hidden, `panel "${name}" should be hidden`).toBe(true);
+
+  return panel!;
+}
+
+function expectSelectedTab(root: ShadowRoot, name: string): void {
+  const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
+
+  expect(tab, `tab "${name}" should exist`).toBeInstanceOf(HTMLElement);
+  expect(tab?.getAttribute("aria-selected")).toBe("true");
+  expect(tab?.classList.contains("roderuda-selected")).toBe(true);
+}
+
+function expectStylesInjected(root: ShadowRoot): void {
+  const styleText = Array.from(root.querySelectorAll("style"))
+    .map((style) => style.textContent ?? "")
+    .join("\n");
+
+  expect(styleText.length).toBeGreaterThan(1000);
+  expect(styleText).toContain("roderuda");
+  expect(styleText).not.toMatch(/\$[a-zA-Z_][\w.]*/);
+  expect(styleText).not.toContain("$$");
 }
 
 describe("RodEruda IIFE bundle mount", () => {
@@ -58,57 +122,137 @@ describe("RodEruda IIFE bundle mount", () => {
   });
 
   afterEach(() => {
-    const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
-    const runtime = (api as { devtools?: typeof devtools; default?: typeof devtools; destroy?: typeof devtools.destroy } | undefined)?.devtools
-      ?? (api as { default?: typeof devtools } | undefined)?.default
-      ?? api;
-    runtime?.destroy?.();
+    runtimeFromWindow()?.destroy?.();
     vi.restoreAllMocks();
   });
 
-  it("mounts the shell from the built IIFE bundle", async () => {
+  it("mounts the shell and renders styled Fabrica panels from the built IIFE bundle", async () => {
     fs.rmSync(bundlePath, { force: true });
 
     const { build } = await import("vite");
-    const config = ((await import("./vite.config")).default as any);
+    const config = (await import("./vite.config")).default as any;
+
     await build({
-        ...config,
-        configFile: false,
-        build: {
-          ...config.build,
-          emptyOutDir: false,
-          outDir: path.resolve(process.cwd(), "dist"),
-          minify: false,
-          lib: {
-            ...config.build.lib,
-            formats: ["iife"],
-            fileName: () => "devtools.iife.js",
-          },
+      ...config,
+      configFile: false,
+      build: {
+        ...config.build,
+        emptyOutDir: false,
+        outDir: path.resolve(process.cwd(), "dist"),
+        minify: false,
+        lib: {
+          ...config.build.lib,
+          formats: ["iife"],
+          fileName: () => "devtools.iife.js",
         },
-      });
+      },
+    });
 
     expect(fs.existsSync(bundlePath)).toBe(true);
 
-    window.eval(fs.readFileSync(bundlePath, "utf8"));
-    const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
-    expect(api).toBeDefined();
+    const bundle = fs.readFileSync(bundlePath, "utf8");
 
-    const runtime = (api as { devtools?: typeof devtools; default?: typeof devtools }).devtools
-      ?? (api as { default?: typeof devtools }).default
-      ?? api;
+    expect(bundle).not.toContain("html`");
+    expect(bundle).not.toContain(".css`");
 
-    runtime.init({ autoScale: false, tool: ["console", "info"], debug: false });
+    window.eval(bundle);
 
-    const host = document.querySelector<HTMLElement>("#roderuda");
-    const root = host?.shadowRoot?.querySelector<HTMLElement>(".roderuda-container");
+    const runtime = runtimeFromWindow();
+    expect(runtime).toBeDefined();
 
-    expect(runtime.isInitialized()).toBe(true);
-    expect(host).toBeInstanceOf(HTMLElement);
-    expect(host?.shadowRoot).not.toBeNull();
-    expect(root).toBeInstanceOf(HTMLElement);
-    expect(host?.shadowRoot?.querySelector(".roderuda-entry-btn")).toBeInstanceOf(HTMLElement);
-    expect(host?.shadowRoot?.querySelector("fabrica-component-error")).toBeNull();
-    expect(runtime.get("console")).toBeDefined();
-    expect(runtime.get("info")).toBeDefined();
+    runtime!.init({
+      autoScale: false,
+      tool: ["console", "elements", "network", "resources", "sources", "info"],
+      debug: false,
+    });
+
+    expect(runtime!.isInitialized()).toBe(true);
+    expect(runtime!.get("console")).toBeDefined();
+    expect(runtime!.get("elements")).toBeDefined();
+    expect(runtime!.get("network")).toBeDefined();
+    expect(runtime!.get("resources")).toBeDefined();
+    expect(runtime!.get("sources")).toBeDefined();
+    expect(runtime!.get("info")).toBeDefined();
+
+    const root = shadowRoot();
+
+    expect(root.querySelector(".roderuda-container")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector(".roderuda-entry-btn")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector(".roderuda-dev-tools")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector(".roderuda-tabbar")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector(".roderuda-tools")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("fabrica-component-error")).toBeNull();
+
+    expectStylesInjected(root);
+
+    expect(root.querySelectorAll(".roderuda-tab[data-tool-tab]").length).toBeGreaterThanOrEqual(7);
+
+    const tools = root.querySelector<HTMLElement>(".roderuda-tools");
+    expect(tools).toBeInstanceOf(HTMLElement);
+
+    for (const name of ["console", "elements", "network", "resources", "sources", "info"]) {
+      const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
+      const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+
+      expect(tab, `tab "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
+      expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
+      expect(panel?.childElementCount, `panel "${name}" should have rendered content`).toBeGreaterThan(0);
+    }
+
+    runtime!.show("console");
+    expectSelectedTab(root, "console");
+    expectVisiblePanel(root, "console");
+    expectHiddenPanel(root, "elements");
+
+    expect(root.querySelector("[data-console-body]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-console-list]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-console-input]")).toBeInstanceOf(HTMLElement);
+
+    runtime!.show("elements");
+    expectSelectedTab(root, "elements");
+    expectVisiblePanel(root, "elements");
+    expectHiddenPanel(root, "console");
+
+    expect(root.querySelector("[data-elements-layout]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-elements-tree]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-elements-detail]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
+
+    runtime!.show("network");
+    expectSelectedTab(root, "network");
+    expectVisiblePanel(root, "network");
+
+    expect(root.querySelector("[data-network-layout]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-network-list]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-network-detail]")).toBeInstanceOf(HTMLElement);
+
+    runtime!.show("resources");
+    expectSelectedTab(root, "resources");
+    expectVisiblePanel(root, "resources");
+
+    expect(root.querySelector("[data-resources-body]")).toBeInstanceOf(HTMLElement);
+    expect(root.textContent).toContain("Local Storage");
+    expect(root.textContent).toContain("Session Storage");
+    expect(root.textContent).toContain("Images");
+
+    runtime!.show("info");
+    expectSelectedTab(root, "info");
+    expectVisiblePanel(root, "info");
+
+    expect(root.textContent).toContain("Page information");
+    expect(root.textContent).toContain("Location");
+    expect(root.textContent).toContain("User Agent");
+
+    const devtoolsDock = root.querySelector<HTMLElement>(".roderuda-dev-tools");
+    const activePanel = root.querySelector<HTMLElement>('.roderuda-tool[data-tool="info"]');
+
+    expect(devtoolsDock).toBeInstanceOf(HTMLElement);
+    expect(activePanel).toBeInstanceOf(HTMLElement);
+
+    const dockOverflowY = getComputedStyle(devtoolsDock!).overflowY;
+    const panelOverflowY = getComputedStyle(activePanel!).overflowY;
+
+    expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
+    expect(["auto", "scroll", "overlay", ""]).toContain(panelOverflowY);
   });
 });
