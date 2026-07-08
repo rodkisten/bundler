@@ -5,6 +5,7 @@
  * @tags devtools console network elements mobile userscripts
  * @description Dependency-free browser developer tools implemented in TypeScript with Cipó and Fábrica.
  */
+import "./core/cipo-bootstrap";
 import { renderShell, shellStyleArtifacts, type ShellRefs } from "./components/shell";
 import { asNode, event, html, ref, uiState } from "./components/runtime";
 import { ConfigStore } from "./core/config";
@@ -109,7 +110,18 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private hostObserver: MutationObserver | null = null;
 
   private readonly reattachHost = (): void => {
-    if (typeof document !== "undefined") this.forceMountHost();
+    if (typeof document === "undefined") return;
+    if (!this.host || !this.ownsHost) return;
+    if (this.host.isConnected) return;
+    this.forceMountHost();
+  };
+
+  private readonly onHostMutations = (): void => {
+    // Ignore mutations while the host is already attached. Observing the whole
+    // document with subtree:true otherwise re-enters on every page update and
+    // can starve the main thread (and amplify console/debug work into a hang).
+    if (!this.host || this.host.isConnected) return;
+    this.reattachHost();
   };
 
   init(options: DevtoolsInitOptions = {}): this {
@@ -516,8 +528,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.uninstallHostWatchdog();
 
     try {
-      this.hostObserver = new MutationObserver(this.reattachHost);
-      this.hostObserver.observe(document, { childList: true, subtree: true });
+      this.hostObserver = new MutationObserver(this.onHostMutations);
+      // Only watch top-level document structure. Subtree observation of the
+      // entire page is unnecessary for host reattachment and can freeze the UI.
+      this.hostObserver.observe(document.documentElement, { childList: true, subtree: false });
+      if (document.body) {
+        this.hostObserver.observe(document.body, { childList: true, subtree: false });
+      }
       debugLog("runtime", "host watchdog observer installed");
     } catch (error) {
       debugWarn("runtime", "host watchdog observer fallback", {

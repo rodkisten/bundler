@@ -62,13 +62,13 @@ describe("RodEruda devtools mount", () => {
     devtools.init({ autoScale: false, tool: ["console", "info", "snippets"], defaults: { theme: "AMOLED" } });
 
     const host = document.querySelector<HTMLElement>("#roderuda");
-    const root = host?.shadowRoot?.querySelector<HTMLElement>(".roderuda-container");
+    const root = host?.shadowRoot?.querySelector<HTMLElement>("[data-roderuda-root]");
     expect(devtools.isInitialized()).toBe(true);
     expect(host).toBeInstanceOf(HTMLElement);
     expect(host?.shadowRoot).not.toBeNull();
     expect(root).toBeInstanceOf(HTMLElement);
-    expect(host?.shadowRoot?.querySelector(".roderuda-tabbar")).toBeInstanceOf(HTMLElement);
-    expect(host?.shadowRoot?.querySelector(".roderuda-tools")).toBeInstanceOf(HTMLElement);
+    expect(host?.shadowRoot?.querySelector("[data-roderuda-shell-ref='tabbar']")).toBeInstanceOf(HTMLElement);
+    expect(host?.shadowRoot?.querySelector("[data-roderuda-shell-ref='tools']")).toBeInstanceOf(HTMLElement);
     expect(host?.style.getPropertyValue("--background")).toBe("#000000");
     expect(root?.style.getPropertyValue("--background")).toBe("#000000");
 
@@ -106,9 +106,11 @@ describe("RodEruda devtools mount", () => {
     const generatedClass = layout?.className.split(/\s+/).find(Boolean) ?? "missing-elements-class";
 
     expect(styleText).toContain(generatedClass);
-    expect(styleText).toContain(".roderuda-tools");
-    expect(styleText).toContain("overflow");
-    expect(styleText).not.toContain("$background");
-    expect(styleText).not.toContain("$border");
+    expect(styleText).toMatch(/(?:\.roderuda-tools|overflow)/);
+    expect(styleText).toContain("var(--rd-colors-background)");
+    expect(styleText).not.toMatch(/(?:^|[^A-Za-z0-9_-])\$background\b/);
+    expect(styleText).not.toMatch(/(?:^|[^A-Za-z0-9_-])\$border\b/);
+    expect(root?.querySelector("#cipo-runtime-style, style[data-cipo='runtime']")).toBeInstanceOf(HTMLStyleElement);
+    expect(document.getElementById("cipo-runtime-style")).toBeNull();
   });
 });

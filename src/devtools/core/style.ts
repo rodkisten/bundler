@@ -1,12 +1,19 @@
 import { sheet } from "../../cipo/src/index";
+import { STYLE_ELEMENT_ID } from "../../cipo/src/constants";
 import { getCssText, injectStyle, setRuntimeStyleTarget } from "../../cipo/src/injection";
-import type { CipoCssArtifact, CipoInlineCssArtifact, CipoStylesheetArtifact } from "../../cipo/src/types";
+import type {
+  CipoCssArtifact,
+  CipoInlineCssArtifact,
+  CipoInjectableStyleArtifact,
+  CipoStylesheetArtifact,
+} from "../../cipo/src/types";
+import { bootstrapDevtoolsCipo } from "./cipo-bootstrap";
 
 /* *************** */
 /* Design system   */
 /* *************** */
 
-setRuntimeStyleTarget(null);
+bootstrapDevtoolsCipo();
 
 export const devtoolsStyles = sheet.css`
   @cipo {
@@ -905,25 +912,39 @@ export function installDevtoolsStyles(
   target: ShadowRoot | HTMLElement | Document,
   additionalStyles: readonly DevtoolsStyleArtifact[] = [],
 ): HTMLStyleElement {
+  bootstrapDevtoolsCipo();
+
+  // Point Cipó's runtime sink at the mount target so atomic/styled CSS compiled
+  // during module evaluation (and any later inserts) land inside the shadow
+  // root instead of document.head.
   setRuntimeStyleTarget(target);
 
   const parent = target instanceof Document ? target.head : target;
   parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]').forEach((node) => node.remove());
 
   const runtimeCssText = getCssText().trim();
-  const runtimeStyledComponentStyles = runtimeCssText && !containsRawCipoTokens(runtimeCssText)
-    ? [{ kind: "cipo.stylesheet" as const, cssText: runtimeCssText }]
-    : [];
+  const artifacts: CipoInjectableStyleArtifact[] = [];
 
-  const style = injectStyle(target, [
-    ...runtimeStyledComponentStyles,
-    devtoolsStyles,
-    ...additionalStyles,
-  ], { dedupe: false, position: "prepend" });
+  // Always fold the runtime stylesheet into the installed tag when present.
+  // Skipping it when raw `$token`s appear left styled-component classes without
+  // rules in the shadow root. Prefer shipping the CSS (browser ignores invalid
+  // declarations) over dropping the whole runtime sheet.
+  if (runtimeCssText) {
+    artifacts.push({ kind: "cipo.stylesheet", cssText: runtimeCssText });
+  }
+
+  artifacts.push(devtoolsStyles, ...additionalStyles);
+
+  const style = injectStyle(target, artifacts, { dedupe: false, position: "prepend" });
   style.dataset.roderudaDevtoolsStyle = "true";
+
+  // Keep a single runtime sink inside the target; drop any leftover document
+  // head copy that may have been created before the shadow target was known.
+  if (!(target instanceof Document)) {
+    const orphan = document.getElementById(STYLE_ELEMENT_ID);
+    if (orphan && orphan.parentElement === document.head) orphan.remove();
+  }
+
   if (!style.textContent?.trim()) throw new Error("[RodEruda] Unable to install styles");
   return style;
-}
-function containsRawCipoTokens(cssText: string): boolean {
-  return /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var|warningBg|warningFg|warningBorder|errorBg|errorFg|errorBorder)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|tabHeight|controlHeight|entrySize|entryZ|toolsZ|overlayZ)\b/.test(cssText);
 }

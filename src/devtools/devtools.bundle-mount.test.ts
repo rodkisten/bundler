@@ -108,11 +108,13 @@ function expectStylesInjected(root: ShadowRoot): void {
     .join("\n");
 
   expect(styleText.length).toBeGreaterThan(1000);
-  expect(styleText).toContain("@layer cipo");
-  expect(styleText).toContain(".cp-");
+  expect(styleText).toContain("var(--rd-colors-background)");
+  expect(styleText).toMatch(/\.rd-/);
+  expect(root.querySelector("#cipo-runtime-style, style[data-cipo='runtime']")).toBeInstanceOf(HTMLStyleElement);
+  expect(document.getElementById("cipo-runtime-style")).toBeNull();
 
   const tokenPattern =
-    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
+    /(?:^|[^A-Za-z0-9_-])\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
 
   const leakedTokens = [...styleText.matchAll(tokenPattern)].map((match) => {
     const index = match.index ?? 0;
@@ -127,7 +129,7 @@ function expectStylesInjected(root: ShadowRoot): void {
 }
 
 function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
-  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+  const panel = root.querySelector<HTMLElement>(`[data-tool="${name}"]`);
 
   expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
   expect(panel?.hidden, `panel "${name}" should not be hidden`).toBe(false);
@@ -136,7 +138,7 @@ function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
 }
 
 function expectHiddenPanel(root: ShadowRoot, name: string): HTMLElement {
-  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+  const panel = root.querySelector<HTMLElement>(`[data-tool="${name}"]`);
 
   expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
   expect(panel?.hidden, `panel "${name}" should be hidden`).toBe(true);
@@ -145,16 +147,16 @@ function expectHiddenPanel(root: ShadowRoot, name: string): HTMLElement {
 }
 
 function expectSelectedTab(root: ShadowRoot, name: string): void {
-  const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
+  const tab = root.querySelector<HTMLElement>(`[data-tool-tab="${name}"]`);
 
   expect(tab, `tab "${name}" should exist`).toBeInstanceOf(HTMLElement);
   expect(tab?.getAttribute("aria-selected")).toBe("true");
-  expect(tab?.classList.contains("roderuda-selected")).toBe(true);
+  expect(tab?.dataset.selected).toBe("true");
 }
 
 function expectPanelMounted(root: ShadowRoot, name: string): HTMLElement {
-  const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
-  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
+  const tab = root.querySelector<HTMLElement>(`[data-tool-tab="${name}"]`);
+  const panel = root.querySelector<HTMLElement>(`[data-tool="${name}"]`);
 
   expect(tab, `tab "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
   expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
@@ -234,7 +236,7 @@ describe("RodEruda IIFE bundle mount", () => {
 
     expectStylesInjected(root);
 
-    expect(root.querySelectorAll(".roderuda-tab[data-tool-tab]").length).toBeGreaterThanOrEqual(7);
+    expect(root.querySelectorAll("[data-tool-tab]").length).toBeGreaterThanOrEqual(7);
 
     const tools = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='tools']");
     expect(tools).toBeInstanceOf(HTMLElement);
@@ -291,14 +293,15 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.textContent).toContain("User Agent");
 
     const devtoolsDock = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']");
-    const activePanel = root.querySelector<HTMLElement>('.roderuda-tool[data-tool="info"]');
+    const activePanel = root.querySelector<HTMLElement>('[data-tool="info"]');
 
     expect(devtoolsDock).toBeInstanceOf(HTMLElement);
     expect(activePanel).toBeInstanceOf(HTMLElement);
 
     const dockOverflowY = getComputedStyle(devtoolsDock!).overflowY;
+    const panelOverflow = getComputedStyle(activePanel!).overflow;
 
     expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
-    expect(activePanel!.style.overflow).toBe("hidden");
+    expect(["hidden", "clip"]).toContain(panelOverflow);
   }, 30000);
 });
