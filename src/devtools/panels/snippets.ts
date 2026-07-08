@@ -1,6 +1,10 @@
-import { copyText, create, delegate, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
+import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
+import { html, render } from "../components/runtime";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
+import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel } from "./snippets-components";
+
+export { snippetsStyleArtifacts };
 
 interface OverlayController {
   stop(): void;
@@ -147,6 +151,7 @@ export class Snippets extends Tool {
   private snippets: SnippetItem[] = [];
   private body: HTMLElement | null = null;
   private cleanup: Array<() => void> = [];
+  private disposeView: (() => void) | null = null;
   private activeOverlays = new Map<string, OverlayController>();
 
   constructor() {
@@ -156,25 +161,6 @@ export class Snippets extends Tool {
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <section class="roderuda-section roderuda-snippets">
-        <header class="roderuda-section-title">
-          <span>Snippets</span>
-          <div class="roderuda-section-actions">
-            <button class="roderuda-text-btn" type="button" data-action="add">Add</button>
-            <button class="roderuda-text-btn" type="button" data-action="reset">Reset</button>
-          </div>
-        </header>
-        <div class="roderuda-cards roderuda-scroll" data-snippets-body></div>
-      </section>`;
-    this.body = container.querySelector<HTMLElement>("[data-snippets-body]");
-    this.cleanup.push(delegate(container, "click", "[data-action]", (_event, element) => {
-      const action = element.dataset.action;
-      if (action === "run") void this.execute(Number(element.dataset.index));
-      if (action === "remove") this.remove(this.snippets[Number(element.dataset.index)]?.name ?? "");
-      if (action === "reset") this.reset();
-      if (action === "add") void this.addInteractive();
-    }));
     this.render();
   }
 
@@ -232,6 +218,8 @@ export class Snippets extends Tool {
   }
 
   override destroy(): void {
+    this.disposeView?.();
+    this.disposeView = null;
     for (const cleanup of this.cleanup.splice(0)) cleanup();
     for (const overlay of this.activeOverlays.values()) overlay.stop();
     this.activeOverlays.clear();
@@ -288,27 +276,24 @@ export class Snippets extends Tool {
   }
 
   private render(): void {
-    if (!this.body) return;
-    this.body.replaceChildren();
-    if (!this.snippets.length) {
-      this.body.append(create("div", { className: "roderuda-empty", text: "No snippets registered." }));
-      return;
-    }
-    this.snippets.forEach((snippet, index) => {
-      const active = this.activeOverlays.has(snippet.name);
-      const card = create("article", { className: "roderuda-snippet-card" });
-      card.append(
-        create("div", { className: "roderuda-snippet-name", text: `${active ? "● " : ""}${snippet.name}` }),
-        create("div", { className: "roderuda-snippet-description", text: snippet.description }),
-      );
-      const actions = create("div", { className: "roderuda-section-actions" });
-      actions.append(
-        create("button", { className: "roderuda-text-btn", text: active ? "Stop" : "Run", attrs: { type: "button", "data-action": "run", "data-index": index } }),
-        create("button", { className: "roderuda-text-btn", text: "Remove", attrs: { type: "button", "data-action": "remove", "data-index": index } }),
-      );
-      card.append(actions);
-      this.body?.append(card);
-    });
+    if (!this.container) return;
+    const view: SnippetsViewModel = {
+      model: () => this.model(),
+      setBody: (node) => { this.body = node; },
+      add: () => { void this.addInteractive(); },
+      reset: () => this.reset(),
+      run: (index) => { void this.execute(index); },
+      remove: (index) => this.remove(this.snippets[index]?.name ?? ""),
+    };
+    this.disposeView?.();
+    this.disposeView = render(this.container, html`<RodSnippetsView view=${view as never} />`);
+  }
+
+  private model(): SnippetsModel {
+    return {
+      snippets: [...this.snippets],
+      activeNames: new Set(this.activeOverlays.keys()),
+    };
   }
 
   private async execute(index: number): Promise<void> {

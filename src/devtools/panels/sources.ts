@@ -2,8 +2,25 @@ import { ConfigStore } from "../core/config";
 import { mountCodeEditor, type CodeEditorHandle, type CodeEditorLanguage } from "../core/code-editor";
 import { copyText, create, delegate, downloadText, escapeHtml, icon, qs } from "../core/dom";
 import { inferSourceType, plainText, renderValue } from "../core/serialize";
+import { event, html, render } from "../components/runtime";
 import { Tool } from "../tool";
 import type { SourcePayload, SourceType, ToolContext } from "../types";
+import {
+  SourcesBreadcrumb,
+  SourcesCodeMirrorHost,
+  SourcesEditor,
+  SourcesEmpty,
+  SourcesIframe,
+  SourcesImage,
+  SourcesLinkList,
+  SourcesObject,
+  SourcesPre,
+  SourcesTextButton,
+  sourcesStyleArtifacts,
+  type SourcesViewModel,
+} from "./sources-components";
+
+export { sourcesStyleArtifacts };
 
 interface SourcesConfig {
   showLineNum: boolean;
@@ -25,26 +42,14 @@ export class Sources extends Tool {
   private body: HTMLElement | null = null;
   private payload: SourcePayload = { type: "html", value: () => document.documentElement.outerHTML, title: location.href };
   private cleanup: Array<() => void> = [];
+  private disposeView: (() => void) | null = null;
   private renderToken = 0;
   private renderedText = "";
   private editor: CodeEditorHandle | null = null;
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    container.innerHTML = `
-      <div class="roderuda-control">
-        <button class="roderuda-icon-btn" type="button" data-action="source-home" title="Document source">⌂</button>
-        <button class="roderuda-icon-btn" type="button" data-action="source-list" title="All sources">☰</button>
-        <div class="roderuda-detail-title" data-source-title>Document</div>
-        <button class="roderuda-icon-btn" type="button" data-action="source-copy" title="Copy">${icon("copy")}</button>
-        <button class="roderuda-icon-btn" type="button" data-action="source-download" title="Download">${icon("download")}</button>
-        <button class="roderuda-icon-btn" type="button" data-action="source-refresh" title="Refresh">${icon("refresh")}</button>
-      </div>
-      <div class="roderuda-sources roderuda-with-control" data-sources-body></div>
-    `;
-    this.body = qs(container, "[data-sources-body]");
-    this.cleanup.push(delegate(container, "click", "[data-action]", (event, element) => this.handleAction(event, element)));
-    this.cleanup.push(delegate(container, "click", "[data-source-index]", (event, element) => this.openIndexedSource(event, element)));
+    this.renderShell();
     this.config.on("change", this.onConfigChange);
     this.registerSettings(context);
     void this.render();
@@ -68,6 +73,8 @@ export class Sources extends Tool {
     this.config.off("change", this.onConfigChange);
     this.editor?.destroy();
     this.editor = null;
+    this.disposeView?.();
+    this.disposeView = null;
     for (const cleanup of this.cleanup.splice(0)) cleanup();
     super.destroy();
   }
@@ -83,12 +90,22 @@ export class Sources extends Tool {
     context.settings.registerSwitch(this.config, "wrapLines", "Wrap long lines");
   }
 
+  private renderShell(): void {
+    if (!this.container) return;
+    const view: SourcesViewModel = {
+      setBody: (node) => { this.body = node; },
+      action: (name) => this.handleActionName(name),
+    };
+    this.disposeView?.();
+    this.disposeView = render(this.container, html`<RodSourcesView view=${view as never} title=${this.payload.title || this.payload.url || "Document"} />`);
+  }
+
   private async render(): Promise<void> {
     if (!this.body || !this.container) return;
     const token = ++this.renderToken;
-    const title = this.container.querySelector<HTMLElement>("[data-source-title]");
-    if (title) title.textContent = this.payload.title || this.payload.url || "Source";
-    this.body.innerHTML = `<div class="roderuda-empty"><strong>Loading source…</strong></div>`;
+    this.renderShell();
+    if (!this.body) return;
+    render(this.body, html`<SourcesEmpty><strong>Loading source…</strong></SourcesEmpty>`);
 
     let value = typeof this.payload.value === "function" ? (this.payload.value as () => unknown)() : this.payload.value;
     let type = this.payload.type || "auto";
@@ -130,7 +147,7 @@ export class Sources extends Tool {
       case "raw":
       case "text":
       default:
-        this.body.innerHTML = `<pre class="roderuda-pre">${escapeHtml(String(value ?? ""))}</pre>`;
+        render(this.body, html`<SourcesPre>${String(value ?? "")}</SourcesPre>`);
     }
   }
 
@@ -139,9 +156,9 @@ export class Sources extends Tool {
     this.editor?.destroy();
     this.editor = null;
     this.renderedText = code;
-    const wrapper = create("div", { className: "roderuda-source-editor" });
-    const title = create("div", { className: "roderuda-source-breadcrumb", text: this.payload.title || this.payload.url || type });
-    const host = create("div", { className: "roderuda-source-codemirror" });
+    const wrapper = SourcesEditor() as HTMLElement;
+    const title = SourcesBreadcrumb({ children: this.payload.title || this.payload.url || type }) as HTMLElement;
+    const host = SourcesCodeMirrorHost() as HTMLElement;
     wrapper.append(title, host);
     this.body.replaceChildren(wrapper);
     this.editor = mountCodeEditor({
@@ -155,30 +172,37 @@ export class Sources extends Tool {
 
   private renderObject(value: unknown): void {
     if (!this.body) return;
-    const wrapper = create("div", { className: "roderuda-source-object" });
+    const wrapper = SourcesObject() as HTMLElement;
     wrapper.append(renderValue(value, { maxDepth: 8, maxEntries: 500 }));
     this.body.replaceChildren(wrapper);
   }
 
   private renderImage(src: string, url: string): void {
     if (!this.body) return;
-    this.body.innerHTML = `<div class="roderuda-source-breadcrumb">${escapeHtml(this.payload.title || url || src)}</div><div class="roderuda-source-image"><img src="${escapeHtml(src)}" alt=""><p data-image-info>Loading image…</p></div>`;
-    const image = this.body.querySelector<HTMLImageElement>("img");
-    const info = this.body.querySelector<HTMLElement>("[data-image-info]");
-    image?.addEventListener("load", () => {
-      if (info && image) info.textContent = `${image.naturalWidth} × ${image.naturalHeight} px`;
+    const wrapper = SourcesImage() as HTMLElement;
+    const title = SourcesBreadcrumb({ children: this.payload.title || url || src }) as HTMLElement;
+    const image = document.createElement("img");
+    const info = document.createElement("p");
+    info.dataset.imageInfo = "";
+    info.textContent = "Loading image…";
+    image.src = src;
+    image.alt = "";
+    image.addEventListener("load", () => {
+      info.textContent = `${image.naturalWidth} × ${image.naturalHeight} px`;
     }, { once: true });
-    image?.addEventListener("error", () => { if (info) info.textContent = "Image failed to load"; }, { once: true });
+    image.addEventListener("error", () => { info.textContent = "Image failed to load"; }, { once: true });
+    wrapper.append(image, info);
+    this.body.replaceChildren(title, wrapper);
   }
 
   private renderIframe(src: string): void {
     if (!this.body) return;
-    this.body.innerHTML = `<iframe class="roderuda-source-iframe" src="${escapeHtml(src)}" sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"></iframe>`;
+    const frame = SourcesIframe({ src, sandbox: "allow-forms allow-modals allow-popups allow-same-origin allow-scripts" }) as HTMLIFrameElement;
+    this.body.replaceChildren(frame);
   }
 
-  private handleAction(event: Event, element: HTMLElement): void {
-    event.preventDefault();
-    switch (element.dataset.action) {
+  private handleActionName(action: string): void {
+    switch (action) {
       case "source-home":
         this.set({ type: "html", value: () => document.documentElement.outerHTML, title: location.href });
         break;
@@ -201,13 +225,19 @@ export class Sources extends Tool {
     if (!this.body) return;
     const sources = collectSources();
     this.renderedText = sources.map((source) => `${source.type}\t${source.title}`).join("\n");
-    this.body.innerHTML = `<div class="roderuda-source-breadcrumb">All sources</div><ul class="roderuda-link-list">${sources.map((source, index) => `<li><button class="roderuda-text-btn" type="button" data-source-index="${index}">${escapeHtml(source.type)} · ${escapeHtml(source.title)}</button></li>`).join("")}</ul>`;
+    render(this.body, html`
+      <SourcesBreadcrumb>All sources</SourcesBreadcrumb>
+      <SourcesLinkList>
+        ${sources.map((source, index) => html`
+          <li><SourcesTextButton type="button" @click=${event((click: Event) => { click.preventDefault(); this.openIndexedSource(index); })}>${source.type} · ${source.title}</SourcesTextButton></li>
+        `)}
+      </SourcesLinkList>
+    `);
   }
 
-  private openIndexedSource(event: Event, element: HTMLElement): void {
-    event.preventDefault();
+  private openIndexedSource(index: number): void {
     const sources = collectSources();
-    const source = sources[Number(element.dataset.sourceIndex)];
+    const source = sources[index];
     if (source) this.set(source);
   }
 }
