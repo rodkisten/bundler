@@ -6,6 +6,13 @@ import devtools from "./index";
 
 const bundlePath = path.resolve(process.cwd(), "dist/devtools.iife.js");
 
+const compiledPanelMarkers = [
+  "RodConsoleView",
+  "RodElementsView",
+  "RodNetworkView",
+  "RodResourcesView",
+] as const;
+
 function polyfillBrowserApis(): void {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -69,9 +76,54 @@ function runtimeFromWindow(): typeof devtools | undefined {
 
 function shadowRoot(): ShadowRoot {
   const host = document.querySelector<HTMLElement>("#roderuda");
+
   expect(host).toBeInstanceOf(HTMLElement);
   expect(host?.shadowRoot).not.toBeNull();
+
   return host!.shadowRoot!;
+}
+
+function expectCompiledDevtoolsBundle(bundle: string): void {
+  expect(bundle).toContain("createCompiledTemplate");
+
+  expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
+  expect(bundle).not.toMatch(/styled\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
+  expect(bundle).not.toMatch(/createStyled\(\{ fabrica: devtoolsFabrica \}\)[\s\S]*?\.css`/);
+
+  for (const marker of compiledPanelMarkers) {
+    const index = bundle.indexOf(marker);
+    expect(index, `${marker} should be present in bundle`).toBeGreaterThanOrEqual(0);
+
+    const nearby = bundle.slice(Math.max(0, index - 800), index + 3000);
+
+    expect(nearby, `${marker} should be compiled`).toContain("createCompiledTemplate");
+    expect(nearby, `${marker} should not keep raw html tag`).not.toContain("html`");
+    expect(nearby, `${marker} should not keep raw styled css tag`).not.toContain(".css`");
+  }
+}
+
+function expectStylesInjected(root: ShadowRoot): void {
+  const styleText = Array.from(root.querySelectorAll("style"))
+    .map((style) => style.textContent ?? "")
+    .join("\n");
+
+  expect(styleText.length).toBeGreaterThan(1000);
+  expect(styleText).toContain("@layer cipo");
+  expect(styleText).toContain(".cp-");
+
+  const tokenPattern =
+    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
+
+  const leakedTokens = [...styleText.matchAll(tokenPattern)].map((match) => {
+    const index = match.index ?? 0;
+
+    return {
+      token: match[0],
+      context: styleText.slice(Math.max(0, index - 80), index + 120),
+    };
+  });
+
+  expect(leakedTokens).toEqual([]);
 }
 
 function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
@@ -102,44 +154,15 @@ function expectSelectedTab(root: ShadowRoot, name: string): void {
   expect(tab?.classList.contains("roderuda-selected")).toBe(true);
 }
 
-function expectStylesInjected(root: ShadowRoot): void {
-  const styleText = Array.from(root.querySelectorAll("style"))
-    .map((style) => style.textContent ?? "")
-    .join("\n");
+function expectPanelMounted(root: ShadowRoot, name: string): HTMLElement {
+  const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
+  const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
 
-  expect(styleText.length).toBeGreaterThan(1000);
-  expect(styleText).toContain("@layer cipo");
-  expect(styleText).toContain(".cp-");
+  expect(tab, `tab "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
+  expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
+  expect(panel?.childElementCount, `panel "${name}" should have rendered content`).toBeGreaterThan(0);
 
-  const tokenPattern =
-    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
-
-  const leakedTokens = [...styleText.matchAll(tokenPattern)].map((match) => {
-    const index = match.index ?? 0;
-    return {
-      token: match[0],
-      context: styleText.slice(Math.max(0, index - 80), index + 120),
-    };
-  });
-
-  expect(leakedTokens).toEqual([]);
-}
-
-  expect(styleText.length).toBeGreaterThan(1000);
-  expect(styleText).toContain("roderuda");
- // expect(styleText).not.toMatch(/\$[a-zA-Z_][\w.]*/);
- // expect(styleText).not.toContain("$$");
-
-  expect(styleText).not.toMatch(/\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b/);
-  expect(styleText).not.toMatch(/\$\$(?:safeBottom|controlHeight)\b/);
-  expect(styleText).not.toMatch(/\$font\.(?:ui|mono)\b/);
-  expect(styleText).not.toMatch(/\$shadow\.[a-zA-Z_][\w.]*/);
-
-  const leakedCipoTokens = styleText.match(
-    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var|font\.(?:ui|mono)|shadow\.[a-zA-Z_][\w.]*)\b|\$\$(?:safeBottom|controlHeight)\b/g,
-  ) ?? [];
-
-  expect(leakedCipoTokens).toEqual([]);
+  return panel!;
 }
 
 describe("RodEruda IIFE bundle mount", () => {
@@ -181,29 +204,8 @@ describe("RodEruda IIFE bundle mount", () => {
 
     const bundle = fs.readFileSync(bundlePath, "utf8");
 
-   // expect(bundle).not.toContain("html`");
-   // expect(bundle).not.toContain(".css`");
-    expect(bundle).toContain("createCompiledTemplate");
-    expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
-    expect(bundle).not.toMatch(/styled\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
-    expect(bundle).not.toMatch(/createStyled\(\{ fabrica: devtoolsFabrica \}\)[\s\S]*?\.css`/);
+    expectCompiledDevtoolsBundle(bundle);
 
-for (const marker of [
-  "RodConsoleView",
-  "RodElementsView",
-  "RodNetworkView",
-  "RodResourcesView",
-]) {
-  const index = bundle.indexOf(marker);
-  expect(index, `${marker} should be present in bundle`).toBeGreaterThanOrEqual(0);
-
-  const nearby = bundle.slice(Math.max(0, index - 800), index + 3000);
-
-  expect(nearby, `${marker} should be compiled`).toContain("createCompiledTemplate");
-  expect(nearby, `${marker} should not keep raw html tag`).not.toContain("html`");
-  expect(nearby, `${marker} should not keep raw styled css tag`).not.toContain(".css`");
-}
-    
     window.eval(bundle);
 
     const runtime = runtimeFromWindow();
@@ -240,12 +242,7 @@ for (const marker of [
     expect(tools).toBeInstanceOf(HTMLElement);
 
     for (const name of ["console", "elements", "network", "resources", "sources", "info"]) {
-      const tab = root.querySelector<HTMLElement>(`.roderuda-tab[data-tool-tab="${name}"]`);
-      const panel = root.querySelector<HTMLElement>(`.roderuda-tool[data-tool="${name}"]`);
-
-      expect(tab, `tab "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
-      expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
-      expect(panel?.childElementCount, `panel "${name}" should have rendered content`).toBeGreaterThan(0);
+      expectPanelMounted(root, name);
     }
 
     runtime!.show("console");
