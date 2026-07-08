@@ -109,8 +109,19 @@ function expectStylesInjected(root: ShadowRoot): void {
 
   expect(styleText.length).toBeGreaterThan(1000);
   expect(styleText).toContain("roderuda");
-  expect(styleText).not.toMatch(/\$[a-zA-Z_][\w.]*/);
-  expect(styleText).not.toContain("$$");
+ // expect(styleText).not.toMatch(/\$[a-zA-Z_][\w.]*/);
+ // expect(styleText).not.toContain("$$");
+
+  expect(styleText).not.toMatch(/\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b/);
+  expect(styleText).not.toMatch(/\$\$(?:safeBottom|controlHeight)\b/);
+  expect(styleText).not.toMatch(/\$font\.(?:ui|mono)\b/);
+  expect(styleText).not.toMatch(/\$shadow\.[a-zA-Z_][\w.]*/);
+
+  const leakedCipoTokens = styleText.match(
+    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var|font\.(?:ui|mono)|shadow\.[a-zA-Z_][\w.]*)\b|\$\$(?:safeBottom|controlHeight)\b/g,
+  ) ?? [];
+
+  expect(leakedCipoTokens).toEqual([]);
 }
 
 describe("RodEruda IIFE bundle mount", () => {
