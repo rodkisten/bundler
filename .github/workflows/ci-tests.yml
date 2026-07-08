@@ -1,0 +1,343 @@
+name: 📦 Publish browser bundle
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      should_run_tests:
+        type: boolean
+        description: "Run tests?"
+        default: true
+      test_mode:
+        type: choice
+        description: "Test mode"
+        default: smart
+        options:
+          - smart
+          - all
+          - none
+
+concurrency:
+  group: publish-browser-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
+jobs:
+  changes:
+    name: "🧭 Detect affected folders"
+    runs-on: ubuntu-24.04
+
+    outputs:
+      should_test: ${{ steps.detect.outputs.should_test }}
+      should_benchmark: ${{ steps.detect.outputs.should_benchmark }}
+      test_scope: ${{ steps.detect.outputs.test_scope }}
+      reason: ${{ steps.detect.outputs.reason }}
+      benchmark_reason: ${{ steps.detect.outputs.benchmark_reason }}
+      affected_dirs_json: ${{ steps.detect.outputs.affected_dirs_json }}
+      affected_dirs_text: ${{ steps.detect.outputs.affected_dirs_text }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect interesting changes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          INPUT_TEST_MODE: ${{ github.event.inputs.test_mode }}
+          INPUT_SHOULD_RUN_TESTS: ${{ github.event.inputs.should_run_tests }}
+        run: |
+          set -euo pipefail
+
+          TEST_MODE="${INPUT_TEST_MODE:-smart}"
+          SHOULD_RUN_TESTS="${INPUT_SHOULD_RUN_TESTS:-true}"
+
+          if [ "$TEST_MODE" = "none" ] || [ "$SHOULD_RUN_TESTS" = "false" ]; then
+            echo "should_test=false" >> "$GITHUB_OUTPUT"
+            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
+            echo "test_scope=none" >> "$GITHUB_OUTPUT"
+            echo "reason=tests_disabled_by_input" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=tests_disabled_by_input" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_json=[]" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_text=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          EMPTY_SHA="0000000000000000000000000000000000000000"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$TEST_MODE" = "all" ]; then
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "should_benchmark=true" >> "$GITHUB_OUTPUT"
+            echo "test_scope=all" >> "$GITHUB_OUTPUT"
+            echo "reason=manual_or_forced_all_tests" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=manual_or_forced_all_tests" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_json=[]" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_text=all" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "${PR_BASE_SHA:-}" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          elif [ -n "${BEFORE_SHA:-}" ] && [ "$BEFORE_SHA" != "$EMPTY_SHA" ] && git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$BEFORE_SHA"
+          else
+            BASE_SHA=""
+          fi
+
+          if [ -z "$BASE_SHA" ]; then
+            CHANGED_FILES="$(git diff-tree --root --no-commit-id --name-only -r --diff-filter=AMR "$HEAD_SHA")"
+          else
+            CHANGED_FILES="$(git diff --name-only --diff-filter=AMR "$BASE_SHA" "$HEAD_SHA")"
+          fi
+
+          mkdir -p artifacts/changes
+          printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | sort -u > artifacts/changes/changed-files.txt
+
+          INTERESTING_FILES="$(grep -E \
+            '^(src|scripts|packages|apps|tests|test|bench|benchmark|benchmarks)/|(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github/workflows/.*\.ya?ml$' \
+            artifacts/changes/changed-files.txt || true)"
+
+          GLOBAL_FILES="$(printf '%s\n' "$INTERESTING_FILES" | grep -E \
+            '(^|/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github/workflows/.*\.ya?ml$' || true)"
+
+          BENCHMARK_FILES="$(printf '%s\n' "$INTERESTING_FILES" | grep -E \
+            '^src/(fabrica|broto|cipo|fabrica-elements)/|^packages/(fabrica|broto|cipo|fabrica-elements)/' || true)"
+
+          if [ -z "$INTERESTING_FILES" ]; then
+            echo "should_test=false" >> "$GITHUB_OUTPUT"
+            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
+            echo "test_scope=none" >> "$GITHUB_OUTPUT"
+            echo "reason=no_test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=no_benchmark_relevant_files_changed" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_json=[]" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_text=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "$GLOBAL_FILES" ]; then
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "test_scope=all" >> "$GITHUB_OUTPUT"
+            echo "reason=global_test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+          else
+            : > artifacts/changes/affected-dirs.txt
+
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+
+              case "$file" in
+                src/*/*)
+                  printf '%s\n' "$file" | awk -F/ '{ print $1 "/" $2 }' >> artifacts/changes/affected-dirs.txt
+                  ;;
+                packages/*/*)
+                  printf '%s\n' "$file" | awk -F/ '{ print $1 "/" $2 }' >> artifacts/changes/affected-dirs.txt
+                  ;;
+                apps/*/*)
+                  printf '%s\n' "$file" | awk -F/ '{ print $1 "/" $2 }' >> artifacts/changes/affected-dirs.txt
+                  ;;
+                scripts/*)
+                  echo "scripts" >> artifacts/changes/affected-dirs.txt
+                  ;;
+                tests/*|test/*|bench/*|benchmark/*|benchmarks/*)
+                  dirname "$file" >> artifacts/changes/affected-dirs.txt
+                  ;;
+                *)
+                  dirname "$file" >> artifacts/changes/affected-dirs.txt
+                  ;;
+              esac
+            done <<< "$INTERESTING_FILES"
+
+            sort -u artifacts/changes/affected-dirs.txt -o artifacts/changes/affected-dirs.txt
+
+            AFFECTED_DIRS_JSON="$(jq -R -s -c 'split("\n") | map(select(length > 0))' artifacts/changes/affected-dirs.txt)"
+            AFFECTED_DIRS_TEXT="$(paste -sd ' ' artifacts/changes/affected-dirs.txt || true)"
+
+            echo "should_test=true" >> "$GITHUB_OUTPUT"
+            echo "test_scope=affected" >> "$GITHUB_OUTPUT"
+            echo "reason=affected_test_folders_detected" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_json=$AFFECTED_DIRS_JSON" >> "$GITHUB_OUTPUT"
+            echo "affected_dirs_text=$AFFECTED_DIRS_TEXT" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -n "$BENCHMARK_FILES" ]; then
+            echo "should_benchmark=true" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=benchmark_relevant_packages_changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
+            echo "benchmark_reason=no_fabrica_broto_cipo_or_fabrica_elements_changes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write changes summary
+        if: always()
+        run: |
+          {
+            echo "## 🧭 Change Detector"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Should test | \`${{ steps.detect.outputs.should_test }}\` |"
+            echo "| Test scope | \`${{ steps.detect.outputs.test_scope }}\` |"
+            echo "| Reason | \`${{ steps.detect.outputs.reason }}\` |"
+            echo "| Should benchmark | \`${{ steps.detect.outputs.should_benchmark }}\` |"
+            echo "| Benchmark reason | \`${{ steps.detect.outputs.benchmark_reason }}\` |"
+            echo ""
+            echo "### Changed files"
+            echo ""
+            echo '```txt'
+            cat artifacts/changes/changed-files.txt || true
+            echo '```'
+            echo ""
+            echo "### Affected folders"
+            echo ""
+            echo '```txt'
+            echo "${{ steps.detect.outputs.affected_dirs_text }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload changes artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: change-detector-report
+          path: artifacts/changes
+          retention-days: 14
+
+  test:
+    name: "🧪 Run smart tests"
+    needs:
+      - changes
+    if: ${{ needs.changes.outputs.should_test == 'true' }}
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        env:
+          TEST_SCOPE: ${{ needs.changes.outputs.test_scope }}
+          AFFECTED_DIRS_JSON: ${{ needs.changes.outputs.affected_dirs_json }}
+        run: |
+          set -o pipefail
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
+
+          mkdir -p artifacts/test
+
+          if [ "$TEST_SCOPE" = "all" ]; then
+            pnpm test 2>&1 | tee artifacts/test/test-output.log
+            exit "${PIPESTATUS[0]}"
+          fi
+
+          mapfile -t AFFECTED_DIRS < <(node -e '
+            const dirs = JSON.parse(process.env.AFFECTED_DIRS_JSON || "[]");
+            for (const dir of dirs) console.log(dir);
+          ')
+
+          if [ "${#AFFECTED_DIRS[@]}" -eq 0 ]; then
+            pnpm test 2>&1 | tee artifacts/test/test-output.log
+            exit "${PIPESTATUS[0]}"
+          fi
+
+          echo "Running focused tests for:"
+          printf ' - %s\n' "${AFFECTED_DIRS[@]}"
+
+          pnpm exec vitest run "${AFFECTED_DIRS[@]}" --passWithNoTests \
+            2>&1 | tee artifacts/test/test-output.log
+
+          exit "${PIPESTATUS[0]}"
+
+      - name: Write test summary
+        if: always()
+        run: |
+          {
+            echo "## 🧪 Test Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ steps.tests.outcome }}\` |"
+            echo "| Scope | \`${{ needs.changes.outputs.test_scope }}\` |"
+            echo "| Affected folders | \`${{ needs.changes.outputs.affected_dirs_text }}\` |"
+            echo "| Blocking build | \`false\` |"
+            echo ""
+            echo "### Last test output lines"
+            echo ""
+            echo '```markdown'
+            tail -n 200 artifacts/test/test-output.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run benchmarks
+        id: benchmarks
+        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/test
+
+          pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-output.log
+
+      - name: 🌿 Run Cipo benchmarks
+        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/test
+
+          pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
+            2>&1 \
+            | node scripts/strip-ansi-stream.mjs \
+            | tee artifacts/test/cipo-benchmark.log
+
+      - name: Write benchmark summary
+        if: always()
+        run: |
+          {
+            echo "## ⏱️ Benchmark Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Should benchmark | \`${{ needs.changes.outputs.should_benchmark }}\` |"
+            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
+            echo "| Status | \`${{ steps.benchmarks.outcome || 'skipped' }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: artifacts/test
+          retention-days: 14
+
