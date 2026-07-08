@@ -210,7 +210,7 @@ jobs:
     needs:
       - guard
       - changes
-    if: ${{ github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') || inputs.should_run_tests == true }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') || inputs.should_run_tests == true }}
     runs-on: ubuntu-24.04
     continue-on-error: true
 
