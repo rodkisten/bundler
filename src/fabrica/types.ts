@@ -245,6 +245,8 @@ export type FabricaInstanceOptions = {
   registry?: ComponentRegistry;
   isolated?: boolean;
   attachDollar?: boolean;
+  /** Makes this instance the fallback runtime for pre-materialized compiled templates. */
+  setAsDefault?: boolean;
 };
 
 /** Internal render runtime captured by reactive DOM parts. */
