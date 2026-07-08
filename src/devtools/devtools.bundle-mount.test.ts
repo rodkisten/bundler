@@ -108,6 +108,24 @@ function expectStylesInjected(root: ShadowRoot): void {
     .join("\n");
 
   expect(styleText.length).toBeGreaterThan(1000);
+  expect(styleText).toContain("@layer cipo");
+  expect(styleText).toContain(".cp-");
+
+  const tokenPattern =
+    /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
+
+  const leakedTokens = [...styleText.matchAll(tokenPattern)].map((match) => {
+    const index = match.index ?? 0;
+    return {
+      token: match[0],
+      context: styleText.slice(Math.max(0, index - 80), index + 120),
+    };
+  });
+
+  expect(leakedTokens).toEqual([]);
+}
+
+  expect(styleText.length).toBeGreaterThan(1000);
   expect(styleText).toContain("roderuda");
  // expect(styleText).not.toMatch(/\$[a-zA-Z_][\w.]*/);
  // expect(styleText).not.toContain("$$");
