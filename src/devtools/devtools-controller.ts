@@ -637,7 +637,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       const disabled = this.isPanelDisabled(name);
 
       if (tab) tab.hidden = disabled;
-      if (panel) panel.hidden = disabled || (this.currentTool !== name && panel.hidden);
+      if (panel) {
+        // Ordering and enable/disable preferences should never erase the active panel state.
+        // Visibility is owned by showTool(); preferences only hide disabled panels.
+        panel.hidden = disabled || this.currentTool !== name;
+      }
     }
 
     if (settingsTab) this.refs.tabbar.append(settingsTab);
