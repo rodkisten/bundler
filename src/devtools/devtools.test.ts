@@ -76,10 +76,11 @@ describe("RodEruda native devtools", () => {
       .map((style) => style.textContent ?? "")
       .join("\n");
 
-    expect(styleText).toContain(".roderuda-container");
-    expect(styleText).toContain(".roderuda-lucide-icon");
-    expect(styleText).toContain(".roderuda-console-no-execution");
-    expect(styleText).toContain("[data-selected=\"true\"]");
+    expect(styleText.length).toBeGreaterThan(1000);
+    expect(styleText).toContain('@layer cipo');
+    expect(styleText).toContain('[data-js-execution="false"]');
+    expect(styleText).toContain('[data-selected="true"]');
+    expect(styleText).not.toMatch(/\$(?:background|border|primary|foreground|accent|backgroundDark)/);
   });
 
   it("renders the Elements panel tree with page DOM nodes", () => {
@@ -159,6 +160,6 @@ describe("RodEruda native devtools", () => {
   it("can be destroyed and initialized again", () => {
     devtools.init({ autoScale: false, tool: ["console"] }).destroy().init({ autoScale: false, useShadowDom: false, tool: ["console"] });
     expect(devtools.isInitialized()).toBe(true);
-    expect(document.querySelector("#roderuda .roderuda-container")).not.toBeNull();
+    expect(document.querySelector("#roderuda [data-roderuda-root]")).not.toBeNull();
   });
 });
