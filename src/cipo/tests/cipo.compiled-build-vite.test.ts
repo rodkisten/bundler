@@ -196,4 +196,38 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(Probe).toBeTypeOf('function')
   })
 
+  it('applies build-level Cipó config CSS before compiling styled panel templates', () => {
+    const configCss = `
+      @cipo { prefix: rd; minify: true; rem: 16px; }
+      @theme {
+        colors<color>: (
+          background: var(--background),
+          border: var(--border),
+          primary: var(--primary)
+        );
+        radius<length>: (control: 6px);
+      }
+    `
+
+    const result = compileCipoSourceBuild(`
+      const Surface = styled.div('Surface').css\`
+        background: $background;
+        border: 1px solid $border;
+        border-radius: $control;
+        color: $primary;
+      \`
+    `, {
+      filename: '/project/src/devtools/panels/console.ts',
+      injectCssImport: false,
+      configCss,
+    })
+
+    expect(result.changed).toBe(true)
+    expect(result.css).toContain('background:var(--rd-colors-background)')
+    expect(result.css).toContain('border:0.0625rem solid var(--rd-colors-border)')
+    expect(result.css).toContain('border-radius:var(--rd-radius-control)')
+    expect(result.css).toContain('color:var(--rd-colors-primary)')
+    expect(result.css).not.toMatch(/\$(?:background|border|primary|control)\b/)
+  })
+
 })

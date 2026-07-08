@@ -11,6 +11,10 @@ on:
 
   workflow_dispatch:
     inputs:
+      run_benchmarks:
+        type: boolean
+        description: "Run benchmarks?"
+        default: false
       should_run_tests:
         type: boolean
         description: "Run tests?"
@@ -244,7 +248,7 @@ jobs:
 
       - name: Run tests
         id: tests
-        continue-on-error: true
+        continue-on-error: false
         env:
           TEST_SCOPE: ${{ needs.changes.outputs.test_scope }}
           AFFECTED_DIRS_JSON: ${{ needs.changes.outputs.affected_dirs_json }}
@@ -300,7 +304,7 @@ jobs:
 
       - name: Run benchmarks
         id: benchmarks
-        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
+        if: ${{ input.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
         continue-on-error: true
         run: |
           set -o pipefail
@@ -309,7 +313,7 @@ jobs:
           pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-output.log
 
       - name: 🌿 Run Cipo benchmarks
-        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
+        if: ${{ input.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
         continue-on-error: true
         run: |
           set -o pipefail
@@ -321,7 +325,7 @@ jobs:
             | tee artifacts/test/cipo-benchmark.log
 
       - name: Write benchmark summary
-        if: always()
+        if: ${{ input.run_benchmarks == 'true' }}
         run: |
           {
             echo "## ⏱️ Benchmark Report"

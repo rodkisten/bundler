@@ -157,7 +157,7 @@ describe("RodEruda native devtools", () => {
   });
 
   it("can be destroyed and initialized again", () => {
-    devtools.init({ autoScale: false }).destroy().init({ autoScale: false, useShadowDom: false });
+    devtools.init({ autoScale: false, tool: ["console"] }).destroy().init({ autoScale: false, useShadowDom: false, tool: ["console"] });
     expect(devtools.isInitialized()).toBe(true);
     expect(document.querySelector("#roderuda .roderuda-container")).not.toBeNull();
   });

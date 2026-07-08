@@ -19,6 +19,8 @@ export interface CipoViteCompiledInlineOptions {
   readonly compileFabrica?: boolean
   readonly enabled?: boolean
   readonly evaluateStaticCss?: boolean
+  /** Optional Cipó configuration CSS applied before build-mode static CSS compilation. */
+  readonly configCss?: string
 }
 
 export interface CipoViteTransformResult {
@@ -94,6 +96,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         cssImportId: VIRTUAL_CSS_ASSET_ID,
         injectCssImport: options.cssDelivery === 'asset',
         transformCssTag: options.transformCssTag ?? true,
+        configCss: options.configCss,
       })
 
       let nextCode = cipo.code

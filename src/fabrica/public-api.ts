@@ -423,7 +423,7 @@ export function createFabricaApi(
 
   runtime.api = api;
 
-  if (defaultInstance) setDefaultFabricaRuntime(runtime);
+  if (defaultInstance || options.setAsDefault) setDefaultFabricaRuntime(runtime);
   if (options.attachDollar || defaultInstance) attachDollarApi(api);
 
   return Object.freeze(api);

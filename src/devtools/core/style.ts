@@ -32,6 +32,7 @@ export const devtoolsStyles = sheet.css`
       selectedForeground: var(--select-foreground),
       link: var(--link-color),
       success: #2e8b57,
+      danger: var(--console-error-foreground),
       post: #8a63d2,
       statusRedirect: #c18401,
       warningBg: var(--console-warn-background),
@@ -918,8 +919,9 @@ export function installDevtoolsStyles(
   const parent = target instanceof Document ? target.head : target;
   parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]').forEach((node) => node.remove());
 
-  const runtimeStyledComponentStyles = getCssText().trim()
-    ? [{ kind: "cipo.stylesheet" as const, cssText: getCssText() }]
+  const runtimeCssText = getCssText().trim();
+  const runtimeStyledComponentStyles = runtimeCssText && !containsRawCipoTokens(runtimeCssText)
+    ? [{ kind: "cipo.stylesheet" as const, cssText: runtimeCssText }]
     : [];
 
   const style = injectStyle(target, [
@@ -930,4 +932,7 @@ export function installDevtoolsStyles(
   style.dataset.roderudaDevtoolsStyle = "true";
   if (!style.textContent?.trim()) throw new Error("[RodEruda] Unable to install styles");
   return style;
+}
+function containsRawCipoTokens(cssText: string): boolean {
+  return /\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var|warningBg|warningFg|warningBorder|errorBg|errorFg|errorBorder)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|tabHeight|controlHeight|entrySize|entryZ|toolsZ|overlayZ)\b/.test(cssText);
 }
