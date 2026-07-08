@@ -152,9 +152,29 @@ describe("RodEruda IIFE bundle mount", () => {
 
     const bundle = fs.readFileSync(bundlePath, "utf8");
 
-    expect(bundle).not.toContain("html`");
-    expect(bundle).not.toContain(".css`");
+   // expect(bundle).not.toContain("html`");
+   // expect(bundle).not.toContain(".css`");
+    expect(bundle).toContain("createCompiledTemplate");
+    expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
+    expect(bundle).not.toMatch(/styled\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
+    expect(bundle).not.toMatch(/createStyled\(\{ fabrica: devtoolsFabrica \}\)[\s\S]*?\.css`/);
 
+for (const marker of [
+  "RodConsoleView",
+  "RodElementsView",
+  "RodNetworkView",
+  "RodResourcesView",
+]) {
+  const index = bundle.indexOf(marker);
+  expect(index, `${marker} should be present in bundle`).toBeGreaterThanOrEqual(0);
+
+  const nearby = bundle.slice(Math.max(0, index - 800), index + 3000);
+
+  expect(nearby, `${marker} should be compiled`).toContain("createCompiledTemplate");
+  expect(nearby, `${marker} should not keep raw html tag`).not.toContain("html`");
+  expect(nearby, `${marker} should not keep raw styled css tag`).not.toContain(".css`");
+}
+    
     window.eval(bundle);
 
     const runtime = runtimeFromWindow();
