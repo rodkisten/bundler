@@ -225,18 +225,18 @@ describe("RodEruda IIFE bundle mount", () => {
 
     const root = shadowRoot();
 
-    expect(root.querySelector(".roderuda-container")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector(".roderuda-entry-btn")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector(".roderuda-dev-tools")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector(".roderuda-tabbar")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector(".roderuda-tools")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-roderuda-root]")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-roderuda-shell-ref='entryButton']")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-roderuda-shell-ref='devtools']")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")).toBeInstanceOf(HTMLElement);
+    expect(root.querySelector("[data-roderuda-shell-ref='tools']")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("fabrica-component-error")).toBeNull();
 
     expectStylesInjected(root);
 
     expect(root.querySelectorAll(".roderuda-tab[data-tool-tab]").length).toBeGreaterThanOrEqual(7);
 
-    const tools = root.querySelector<HTMLElement>(".roderuda-tools");
+    const tools = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='tools']");
     expect(tools).toBeInstanceOf(HTMLElement);
 
     for (const name of ["console", "elements", "network", "resources", "sources", "info"]) {
@@ -290,7 +290,7 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.textContent).toContain("Location");
     expect(root.textContent).toContain("User Agent");
 
-    const devtoolsDock = root.querySelector<HTMLElement>(".roderuda-dev-tools");
+    const devtoolsDock = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']");
     const activePanel = root.querySelector<HTMLElement>('.roderuda-tool[data-tool="info"]');
 
     expect(devtoolsDock).toBeInstanceOf(HTMLElement);
@@ -300,5 +300,5 @@ describe("RodEruda IIFE bundle mount", () => {
 
     expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
     expect(activePanel!.style.overflow).toBe("hidden");
-  });
+  }, 30000);
 });

@@ -1,7 +1,18 @@
-import { copyText, create, delegate, icon, safeStringify } from "../core/dom";
+import { copyText, icon, safeStringify } from "../core/dom";
+import { html, render } from "../components/runtime";
+import type { RenderValue } from "../../fabrica";
 import { Tool } from "../tool";
 import type { InfoItem, ToolContext } from "../types";
-import { renderPanelShell } from "./panel-ui";
+import {
+  InfoKey,
+  InfoKv,
+  InfoValue,
+  infoStyleArtifacts,
+  type InfoModel,
+  type InfoViewModel,
+} from "./info-components";
+
+export { infoStyleArtifacts };
 
 function getConnectionInfo(): Record<string, unknown> {
   const connection = (navigator as Navigator & {
@@ -116,27 +127,11 @@ export class Info extends Tool {
   readonly title = "info";
   readonly icon = icon("info");
   private items: InfoItem[] = defaultItems();
-  private body: HTMLElement | null = null;
-  private cleanup: Array<() => void> = [];
+  private disposeView: (() => void) | null = null;
+  private root: HTMLElement | null = null;
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
-    const refs = renderPanelShell(container, {
-      className: "roderuda-section roderuda-info",
-      title: "Page information",
-      bodyAttr: "data-info-body",
-      bodyClassName: "roderuda-cards",
-      actions: [
-        { label: "Refresh", action: "refresh" },
-        { label: "Copy all", action: "copy-all" },
-      ],
-    });
-    this.body = refs.body;
-    this.cleanup.push(delegate(container, "click", "[data-action]", (_event, element) => {
-      if (element.dataset.action === "refresh") this.render();
-      if (element.dataset.action === "copy-all") void this.copyAll();
-      if (element.dataset.action === "copy") void this.copyItem(Number(element.dataset.index));
-    }));
     this.render();
   }
 
@@ -174,9 +169,28 @@ export class Info extends Tool {
   }
 
   override destroy(): void {
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
-    this.body = null;
+    this.disposeView?.();
+    this.disposeView = null;
+    this.root = null;
     super.destroy();
+  }
+
+  private model(): InfoModel {
+    return { items: this.items.map((item) => ({ name: item.name, value: this.resolve(item) })) };
+  }
+
+  private render(): void {
+    if (!this.container) return;
+    const view: InfoViewModel = {
+      model: () => this.model(),
+      setRoot: (node) => { this.root = node; },
+      refresh: () => this.render(),
+      copyAll: () => { void this.copyAll(); },
+      copyItem: (index) => { void this.copyItem(index); },
+      renderValue: (value) => this.renderValue(value),
+    };
+    this.disposeView?.();
+    this.disposeView = render(this.container, html`<RodInfoView view=${view as never} />`);
   }
 
   private resolve(item: InfoItem): unknown {
@@ -187,50 +201,13 @@ export class Info extends Tool {
     }
   }
 
-  private render(): void {
-    if (!this.body) return;
-    this.body.replaceChildren();
-    if (!this.items.length) {
-      this.body.append(create("div", { className: "roderuda-empty", text: "No information registered." }));
-      return;
-    }
-    this.items.forEach((item, index) => {
-      const value = this.resolve(item);
-      const card = create("article", { className: "roderuda-info-card" });
-      const title = create("header", { className: "roderuda-card-title" });
-      title.append(
-        create("span", { text: item.name }),
-        create("button", {
-          className: "roderuda-card-copy",
-          text: "Copy",
-          attrs: { type: "button", "data-action": "copy", "data-index": index },
-        }),
-      );
-      const content = create("div", { className: "roderuda-card-content" });
-      this.renderValue(content, value);
-      card.append(title, content);
-      this.body?.append(card);
-    });
-  }
-
-  private renderValue(target: HTMLElement, value: unknown): void {
+  private renderValue(value: unknown): RenderValue {
     if (value && typeof value === "object") {
       const entries = Object.entries(value as Record<string, unknown>);
-      if (!entries.length) {
-        target.textContent = safeStringify(value);
-        return;
-      }
-      const table = create("div", { className: "roderuda-kv" });
-      for (const [key, item] of entries) {
-        table.append(
-          create("div", { className: "roderuda-object-key", text: key }),
-          create("div", { className: "roderuda-value", text: typeof item === "string" ? item : safeStringify(item, 0) }),
-        );
-      }
-      target.append(table);
-      return;
+      if (!entries.length) return safeStringify(value);
+      return html`<InfoKv>${entries.map(([key, item]) => html`<InfoKey>${key}</InfoKey><InfoValue>${typeof item === "string" ? item : safeStringify(item, 0)}</InfoValue>`)}</InfoKv>`;
     }
-    target.textContent = String(value ?? "null");
+    return String(value ?? "null");
   }
 
   private async copyItem(index: number): Promise<void> {

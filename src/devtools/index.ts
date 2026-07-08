@@ -17,12 +17,12 @@ import { DevTools } from "./devtools-controller";
 import { EntryBtn } from "./entry-button";
 import { Console, consoleStyleArtifacts } from "./panels/console";
 import { Elements, elementsStyleArtifacts } from "./panels/elements";
-import { Info } from "./panels/info";
+import { Info, infoStyleArtifacts } from "./panels/info";
 import { Network, networkStyleArtifacts } from "./panels/network";
 import { Resources, resourcesStyleArtifacts } from "./panels/resources";
 import { Settings, settingsStyleArtifacts } from "./panels/settings";
-import { Snippets } from "./panels/snippets";
-import { Sources } from "./panels/sources";
+import { Snippets, snippetsStyleArtifacts } from "./panels/snippets";
+import { Sources, sourcesStyleArtifacts } from "./panels/sources";
 import { Tool } from "./tool";
 import type { DevtoolsInitOptions, Position, ToolLike } from "./types";
 
@@ -158,8 +158,11 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         ...consoleStyleArtifacts,
         ...elementsStyleArtifacts,
         ...networkStyleArtifacts,
+        ...infoStyleArtifacts,
         ...resourcesStyleArtifacts,
         ...settingsStyleArtifacts,
+        ...sourcesStyleArtifacts,
+        ...snippetsStyleArtifacts,
       ]);
 
       debugLog("runtime", "styles installed", {

@@ -1,0 +1,393 @@
+import type { Store } from "../../broto";
+import type { CipoCssArtifact } from "../../cipo";
+import type { ConsoleLevel, ConsoleRecord } from "../types";
+export type Filter = string | RegExp | ((record: ConsoleRecord) => boolean) | null;
+import { component, event, html, ref, styled } from "../components/runtime";
+import { icon } from "../core/dom";
+
+export interface ConsoleState extends Record<string, unknown> {
+  records: ConsoleRecord[];
+  filterValue: Filter;
+  filterText: string;
+  history: string[];
+  historyIndex: number;
+  selectedRecordId: number | null;
+  enabledLevels: ConsoleLevel[];
+  editorExpanded: boolean;
+  inputValue: string;
+  jsExecution: boolean;
+  displayExtraInfo: boolean;
+  displayUnenumerable: boolean;
+  lazyEvaluation: boolean;
+  lastResult: unknown;
+}
+
+export interface ConsoleViewModel {
+  readonly state: Store<ConsoleState>;
+  setBody(node: HTMLElement | null): void;
+  setList(node: HTMLElement | null): void;
+  setInput(node: HTMLTextAreaElement | null): void;
+  clear(): void;
+  copy(): void;
+  toggleLevel(level: ConsoleLevel): void;
+  filter(value: string): void;
+  handleInput(event: Event): void;
+  handleInputKey(event: KeyboardEvent): void;
+  handleInputFocus(): void;
+  cancelEditor(): void;
+  clearEditor(): void;
+  runEditor(): void;
+}
+
+export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "warn", "error"];
+
+/* *************** */
+/* Styled console  */
+/* *************** */
+
+export const ConsoleSurface = styled.div("RodConsoleSurface").css`
+  width: 100%;
+  height: 100%;
+  padding-bottom: calc(25px + $$safeBottom);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: $background;
+
+  &[data-js-execution="false"] {
+    padding-bottom: 0;
+  }
+`;
+
+export const ConsoleControl = styled.div("RodConsoleControl").css`
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 40px;
+  padding: 7px 8px;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+`;
+
+export const ConsoleIconButton = styled.button("RodConsoleIconButton").css`
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: $control;
+  color: $primary;
+  background: transparent;
+`;
+
+export const ConsoleLevels = styled.div("RodConsoleLevels").css`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+`;
+
+export const ConsoleLevelButton = styled.button("RodConsoleLevelButton").css`
+  appearance: none;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: $md;
+  color: $foreground;
+  background: transparent;
+
+  &[data-active="true"] {
+    color: $selectedForeground;
+    background: $highlight;
+  }
+`;
+
+export const ConsoleControlSpacer = styled.div("RodConsoleControlSpacer").css`
+  flex: 1 1 auto;
+`;
+
+export const ConsoleFilter = styled.input("RodConsoleFilter").css`
+  min-width: 0;
+  max-width: 260px;
+  height: 27px;
+  flex: 1 1 120px;
+  padding: 4px 9px;
+  border: 1px solid $border;
+  border-radius: $section;
+  color: $primary;
+  background: $background;
+`;
+
+export const ConsoleList = styled.div("RodConsoleList").css`
+  font: 12px / 1.45 $font.mono;
+  user-select: text;
+`;
+
+export const ConsoleRow = styled.div("RodConsoleRow").css`
+  position: relative;
+  min-height: 25px;
+  padding: 4px 35px 4px calc(9px + var(--rd-console-depth, 0) * 14px);
+  border-bottom: 1px solid alpha($border / 65%);
+  color: $foreground;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  &[data-level="warn"] {
+    color: $warningFg;
+    border-color: $warningBorder;
+    background: $warningBg;
+  }
+
+  &[data-level="error"] {
+    color: $errorFg;
+    border-color: $errorBorder;
+    background: $errorBg;
+  }
+
+  &[data-level="command"] {
+    color: $accent;
+  }
+
+  &[data-level="result"] {
+    color: $primary;
+  }
+`;
+
+export const ConsoleRepeat = styled.span("RodConsoleRepeat").css`
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-right: 5px;
+  padding: 0 4px;
+  border-radius: $pill;
+  color: white;
+  background: $accent;
+  font: 10px / 1 $font.ui;
+`;
+
+export const ConsoleGroup = styled.span("RodConsoleGroup").css`
+  display: inline-block;
+  width: 14px;
+  color: $operator;
+`;
+
+export const ConsoleTime = styled.span("RodConsoleTime").css`
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  opacity: .55;
+  font: 10px / 1.3 $font.ui;
+`;
+
+export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  height: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: $$safeBottom;
+  border-top: 1px solid $border;
+  background: $background;
+
+  &[data-js-execution="false"] {
+    display: none !important;
+  }
+
+  &[data-expanded="true"] {
+    top: 0;
+    height: 100%;
+    padding: 40px 0 calc(44px + $$safeBottom);
+  }
+`;
+
+export const ConsolePrompt = styled.span("RodConsolePrompt").css`
+  display: grid;
+  place-items: center;
+  width: 25px;
+  color: $accent;
+  font: 700 15px / 1 $font.mono;
+`;
+
+export const ConsoleInput = styled.textarea("RodConsoleInput").css`
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px 3px 0;
+  resize: none;
+  outline: none;
+  border: 0;
+  color: $primary;
+  background: transparent;
+  font: 13px / 1.4 $font.mono;
+`;
+
+export const ConsoleCodeEditorHost = styled.div("RodConsoleCodeEditorHost").css`
+  flex: 1;
+  min-width: 0;
+  min-height: 100%;
+  color: $primary;
+
+  .cm-editor {
+    height: 100%;
+    background: transparent;
+    outline: none;
+  }
+
+  .cm-content {
+    padding: 3px 8px 3px 0;
+  }
+`;
+
+export const ConsoleEditorActions = styled.div("RodConsoleEditorActions").css`
+  position: absolute;
+  right: 0;
+  bottom: $$safeBottom;
+  left: 0;
+  display: none;
+  height: 44px;
+  border-top: 1px solid $border;
+  background: $backgroundDark;
+
+  &[data-expanded="true"] {
+    display: flex;
+  }
+`;
+
+export const ConsoleEditorButton = styled.button("RodConsoleEditorButton").css`
+  appearance: none;
+  flex: 1;
+  border: 0;
+  border-right: 1px solid $border;
+  color: $primary;
+  background: transparent;
+`;
+
+export const ConsoleTableWrap = styled.div("RodConsoleTableWrap").css`
+  width: 100%;
+  overflow: auto;
+`;
+
+export const ConsoleTable = styled.table("RodConsoleTable").css`
+  width: 100%;
+  border-collapse: collapse;
+  color: inherit;
+  font: 12px / 1.4 $font.ui;
+`;
+
+export const ConsoleTableHead = styled.th("RodConsoleTableHead").css`
+  padding: 7px 9px;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+  text-align: left;
+`;
+
+export const ConsoleTableCell = styled.td("RodConsoleTableCell").css`
+  padding: 7px 9px;
+  border-bottom: 1px solid $border;
+  text-align: left;
+`;
+
+const CONSOLE_STYLED_COMPONENTS = Object.freeze([
+  ConsoleSurface,
+  ConsoleControl,
+  ConsoleIconButton,
+  ConsoleLevels,
+  ConsoleLevelButton,
+  ConsoleControlSpacer,
+  ConsoleFilter,
+  ConsoleList,
+  ConsoleRow,
+  ConsoleRepeat,
+  ConsoleGroup,
+  ConsoleTime,
+  ConsoleInputWrap,
+  ConsolePrompt,
+  ConsoleInput,
+  ConsoleCodeEditorHost,
+  ConsoleEditorActions,
+  ConsoleEditorButton,
+  ConsoleTableWrap,
+  ConsoleTable,
+  ConsoleTableHead,
+  ConsoleTableCell,
+]);
+
+export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  CONSOLE_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
+    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+);
+
+component("RodConsoleView", function RodConsoleView(props) {
+  const view = props.view as ConsoleViewModel;
+  return html`
+    <RodConsoleSurface
+      data-js-execution=${() => String(view.state.jsExecution())}
+      data-console-body
+      data-roderuda-scroll-key="console"
+      ref=${ref((node) => {
+        view.setBody(node as HTMLElement);
+        return () => view.setBody(null);
+      })}
+    >
+      <RodConsoleControl>
+        <RodConsoleIconButton type="button" title="Clear" data-action="clear" @click=${event((click: Event) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
+        <RodConsoleLevels role="group" aria-label="Console levels">
+          ${visibleLevels.map((level) => html`
+            <RodConsoleLevelButton
+              data-active=${() => String(view.state.enabledLevels().includes(level))}
+              type="button"
+              data-level=${level}
+              aria-pressed=${() => String(view.state.enabledLevels().includes(level))}
+              @click=${event((levelEvent: Event) => { 
+                levelEvent.preventDefault(); 
+                view.toggleLevel(level); })}
+            >
+            ${level}
+          </RodConsoleLevelButton>
+          `)}
+        </RodConsoleLevels>
+        <RodConsoleControlSpacer />
+        <RodConsoleFilter data-console-filter type="search" placeholder="Filter" aria-label="Filter console" .value=${() => view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
+        <RodConsoleIconButton type="button" title="Copy console" data-action="copy" @click=${event((copyEvent: Event) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
+      </RodConsoleControl>
+      <RodConsoleList data-console-list ref=${ref((node) => {
+        view.setList(node as HTMLElement);
+        return () => view.setList(null);
+      })}>
+        <span class="roderuda-visually-hidden">No console records</span>
+      </RodConsoleList>
+    </RodConsoleSurface>
+    <RodConsoleInputWrap data-js-execution=${() => String(view.state.jsExecution())} data-expanded=${() => String(view.state.editorExpanded())} data-console-input-wrap>
+      <RodConsolePrompt>›</RodConsolePrompt>
+      <RodConsoleInput
+        data-console-input
+        rows="1"
+        spellcheck="false"
+        autocomplete="off"
+        aria-label="JavaScript console"
+        .value=${() => view.state.inputValue()}
+        ref=${ref((node) => {
+          view.setInput(node as HTMLTextAreaElement);
+          return () => view.setInput(null);
+        })}
+        @input=${event((inputEvent: Event) => view.handleInput(inputEvent))}
+        @keydown=${event<KeyboardEvent>((keyboardEvent) => view.handleInputKey(keyboardEvent))}
+        @focus=${event(() => view.handleInputFocus())}
+      />
+      <RodConsoleEditorActions data-expanded=${() => String(view.state.editorExpanded())}>
+        <RodConsoleEditorButton type="button" data-action="cancel-editor" @click=${event(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" data-action="clear-editor" @click=${event(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" data-action="run-editor" @click=${event(() => view.runEditor())}>Run</RodConsoleEditorButton>
+      </RodConsoleEditorActions>
+    </RodConsoleInputWrap>
+  `;
+});
+
