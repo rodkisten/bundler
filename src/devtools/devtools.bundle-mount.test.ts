@@ -67,10 +67,11 @@ describe("RodEruda IIFE bundle mount", () => {
   });
 
   it("mounts the shell from the built IIFE bundle", async () => {
-    if (!fs.existsSync(bundlePath)) {
-      const { build } = await import("vite");
-      const config = ((await import("./vite.config")).default as any);
-      await build({
+    fs.rmSync(bundlePath, { force: true });
+
+    const { build } = await import("vite");
+    const config = ((await import("./vite.config")).default as any);
+    await build({
         ...config,
         configFile: false,
         build: {
@@ -85,7 +86,6 @@ describe("RodEruda IIFE bundle mount", () => {
           },
         },
       });
-    }
 
     expect(fs.existsSync(bundlePath)).toBe(true);
 

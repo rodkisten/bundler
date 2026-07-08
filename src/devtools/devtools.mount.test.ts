@@ -79,7 +79,7 @@ describe("RodEruda devtools mount", () => {
   });
 
   it("renders styled/Fabrica panels and injects their Cipó styles", () => {
-    devtools.init({ autoScale: false, tool: ["elements", "console"], defaults: { theme: "AMOLED" } });
+    devtools.init({ autoScale: false, tool: ["elements", "resources", "network", "console"], defaults: { theme: "AMOLED" } });
 
     const host = document.querySelector<HTMLElement>("#roderuda");
     const root = host?.shadowRoot;
@@ -91,12 +91,23 @@ describe("RodEruda devtools mount", () => {
     expect(layout).toBeInstanceOf(HTMLElement);
     expect(root?.querySelector("[data-elements-tree]")).toBeInstanceOf(HTMLElement);
 
+    devtools.show("resources");
+    expect(root?.querySelector("fabrica-component-error")).toBeNull();
+    expect(root?.querySelector("[data-resources-body]")).toBeInstanceOf(HTMLElement);
+    expect(root?.textContent).toContain("Local Storage");
+
+    devtools.show("network");
+    expect(root?.querySelector("fabrica-component-error")).toBeNull();
+    expect(root?.querySelector("[data-network-list]")).toBeInstanceOf(HTMLElement);
+
     const styleText = Array.from(root?.querySelectorAll("style") ?? [])
       .map((style) => style.textContent ?? "")
       .join("\n");
     const generatedClass = layout?.className.split(/\s+/).find(Boolean) ?? "missing-elements-class";
 
     expect(styleText).toContain(generatedClass);
+    expect(styleText).toContain(".roderuda-tools");
+    expect(styleText).toContain("overflow");
     expect(styleText).not.toContain("$background");
     expect(styleText).not.toContain("$border");
   });
