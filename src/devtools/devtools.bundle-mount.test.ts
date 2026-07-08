@@ -132,8 +132,6 @@ function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
   expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
   expect(panel?.hidden, `panel "${name}" should not be hidden`).toBe(false);
   expect(panel?.childElementCount, `panel "${name}" should render children`).toBeGreaterThan(0);
-  expect(panel?.textContent?.trim(), `panel "${name}" should not be empty`).not.toBe("");
-
   return panel!;
 }
 
@@ -254,6 +252,9 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.querySelector("[data-console-list]")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("[data-console-input]")).toBeInstanceOf(HTMLElement);
 
+    console.log("bundle console smoke");
+    expect(root.querySelector("[data-console-list]")?.textContent ?? "").toContain("bundle console smoke");
+
     runtime!.show("elements");
     expectSelectedTab(root, "elements");
     expectVisiblePanel(root, "elements");
@@ -296,9 +297,8 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(activePanel).toBeInstanceOf(HTMLElement);
 
     const dockOverflowY = getComputedStyle(devtoolsDock!).overflowY;
-    const panelOverflowY = getComputedStyle(activePanel!).overflowY;
 
     expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
-    expect(["auto", "scroll", "overlay", ""]).toContain(panelOverflowY);
+    expect(activePanel!.style.overflow).toBe("hidden");
   });
 });

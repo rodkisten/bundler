@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { cipoVite } from "../cipo/src/vite";
+import { devtoolsCipoConfigCss } from "./cipo-config";
 
 const repoRoot = resolve(__dirname, "../..");
 
@@ -29,6 +30,7 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
+      configCss: devtoolsCipoConfigCss,
     }),
   ],
 });

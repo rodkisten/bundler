@@ -111,6 +111,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       />
     `);
 
+    // Keep each tool as the scroll boundary host. The inner panel views may scroll,
+    // but the page itself must never become the DevTools scrollbar.
+    panel.style.position = "absolute";
+    panel.style.inset = "0";
+    panel.style.overflow = "hidden";
     this.refs.tools.prepend(panel);
 
     let tab!: HTMLButtonElement;

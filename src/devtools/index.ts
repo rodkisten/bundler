@@ -105,7 +105,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private currentScale = 1;
   private ownsHost = false;
   private reattachTimer = 0;
-  private mountRetryTimer = 0;
+  private readonly mountRetryTimers = new Set<number>();
   private hostObserver: MutationObserver | null = null;
 
   private readonly reattachHost = (): void => {
@@ -182,7 +182,6 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       }
 
       this.entryBtn = new EntryBtn(this.refs.entryButton, this.refs.root);
-      this.entryBtn.initCfg(this.createSettingsTool(normalizedOptions));
 
       this.mountSettings(normalizedOptions);
       this.mountTools(normalizedOptions.tools, normalizedOptions);
@@ -481,7 +480,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
       // Keep this cheap: short burst while the document is being created, then stop.
       if (attempt <= 10) {
-        this.mountRetryTimer = window.setTimeout(retry, attempt < 4 ? 16 : 100);
+        this.trackMountRetryTimeout(retry, attempt < 4 ? 16 : 100);
       }
     };
 
@@ -490,14 +489,21 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     }
 
     window.addEventListener("load", retry, { once: true, capture: true });
-    this.mountRetryTimer = window.setTimeout(retry, 0);
+    this.trackMountRetryTimeout(retry, 0);
+  }
+
+  private trackMountRetryTimeout(callback: () => void, delay: number): void {
+    const id = window.setTimeout(() => {
+      this.mountRetryTimers.delete(id);
+      callback();
+    }, delay);
+
+    this.mountRetryTimers.add(id);
   }
 
   private clearMountRetry(): void {
-    if (!this.mountRetryTimer) return;
-
-    window.clearTimeout(this.mountRetryTimer);
-    this.mountRetryTimer = 0;
+    for (const id of this.mountRetryTimers) window.clearTimeout(id);
+    this.mountRetryTimers.clear();
   }
 
   private installHostWatchdog(): void {
