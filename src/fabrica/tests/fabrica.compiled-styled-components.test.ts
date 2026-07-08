@@ -90,4 +90,35 @@ describe("compiled templates with styled Fabrica components", () => {
     expect(result.code).not.toContain("html`");
   });
 
+  it("registers Rod-prefixed styled components with a short alias for imported component tags", () => {
+    const fabrica = createFabrica({ name: "compiled-styled-alias", isolated: true });
+    const styled = createStyled({ fabrica });
+
+    styled.section("RodSettingsSection").css`
+      color: $brand;
+    `;
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "SettingsSection",
+          props: [{ type: "static", name: "data-probe", value: "alias" }],
+          children: [{ type: "text", value: "Settings" }],
+        },
+      ],
+    };
+
+    fabrica.run(() => {
+      fabrica.render(host, createCompiledTemplate(definition));
+    });
+
+    const section = host.querySelector("section[data-probe='alias']");
+    expect(section).toBeInstanceOf(HTMLElement);
+    expect(section?.textContent).toBe("Settings");
+    expect(section?.className).toContain("compiled-");
+    expect(host.querySelector("fabrica-component-error")).toBeNull();
+  });
+
+
 });
