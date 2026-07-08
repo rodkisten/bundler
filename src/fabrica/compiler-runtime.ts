@@ -270,19 +270,11 @@ function appendCompiledNode(
 
   const component = resolveCompiledComponentTag(node.tag);
   if (component) {
-    const props: Record<string, unknown> = {};
-    for (const prop of node.props) {
-      if (prop.type === "spread") {
-        Object.assign(props, values[prop.index] as FabricaCompiledElementProps);
-        continue;
-      }
-      props[prop.name] = readCompiledPropValue(prop, values);
-    }
     appendValue(
       parent,
       createCompiledElement(
         component,
-        props,
+        readCompiledComponentProps(node.props, values),
         ...collectCompiledChildValues(node.children, values),
       ),
     );
@@ -306,6 +298,51 @@ function appendCompiledNode(
   applyCompiledProps(element, props);
   for (const child of node.children) appendCompiledNode(element, child, values);
   parent.appendChild(element);
+}
+
+function readCompiledComponentProps(
+  props: readonly RuntimeProp[],
+  values: readonly RenderValue[],
+): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+
+  for (const prop of props) {
+    if (prop.type === "spread") {
+      mergeCompiledComponentSpreadProps(output, values[prop.index]);
+      continue;
+    }
+
+    output[normalizeCompiledComponentPropName(prop.name)] = readCompiledPropValue(prop, values);
+  }
+
+  return output;
+}
+
+function mergeCompiledComponentSpreadProps(target: Record<string, unknown>, value: unknown): void {
+  const resolved = readValue(value);
+  if (!resolved || typeof resolved !== "object") return;
+
+  for (const [name, item] of Object.entries(resolved as Record<string, unknown>)) {
+    target[normalizeCompiledComponentPropName(name)] = item;
+  }
+}
+
+function normalizeCompiledComponentPropName(name: string): string {
+  if (name.startsWith("@")) return compiledEventAttributeToPropName(name.slice(1));
+  if (name.startsWith(".")) return name.slice(1);
+  if (name.startsWith("?")) return name.slice(1);
+  if (name.startsWith(":")) return name.slice(1);
+  if (name === "classname") return "className";
+  if (name === "htmlfor") return "htmlFor";
+  if (name === "tabindex") return "tabIndex";
+  if (name === "readonly") return "readOnly";
+  return name;
+}
+
+function compiledEventAttributeToPropName(rawName: string): string {
+  const dotIndex = rawName.indexOf(".");
+  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
+  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
 }
 
 function readCompiledPropValue(
@@ -502,16 +539,10 @@ function collectCompiledChildValue(
 
   const component = resolveCompiledComponentTag(node.tag);
   if (component) {
-    const props: Record<string, unknown> = {};
-    for (const prop of node.props) {
-      if (prop.type === "spread")
-        Object.assign(props, values[prop.index] as FabricaCompiledElementProps);
-      else props[prop.name] = readCompiledPropValue(prop, values);
-    }
     output.push(
       createCompiledElement(
         component,
-        props,
+        readCompiledComponentProps(node.props, values),
         ...collectCompiledChildValues(node.children, values),
       ),
     );

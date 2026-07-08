@@ -148,8 +148,17 @@ export function applyPayloadRef(element: Element, value: unknown): void {
     return
   }
 
-  if (value && typeof value === 'object' && 'current' in (value as Record<string, unknown>)) {
-    ;(value as { current: Element | null }).current = element
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (record.kind === 'ref' && typeof record.callback === 'function') {
+      const cleanup = (record.callback as (node: Element) => void | (() => void))(element)
+      if (typeof cleanup === 'function') registerCleanup(element, cleanup)
+      return
+    }
+
+    if ('current' in record) {
+      ;(value as { current: Element | null }).current = element
+    }
   }
 }
 

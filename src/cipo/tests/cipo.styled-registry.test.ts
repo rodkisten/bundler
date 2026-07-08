@@ -99,4 +99,24 @@ describe('Cipó styled components and Fabrica registry', () => {
     expect(firstHost.querySelector('button')?.textContent).toBe('one')
     expect(secondHost.querySelector('button')?.textContent).toBe('two')
   })
+  it('unwraps Fabrica ref directives when rendering named styled components', () => {
+    const local = createFabrica({ name: 'styled-ref', isolated: true })
+    const localStyled = createStyled({ fabrica: local })
+    let buttonRef: HTMLButtonElement | null = null
+
+    localStyled.button('RefButton').css`
+      px: 2
+      color: $ink
+    `
+
+    local.render(host, local.html`
+      <RefButton ref=${local.ref<HTMLButtonElement>((node) => { buttonRef = node })}>Save</RefButton>
+    `)
+
+    const button = host.querySelector('button') as HTMLButtonElement | null
+    expect(button).toBeInstanceOf(HTMLButtonElement)
+    expect(buttonRef).toBe(button)
+    expect(button?.textContent).toBe('Save')
+  })
+
 })

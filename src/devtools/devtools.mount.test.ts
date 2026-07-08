@@ -77,4 +77,27 @@ describe("RodEruda devtools mount", () => {
     expect(devtools.get("info")).toBeDefined();
     expect(devtools.get("snippets")).toBeDefined();
   });
+
+  it("renders styled/Fabrica panels and injects their Cipó styles", () => {
+    devtools.init({ autoScale: false, tool: ["elements", "console"], defaults: { theme: "AMOLED" } });
+
+    const host = document.querySelector<HTMLElement>("#roderuda");
+    const root = host?.shadowRoot;
+    expect(root).not.toBeNull();
+
+    devtools.show("elements");
+    expect(root?.querySelector("fabrica-component-error")).toBeNull();
+    const layout = root?.querySelector<HTMLElement>("[data-elements-layout]");
+    expect(layout).toBeInstanceOf(HTMLElement);
+    expect(root?.querySelector("[data-elements-tree]")).toBeInstanceOf(HTMLElement);
+
+    const styleText = Array.from(root?.querySelectorAll("style") ?? [])
+      .map((style) => style.textContent ?? "")
+      .join("\n");
+    const generatedClass = layout?.className.split(/\s+/).find(Boolean) ?? "missing-elements-class";
+
+    expect(styleText).toContain(generatedClass);
+    expect(styleText).not.toContain("$background");
+    expect(styleText).not.toContain("$border");
+  });
 });
