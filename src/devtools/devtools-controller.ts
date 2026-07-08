@@ -1,7 +1,8 @@
+import type { CipoCssArtifact } from "../cipo";
 import type { ShellRefs } from "./components/shell";
+import { asNode, event, html, ref, styled, uiState } from "./components/runtime";
 import { ConfigStore } from "./core/config";
 import { on } from "./core/dom";
-import { asNode, event, html, ref, uiState } from "./components/runtime";
 import { Emitter } from "./core/emitter";
 import { applyTheme, themes } from "./core/theme";
 import type {
@@ -29,6 +30,238 @@ interface DevToolsConfig extends Record<string, unknown> {
   panelOrder: string[];
   disabledPanels: string[];
 }
+
+const ToolPanel = styled.section("RodDevtoolsToolPanel").css`
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: $background;
+
+  &[hidden] {
+    display: none !important;
+  }
+`;
+
+const TabButton = styled.button("RodDevtoolsTabButton").css`
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 78px;
+  height: 40px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-transform: capitalize;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: color .2s, background .2s;
+
+  &:hover {
+    background: mix($highlight, transparent, 70%);
+  }
+
+  &[data-selected="true"] {
+    color: $accent;
+  }
+
+  &[data-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: $accent;
+  }
+
+  x:not(xs) {
+    min-width: 58px;
+    padding-inline: 7px;
+  }
+`;
+
+const TabIcon = styled.span("RodDevtoolsTabIcon").css`
+  display: inline-grid;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+
+  .roderuda-lucide-icon {
+    display: block;
+    flex: 0 0 auto;
+    width: 1em;
+    height: 1em;
+    stroke: currentColor;
+  }
+
+  x:not(xs) {
+    font-size: 17px;
+  }
+`;
+
+const TabLabel = styled.span("RodDevtoolsTabLabel").css`
+  x:not(xs) {
+    display: none;
+  }
+`;
+
+const NotificationToast = styled.div("RodDevtoolsNotificationToast").css`
+  pointer-events: auto;
+  padding: 10px 12px;
+  border: 1px solid $border;
+  border-radius: $notification;
+  color: $primary;
+  background: mix($background, transparent, 94%);
+  box-shadow: $shadow.notification;
+  backdrop-filter: blur(14px);
+  opacity: 0;
+  transform: translateY(-7px) scale(.98);
+  transition: opacity .18s ease-out, transform .18s ease-out;
+
+  &[data-active="true"] {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  &[data-type="success"] {
+    border-color: $success;
+  }
+
+  &[data-type="warning"] {
+    border-color: $warningBorder;
+    background: $warningBg;
+    color: $warningFg;
+  }
+
+  &[data-type="error"] {
+    border-color: $errorBorder;
+    background: $errorBg;
+    color: $errorFg;
+  }
+`;
+
+const ModalSurface = styled.form("RodDevtoolsModalSurface").css`
+  width: min(100%, 480px);
+  max-height: min(80vh, 620px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: $background;
+  border: 1px solid $border;
+  border-radius: $modal;
+  box-shadow: $shadow.modal;
+`;
+
+const ModalBox = styled.div("RodDevtoolsModalBox").css`
+  width: min(100%, 480px);
+  max-height: min(80vh, 620px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: $background;
+  border: 1px solid $border;
+  border-radius: $modal;
+  box-shadow: $shadow.modal;
+`;
+
+const ModalTitle = styled.div("RodDevtoolsModalTitle").css`
+  padding: 13px 14px;
+  color: $primary;
+  font-weight: 700;
+  border-bottom: 1px solid $border;
+`;
+
+const ModalBody = styled.div("RodDevtoolsModalBody").css`
+  padding: 14px;
+  overflow: auto;
+  color: $foreground;
+  user-select: text;
+`;
+
+const ModalInput = styled.input("RodDevtoolsModalInput").css`
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid $border;
+  border-radius: $control;
+  outline: none;
+  background: $backgroundDark;
+  color: $primary;
+  user-select: text;
+
+  &:focus {
+    border-color: $accent;
+  }
+`;
+
+const ModalActions = styled.div("RodDevtoolsModalActions").css`
+  padding: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid $border;
+`;
+
+const TextButton = styled.button("RodDevtoolsTextButton").css`
+  flex: 0 0 auto;
+  min-width: 74px;
+  min-height: 28px;
+  padding: 8px 11px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: $control;
+  background: $backgroundDark;
+  color: $primary;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  transition: color .18s, background .18s, transform .1s;
+
+  &:hover {
+    background: $highlight;
+    color: $selectedForeground;
+  }
+
+  &:active {
+    transform: scale(.94);
+    color: $accent;
+  }
+
+  &[data-primary="true"] {
+    background: $accent;
+    color: white;
+  }
+`;
+
+const CONTROLLER_STYLED_COMPONENTS = Object.freeze([
+  ToolPanel,
+  TabButton,
+  TabIcon,
+  TabLabel,
+  NotificationToast,
+  ModalSurface,
+  ModalBox,
+  ModalTitle,
+  ModalBody,
+  ModalInput,
+  ModalActions,
+  TextButton,
+]);
+
+export const devtoolsControllerStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  CONTROLLER_STYLED_COMPONENTS
+    .flatMap((styledComponent) => styledComponent.artifacts)
+    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+);
 
 export class DevTools extends Emitter<ControllerEvents> implements DevtoolsControllerLike {
   readonly config: ConfigStore<DevToolsConfig>;
@@ -95,12 +328,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       return this;
     }
 
-    const safeName = name.replace(/\s+/g, "-");
     let panel!: HTMLElement;
 
     asNode(html`
-      <section
-        class=${`roderuda-tool roderuda-tool-${safeName}`}
+      <RodDevtoolsToolPanel
         role="tabpanel"
         data-tool=${name}
         aria-label=${tool.title ?? name}
@@ -111,21 +342,16 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       />
     `);
 
-    // Keep each tool as the scroll boundary host. The inner panel views may scroll,
-    // but the page itself must never become the DevTools scrollbar.
-    panel.style.position = "absolute";
-    panel.style.inset = "0";
-    panel.style.overflow = "hidden";
     this.refs.tools.prepend(panel);
 
     let tab!: HTMLButtonElement;
 
     asNode(html`
-      <button
-        class="roderuda-tab"
+      <RodDevtoolsTabButton
         type="button"
         role="tab"
         data-tool-tab=${name}
+        data-selected="false"
         aria-selected="false"
         draggable=${name === "settings" ? "false" : "true"}
         @click=${event((click: Event) => {
@@ -139,9 +365,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           tab = node;
         })}
       >
-        <span class="roderuda-tab-icon">${tool.icon ?? name.slice(0, 1).toUpperCase()}</span>
-        <span class="roderuda-tab-label">${tool.title ?? name}</span>
-      </button>
+        <RodDevtoolsTabIcon>${tool.icon ?? name.slice(0, 1).toUpperCase()}</RodDevtoolsTabIcon>
+        <RodDevtoolsTabLabel>${tool.title ?? name}</RodDevtoolsTabLabel>
+      </RodDevtoolsTabButton>
     `);
 
     const settingsTab = this.tabs.get("settings");
@@ -245,8 +471,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       const tab = this.tabs.get(toolName);
       const panel = this.panels.get(toolName);
 
-      tab?.classList.remove("roderuda-selected");
-      tab?.setAttribute("aria-selected", "false");
+      if (tab) {
+        tab.dataset.selected = "false";
+        tab.setAttribute("aria-selected", "false");
+      }
 
       if (panel) panel.hidden = true;
     }
@@ -256,9 +484,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const tab = this.tabs.get(name);
     const panel = this.panels.get(name);
 
-    tab?.classList.add("roderuda-selected");
-    tab?.setAttribute("aria-selected", "true");
-    tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (tab) {
+      tab.dataset.selected = "true";
+      tab.setAttribute("aria-selected", "true");
+      tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
 
     if (panel) panel.hidden = false;
 
@@ -315,14 +545,15 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     let item!: HTMLElement;
 
     const remove = () => {
-      item.classList.remove("roderuda-active");
+      item.dataset.active = "false";
       window.setTimeout(() => item.remove(), 180);
     };
 
     asNode(html`
-      <div
-        class=${`roderuda-notification roderuda-notification-${options.type ?? "info"}`}
+      <RodDevtoolsNotificationToast
         role=${options.type === "error" ? "alert" : "status"}
+        data-type=${options.type ?? "info"}
+        data-active="false"
         data-notification=${++this.notificationSequence}
         @click=${event((click: Event) => {
           click.preventDefault();
@@ -333,12 +564,15 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         })}
       >
         ${message}
-      </div>
+      </RodDevtoolsNotificationToast>
     `);
 
     this.refs.notifications.append(item);
 
-    requestAnimationFrame(() => item.classList.add("roderuda-active"));
+    requestAnimationFrame(() => {
+      item.dataset.active = "true";
+    });
+
     window.setTimeout(remove, Math.max(900, options.duration ?? 2800));
   }
 
@@ -350,13 +584,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       const finish = (value: string | null) => {
         body.remove();
         uiState.setPath("modal.active", false);
-        this.refs.modalRoot.classList.remove("roderuda-active");
+        this.refs.modalRoot.dataset.active = "false";
         resolve(value);
       };
 
       asNode(html`
-        <form
-          class="roderuda-modal"
+        <RodDevtoolsModalSurface
           @submit=${event((submit: Event) => {
             submit.preventDefault();
             finish(input.value);
@@ -365,22 +598,21 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             body = node;
           })}
         >
-          <div class="roderuda-modal-title">${message}</div>
-          <div class="roderuda-modal-body">
-            <input
-              class="roderuda-modal-input"
+          <RodDevtoolsModalTitle>${message}</RodDevtoolsModalTitle>
+          <RodDevtoolsModalBody>
+            <RodDevtoolsModalInput
               .value=${initialValue}
               autocomplete="off"
               ref=${ref<HTMLInputElement>((node) => {
                 input = node;
               })}
             />
-          </div>
-          <div class="roderuda-modal-actions">
-            <button class="roderuda-text-btn" type="button" @click=${event(() => finish(null))}>Cancel</button>
-            <button class="roderuda-text-btn" type="submit">OK</button>
-          </div>
-        </form>
+          </RodDevtoolsModalBody>
+          <RodDevtoolsModalActions>
+            <RodDevtoolsTextButton type="button" @click=${event(() => finish(null))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="submit" data-primary="true">OK</RodDevtoolsTextButton>
+          </RodDevtoolsModalActions>
+        </RodDevtoolsModalSurface>
       `);
 
       this.openModal(body);
@@ -400,33 +632,32 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       const finish = (value: boolean) => {
         body.remove();
         uiState.setPath("modal.active", false);
-        this.refs.modalRoot.classList.remove("roderuda-active");
+        this.refs.modalRoot.dataset.active = "false";
         resolve(value);
       };
 
       asNode(html`
-        <div
-          class="roderuda-modal"
+        <RodDevtoolsModalBox
           ref=${ref<HTMLElement>((node) => {
             body = node;
           })}
         >
-          <div class="roderuda-modal-title">Confirm</div>
-          <div class="roderuda-modal-body">${message}</div>
-          <div class="roderuda-modal-actions">
-            <button class="roderuda-text-btn" type="button" @click=${event(() => finish(false))}>Cancel</button>
-            <button
-              class="roderuda-text-btn"
+          <RodDevtoolsModalTitle>Confirm</RodDevtoolsModalTitle>
+          <RodDevtoolsModalBody>${message}</RodDevtoolsModalBody>
+          <RodDevtoolsModalActions>
+            <RodDevtoolsTextButton type="button" @click=${event(() => finish(false))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton
               type="button"
+              data-primary="true"
               @click=${event(() => finish(true))}
               ref=${ref<HTMLButtonElement>((node) => {
                 accept = node;
               })}
             >
               Continue
-            </button>
-          </div>
-        </div>
+            </RodDevtoolsTextButton>
+          </RodDevtoolsModalActions>
+        </RodDevtoolsModalBox>
       `);
 
       this.openModal(body);
@@ -683,7 +914,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   private openModal(modal: HTMLElement): void {
     this.refs.modalRoot.replaceChildren(modal);
     uiState.setPath("modal.active", true);
-    this.refs.modalRoot.classList.add("roderuda-active");
+    this.refs.modalRoot.dataset.active = "true";
   }
 
   private errorMessage(error: unknown): string {
