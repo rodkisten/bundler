@@ -266,13 +266,13 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
       value(name = registeredName, nextCollision = collision) {
         if (!name) throw new Error('[Fabrica Elements] register() requires a component name.')
         registeredName = name.trim()
-        return registry.register(registeredName, styledComponent as ElementsComponent, nextCollision, true)
+        return registerStyledComponentNames(registry, registeredName, styledComponent as ElementsComponent, nextCollision, true)
       },
     },
     unregister: {
       configurable: false,
       enumerable: false,
-      value() { return registeredName ? registry.unregister(registeredName) : false },
+      value() { return registeredName ? unregisterStyledComponentNames(registry, registeredName) : false },
     },
     withComponent: {
       configurable: false,
@@ -284,8 +284,40 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
     toString: { configurable: false, enumerable: false, value: () => plan.staticStyle.className },
   })
 
-  if (registeredName) registry.register(registeredName, styledComponent as ElementsComponent, collision)
+  if (registeredName) registerStyledComponentNames(registry, registeredName, styledComponent as ElementsComponent, collision)
   return styledComponent
+}
+
+function registerStyledComponentNames(
+  registry: StyledRegistryBridge,
+  name: string,
+  component: ElementsComponent,
+  collision: StyledRegistryCollision | undefined,
+  force = false,
+): ReturnType<StyledRegistryBridge['register']> {
+  const status = registry.register(name, component, collision, force)
+  const alias = devtoolsAliasName(name)
+
+  if (alias && alias !== name) {
+    // Rod-prefixed component names are useful as globally unique CSS/debug names,
+    // but templates often import the styled component variable and write
+    // <SettingsSection>. Registering a conservative alias keeps those templates
+    // working without forcing every panel to use the longer <RodSettingsSection>
+    // spelling or falling back to inert custom elements.
+    registry.register(alias, component, 'ignore', true)
+  }
+
+  return status
+}
+
+function unregisterStyledComponentNames(registry: StyledRegistryBridge, name: string): boolean {
+  const removed = registry.unregister(name)
+  const alias = devtoolsAliasName(name)
+  return alias && alias !== name ? registry.unregister(alias) || removed : removed
+}
+
+function devtoolsAliasName(name: string): string | undefined {
+  return /^Rod[A-Z]/.test(name) ? name.slice(3) : undefined
 }
 
 function createTemplateStylePlan<Props extends ElementsRecord, Artifact>(
