@@ -75,7 +75,16 @@ export function applyProps(element: Element, props: ElementsRecord): void {
       continue
     }
 
-    const domValue = isEventProp(key) || isAtEventProp(key) || key === 'ref' ? value : readDomValue(rawValue)
+    // Handle @event style props from Fabrica compiled templates without invoking the handler
+    if (key.startsWith('@')) {
+      if (typeof rawValue === 'function') {
+        const eventName = key.slice(1).split('.')[0]!
+        setEvent(element, eventName, rawValue as EventListener)
+      }
+      continue
+    }
+
+    const domValue = isEventProp(key) || key === 'ref' ? value : readDomValue(rawValue)
 
     if (key === 'attrs' && isPlainObject(domValue)) {
       applyProps(element, domValue)
