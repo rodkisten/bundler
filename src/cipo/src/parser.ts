@@ -50,7 +50,7 @@ const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', '
  * ```
  */
 export function parseStylesheet(input: string, warnings: CipoWarning[]): readonly CipoAstNode[] {
-  return parseBlockBody(input, warnings)
+  return parseBlockBody(stripCssComments(input), warnings)
 }
 
 /**
@@ -136,7 +136,7 @@ export function parseBlockBody(input: string, warnings: CipoWarning[]): readonly
  */
 export function parseDeclarations(input: string, warnings: CipoWarning[]): readonly CipoAstNode[] {
   const nodes: CipoAstNode[] = []
-  appendDeclarationsAndDirectives(nodes, input, warnings)
+  appendDeclarationsAndDirectives(nodes, stripCssComments(input), warnings)
   return nodes
 }
 
@@ -413,6 +413,45 @@ function containsDeclarationLikeStatement(input: string): boolean {
   }
 
   return false
+}
+
+
+/** Removes CSS block comments without touching quoted strings. */
+function stripCssComments(input: string): string {
+  let output = ''
+  let quote: '"' | "'" | null = null
+  let escaped = false
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+    const next = input[index + 1]
+
+    if (quote) {
+      output += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = null
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      index += 2
+      while (index < input.length && !(input[index] === '*' && input[index + 1] === '/')) index += 1
+      if (index < input.length) index += 1
+      output += '\n'
+      continue
+    }
+
+    output += char
+  }
+
+  return output
 }
 
 /**
