@@ -10,6 +10,10 @@ export function findStyledCssTemplates(source: string): StyledCssTemplateHit[] {
   while (searchFrom < source.length) {
     const markerIndex = source.indexOf(marker, searchFrom)
     if (markerIndex < 0) break
+    if (isInsideIgnoredSourceRange(source, markerIndex)) {
+      searchFrom = markerIndex + marker.length
+      continue
+    }
     const receiverStart = findReceiverStart(source, markerIndex)
     const templateStart = markerIndex + '.css'.length
     const templateEnd = findTemplateEnd(source, templateStart)
@@ -34,7 +38,7 @@ export function findBareCssTemplates(source: string, existingEdits: readonly Sou
     const start = source.indexOf(marker, searchFrom)
     if (start < 0) break
     const before = source[start - 1] ?? ''
-    if (/[$\w.]/.test(before) || overlapsAny(start, start + marker.length, existingEdits)) {
+    if (isInsideIgnoredSourceRange(source, start) || /[$\w.]/.test(before) || overlapsAny(start, start + marker.length, existingEdits)) {
       searchFrom = start + marker.length
       continue
     }
@@ -78,6 +82,55 @@ export function ensureNamedImport(source: string, symbol: string, importPath: st
 
 function overlapsAny(start: number, end: number, edits: readonly SourceEdit[]): boolean {
   return edits.some((edit) => start < edit.end && end > edit.start)
+}
+
+
+function isInsideIgnoredSourceRange(source: string, position: number): boolean {
+  let quote = ''
+  let lineComment = false
+  let blockComment = false
+  let escaped = false
+
+  for (let index = 0; index < position; index += 1) {
+    const char = source[index]!
+    const next = source[index + 1]
+
+    if (lineComment) {
+      if (char === '\n' || char === '\r') lineComment = false
+      continue
+    }
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false
+        index += 1
+      }
+      continue
+    }
+
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+
+    if (char === '/' && next === '/') {
+      lineComment = true
+      index += 1
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      blockComment = true
+      index += 1
+      continue
+    }
+
+    if (char === '"' || char === "'" || char === '`') quote = char
+  }
+
+  return Boolean(quote || lineComment || blockComment)
 }
 
 function findReceiverStart(source: string, cssDotIndex: number): number {
