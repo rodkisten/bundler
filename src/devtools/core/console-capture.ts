@@ -140,7 +140,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.installing = true;
 
     try {
-      if (options.lockConsole !== false) {
+      if (options.lockConsole === true) {
         this.installConsoleLock();
         this.installConsoleObjectLock();
       }
@@ -149,14 +149,14 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         this.installMethod(method, options);
       }
 
-      if (options.patchPrototype !== false) {
+      if (options.patchPrototype === true) {
         this.patchConsolePrototype();
       }
 
       this.installed = true;
 
-      if (options.watchdog !== false) {
-        this.startWatchdog(options.watchdogMs ?? 250);
+      if (options.watchdog === true) {
+        this.startWatchdog(options.watchdogMs ?? 1000);
       }
     } finally {
       this.installing = false;
@@ -280,9 +280,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       overrideConsole: true,
       catchGlobalErrors: this.catchErrors,
       watchdog: true,
-      lockConsole: true,
-      patchPrototype: true,
-      watchdogMs: 250,
+      lockConsole: false,
+      patchPrototype: false,
+      watchdogMs: 1000,
     });
   }
 
@@ -351,7 +351,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     };
 
     const descriptor: PropertyDescriptor = {
-      configurable: options.lockConsole === false,
+      configurable: options.lockConsole !== true,
       enumerable: true,
       get: () => wrapper,
       set: setter,
@@ -366,9 +366,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
     try {
       Object.defineProperty(console, method, {
-        configurable: options.lockConsole === false,
+        configurable: options.lockConsole !== true,
         enumerable: true,
-        writable: options.lockConsole === false,
+        writable: options.lockConsole !== true,
         value: wrapper,
       });
       return;
@@ -432,9 +432,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
           }
 
           this.installMethod(method, {
-            lockConsole: true,
+            lockConsole: false,
             watchdog: true,
-            patchPrototype: true,
+            patchPrototype: false,
           });
         }
       }

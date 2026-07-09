@@ -77,6 +77,9 @@ describe("RodEruda native devtools", () => {
       .join("\n");
 
     expect(styleText.length).toBeGreaterThan(1000);
+    expect(styleText).toContain("--rd-colors-background:var(--background)");
+    expect(styleText).toContain("--rd-font-ui:");
+    expect(styleText).toContain("--rd-shadow-panel:");
     expect(styleText).toContain("var(--rd-colors-background)");
     expect(styleText).toContain('[data-js-execution="false"]');
     expect(styleText).toContain('[data-selected="true"]');
@@ -99,8 +102,17 @@ describe("RodEruda native devtools", () => {
     expect(shadow?.querySelector("RodElementsDomText, rodelementsdomtext, RodElementsDomTag, rodelementsdomtag")).toBeNull();
   });
 
-  it("captures console methods emitted on window.console", () => {
+  it("captures console methods emitted on window.console without locking global object helpers", () => {
+    const defineProperty = Object.defineProperty;
+    const reflectDefineProperty = Reflect.defineProperty;
+    const objectAssign = Object.assign;
+
     devtools.init({ autoScale: false, tool: ["console"] });
+
+    expect(Object.defineProperty).toBe(defineProperty);
+    expect(Reflect.defineProperty).toBe(reflectDefineProperty);
+    expect(Object.assign).toBe(objectAssign);
+
     console.log("captured window log");
     console.trace("captured trace");
 
