@@ -160,6 +160,54 @@ export const devtoolsStyles = sheet.css`
     $$entryZ: 2147483647
     $$toolsZ: 500
     $$overlayZ: 1200
+
+    --rd-colors-background: var(--background)
+    --rd-colors-backgroundDark: var(--darker-background)
+    --rd-colors-foreground: var(--foreground)
+    --rd-colors-primary: var(--primary)
+    --rd-colors-accent: var(--accent)
+    --rd-colors-border: var(--border)
+    --rd-colors-highlight: var(--highlight)
+    --rd-colors-contrast: var(--contrast)
+    --rd-colors-selectedForeground: var(--select-foreground)
+    --rd-colors-link: var(--link-color)
+    --rd-colors-success: #2e8b57
+    --rd-colors-danger: var(--console-error-foreground)
+    --rd-colors-post: #8a63d2
+    --rd-colors-statusRedirect: #c18401
+    --rd-colors-warningBg: var(--console-warn-background)
+    --rd-colors-warningFg: var(--console-warn-foreground)
+    --rd-colors-warningBorder: var(--console-warn-border)
+    --rd-colors-errorBg: var(--console-error-background)
+    --rd-colors-errorFg: var(--console-error-foreground)
+    --rd-colors-errorBorder: var(--console-error-border)
+    --rd-colors-operator: var(--operator-color)
+    --rd-colors-keyword: var(--keyword-color)
+    --rd-colors-string: var(--string-color)
+    --rd-colors-number: var(--number-color)
+    --rd-colors-function: var(--function-color)
+    --rd-colors-tag: var(--tag-name-color)
+    --rd-colors-attr: var(--attribute-name-color)
+    --rd-colors-var: var(--var-color)
+    --rd-colors-comment: var(--comment-color)
+
+    --rd-radius-xs: 3px
+    --rd-radius-sm: 4px
+    --rd-radius-md: 5px
+    --rd-radius-control: 6px
+    --rd-radius-section: 7px
+    --rd-radius-notification: 8px
+    --rd-radius-panel: 10px
+    --rd-radius-modal: 10px
+    --rd-radius-pill: 999px
+
+    --rd-shadow-entry: 0 4px 18px rgb(0 0 0 / .22)
+    --rd-shadow-panel: 0 -18px 60px rgb(0 0 0 / .2)
+    --rd-shadow-notification: 0 8px 30px rgb(0 0 0 / .24)
+    --rd-shadow-modal: 0 24px 90px rgb(0 0 0 / .4)
+
+    --rd-font-ui: -apple-system, system-ui, BlinkMacSystemFont, ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", "Segoe UI", Tahoma, sans-serif
+    --rd-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace
   }
   
   .roderuda-container {
@@ -694,8 +742,6 @@ export const devtoolsStyles = sheet.css`
       }
     }
   }
-
-  /* Console visuals live in panels/console.ts as named Cipó styled components. */
 
   .roderuda-value { select(text) }
   .roderuda-value-null,
