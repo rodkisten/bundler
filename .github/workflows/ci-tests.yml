@@ -283,7 +283,7 @@ jobs:
           exit "${PIPESTATUS[0]}"
 
       - name: Write test summary
-        if: always()
+        if: ${{ inputs.run_benchmarks == 'true' }}
         run: |
           {
             echo "## 🧪 Test Report"
@@ -304,7 +304,7 @@ jobs:
 
       - name: Run benchmarks
         id: benchmarks
-        if: ${{ input.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
+        if: ${{ inputs.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
         continue-on-error: true
         run: |
           set -o pipefail
@@ -313,7 +313,7 @@ jobs:
           pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-output.log
 
       - name: 🌿 Run Cipo benchmarks
-        if: ${{ input.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
+        if: ${{ inputs.run_benchmarks == 'true' && needs.changes.outputs.should_benchmark == 'true' }}
         continue-on-error: true
         run: |
           set -o pipefail
@@ -325,7 +325,7 @@ jobs:
             | tee artifacts/test/cipo-benchmark.log
 
       - name: Write benchmark summary
-        if: ${{ input.run_benchmarks == 'true' }}
+        if: ${{ inputs.run_benchmarks == 'true' }}
         run: |
           {
             echo "## ⏱️ Benchmark Report"
@@ -338,7 +338,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test artifacts
-        if: always()
+        if: ${{ inputs.run_benchmarks == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: test-report
