@@ -136,8 +136,9 @@ export class Console extends Tool {
         overrideConsole: true,
         catchGlobalErrors: true,
         watchdog: true,
-        lockConsole: true,
-        patchPrototype: true,
+        watchdogMs: 1000,
+        lockConsole: false,
+        patchPrototype: false,
       });
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
