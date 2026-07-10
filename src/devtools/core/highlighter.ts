@@ -133,8 +133,14 @@ export class ElementHighlighter {
     if (!showLabel) return;
     const id = element.id ? `#${element.id}` : "";
     const classes = Array.from(element.classList).slice(0, 4).map((name) => `.${name}`).join("");
-    this.label.textContent = `${element.tagName.toLowerCase()}${id}${classes}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-
+    const datasets = Array.from(elements.dataSet).slice(0, 4).map((data) => `: ${name}`).join("")
+    // Aqui vive a criacao de <rod#test>
+    if(!!id && classes) {
+      this.label.textContent = `${element.tagName.toLowerCase()}${id}${classes}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    } else {      
+      this.label.textContent = `${element.tagName.toLowerCase()}${datasets}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    }
+    
     const viewport = window.visualViewport;
     const viewportWidth = viewport?.width ?? innerWidth;
     const viewportHeight = viewport?.height ?? innerHeight;
@@ -142,7 +148,9 @@ export class ElementHighlighter {
     const top = rect.top > labelHeight + 5
       ? rect.top - labelHeight - 3
       : Math.min(viewportHeight - labelHeight, rect.bottom + 3);
+   
     this.label.style.left = `${Math.max(2, Math.min(viewportWidth - 260, rect.left))}px`;
+    
     this.label.style.top = `${Math.max(2, top)}px`;
   }
 }
