@@ -10,7 +10,7 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      "@/devtools": path.resolve(__dirname, "src"),
+      "@/devtools": resolve(__dirname, "src"),
     },
   },
 
