@@ -1,5 +1,5 @@
 import { ConfigStore } from "../core/config";
-import { copyText, debounce, delegate, icon, isDevtoolsNode, nodePath } from "../core/dom";
+import { copyText, debounce, delegate, icon, isDevtoolsNode, nodePath } from "../utils";
 import { getEventListeners, installEventListenerRegistry } from "../core/event-listeners";
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
