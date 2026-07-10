@@ -133,7 +133,7 @@ export class ElementHighlighter {
     if (!showLabel) return;
     const id = element.id ? `#${element.id}` : "";
     const classes = Array.from(element.classList).slice(0, 4).map((name) => `.${name}`).join("");
-    const datasets = Array.from(elements.dataSet).slice(0, 4).map((data) => `: ${name}`).join("")
+    const datasets = Array.from(element.dataSet).slice(0, 4).map((data) => `: ${name}`).join("")
     // Aqui vive a criacao de <rod#test>
     if(!!id && classes) {
       this.label.textContent = `${element.tagName.toLowerCase()}${id}${classes}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
