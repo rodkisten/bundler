@@ -610,7 +610,7 @@ export function nodePath(node: Node): string {
       break;
     }
     const root = current.getRootNode();
-    const parent = current.parentElement;
+    const parent = current.parentElement as Element;
     if (parent) {
       current = parent;
       continue;
