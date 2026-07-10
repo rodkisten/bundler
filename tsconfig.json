@@ -27,9 +27,10 @@
       "@/*": [
         "src/*"
       ], 
-      "@/devtools/*": [
-        "src/devtools/*"
-      ]
+      "@/fabrica/*": [ "src/fabrica/*" ],
+      "@/fabrica-elements/*": [ "src/fabrica-devtools/*" ],
+      "@/cipo/*": [ "src/cipo/src/* " ],
+      "@/devtools/*": [ "src/devtools/*" ],
     },
     "ignoreDeprecations": "6.0"
   },
