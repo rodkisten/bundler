@@ -1,9 +1,9 @@
-import { create, on, trustedHtml } from "./dom";
+import { create, on, trustedHtml } from "./core/dom";
 import {
   debugLog,
   debugTrace,
   debugWarn,
-} from "./debug";
+} from "./core/debug";
 
 export type Cleanup = () => void;
 
