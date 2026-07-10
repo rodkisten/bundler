@@ -367,23 +367,26 @@ export class Elements extends Tool {
 
     return html`
       <RodElementsDomNodeView
-        .node=${node}
-        nodeId=${nodeId}
-        .depth=${depth}
-        .selected=${node === this.selected}
-        .expandable=${expandable}
-        .expanded=${expanded}
-        .moreCount=${moreCount}
-        .onClick=${((click: Event) => this.handleNodeClick(click, click.currentTarget as HTMLElement)) as never}
-        .onDoubleClick=${((doubleClick: Event) => this.handleNodeOpen(doubleClick, doubleClick.currentTarget as HTMLElement)) as never}
-        .onContextMenu=${((menuEvent: Event) => this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement)) as never}
-        .onPointerDown=${((pointerEvent: Event) => this.startLongPress(pointerEvent, pointerEvent.currentTarget as HTMLElement)) as never}
-        .onPointerUp=${(() => this.cancelLongPress()) as never}
-        .onPointerCancel=${(() => this.cancelLongPress()) as never}
-        .onPointerMove=${((pointerEvent: Event) => this.trackLongPress(pointerEvent)) as never}
-        .onPointerOver=${((pointerEvent: Event) => this.hoverNode(pointerEvent.currentTarget as HTMLElement)) as never}
-        .onPointerOut=${(() => this.highlighter?.hide()) as never}
+        ${{
+          node,
+          nodeId,
+          depth,
+          selected: node === this.selected,
+          expandable,
+          expanded,
+          moreCount,
+          onClick: (click: Event) => this.handleNodeClick(click, click.currentTarget as HTMLElement),
+          onDoubleClick: (doubleClick: Event) => this.handleNodeOpen(doubleClick, doubleClick.currentTarget as HTMLElement),
+          onContextMenu: (menuEvent: Event) => this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement),
+          onPointerDown: (pointerEvent: Event) => this.startLongPress(pointerEvent, pointerEvent.currentTarget as HTMLElement),
+          onPointerUp: () => this.cancelLongPress(),
+          onPointerCancel: () => this.cancelLongPress(),
+          onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
+          onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent.currentTarget as HTMLElement),
+          onPointerOut: () => this.highlighter?.hide(),
+        }}
       >
+
         ${limited.map((child) => this.renderNode(child, depth + 1))}
       </RodElementsDomNodeView>
     `;
@@ -422,13 +425,15 @@ export class Elements extends Tool {
 
     render(this.crumbs, html`
       <RodElementsCrumbsView
-        .elements=${elements}
-        .onSelect=${((index: number) => {
-          this.select(this.crumbElement(index), {
-            expandAncestors: true,
-            reveal: true,
-          });
-        }) as never}
+        props=${{
+          elements,
+          onSelect: (index: number) => {
+            this.select(this.crumbElement(index), {
+              expandAncestors: true,
+              reveal: true,
+            });
+          },
+        }}
       />
     `);
 
@@ -462,38 +467,38 @@ export class Elements extends Tool {
     const toggle = (toggleEvent: Event) => this.toggleSection(toggleEvent.currentTarget as HTMLElement);
 
     render(this.detail, html`
-      <RodElementsDetailHeaderView
-        .element=${element}
-        .onAction=${((click: Event) => this.handleAction(click, click.currentTarget as HTMLElement)) as never}
-      />
+      <RodElementsDetailHeaderView props=${{
+        element,
+        onAction: (click: Event) => this.handleAction(click, click.currentTarget as HTMLElement),
+      }} />
       <RodElementsDetailBodyView>
-        <RodElementsDetailSectionView title="Attributes" name="attributes" .onToggle=${toggle as never}>
-          <RodElementsAttributesView
-            .attributes=${attributes as never}
-            .onChange=${((change: Event) => this.updateAttribute(change, change.currentTarget as HTMLElement)) as never}
-            .onRemove=${((click: Event) => this.removeAttribute(click.currentTarget as HTMLElement)) as never}
-          />
+        <RodElementsDetailSectionView props=${{ title: "Attributes", name: "attributes", onToggle: toggle }}>
+          <RodElementsAttributesView props=${{
+            attributes,
+            onChange: (change: Event) => this.updateAttribute(change, change.currentTarget as HTMLElement),
+            onRemove: (click: Event) => this.removeAttribute(click.currentTarget as HTMLElement),
+          }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Text Content" name="text" .onToggle=${toggle as never}>
+        <RodElementsDetailSectionView props=${{ title: "Text Content", name: "text", onToggle: toggle }}>
           <RodElementsPreBlockView value=${element.textContent || ""} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Box Model" name="box" .onToggle=${toggle as never}>
-          <RodElementsBoxModelView .style=${style as never} .rect=${rect as never} />
+        <RodElementsDetailSectionView props=${{ title: "Box Model", name: "box", onToggle: toggle }}>
+          <RodElementsBoxModelView props=${{ style, rect }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Computed Style" name="computed" .onToggle=${toggle as never}>
-          <RodElementsComputedStyleView .style=${style as never} />
+        <RodElementsDetailSectionView props=${{ title: "Computed Style", name: "computed", onToggle: toggle }}>
+          <RodElementsComputedStyleView props=${{ style }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Styles" name="styles" .onToggle=${toggle as never}>
-          <RodElementsStylesView
-            .rules=${rules as never}
-            .onChange=${((change: Event) => this.updateInlineStyle(change, change.currentTarget as HTMLElement)) as never}
-          />
+        <RodElementsDetailSectionView props=${{ title: "Styles", name: "styles", onToggle: toggle }}>
+          <RodElementsStylesView props=${{
+            rules,
+            onChange: (change: Event) => this.updateInlineStyle(change, change.currentTarget as HTMLElement),
+          }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Event Listeners" name="listeners" .onToggle=${toggle as never}>
-          <RodElementsListenersView .listeners=${listeners as never} />
+        <RodElementsDetailSectionView props=${{ title: "Event Listeners", name: "listeners", onToggle: toggle }}>
+          <RodElementsListenersView props=${{ listeners }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView title="Properties" name="properties" .onToggle=${toggle as never}>
-          <RodElementsPropertiesView .properties=${properties as never} />
+        <RodElementsDetailSectionView props=${{ title: "Properties", name: "properties", onToggle: toggle }}>
+          <RodElementsPropertiesView props=${{ properties }} />
         </RodElementsDetailSectionView>
       </RodElementsDetailBodyView>
     `);
