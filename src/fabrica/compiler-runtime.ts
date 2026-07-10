@@ -262,8 +262,11 @@ function buildCompiledRuntimeSource(strings: readonly string[]): string {
       if (chunk[i] === "<") inTag = true;
       else if (chunk[i] === ">") inTag = false;
     }
-    if (index < strings.length - 1 && /\.\.\.\s*$/.test(chunk) && inTag) {
-      output += chunk.replace(/\.\.\.\s*$/, "");
+    const nextChunk = strings[index + 1] ?? "";
+    const explicitSpread = /\.\.\.\s*$/.test(chunk) && inTag;
+    const implicitSpread = isImplicitSpreadSlot(chunk, nextChunk, inTag);
+    if (index < strings.length - 1 && (explicitSpread || implicitSpread)) {
+      output += explicitSpread ? chunk.replace(/\.\.\.\s*$/, "") : chunk;
       output += ` ${FABRICA_SPREAD_PREFIX}${index}${FABRICA_SPREAD_SUFFIX}`;
       continue;
     }
@@ -272,6 +275,13 @@ function buildCompiledRuntimeSource(strings: readonly string[]): string {
       output += `${FABRICA_VALUE_PREFIX}${index}${FABRICA_VALUE_SUFFIX}`;
   }
   return output;
+}
+
+function isImplicitSpreadSlot(chunk: string, nextChunk: string, inTag: boolean): boolean {
+  if (!inTag || !/\s$/.test(chunk)) return false;
+  if (/([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk)) return false;
+  if (/^\s*$/.test(nextChunk)) return true;
+  return /^\s*(?:\/?>|[.?@:a-zA-Z_][\w:.-]*\s*=|[a-zA-Z_][\w:.-]*(?:\s|\/?>))/.test(nextChunk);
 }
 
 function appendCompiledNode(
@@ -332,7 +342,13 @@ function readCompiledComponentProps(
       continue;
     }
 
-    output[normalizeCompiledComponentPropName(prop.name)] = readCompiledPropValue(prop, values);
+    const name = normalizeCompiledComponentPropName(prop.name);
+    const value = readCompiledPropValue(prop, values);
+    if (name === "props") {
+      mergeCompiledComponentSpreadProps(output, value);
+    } else {
+      output[name] = value;
+    }
   }
 
   return output;

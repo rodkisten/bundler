@@ -1,5 +1,18 @@
 # Fábrica Changelog
 
+## Unreleased - props bags and property binding parity
+
+### Added
+
+- Added shorthand standalone props spread syntax: ``html`<RodButton ${props} />` ``. The browser runtime and compiled runtime both treat the interpolation as a spread only when it occupies a standalone opening-tag slot.
+- Added component props bags through `props=${props}`. The bag is merged into component props rather than passed as a nested `props` field.
+- Kept `.property=${value}` as an explicit property-only binding for native elements, custom elements and application-defined properties.
+
+### Fixed
+
+- Prevented object, callback, Node and fragment values used by component props from leaking into rendered output as `[object Object]`.
+- Added runtime and compiler regression coverage for shorthand spreads, `props=${...}` bags and generic dot-property bindings.
+
 ## Unreleased - Runtime v2 cleanup collector and lazy repeat signals
 
 ### Performance

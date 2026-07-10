@@ -141,8 +141,11 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       skipNextPrefix = "";
     }
 
-    if (index < strings.length - 1 && isSpreadAttributePosition(chunk)) {
-      source += chunk.replace(/\.\.\.\s*$/, "");
+    if (
+      index < strings.length - 1
+      && (isSpreadAttributePosition(chunk) || isImplicitSpreadAttributePosition(chunk, strings[index + 1] ?? ""))
+    ) {
+      source += isSpreadAttributePosition(chunk) ? chunk.replace(/\.\.\.\s*$/, "") : chunk;
       source += ` data-fabrica-spread="${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}"`;
       continue;
     }
@@ -202,6 +205,20 @@ function isComponentTagValue(value: unknown): boolean {
  */
 export function isSpreadAttributePosition(chunk: string): boolean {
   return /\.\.\.\s*$/.test(chunk) && chunk.lastIndexOf("<") > chunk.lastIndexOf(">");
+}
+
+/**
+ * Detects the shorthand component/element props spread form `<Button ${props} />`.
+ *
+ * The interpolation must occupy a standalone slot inside an opening tag. Attribute
+ * assignments such as `value=${value}` and child interpolations remain untouched.
+ */
+export function isImplicitSpreadAttributePosition(chunk: string, nextChunk: string): boolean {
+  if (chunk.lastIndexOf("<") <= chunk.lastIndexOf(">")) return false;
+  if (!/\s$/.test(chunk)) return false;
+  if (/([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk)) return false;
+  if (/^\s*$/.test(nextChunk)) return true;
+  return /^\s*(?:\/?>|[.?@:a-zA-Z_][\w:.-]*\s*=|[a-zA-Z_][\w:.-]*(?:\s|\/?>))/.test(nextChunk);
 }
 
 /**
