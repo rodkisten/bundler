@@ -318,7 +318,7 @@ jobs:
 
       - name: Upload test artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-report
           path: artifacts/test
@@ -377,7 +377,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v6
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
         if: ${{ (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') || needs.guard.outputs.should_run == 'true' }}
@@ -416,7 +416,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v6
+        uses: actions/deploy-pages@v4
 
       - name: Notify Pushcut
         if: ${{ success() }}
