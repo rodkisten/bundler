@@ -48,7 +48,7 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   width: 100%;
   height: 100%;
-  padding-bottom: calc(25px + $$safeBottom);
+  padding-bottom: calc(25px + $safeBottom);
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -193,7 +193,7 @@ export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   display: flex;
   align-items: stretch;
   height: calc(25px + var(--rd-safe-bottom));
-  padding-bottom: $$safeBottom;
+  padding-bottom: $safeBottom;
   border-top: 1px solid $border;
   background: $background;
 
