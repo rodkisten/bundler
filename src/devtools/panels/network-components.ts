@@ -4,6 +4,7 @@ import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../core
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
 import { component, event, html, ref, styled } from "../components/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
+import "./shared-components";
 
 export type RenderPiece = RenderValue;
 
@@ -16,31 +17,8 @@ export interface NetworkViewModel {
   openRequest(id: string): void;
 }
 
-const NetworkLayout = styled.div("RodNetworkLayout").css`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-`;
 
-const NetworkControl = styled.div("RodNetworkControl").css`
-  position: absolute;
-  inset: 0 0 auto 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: $$controlHeight;
-  padding: 7px 8px;
-  border-bottom: 1px solid $border;
-  color: $primary;
-  background: $backgroundDark;
-`;
 
-const NetworkControlSpacer = styled.div("RodNetworkControlSpacer").css`
-  flex: 1 1 auto;
-  min-width: 4px;
-`;
 
 const NetworkIconButton = styled.button("RodNetworkIconButton").css`
   appearance: none;
@@ -193,23 +171,7 @@ const NetworkDetail = styled.section("RodNetworkDetail").css`
   }
 `;
 
-const NetworkDetailTitle = styled.div("RodNetworkDetailTitle").css`
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: $primary;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
 
-const NetworkDetailBody = styled.div("RodNetworkDetailBody").css`
-  height: 100%;
-  padding-bottom: $$safeBottom;
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-`;
 
 const NetworkTabs = styled.div("RodNetworkTabs").css`
   position: sticky;
@@ -265,12 +227,6 @@ const NetworkSectionTitle = styled.div("RodNetworkSectionTitle").css`
   font-weight: 600;
 `;
 
-const NetworkTableWrap = styled.div("RodNetworkTableWrap").css`
-  width: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-`;
 
 const NetworkKvTable = styled.table("RodNetworkKvTable").css`
   width: 100%;
@@ -293,16 +249,6 @@ const NetworkKvTable = styled.table("RodNetworkKvTable").css`
   }
 `;
 
-const NetworkPre = styled.pre("RodNetworkPre").css`
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  color: $foreground;
-  font: 12px / 1.5 $font.mono;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-`;
 
 const NetworkCode = styled.pre("RodNetworkCode").css`
   margin: 0;
@@ -334,9 +280,6 @@ const NetworkEmpty = styled.div("RodNetworkEmpty").css`
 `;
 
 const NETWORK_STYLED_COMPONENTS = Object.freeze([
-  NetworkLayout,
-  NetworkControl,
-  NetworkControlSpacer,
   NetworkIconButton,
   NetworkSearch,
   NetworkList,
@@ -346,16 +289,12 @@ const NETWORK_STYLED_COMPONENTS = Object.freeze([
   NetworkStatus,
   NetworkMethod,
   NetworkDetail,
-  NetworkDetailTitle,
-  NetworkDetailBody,
   NetworkTabs,
   NetworkTabButton,
   NetworkPane,
   NetworkSection,
   NetworkSectionTitle,
-  NetworkTableWrap,
   NetworkKvTable,
-  NetworkPre,
   NetworkCode,
   NetworkEmpty,
 ]);
@@ -371,11 +310,11 @@ component("RodNetworkView", function RodNetworkView(props) {
   const recording = props.recording as boolean;
 
   return html`
-    <RodNetworkLayout data-network-layout>
-      <RodNetworkControl data-network-control>
+    <RodSharedPanelLayout data-network-layout>
+      <RodSharedControlBar data-network-control>
         <RodNetworkIconButton type="button" data-action="record" data-active=${String(recording)} title="Record" @click=${event((click: Event) => view.onAction(click))}>${icon("record")}</RodNetworkIconButton>
         <RodNetworkIconButton type="button" data-action="clear" title="Clear" @click=${event((click: Event) => view.onAction(click))}>${icon("clear")}</RodNetworkIconButton>
-        <RodNetworkControlSpacer />
+        <RodSharedControlSpacer />
         <RodNetworkSearch
           data-network-filter
           type="search"
@@ -389,7 +328,7 @@ component("RodNetworkView", function RodNetworkView(props) {
           })}
         />
         <RodNetworkIconButton type="button" data-action="copy" title="Copy as cURL" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
-      </RodNetworkControl>
+      </RodSharedControlBar>
 
       <RodNetworkList data-network-list ref=${ref((node) => {
         view.setList(node as HTMLElement);
@@ -400,7 +339,7 @@ component("RodNetworkView", function RodNetworkView(props) {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       })} />
-    </RodNetworkLayout>
+    </RodSharedPanelLayout>
   `;
 });
 
@@ -472,13 +411,13 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
   };
 
   return html`
-    <RodNetworkControl>
+    <RodSharedControlBar>
       <RodNetworkIconButton type="button" data-action="close-detail" title="Back" @click=${event(options.onAction)}>${icon("back")}</RodNetworkIconButton>
-      <RodNetworkDetailTitle title=${record.url}>${record.url}</RodNetworkDetailTitle>
+      <RodSharedDetailTitle title=${record.url}>${record.url}</RodSharedDetailTitle>
       <RodNetworkIconButton type="button" data-action="copy-curl" title="Copy as cURL" @click=${event(options.onAction)}>${icon("copy")}</RodNetworkIconButton>
-    </RodNetworkControl>
+    </RodSharedControlBar>
 
-    <RodNetworkDetailBody>
+    <RodSharedScrollableBody>
       <RodNetworkTabs>
         ${detailTabTemplate("headers", "Headers", options.activeTab, options.onTab)}
         ${detailTabTemplate("preview", "Preview", options.activeTab, options.onTab)}
@@ -507,7 +446,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
       </RodNetworkPane>
 
       <RodNetworkPane data-detail-pane="response" data-active=${String(options.activeTab === "response")}>
-        <RodNetworkPre>${responseCode}</RodNetworkPre>
+        <RodSharedPreBlock>${responseCode}</RodSharedPreBlock>
       </RodNetworkPane>
 
       <RodNetworkPane data-detail-pane="timing" data-active=${String(options.activeTab === "timing")}>
@@ -519,7 +458,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
           ${messagesTableTemplate(record)}
         </RodNetworkPane>
       ` : ""}
-    </RodNetworkDetailBody>
+    </RodSharedScrollableBody>
   `;
 }
 
@@ -533,7 +472,7 @@ function sectionTableTemplate(title: string, rows: Array<readonly [string, unkno
   return html`
     <RodNetworkSection>
       <RodNetworkSectionTitle>${title}</RodNetworkSectionTitle>
-      <RodNetworkTableWrap>
+      <RodSharedTableWrap>
         <RodNetworkKvTable>
           <tbody>
             ${rows.map(([key, value]) => html`
@@ -544,7 +483,7 @@ function sectionTableTemplate(title: string, rows: Array<readonly [string, unkno
             `)}
           </tbody>
         </RodNetworkKvTable>
-      </RodNetworkTableWrap>
+      </RodSharedTableWrap>
     </RodNetworkSection>
   `;
 }
@@ -560,7 +499,7 @@ function sectionPreTemplate(title: string, value: string): RenderPiece {
   return html`
     <RodNetworkSection>
       <RodNetworkSectionTitle>${title}</RodNetworkSectionTitle>
-      <RodNetworkPre>${value}</RodNetworkPre>
+      <RodSharedPreBlock>${value}</RodSharedPreBlock>
     </RodNetworkSection>
   `;
 }
@@ -569,7 +508,7 @@ function messagesTableTemplate(record: NetworkRecord): RenderPiece {
   const messages = record.messages ?? [];
 
   return html`
-    <RodNetworkTableWrap>
+    <RodSharedTableWrap>
       <RodNetworkTable>
         <thead>
           <tr>
@@ -583,12 +522,12 @@ function messagesTableTemplate(record: NetworkRecord): RenderPiece {
             <tr>
               <td>${message.direction === "sent" ? "↑ Sent" : "↓ Received"}</td>
               <td>${new Date(message.timestamp).toLocaleTimeString()}</td>
-              <td><RodNetworkPre>${message.data}</RodNetworkPre></td>
+              <td><RodSharedPreBlock>${message.data}</RodSharedPreBlock></td>
             </tr>
           `)}
         </tbody>
       </RodNetworkTable>
-    </RodNetworkTableWrap>
+    </RodSharedTableWrap>
   `;
 }
 
