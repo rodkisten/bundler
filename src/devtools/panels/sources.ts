@@ -15,9 +15,9 @@ import {
   renderValue,
 } from "../core/serialize";
 import {
-  asElement,
   event,
   html,
+  ref,
   render,
 } from "../components/runtime";
 import { Tool } from "../tool";
@@ -27,16 +27,6 @@ import type {
   ToolContext,
 } from "../types";
 import {
-  SourcesBreadcrumb,
-  SourcesCodeMirrorHost,
-  SourcesEditor,
-  SourcesEmpty,
-  SourcesIframe,
-  SourcesImage,
-  SourcesLinkList,
-  SourcesObject,
-  SourcesPre,
-  SourcesTextButton,
   sourcesStyleArtifacts,
   type SourcesViewModel,
 } from "./sources-components";
@@ -359,9 +349,9 @@ export class Sources extends Tool {
     this.disposeBody = render(
       this.body,
       html`
-        <SourcesEmpty>
+        <RodSourcesEmpty>
           <strong>Loading source…</strong>
-        </SourcesEmpty>
+        </RodSourcesEmpty>
       `,
     );
   }
@@ -374,7 +364,7 @@ export class Sources extends Tool {
 
     this.disposeBody = render(
       this.body,
-      html`<SourcesPre>${value}</SourcesPre>`,
+      html`<RodSourcesPre>${value}</RodSourcesPre>`,
     );
   }
 
@@ -382,28 +372,18 @@ export class Sources extends Tool {
     if (!this.body) return;
 
     this.destroyEditor();
-
     this.disposeBody?.();
-    this.disposeBody = null;
-
     this.renderedText = code;
 
-    const wrapper = asElement<HTMLElement>(
-      SourcesEditor(),
-    );
+    let editorHost: HTMLElement | null = null;
+    this.disposeBody = render(this.body, html`
+      <RodSourcesEditor>
+        <RodSourcesBreadcrumb>${this.sourceTitle(type)}</RodSourcesBreadcrumb>
+        <RodSourcesCodeMirrorHost ref=${ref<HTMLElement>((node) => { editorHost = node; })} />
+      </RodSourcesEditor>
+    `);
 
-    const breadcrumb = asElement<HTMLElement>(
-      SourcesBreadcrumb({
-        children: this.sourceTitle(type),
-      }),
-    );
-
-    const editorHost = asElement<HTMLElement>(
-      SourcesCodeMirrorHost(),
-    );
-
-    wrapper.append(breadcrumb, editorHost);
-    this.body.replaceChildren(wrapper);
+    if (!editorHost) throw new Error("[RodEruda] Sources editor host did not mount");
 
     this.editor = mountCodeEditor({
       parent: editorHost,
@@ -420,89 +400,53 @@ export class Sources extends Tool {
     if (!this.body) return;
 
     this.destroyEditor();
-
     this.disposeBody?.();
-    this.disposeBody = null;
-
-    const wrapper = asElement<HTMLElement>(
-      SourcesObject(),
-    );
-
-    wrapper.append(
-      renderValue(value, {
-        maxDepth: 8,
-        maxEntries: 500,
-      }),
-    );
-
-    this.body.replaceChildren(wrapper);
+    this.disposeBody = render(this.body, html`
+      <RodSourcesObject>
+        ${renderValue(value, { maxDepth: 8, maxEntries: 500 })}
+      </RodSourcesObject>
+    `);
   }
 
   private renderImage(src: string, url: string): void {
     if (!this.body) return;
 
     this.destroyEditor();
-
     this.disposeBody?.();
-    this.disposeBody = null;
 
-    const breadcrumb = asElement<HTMLElement>(
-      SourcesBreadcrumb({
-        children: this.sourceTitle(url || src),
-      }),
-    );
+    let image: HTMLImageElement | null = null;
+    let info: HTMLParagraphElement | null = null;
 
-    const wrapper = asElement<HTMLElement>(
-      SourcesImage(),
-    );
-
-    const image = document.createElement("img");
-    const info = document.createElement("p");
-
-    info.dataset.imageInfo = "";
-    info.textContent = "Loading image…";
-
-    image.src = src;
-    image.alt = "";
-
-    image.addEventListener(
-      "load",
-      () => {
-        info.textContent =
-          `${image.naturalWidth} × ${image.naturalHeight} px`;
-      },
-      { once: true },
-    );
-
-    image.addEventListener(
-      "error",
-      () => {
-        info.textContent = "Image failed to load";
-      },
-      { once: true },
-    );
-
-    wrapper.append(image, info);
-    this.body.replaceChildren(breadcrumb, wrapper);
+    this.disposeBody = render(this.body, html`
+      <RodSourcesBreadcrumb>${this.sourceTitle(url || src)}</RodSourcesBreadcrumb>
+      <RodSourcesImage>
+        <img
+          src=${src}
+          alt=""
+          @load=${event(() => {
+            if (image && info) info.textContent = `${image.naturalWidth} × ${image.naturalHeight} px`;
+          })}
+          @error=${event(() => {
+            if (info) info.textContent = "Image failed to load";
+          })}
+          ref=${ref<HTMLImageElement>((node) => { image = node; })}
+        />
+        <p data-image-info ref=${ref<HTMLParagraphElement>((node) => { info = node; })}>Loading image…</p>
+      </RodSourcesImage>
+    `);
   }
 
   private renderIframe(src: string): void {
     if (!this.body) return;
 
     this.destroyEditor();
-
     this.disposeBody?.();
-    this.disposeBody = null;
-
-    const frame = asElement<HTMLIFrameElement>(
-      SourcesIframe({
-        src,
-        sandbox:
-          "allow-forms allow-modals allow-popups allow-same-origin allow-scripts",
-      }),
-    );
-
-    this.body.replaceChildren(frame);
+    this.disposeBody = render(this.body, html`
+      <RodSourcesIframe
+        src=${src}
+        sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+      />
+    `);
   }
 
   private handleActionName(action: string): void {
@@ -557,13 +501,13 @@ export class Sources extends Tool {
     this.disposeBody = render(
       this.body,
       html`
-        <SourcesBreadcrumb>All sources</SourcesBreadcrumb>
+        <RodSourcesBreadcrumb>All sources</RodSourcesBreadcrumb>
 
-        <SourcesLinkList>
+        <RodSourcesLinkList>
           ${sources.map(
             (source, index) => html`
               <li>
-                <SourcesTextButton
+                <RodSourcesTextButton
                   type="button"
                   @click=${event((click: Event) => {
                     click.preventDefault();
@@ -571,11 +515,11 @@ export class Sources extends Tool {
                   })}
                 >
                   ${source.type} · ${source.title}
-                </SourcesTextButton>
+                </RodSourcesTextButton>
               </li>
             `,
           )}
-        </SourcesLinkList>
+        </RodSourcesLinkList>
       `,
     );
   }

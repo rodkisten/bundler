@@ -8,7 +8,23 @@ export interface ResourcesViewModel {
 
 
 
-export const ResourcesSectionTitle = styled.div("RodSharedSectionTitle").css`
+
+export const ResourcesSection = styled.section("RodResourcesSection").css`
+  margin: 10px;
+  overflow: hidden;
+  border: 1px solid $border;
+  border-radius: $section;
+  background: $background;
+`;
+
+export const ResourcesTableWrap = styled.div("RodResourcesTableWrap").css`
+  width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+`;
+
+export const ResourcesSectionTitle = styled.div("RodResourcesSectionTitle").css`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -20,7 +36,7 @@ export const ResourcesSectionTitle = styled.div("RodSharedSectionTitle").css`
   font-weight: 600;
 `;
 
-export const ResourcesSectionActions = styled.span("RodSharedSectionActions").css`
+export const ResourcesSectionActions = styled.span("RodResourcesSectionActions").css`
   display: flex;
   gap: 4px;
   margin-left: auto;
@@ -105,7 +121,7 @@ export const ResourcesLinkList = styled.ul("RodResourcesLinkList").css`
   }
 `;
 
-export const ResourcesSectionContent = styled.div("RodSharedSectionContent").css`
+export const ResourcesSectionContent = styled.div("RodResourcesSectionContent").css`
   padding: 10px;
 `;
 
@@ -149,6 +165,8 @@ export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
 `;
 
 const RESOURCES_STYLED_COMPONENTS = Object.freeze([
+  ResourcesSection,
+  ResourcesTableWrap,
   ResourcesSectionTitle,
   ResourcesSectionActions,
   ResourcesIconButton,

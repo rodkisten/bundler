@@ -48,7 +48,7 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   width: 100%;
   height: 100%;
-  padding-bottom: calc(25px + $safeBottom);
+  padding-bottom: calc(25px + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -193,7 +193,7 @@ export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   display: flex;
   align-items: stretch;
   height: calc(25px + var(--rd-safe-bottom));
-  padding-bottom: $safeBottom;
+  padding-bottom: var(--rd-safe-bottom);
   border-top: 1px solid $border;
   background: $background;
 
@@ -204,7 +204,7 @@ export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   &[data-expanded="true"] {
     top: 0;
     height: 100%;
-    padding: 40px 0 calc(44px + $$safeBottom);
+    padding: 40px 0 calc(44px + var(--rd-safe-bottom));
   }
 `;
 
@@ -248,7 +248,7 @@ export const ConsoleCodeEditorHost = styled.div("RodConsoleCodeEditorHost").css`
 export const ConsoleEditorActions = styled.div("RodConsoleEditorActions").css`
   position: absolute;
   right: 0;
-  bottom: $$safeBottom;
+  bottom: var(--rd-safe-bottom);
   left: 0;
   display: none;
   height: 44px;

@@ -94,6 +94,7 @@ function polyfillBrowserApis(): void {
 
   Object.defineProperty(globalThis, "requestAnimationFrame", {
     configurable: true,
+    writable: true,
     value: (callback: FrameRequestCallback) =>
       window.setTimeout(
         () => callback(performance.now()),
@@ -103,6 +104,7 @@ function polyfillBrowserApis(): void {
 
   Object.defineProperty(globalThis, "cancelAnimationFrame", {
     configurable: true,
+    writable: true,
     value: (id: number) => window.clearTimeout(id),
   });
 
@@ -322,6 +324,7 @@ describe("Elements panel", () => {
 
     expect(tree?.textContent).not.toContain("&lt;html");
     expect(tree?.textContent).not.toContain("&gt;");
+    expect(tree?.textContent).not.toContain("[object Object]");
   });
 
   it("selects a DOM node and renders its complete detail inspector", () => {
@@ -349,10 +352,12 @@ describe("Elements panel", () => {
     expect(detail?.textContent).toContain("Event Listeners");
     expect(detail?.textContent).toContain("Properties");
 
+    const idAttributeRow = Array.from(
+      detail?.querySelectorAll<HTMLElement>("[data-attribute-row]") ?? [],
+    ).find((row) => row.dataset.originalName === "id");
+
     expect(
-      detail?.querySelector<HTMLInputElement>(
-        '[data-attribute-name][value="id"]',
-      ),
+      idAttributeRow?.querySelector<HTMLInputElement>("[data-attribute-name]"),
     ).toBeInstanceOf(HTMLInputElement);
 
     expect(mocks.getEventListeners).toHaveBeenCalled();
@@ -403,7 +408,7 @@ describe("Elements panel", () => {
 
     const bodyRow = findNodeRow(
       fixture.container,
-      /^▾?<body/,
+      /<body/,
     );
 
     expect(fixture.container.textContent).toContain('id="page-app"');
@@ -422,7 +427,7 @@ describe("Elements panel", () => {
 
     const collapsedBodyRow = findNodeRow(
       fixture.container,
-      /^▸?<body/,
+      /<body/,
     );
 
     const collapsedToggle =
@@ -767,7 +772,7 @@ describe("Elements panel", () => {
       })
       .join("\n");
 
-    expect(cssText).toContain(".cp-RodElements");
+    expect(cssText).toMatch(/\.rd-(?:s-|position-|display-|width-)/);
     expect(cssText).not.toContain("$background");
     expect(cssText).not.toContain("$border");
     expect(cssText).not.toContain("$primary");

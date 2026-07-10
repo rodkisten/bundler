@@ -201,8 +201,8 @@ const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
   left: 0;
   display: flex;
   align-items: center;
-  height: calc(25px + $$safeBottom);
-  padding-bottom: $$safeBottom;
+  height: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: var(--rd-safe-bottom);
   overflow-x: auto;
   border-top: 1px solid $border;
   color: $primary;
@@ -573,15 +573,20 @@ component("RodElementsView", function RodElementsView(props) {
 export const ElementsDetailSectionView = component<{
   title: string;
   name: string;
-  content: RenderPiece;
+  children?: RenderPiece;
+  onToggle?: (event: Event) => void;
 }>("RodElementsDetailSectionView", function RodElementsDetailSectionView(props) {
   return html`
     <RodElementsDetailSection data-section=${props.name}>
-      <RodElementsSectionTitle type="button" data-detail-section=${props.name}>
+      <RodElementsSectionTitle
+        type="button"
+        data-detail-section=${props.name}
+        @click=${event((click: Event) => props.onToggle?.(click))}
+      >
         <span>${props.title}</span>
         <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
       </RodElementsSectionTitle>
-      <RodElementsSectionContent data-section-content>${props.content}</RodElementsSectionContent>
+      <RodElementsSectionContent data-section-content>${props.children}</RodElementsSectionContent>
     </RodElementsDetailSection>
   `;
 });
@@ -590,28 +595,55 @@ export const ElementsAttributeRowView = component<{
   name: string;
   value: string;
   empty?: boolean;
+  onChange?: (event: Event) => void;
+  onRemove?: (event: Event) => void;
 }>("RodElementsAttributeRowView", function RodElementsAttributeRowView(props) {
   return html`
     <RodElementsAttributeRow data-attribute-row data-original-name=${props.name}>
-      <RodElementsAttributeInput data-attribute-name .value=${props.name} placeholder="attribute" />
-      <RodElementsAttributeInput data-attribute-value .value=${props.value} placeholder="value" />
-      <RodElementsIconButton type="button" title=${props.empty ? "Add" : "Remove"} data-remove-attribute>
-        ${props.empty ? "+" : "×"}
-      </RodElementsIconButton>
+      <RodElementsAttributeInput
+        data-attribute-name
+        .value=${props.name}
+        placeholder="attribute"
+        @change=${event((change: Event) => props.onChange?.(change))}
+      />
+      <RodElementsAttributeInput
+        data-attribute-value
+        .value=${props.value}
+        placeholder="value"
+        @change=${event((change: Event) => props.onChange?.(change))}
+      />
+      <RodElementsIconButton
+        type="button"
+        title=${props.empty ? "Add" : "Remove"}
+        data-remove-attribute
+        @click=${event((click: Event) => props.onRemove?.(click))}
+      >${props.empty ? "+" : "×"}</RodElementsIconButton>
     </RodElementsAttributeRow>
   `;
 });
 
 export const ElementsAttributesView = component<{
   attributes: ElementAttributeModel[];
+  onChange?: (event: Event) => void;
+  onRemove?: (event: Event) => void;
 }>("RodElementsAttributesView", function RodElementsAttributesView(props) {
   return html`
     <RodElementsAttributesGrid>
-      ${props.attributes.map((attribute) => ElementsAttributeRowView({
-        name: attribute.name,
-        value: attribute.value,
-      }))}
-      ${ElementsAttributeRowView({ name: "", value: "", empty: true })}
+      ${props.attributes.map((attribute) => html`
+        <RodElementsAttributeRowView
+          name=${attribute.name}
+          value=${attribute.value}
+          .onChange=${props.onChange as never}
+          .onRemove=${props.onRemove as never}
+        />
+      `)}
+      <RodElementsAttributeRowView
+        name=""
+        value=""
+        .empty=${true}
+        .onChange=${props.onChange as never}
+        .onRemove=${props.onRemove as never}
+      />
     </RodElementsAttributesGrid>
   `;
 });
@@ -669,6 +701,7 @@ export const ElementsComputedStyleView = component<{
 
 export const ElementsStylesView = component<{
   rules: StyleRuleModel[];
+  onChange?: (event: Event) => void;
 }>("RodElementsStylesView", function RodElementsStylesView(props) {
   return html`
     <div>
@@ -680,8 +713,8 @@ export const ElementsStylesView = component<{
           ${rule.declarations.map((declaration) => html`
             <RodElementsStyleDeclaration data-style-declaration=${rule.editable ? "" : null} data-original-property=${rule.editable ? declaration.property : null}>
               ${rule.editable ? html`
-                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" />
-                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" />
+                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" @change=${event((change: Event) => props.onChange?.(change))} />
+                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" @change=${event((change: Event) => props.onChange?.(change))} />
               ` : html`
                 <RodElementsStyleDeclarationText data-kind="property">${declaration.property}</RodElementsStyleDeclarationText>
                 <RodElementsStyleDeclarationText>${declaration.value}${declaration.priority ? " !important" : ""}</RodElementsStyleDeclarationText>
@@ -733,40 +766,62 @@ export const ElementsDetailHeaderView = component<{
   `;
 });
 
-export const ElementsDetailBodyView = component<{ content: RenderPiece }>(
-  "RodSharedScrollableBodyView",
-  (props) => html`<RodSharedScrollableBody>${props.content}</RodSharedScrollableBody>`,
+export const ElementsDetailBodyView = component<{ children?: RenderPiece }>(
+  "RodElementsDetailBodyView",
+  (props) => html`<RodSharedScrollableBody>${props.children}</RodSharedScrollableBody>`,
 );
 
 export const ElementsPreBlockView = component<{ value: string }>(
-  "RodSharedPreBlockView",
+  "RodElementsPreBlockView",
   (props) => html`<RodSharedPreBlock>${props.value}</RodSharedPreBlock>`,
 );
 
-export const ElementsDomTreeView = component<{ content: RenderPiece }>(
+export const ElementsDomTreeView = component<{ children?: RenderPiece }>(
   "RodElementsDomTreeView",
-  (props) => html`<RodElementsDomList data-root="true">${props.content}</RodElementsDomList>`,
+  (props) => html`<RodElementsDomList data-root="true">${props.children}</RodElementsDomList>`,
 );
 
 export const ElementsDomNodeView = component<{
+  node: Node;
   nodeId: string;
   depth: number;
   selected: boolean;
   expandable: boolean;
   expanded: boolean;
-  label: RenderPiece;
   children?: RenderPiece;
   moreCount?: number;
+  onClick?: (event: Event) => void;
+  onDoubleClick?: (event: Event) => void;
+  onContextMenu?: (event: Event) => void;
+  onPointerDown?: (event: Event) => void;
+  onPointerUp?: (event: Event) => void;
+  onPointerCancel?: (event: Event) => void;
+  onPointerMove?: (event: Event) => void;
+  onPointerOver?: (event: Event) => void;
+  onPointerOut?: (event: Event) => void;
 }>("RodElementsDomNodeView", function RodElementsDomNodeView(props) {
   return html`
     <RodElementsDomItem>
-      <RodElementsDomRow data-node-id=${props.nodeId} data-node-depth=${String(props.depth)} data-selected=${String(props.selected)}>
+      <RodElementsDomRow
+        data-node-id=${props.nodeId}
+        data-node-depth=${String(props.depth)}
+        data-selected=${String(props.selected)}
+        @click=${event((value: Event) => props.onClick?.(value))}
+        @dblclick=${event((value: Event) => props.onDoubleClick?.(value))}
+        @contextmenu=${event((value: Event) => props.onContextMenu?.(value))}
+        @pointerdown=${event((value: Event) => props.onPointerDown?.(value))}
+        @pointerup=${event((value: Event) => props.onPointerUp?.(value))}
+        @pointercancel=${event((value: Event) => props.onPointerCancel?.(value))}
+        @pointermove=${event((value: Event) => props.onPointerMove?.(value))}
+        @pointerover=${event((value: Event) => props.onPointerOver?.(value))}
+        @pointerout=${event((value: Event) => props.onPointerOut?.(value))}
+      >
         <RodElementsDomToggle data-toggle-node=${props.expandable ? "" : null}>${props.expandable ? (props.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
-        ${props.label}
+        <RodElementsNodeLabelView .node=${props.node} />
       </RodElementsDomRow>
       ${props.expandable && props.expanded ? html`
         <RodElementsDomList>
-          ${props.children ?? ""}
+          ${props.children}
           ${(props.moreCount ?? 0) > 0 ? html`<RodElementsDomMoreItem>... ${props.moreCount} more nodes</RodElementsDomMoreItem>` : ""}
         </RodElementsDomList>
       ` : ""}
@@ -795,35 +850,46 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
   },
 );
 
-export const ElementsCrumbsView = component<{ elements: Element[] }>(
-  "RodElementsCrumbsView",
-  (props) => html`${props.elements.map((element, index) => html`
-    <RodElementsCrumbButton type="button" data-crumb-index=${String(index)} data-current=${String(index === props.elements.length - 1)}>
-      ${crumbLabel(element)}
-    </RodElementsCrumbButton>
-  `)}`,
-);
+export const ElementsCrumbsView = component<{
+  elements: Element[];
+  onSelect?: (index: number, event: Event) => void;
+}>("RodElementsCrumbsView", (props) => html`
+  ${props.elements.map((element, index) => html`
+    <RodElementsCrumbButton
+      type="button"
+      data-crumb-index=${String(index)}
+      data-current=${String(index === props.elements.length - 1)}
+      @click=${event((click: Event) => props.onSelect?.(index, click))}
+    >${crumbLabel(element)}</RodElementsCrumbButton>
+  `)}
+`);
 
-export const ElementsContextMenuView = component<{ elementId: string }>(
-  "RodElementsContextMenuView",
-  function RodElementsContextMenuView(props) {
-    const actions = [
-      ["copy-element", "Copy element"],
-      ["copy-selector", "Copy selector"],
-      ["edit-attributes", "Edit attributes"],
-      ["edit-props", "Edit props"],
-      ["edit-class", "Edit class"],
-      ["delete-element", "Delete element"],
-    ] as const;
-    return html`
-      <RodElementsMenu role="menu" data-elements-menu data-node-id=${props.elementId}>
-        ${actions.map(([action, label]) => html`
-          <RodElementsMenuButton type="button" role="menuitem" data-elements-menu-action=${action}>${label}</RodElementsMenuButton>
-        `)}
-      </RodElementsMenu>
-    `;
-  },
-);
+export const ElementsContextMenuView = component<{
+  elementId: string;
+  onAction?: (action: string, event: Event) => void;
+}>("RodElementsContextMenuView", function RodElementsContextMenuView(props) {
+  const actions = [
+    ["copy-element", "Copy element"],
+    ["copy-selector", "Copy selector"],
+    ["edit-attributes", "Edit attributes"],
+    ["edit-props", "Edit props"],
+    ["edit-class", "Edit class"],
+    ["delete-element", "Delete element"],
+  ] as const;
+
+  return html`
+    <RodElementsMenu role="menu" data-elements-menu data-node-id=${props.elementId}>
+      ${actions.map(([action, label]) => html`
+        <RodElementsMenuButton
+          type="button"
+          role="menuitem"
+          data-elements-menu-action=${action}
+          @click=${event((click: Event) => props.onAction?.(action, click))}
+        >${label}</RodElementsMenuButton>
+      `)}
+    </RodElementsMenu>
+  `;
+});
 
 export function styleRuleModels(element: Element, rules: StyleRuleInfo[]): StyleRuleModel[] {
   const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({
