@@ -121,4 +121,49 @@ describe("compiled templates with styled Fabrica components", () => {
   });
 
 
+  it("decodes HTML entities exactly once in compiled text and static attributes", () => {
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "div",
+          props: [{ type: "static", name: "title", value: "A &gt; B &amp;&amp; C" }],
+          children: [{ type: "text", value: "&lt;node&gt; &amp; &amp;gt;" }],
+        },
+      ],
+    };
+
+    const fabrica = createFabrica({ name: "compiled-entities", isolated: true });
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition)));
+
+    const div = host.querySelector("div");
+    expect(div?.getAttribute("title")).toBe("A > B && C");
+    expect(div?.textContent).toBe("<node> & &gt;");
+  });
+
+  it("keeps DOM nodes as component children instead of stringifying them", () => {
+    const fabrica = createFabrica({ name: "compiled-node-child", isolated: true });
+    const styled = createStyled({ fabrica });
+    styled.span("NodeChildHost").css`color: $brand;`;
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("data-icon", "probe");
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "NodeChildHost",
+          props: [],
+          children: [{ type: "value", index: 0 }],
+        },
+      ],
+    };
+
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition, svg)));
+
+    expect(host.querySelector("svg[data-icon='probe']")).toBe(svg);
+    expect(host.textContent).not.toContain("[object Object]");
+  });
+
 });
