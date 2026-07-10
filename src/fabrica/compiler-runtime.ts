@@ -155,7 +155,11 @@ export function applyCompiledProps(
     if (value == null || value === false) continue;
 
     if (rawName.startsWith(".")) {
-      setPropertyOrAttribute(element, rawName.slice(1), value);
+      // Explicit dot bindings are property-only. Unlike normal props, they must
+      // also support application-defined properties that do not already exist
+      // on the element prototype. Falling back to setAttribute() here turns
+      // objects, Nodes and callbacks into "[object Object]" strings.
+      setCompiledProperty(element, rawName.slice(1), value);
       continue;
     }
 
@@ -168,6 +172,21 @@ export function applyCompiledProps(
   }
 
   applyProps(element, plainProps);
+}
+
+
+function setCompiledProperty(element: Element, name: string, value: unknown): void {
+  if (!name) return;
+
+  try {
+    (element as unknown as Record<string, unknown>)[name] = value;
+  } catch (error) {
+    throw new TypeError(
+      `[Fabrica] Unable to assign property ".${name}" on <${element.tagName.toLowerCase()}>: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 }
 
 export interface RuntimeCompiledTemplate {
