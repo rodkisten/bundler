@@ -15,6 +15,8 @@ export interface CodeEditorOptions {
   language?: CodeEditorLanguage;
   dark?: boolean;
   readOnly?: boolean;
+  lineNumbers?: boolean;
+  lineWrapping?: boolean;
   parent: HTMLElement;
   completions?: (context: CompletionContext) => CompletionResult | null;
   onChange?(value: string): void;
@@ -33,7 +35,7 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
     if (update.docChanged) options.onChange?.(update.state.doc.toString());
   });
   const extensions: Extension[] = [
-    lineNumbers(),
+    ...(options.lineNumbers === false ? [] : [lineNumbers()]),
     history(),
     drawSelection(),
     highlightActiveLine(),
@@ -45,7 +47,7 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
     languageExtension(options.language ?? "text"),
     autocompletion({ override: options.completions ? [options.completions as never] : undefined }),
     updateListener,
-    EditorView.lineWrapping,
+    ...(options.lineWrapping === false ? [] : [EditorView.lineWrapping]),
     EditorView.theme({
       "&": { minHeight: "100%", fontSize: "12px" },
       ".cm-scroller": { fontFamily: "var(--rd-font-mono)", minHeight: "100%" },
