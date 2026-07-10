@@ -8,7 +8,16 @@ export interface SettingsViewModel {
 
 
 
-export const SettingsSectionTitle = styled.div("RodSharedSectionTitle").css`
+
+export const SettingsSection = styled.section("RodSettingsSection").css`
+  margin: 10px;
+  overflow: hidden;
+  border: 1px solid $border;
+  border-radius: $section;
+  background: $background;
+`;
+
+export const SettingsSectionTitle = styled.div("RodSettingsSectionTitle").css`
   min-height: 38px;
   padding: 9px 10px;
   border-bottom: 1px solid $border;
@@ -84,6 +93,7 @@ export const SettingsSelect = styled.select("RodSettingsSelect").css`
 `;
 
 const SETTINGS_STYLED_COMPONENTS = Object.freeze([
+  SettingsSection,
   SettingsSectionTitle,
   SettingsRow,
   SettingsText,

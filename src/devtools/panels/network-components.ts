@@ -75,7 +75,7 @@ const NetworkList = styled.div("RodNetworkList").css`
   width: 100%;
   height: 100%;
   padding-top: $$controlHeight;
-  padding-bottom: $$safeBottom;
+  padding-bottom: var(--rd-safe-bottom);
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;

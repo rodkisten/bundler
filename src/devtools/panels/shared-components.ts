@@ -93,14 +93,14 @@ export const SharedPanelBody = styled.div("RodSharedPanelBody").css`
   width: 100%;
   height: calc(100% - 38px);
   overflow: auto;
-  padding-bottom: $$safeBottom;
+  padding-bottom: var(--rd-safe-bottom);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 `;
 
 export const SharedScrollableBody = styled.div("RodSharedScrollableBody").css`
   height: 100%;
-  padding-bottom: $$safeBottom;
+  padding-bottom: var(--rd-safe-bottom);
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
