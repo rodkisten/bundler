@@ -585,6 +585,188 @@ function dataAttributePriority(name: string): number {
   }
 }
 
+const MAX_NODE_PATH_DEPTH = 8;
+
+const NODE_PATH_DATA_ATTRIBUTES = [
+  "data-testid",
+  "data-test",
+  "data-cy",
+  "data-qa",
+  "data-id",
+] as const;
+
+export function nodePath(node: Node): string {
+  if (!(node instanceof Element)) {
+    return describeNode(node);
+  }
+  const parts: string[] = [];
+  let current: Element | null = node;
+  let depth = 0;
+  while (current && depth < MAX_NODE_PATH_DEPTH) {
+    const part = describePathElement(current);
+    parts.unshift(part);
+    depth += 1;
+    if (current.id) {
+      break;
+    }
+    const root = current.getRootNode();
+    const parent = current.parentElement;
+    if (parent) {
+      current = parent;
+      continue;
+    }
+    /*
+     * parentElement é null para elementos diretamente dentro
+     * de um ShadowRoot. Incluímos o host e marcamos a fronteira
+     * com ::shadow.
+     */
+    if (
+      typeof ShadowRoot !== "undefined" &&
+      root instanceof ShadowRoot
+    ) {
+      parts.unshift("::shadow");
+      current = root.host;
+      continue;
+    }
+    current = null;
+  }
+  const path = parts.join(" > ");
+  debugTrace("dom", "nodePath", {
+    node: describeNode(node),
+    path,
+    depth,
+  });
+  return path;
+}
+
+function describePathElement(element: Element): string {
+  const tagName = element.tagName.toLowerCase();
+  if (element.id) {
+    return `${tagName}#${escapeCssIdentifier(element.id)}`;
+  }
+  const dataSelector = getStableDataSelector(element);
+  if (dataSelector) {
+    return `${tagName}${dataSelector}`;
+  }
+  const classSelector = getStableClassSelector(element);
+  let selector = `${tagName}${classSelector}`;
+  if (!isUniqueAmongSiblings(element, selector)) {
+    selector += `:nth-of-type(${getElementIndexOfType(element)})`;
+  }
+  return selector;
+}
+
+function getStableDataSelector(
+  element: Element,
+): string {
+  for (const attributeName of NODE_PATH_DATA_ATTRIBUTES) {
+    const value = element.getAttribute(attributeName);
+    if (!value) {
+      continue;
+    }
+    return `[${attributeName}="${escapeCssString(value)}"]`;
+  }
+  return "";
+}
+function getStableClassSelector(
+  element: Element,
+): string {
+  return Array.from(element.classList)
+    .filter(isUsefulPathClass)
+    .slice(0, 2)
+    .map((className) => `.${escapeCssIdentifier(className)}`)
+    .join("");
+}
+function isUsefulPathClass(className: string): boolean {
+  if (!className) {
+    return false;
+  }
+  /*
+   * Evita classes geradas por CSS-in-JS, hashes e estados
+   * excessivamente voláteis quando houver classes melhores.
+   */
+  if (/^(active|selected|hover|focus|open|closed|disabled)$/i.test(className)) {
+    return false;
+  }
+  if (/^[a-z0-9_-]{8,}$/i.test(className) && /\d/.test(className)) {
+    return false;
+  }
+  return true;
+}
+function isUniqueAmongSiblings(
+  element: Element,
+  selector: string,
+): boolean {
+  const parent = element.parentElement;
+  if (!parent) {
+    return true;
+  }
+  try {
+    let matches = 0;
+    for (const child of parent.children) {
+      if (child.matches(selector)) {
+        matches += 1;
+        if (matches > 1) {
+          return false;
+        }
+      }
+    }
+    return matches === 1;
+  } catch {
+    return false;
+  }
+}
+function getElementIndexOfType(
+  element: Element,
+): number {
+  let index = 1;
+  let sibling = element.previousElementSibling;
+  while (sibling) {
+    if (sibling.tagName === element.tagName) {
+      index += 1;
+    }
+    sibling = sibling.previousElementSibling;
+  }
+  return index;
+}
+function escapeCssIdentifier(
+  value: string,
+): string {
+  if (
+    typeof CSS !== "undefined" &&
+    typeof CSS.escape === "function"
+  ) {
+    return CSS.escape(value);
+  }
+  /*
+   * Fallback seguro para navegadores antigos, userscripts
+   * e ambientes DOM incompletos.
+   */
+  return String(value).replace(
+    /(^-?\d)|[^a-zA-Z0-9_-]/g,
+    (character, leadingDigit: string | undefined) => {
+      if (leadingDigit) {
+        return `\\3${character} `;
+      }
+      const codePoint = character.codePointAt(0);
+      return codePoint == null
+        ? ""
+        : `\\${codePoint.toString(16)} `;
+    },
+  );
+}
+
+function escapeCssString(
+  value: string,
+): string {
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("\n", "\\a ")
+    .replaceAll("\r", "\\d ")
+    .replaceAll("\f", "\\c ");
+}
+
 /* ******************** */
 /* Devtools boundaries  */
 /* ******************** */
