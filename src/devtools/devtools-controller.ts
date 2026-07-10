@@ -2,7 +2,8 @@ import type { CipoCssArtifact } from "../cipo";
 import type { ShellRefs } from "./components/shell";
 import { asElement, event, html, ref, styled, uiState } from "./components/runtime";
 import { ConfigStore } from "./core/config";
-import { icon, on } from "./core/dom";
+import { on } from "./core/dom";
+import { icon } from "./utils";
 import { Emitter } from "./core/emitter";
 import { applyTheme, themes } from "./core/theme";
 import type {
