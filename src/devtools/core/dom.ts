@@ -197,9 +197,9 @@ export function describeNode(node: Node): string {
   const id = node.id ? `#${node.id}` : "";
 
   const dataset =
-    !id && Object.keys(node.dataset).length
+    !id && Object.keys(node.dataSet).length
       ? ":" +
-        Object.entries(node.dataset)
+        Object.entries(node.dataSet)
           .slice(0, 4)
           .map(([key, value]) =>
             value ? `${key}=${truncate(String(value), 24)}` : key,
