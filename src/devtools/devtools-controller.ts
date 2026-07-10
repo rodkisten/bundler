@@ -27,6 +27,7 @@ interface ControllerEvents {
 interface DevToolsConfig extends Record<string, unknown> {
   transparency: number;
   displaySize: number;
+  blur: number;
   theme: string;
   panelOrder: string[];
   disabledPanels: string[];
@@ -304,6 +305,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     this.config = new ConfigStore<DevToolsConfig>("dev-tools", {
       transparency: defaults.transparency ?? 0.95,
+      blur: defaults.blur ?? 0,
       displaySize: defaults.displaySize ?? 80,
       theme: defaults.theme ?? "System preference",
       panelOrder: [],
@@ -519,6 +521,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     requestAnimationFrame(() => {
       this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
+
+      this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("transparency")}px`;
     });
 
     this.emit("show");
@@ -683,6 +687,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     if (!this.inline) {
       settings.registerRange(this.config, "transparency", "Transparency", { min: 0.2, max: 1, step: 0.01 });
+      settings.registerRange(this.config, "blur", "Background blur", { min: 0, max: 10, step: 0.01 });
       settings.registerRange(this.config, "displaySize", "Display Size", { min: 40, max: 100, step: 1 });
     }
 
@@ -705,7 +710,6 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   setScale(scale: number): this {
     const value = Number.isFinite(scale) && scale > 0 ? scale : 1;
-
     this.refs.root.style.setProperty("--rd-scale", String(value));
     this.refs.devtools.style.transformOrigin = "left bottom";
     this.refs.devtools.style.transform = value === 1 ? "" : `scale(${value})`;
@@ -789,6 +793,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (!key || key === "transparency") {
       if (this.visible || this.inline) {
         this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
+      }
+    }
+
+    if (!key || key === "blur") {
+      if (this.visible || this.inline) {
+        this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("blur")}px`);
       }
     }
 
