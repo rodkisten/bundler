@@ -76,6 +76,82 @@ describe("compiled templates with styled Fabrica components", () => {
     expect(onInput).toHaveBeenCalledTimes(1);
     expect(getCssText()).toContain(input?.className.split(/\s+/)[0] ?? "missing-class");
   });
+  it("assigns arbitrary dot bindings as properties without stringifying objects", () => {
+    const payload = { id: 42, nested: { active: true } };
+    const callback = vi.fn();
+    const fragment = document.createDocumentFragment();
+    fragment.append(document.createElement("strong"));
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "div",
+          props: [
+            { type: "value", name: ".payload", index: 0 },
+            { type: "value", name: ".callback", index: 1 },
+            { type: "value", name: ".content", index: 2 },
+          ],
+          children: [],
+        },
+      ],
+    };
+
+    const fabrica = createFabrica({ name: "compiled-generic-properties", isolated: true });
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition, payload, callback, fragment)));
+
+    const element = host.querySelector("div") as HTMLDivElement & {
+      payload?: unknown;
+      callback?: unknown;
+      content?: unknown;
+    };
+
+    expect(element.payload).toBe(payload);
+    expect(element.callback).toBe(callback);
+    expect(element.content).toBe(fragment);
+    expect(element.hasAttribute("payload")).toBe(false);
+    expect(element.hasAttribute("callback")).toBe(false);
+    expect(element.hasAttribute("content")).toBe(false);
+    expect(host.textContent).not.toContain("[object Object]");
+  });
+
+  it("preserves arbitrary dot-bound component props in compiled named tags", () => {
+    const fabrica = createFabrica({ name: "compiled-component-properties", isolated: true });
+    const received = vi.fn();
+    const payload = { nodeType: "model", id: 7 };
+
+    fabrica.component<{ payload: object; onSelect: () => void }>(
+      "GenericPropertyProbe",
+      (props) => {
+        received(props);
+        return fabrica.html`<output>${props.payload === payload ? "same" : "different"}</output>`;
+      },
+    );
+
+    const onSelect = vi.fn();
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "GenericPropertyProbe",
+          props: [
+            { type: "value", name: ".payload", index: 0 },
+            { type: "value", name: ".onSelect", index: 1 },
+          ],
+          children: [],
+        },
+      ],
+    };
+
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition, payload, onSelect)));
+
+    const props = received.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(props.payload).toBe(payload);
+    expect(props.onSelect).toBe(onSelect);
+    expect(host.querySelector("output")?.textContent).toBe("same");
+    expect(host.textContent).not.toContain("[object Object]");
+  });
+
   it("emits runtime instructions for named styled component templates", () => {
     const result = compileFabricaSource(
       'const view = html`<CompiledField .value=${value} @input=${onInput}>${label}</CompiledField>`;',

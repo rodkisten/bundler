@@ -55,6 +55,24 @@ describe("Fabrica compound attribute interpolation", () => {
     expect(button?.title).toBe("Open Settings panel");
   });
 
+  it("supports arbitrary dot-bound DOM properties, not only .value", () => {
+    const payload = { id: 42 };
+    const callback = vi.fn();
+
+    render(host, html`<div .payload=${payload} .onSelect=${callback}></div>`);
+
+    const element = host.querySelector("div") as HTMLDivElement & {
+      payload?: unknown;
+      onSelect?: unknown;
+    };
+
+    expect(element.payload).toBe(payload);
+    expect(element.onSelect).toBe(callback);
+    expect(element.hasAttribute("payload")).toBe(false);
+    expect(element.hasAttribute("onselect")).toBe(false);
+    expect(host.textContent).not.toContain("[object Object]");
+  });
+
   it("preserves exact single-value component props without stringifying objects or fragments", () => {
     const received = vi.fn();
     const payload = { id: 42 };
