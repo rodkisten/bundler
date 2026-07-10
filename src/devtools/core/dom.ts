@@ -1,5 +1,6 @@
 import { uiElement } from "../components/runtime";
 import { debugLog, debugTrace, debugWarn } from "./debug";
+import { describeNode } from "../utils";
 
 export type Cleanup = () => void;
 
@@ -180,7 +181,7 @@ export function safeStringify(value: unknown, spacing = 2): string {
     return String(value);
   }
 }
-
+/*
 export function describeNode(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return `#text ${truncate(node.textContent?.trim() || "", 60)}`;
@@ -213,7 +214,7 @@ export function describeNode(node: Node): string {
   return `<${node.tagName.toLowerCase()}${id}${datasetDescription}${classes}>`;
 }
 
-
+*/
 
 export function nodePath(node: Node): string {
   if (!(node instanceof Element)) return describeNode(node);
