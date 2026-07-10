@@ -54,7 +54,7 @@ export class ElementHighlighter {
     host.className = OVERLAY_CLASS;
     host.setAttribute("data-roderuda-internal", "highlighter");
     host.setAttribute("aria-hidden", "true");
-    host.style.cssText = "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483647;pointer-events:none;overflow:hidden;font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;contain:strict;";
+    host.style.cssText = "position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483640;pointer-events:none;overflow:hidden;font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;contain:strict;";
     const colors = [
       "rgb(246 178 107 / .32)",
       "rgb(255 229 153 / .36)",
