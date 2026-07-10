@@ -1,4 +1,5 @@
-import { create, describeNode, escapeHtml, safeStringify, truncate } from "./dom";
+import { create } from "./dom";
+import { describeNode, safeStringify, escapeHtml, truncate } from "../utils"; 
 
 export interface RenderValueOptions {
   depth?: number;
