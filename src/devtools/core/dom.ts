@@ -185,35 +185,35 @@ export function describeNode(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     return `#text ${truncate(node.textContent?.trim() || "", 60)}`;
   }
-
   if (node.nodeType === Node.COMMENT_NODE) {
     return `<!--${truncate(node.textContent || "", 60)}-->`;
   }
-
   if (!(node instanceof Element)) {
     return node.nodeName;
   }
-
   const id = node.id ? `#${node.id}` : "";
-
-  const dataset =
-    !id && Object.keys(node.dataset).length
-      ? ":" +
-        Object.entries(node.dataset)
-          .slice(0, 4)
-          .map(([key, value]) =>
-            value ? `${key}=${truncate(String(value), 24)}` : key,
-          )
-          .join(":")
-      : "";
-
+  const dataset = !id
+    ? Array.from(node.attributes)
+        .filter((attribute) => attribute.name.startsWith("data-"))
+        .slice(0, 4)
+        .map((attribute) => {
+          const key = attribute.name.slice("data-".length);
+          const value = attribute.value.trim();
+          return value
+            ? `${key}=${truncate(value, 24)}`
+            : key;
+        })
+        .join(":")
+    : "";
+  const datasetDescription = dataset ? `:${dataset}` : "";
   const classes = Array.from(node.classList)
     .slice(0, 4)
     .map((name) => `.${name}`)
     .join("");
-
-  return `<${node.tagName.toLowerCase()}${id}${dataset}${classes}>`;
+  return `<${node.tagName.toLowerCase()}${id}${datasetDescription}${classes}>`;
 }
+
+
 
 export function nodePath(node: Node): string {
   if (!(node instanceof Element)) return describeNode(node);
