@@ -1,5 +1,5 @@
 import { isDevtoolsNode, setStyles } from "./dom";
-import { describeNode } from "@/devtools/utils"
+import { describeNode } from "../utils"
 
 const HIGHLIGHT_DURATION = 850;
 const OVERLAY_CLASS = "__roderuda-overlay__";
