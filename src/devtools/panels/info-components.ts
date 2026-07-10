@@ -1,6 +1,7 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
 import { component, event, html, ref, styled } from "../components/runtime";
+import "./shared-components";
 
 export type InfoModel = {
   items: Array<{ name: string; value: unknown }>;
@@ -15,24 +16,7 @@ export interface InfoViewModel {
   renderValue(value: unknown): RenderValue;
 }
 
-export const InfoRoot = styled.section("RodInfoRoot").css`
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: $background;
-`;
 
-export const InfoHeader = styled.header("RodInfoHeader").css`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 9px 10px;
-  border-bottom: 1px solid $border;
-  color: $primary;
-  background: $backgroundDark;
-  font-weight: 600;
-`;
 
 export const InfoTitle = styled.span("RodInfoTitle").css`
   min-width: 0;
@@ -42,74 +26,11 @@ export const InfoTitle = styled.span("RodInfoTitle").css`
   white-space: nowrap;
 `;
 
-export const InfoActions = styled.div("RodInfoActions").css`
-  display: flex;
-  gap: 4px;
-`;
 
-export const InfoButton = styled.button("RodInfoButton").css`
-  appearance: none;
-  min-width: 28px;
-  min-height: 28px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: $control;
-  color: $primary;
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: color .18s, background .18s, transform .1s;
 
-  &:hover,
-  &:focus-visible {
-    color: $selectedForeground;
-    background: $highlight;
-  }
 
-  &:active {
-    transform: scale(.96);
-    color: $accent;
-  }
-`;
 
-export const InfoBody = styled.div("RodInfoBody").css`
-  width: 100%;
-  height: calc(100% - 38px);
-  overflow: auto;
-  padding-bottom: $$safeBottom;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-`;
 
-export const InfoEmpty = styled.div("RodInfoEmpty").css`
-  display: grid;
-  min-height: 180px;
-  place-content: center;
-  padding: 24px;
-  color: $foreground;
-  text-align: center;
-`;
-
-export const InfoCard = styled.article("RodInfoCard").css`
-  margin: 10px;
-  overflow: hidden;
-  border: 1px solid $border;
-  border-radius: $section;
-  background: $background;
-`;
-
-export const InfoCardTitle = styled.header("RodInfoCardTitle").css`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 9px 10px;
-  border-bottom: 1px solid $border;
-  color: $primary;
-  background: $backgroundDark;
-  font-weight: 600;
-`;
 
 export const InfoCardContent = styled.div("RodInfoCardContent").css`
   padding: 10px;
@@ -140,15 +61,7 @@ export const InfoValue = styled.div("RodInfoValue").css`
 `;
 
 const INFO_STYLED_COMPONENTS = Object.freeze([
-  InfoRoot,
-  InfoHeader,
   InfoTitle,
-  InfoActions,
-  InfoButton,
-  InfoBody,
-  InfoEmpty,
-  InfoCard,
-  InfoCardTitle,
   InfoCardContent,
   InfoKv,
   InfoKey,
@@ -165,28 +78,28 @@ component("RodInfoView", function RodInfoView(props) {
   const model = view.model();
 
   return html`
-    <RodInfoRoot ref=${ref<HTMLElement>((node) => {
+    <RodSharedPanelRoot ref=${ref<HTMLElement>((node) => {
       view.setRoot(node);
       return () => view.setRoot(null);
     })}>
-      <RodInfoHeader>
+      <RodSharedHeader>
         <RodInfoTitle>Page information</RodInfoTitle>
-        <RodInfoActions>
-          <RodInfoButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.refresh(); })}>Refresh</RodInfoButton>
-          <RodInfoButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyAll(); })}>Copy all</RodInfoButton>
-        </RodInfoActions>
-      </RodInfoHeader>
-      <RodInfoBody data-info-body>
+        <RodSharedActions>
+          <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.refresh(); })}>Refresh</RodSharedButton>
+          <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyAll(); })}>Copy all</RodSharedButton>
+        </RodSharedActions>
+      </RodSharedHeader>
+      <RodSharedPanelBody data-info-body>
         ${model.items.length ? model.items.map((item, index) => html`
-          <RodInfoCard>
-            <RodInfoCardTitle>
+          <RodSharedCard>
+            <RodSharedHeader>
               <RodInfoTitle>${item.name}</RodInfoTitle>
-              <RodInfoButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyItem(index); })}>Copy</RodInfoButton>
-            </RodInfoCardTitle>
+              <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyItem(index); })}>Copy</RodSharedButton>
+            </RodSharedHeader>
             <RodInfoCardContent>${view.renderValue(item.value)}</RodInfoCardContent>
-          </RodInfoCard>
-        `) : html`<RodInfoEmpty>No information registered.</RodInfoEmpty>`}
-      </RodInfoBody>
-    </RodInfoRoot>
+          </RodSharedCard>
+        `) : html`<RodSharedEmptyState>No information registered.</RodSharedEmptyState>`}
+      </RodSharedPanelBody>
+    </RodSharedPanelRoot>
   `;
 });

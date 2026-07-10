@@ -4,6 +4,7 @@ import { describeNode, icon, nodePath, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
 import { component, event, html, ref, styled } from "../components/runtime";
+import "./shared-components";
 
 bootstrapDevtoolsCipo();
 
@@ -55,12 +56,6 @@ export type PropertyModel = {
 /* Styled elements */
 /* *************** */
 
-const ElementsLayout = styled.div("RodElementsLayout").css`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-`;
 
 const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
   position: relative;
@@ -74,24 +69,7 @@ const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
   }
 `;
 
-const ElementsControl = styled.div("RodElementsControl").css`
-  position: absolute;
-  inset: 0 0 auto 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: $$controlHeight;
-  padding: 7px 8px;
-  border-bottom: 1px solid $border;
-  color: $primary;
-  background: $backgroundDark;
-`;
 
-const ElementsControlSpacer = styled.div("RodElementsControlSpacer").css`
-  flex: 1 1 auto;
-  min-width: 4px;
-`;
 
 const ElementsIconButton = styled.button("RodElementsIconButton").css`
   appearance: none;
@@ -274,23 +252,7 @@ const DetailPanel = styled.section("RodElementsDetailPanel").css`
   }
 `;
 
-const DetailTitle = styled.div("RodElementsDetailTitle").css`
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: $primary;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
 
-const DetailBody = styled.div("RodElementsDetailBody").css`
-  height: 100%;
-  padding-bottom: $$safeBottom;
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-`;
 
 const DetailSection = styled.section("RodElementsDetailSection").css`
   margin: 10px 0;
@@ -393,16 +355,6 @@ const KvTable = styled.table("RodElementsKvTable").css`
   }
 `;
 
-const PreBlock = styled.pre("RodElementsPreBlock").css`
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  color: $foreground;
-  font: 12px / 1.5 $font.mono;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-`;
 
 const BoxModel = styled.div("RodElementsBoxModel").css`
   min-width: 300px;
@@ -535,10 +487,7 @@ const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
 `;
 
 const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
-  ElementsLayout,
   ElementsTreeSide,
-  ElementsControl,
-  ElementsControlSpacer,
   ElementsIconButton,
   ElementsTreeWrap,
   DomTree,
@@ -554,8 +503,6 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   ElementsCrumbs,
   CrumbButton,
   DetailPanel,
-  DetailTitle,
-  DetailBody,
   DetailSection,
   SectionTitle,
   SectionActions,
@@ -565,7 +512,6 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   AttributeInput,
   TableWrap,
   KvTable,
-  PreBlock,
   BoxModel,
   BoxLayer,
   StyleRule,
@@ -591,17 +537,17 @@ component("RodElementsView", function RodElementsView(props) {
   const view = props.view as ElementsViewModel;
 
   return html`
-    <RodElementsLayout data-elements-layout>
+    <RodSharedPanelLayout data-elements-layout>
       <RodElementsTreeSide data-elements-tree-side>
-        <RodElementsControl data-elements-control>
+        <RodSharedControlBar data-elements-control>
           <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
-          <RodElementsControlSpacer />
+          <RodSharedControlSpacer />
           <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
           <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event((click: Event) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
-        </RodElementsControl>
+        </RodSharedControlBar>
 
         <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event(() => view.onTreeScroll())}>
           <RodElementsDomTree data-elements-tree ref=${ref((node) => {
@@ -620,7 +566,7 @@ component("RodElementsView", function RodElementsView(props) {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       })} />
-    </RodElementsLayout>
+    </RodSharedPanelLayout>
   `;
 });
 
@@ -779,22 +725,22 @@ export const ElementsDetailHeaderView = component<{
   onAction: (event: Event) => void;
 }>("RodElementsDetailHeaderView", function RodElementsDetailHeaderView(props) {
   return html`
-    <RodElementsControl data-elements-detail-control>
+    <RodSharedControlBar data-elements-detail-control>
       <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event(props.onAction)}>${icon("back")}</RodElementsIconButton>
-      <RodElementsDetailTitle>${describeNode(props.element)}</RodElementsDetailTitle>
+      <RodSharedDetailTitle>${describeNode(props.element)}</RodSharedDetailTitle>
       <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
-    </RodElementsControl>
+    </RodSharedControlBar>
   `;
 });
 
 export const ElementsDetailBodyView = component<{ content: RenderPiece }>(
-  "RodElementsDetailBodyView",
-  (props) => html`<RodElementsDetailBody>${props.content}</RodElementsDetailBody>`,
+  "RodSharedScrollableBodyView",
+  (props) => html`<RodSharedScrollableBody>${props.content}</RodSharedScrollableBody>`,
 );
 
 export const ElementsPreBlockView = component<{ value: string }>(
-  "RodElementsPreBlockView",
-  (props) => html`<RodElementsPreBlock>${props.value}</RodElementsPreBlock>`,
+  "RodSharedPreBlockView",
+  (props) => html`<RodSharedPreBlock>${props.value}</RodSharedPreBlock>`,
 );
 
 export const ElementsDomTreeView = component<{ content: RenderPiece }>(

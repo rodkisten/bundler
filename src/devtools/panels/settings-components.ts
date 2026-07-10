@@ -1,27 +1,14 @@
 import type { CipoCssArtifact } from "../../cipo";
 import { component, html, ref, styled } from "../components/runtime";
+import "./shared-components";
 
 export interface SettingsViewModel {
   setBody(node: HTMLElement | null): void;
 }
 
-export const SettingsBody = styled.div("RodSettingsBody").css`
-  height: 100%;
-  padding-bottom: $$safeBottom;
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-`;
 
-export const SettingsSection = styled.section("RodSettingsSection").css`
-  margin: 10px;
-  overflow: hidden;
-  border: 1px solid $border;
-  border-radius: $md;
-  background: $background;
-`;
 
-export const SettingsSectionTitle = styled.div("RodSettingsSectionTitle").css`
+export const SettingsSectionTitle = styled.div("RodSharedSectionTitle").css`
   min-height: 38px;
   padding: 9px 10px;
   border-bottom: 1px solid $border;
@@ -97,8 +84,6 @@ export const SettingsSelect = styled.select("RodSettingsSelect").css`
 `;
 
 const SETTINGS_STYLED_COMPONENTS = Object.freeze([
-  SettingsBody,
-  SettingsSection,
   SettingsSectionTitle,
   SettingsRow,
   SettingsText,
@@ -117,7 +102,7 @@ component("RodSettingsView", function RodSettingsView(props) {
   const view = props.view as SettingsViewModel;
 
   return html`
-    <RodSettingsBody
+    <RodSharedScrollableBody
       data-settings-body
       ref=${ref((node) => {
         view.setBody(node as HTMLElement);

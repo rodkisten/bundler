@@ -1,6 +1,7 @@
 import type { CipoCssArtifact } from "../../cipo";
 import { component, event, html, ref, styled } from "../components/runtime";
 import { icon } from "../core/dom";
+import "./shared-components";
 
 export interface SourcesViewModel {
   setBody(node: HTMLElement | null): void;
@@ -15,19 +16,6 @@ export const SourcesRoot = styled.div("RodSourcesRoot").css`
   background: $background;
 `;
 
-export const SourcesControl = styled.div("RodSourcesControl").css`
-  position: absolute;
-  inset: 0 0 auto 0;
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: $$controlHeight;
-  padding: 7px 8px;
-  border-bottom: 1px solid $border;
-  color: $primary;
-  background: $backgroundDark;
-`;
 
 export const SourcesIconButton = styled.button("RodSourcesIconButton").css`
   appearance: none;
@@ -190,7 +178,6 @@ export const SourcesTextButton = styled.button("RodSourcesTextButton").css`
 
 const SOURCES_STYLED_COMPONENTS = Object.freeze([
   SourcesRoot,
-  SourcesControl,
   SourcesIconButton,
   SourcesTitle,
   SourcesBody,
@@ -217,14 +204,14 @@ component("RodSourcesView", function RodSourcesView(props) {
 
   return html`
     <RodSourcesRoot>
-      <RodSourcesControl>
+      <RodSharedControlBar>
         <RodSourcesIconButton type="button" title="Document source" @click=${event(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="All sources" @click=${event(() => view.action("source-list"))}>☰</RodSourcesIconButton>
         <RodSourcesTitle data-source-title>${title}</RodSourcesTitle>
         <RodSourcesIconButton type="button" title="Copy" @click=${event(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Download" @click=${event(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Refresh" @click=${event(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
-      </RodSourcesControl>
+      </RodSharedControlBar>
       <RodSourcesBody data-sources-body ref=${ref<HTMLElement>((node) => {
         view.setBody(node);
         return () => view.setBody(null);
