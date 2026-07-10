@@ -154,6 +154,7 @@ export const devtoolsStyles = sheet.css`
     color-scheme: dark light
 
     $$safeBottom: env(safe-area-inset-bottom, 0px)
+    --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px)
     $$tabHeight: 40px
     $$controlHeight: 40px
     $$entrySize: 40px
@@ -316,9 +317,9 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-dev-tools {
     pointer-events: auto
-    pos(absolute, left: 0, bottom: 0)
+    pos(absolute, left: 0, bottom: var(--rd-safe-bottom))
     w: 100%
-    h: 80%
+    h: calc(80% - var(--rd-safe-bottom))
     z: 2147483645
     display: none
     pt: $$tabHeight
@@ -331,7 +332,7 @@ export const devtoolsStyles = sheet.css`
   }
 
   .roderuda-inline .roderuda-dev-tools {
-    pos(absolute)
+    pos(absolute, bottom: 0)
     h: 100%
     display: block
     opacity: 1
