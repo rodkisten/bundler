@@ -142,8 +142,9 @@ const DomList = styled.ul("RodElementsDomList").css`
 `;
 
 const DomItem = styled.li("RodElementsDomItem").css`
-  margin: 0;
-  padding: 0;
+  user-select: none;
+  m: 0;
+  p: 0;
 `;
 
 const DomMoreItem = styled.li("RodElementsDomMoreItem").css`
