@@ -182,12 +182,37 @@ export function safeStringify(value: unknown, spacing = 2): string {
 }
 
 export function describeNode(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return `#text ${truncate(node.textContent?.trim() || "", 60)}`;
-  if (node.nodeType === Node.COMMENT_NODE) return `<!--${truncate(node.textContent || "", 60)}-->`;
-  if (!(node instanceof Element)) return node.nodeName;
+  if (node.nodeType === Node.TEXT_NODE) {
+    return `#text ${truncate(node.textContent?.trim() || "", 60)}`;
+  }
+
+  if (node.nodeType === Node.COMMENT_NODE) {
+    return `<!--${truncate(node.textContent || "", 60)}-->`;
+  }
+
+  if (!(node instanceof Element)) {
+    return node.nodeName;
+  }
+
   const id = node.id ? `#${node.id}` : "";
-  const classes = Array.from(node.classList).slice(0, 4).map((name) => `.${name}`).join("");
-  return `<${node.tagName.toLowerCase()}${id}${classes}>`;
+
+  const dataset =
+    !id && Object.keys(node.dataset).length
+      ? ":" +
+        Object.entries(node.dataset)
+          .slice(0, 4)
+          .map(([key, value]) =>
+            value ? `${key}=${truncate(String(value), 24)}` : key,
+          )
+          .join(":")
+      : "";
+
+  const classes = Array.from(node.classList)
+    .slice(0, 4)
+    .map((name) => `.${name}`)
+    .join("");
+
+  return `<${node.tagName.toLowerCase()}${id}${dataset}${classes}>`;
 }
 
 export function nodePath(node: Node): string {
