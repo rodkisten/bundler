@@ -803,7 +803,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     }
 
     if (!key || key === "displaySize") {
-      this.refs.devtools.style.height = `${this.inline ? 100 : this.config.get<number>("displaySize")}%`;
+      this.refs.devtools.style.height = this.inline
+        ? "100%"
+        : `calc(${this.config.get<number>("displaySize")}% - var(--rd-safe-bottom))`;
     }
 
     if (!key || key === "panelOrder" || key === "disabledPanels") {
