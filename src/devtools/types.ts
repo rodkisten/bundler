@@ -14,6 +14,7 @@ export interface DevtoolsDefaults {
   transparency?: number;
   displaySize?: number;
   theme?: string;
+  blug?: number;
 }
 
 export interface DevtoolsDebugOptions {
