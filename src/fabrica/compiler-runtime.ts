@@ -261,7 +261,7 @@ function appendCompiledNode(
   values: readonly RenderValue[],
 ): void {
   if (node.type === "text") {
-    appendValue(parent, node.value);
+    appendValue(parent, decodeHtmlEntities(node.value));
     return;
   }
   if (node.type === "value") {
@@ -351,7 +351,9 @@ function readCompiledPropValue(
   values: readonly RenderValue[],
 ): unknown {
   if (prop.type === "value") return values[prop.index];
-  if (prop.type === "static") return prop.value;
+  if (prop.type === "static") {
+    return typeof prop.value === "string" ? decodeHtmlEntities(prop.value) : prop.value;
+  }
 
   let output = "";
   for (let index = 0; index < prop.indices.length; index += 1) {
@@ -364,6 +366,21 @@ function readCompiledPropValue(
     else output += String(segment);
   }
   return output;
+}
+
+
+const htmlEntityCache = new Map<string, string>();
+
+/** Mirrors browser HTML parsing for static text and attribute chunks in compiled templates. */
+function decodeHtmlEntities(value: string): string {
+  if (!value.includes("&")) return value;
+  const cached = htmlEntityCache.get(value);
+  if (cached != null) return cached;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  const decoded = textarea.value;
+  htmlEntityCache.set(value, decoded);
+  return decoded;
 }
 
 function parseRuntimeNodes(source: string): RuntimeNode[] | null {
