@@ -20,6 +20,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   direction: ltr;
   text-align: left;
   backdrop-filter: blur(var(--rd-blur, 0px));
+  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
 
   &[data-inline="true"] {
     position: relative;
@@ -86,9 +87,9 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   pointer-events: auto;
   position: absolute;
   left: 0;
-  bottom: 0;
+  bottom: var(--rd-safe-bottom);
   width: 100%;
-  height: 80%;
+  height: calc(80% - var(--rd-safe-bottom));
   z-index: 2147483645;
   display: none;
   padding-top: $$tabHeight;
@@ -102,6 +103,7 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
 
   &[data-inline="true"] {
     position: absolute;
+    bottom: 0;
     height: 100%;
     display: block;
     opacity: 1;

@@ -817,7 +817,7 @@ export const ElementsDomNodeView = component<{
         @pointerout=${event((value: Event) => props.onPointerOut?.(value))}
       >
         <RodElementsDomToggle data-toggle-node=${props.expandable ? "" : null}>${props.expandable ? (props.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
-        <RodElementsNodeLabelView .node=${props.node} />
+        <RodElementsNodeLabelView props=${{ node: props.node }} />
       </RodElementsDomRow>
       ${props.expandable && props.expanded ? html`
         <RodElementsDomList>

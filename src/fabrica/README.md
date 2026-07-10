@@ -1155,3 +1155,23 @@ Fábrica now keeps build-time source rewriting separate from runtime DOM semanti
 - `compiler.ts` is only a compatibility barrel.
 
 This keeps the Vite compiler from becoming a second runtime. Build mode decides *where* code is emitted; the runtime still decides *how* Fábrica behaves.
+
+## Component props bags and DOM property bindings
+
+Fábrica supports three complementary binding forms:
+
+```ts
+const buttonProps = { icon, loading, disabled };
+
+html`
+  <RodButton ${buttonProps} />
+  <RodButton props=${buttonProps} />
+  <input .value=${value} />
+`;
+```
+
+- A standalone interpolation inside an opening tag, `${object}`, spreads the object's own enumerable properties into the element or registered component. It is equivalent to the older explicit `...${object}` form.
+- `props=${object}` is a component props bag. The bag is merged into the component's props instead of being exposed as `props.props`. Explicit attributes that appear later in the tag win during normal left-to-right prop collection.
+- `.property=${value}` always assigns a real DOM or custom-element property. It never falls back to an HTML attribute, so objects, callbacks, nodes and fragments are preserved without becoming `[object Object]`.
+
+Use props bags for groups of component inputs and dot bindings for imperative DOM state such as `value`, `checked`, `currentTime`, custom element configuration, or application-defined element properties.

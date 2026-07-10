@@ -31,7 +31,11 @@ export type RenderValue =
   | ElementPayload
   | ComponentPayload
   | Component
-  | ComponentRenderRequest;
+  | ComponentRenderRequest
+  | PropsBag;
+
+/** Plain object accepted by standalone template spreads and component `props=${...}` bags. */
+export type PropsBag = Record<string, unknown>;
 
 /** Runtime debug counters. */
 export type DebugSnapshot = {
@@ -308,7 +312,7 @@ export type BoundaryOptions = {
 export type ComponentChildren = RenderValue | readonly RenderValue[];
 
 /** Component props accepted by open component surfaces. */
-export type ComponentProps = Record<string, unknown>;
+export type ComponentProps = PropsBag;
 
 /** Reusable component setup function. */
 export type ComponentFactory<Props extends object = ComponentProps> = (

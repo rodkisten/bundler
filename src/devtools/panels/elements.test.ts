@@ -325,6 +325,8 @@ describe("Elements panel", () => {
     expect(tree?.textContent).not.toContain("&lt;html");
     expect(tree?.textContent).not.toContain("&gt;");
     expect(tree?.textContent).not.toContain("[object Object]");
+    expect(fixture.container.textContent).not.toContain("[object Object]");
+    expect(fixture.container.querySelector("fabrica-component-error")).toBeNull();
   });
 
   it("selects a DOM node and renders its complete detail inspector", () => {

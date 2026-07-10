@@ -634,6 +634,10 @@ function hasReactiveComponentInputs(
       continue;
     }
 
+    if (normalizeComponentPropName(part.name) === "props" && hasReactiveRecordValue(value)) {
+      return true;
+    }
+
     for (let valueIndex = 0; valueIndex < part.indices.length; valueIndex += 1) {
       if (hasReactiveValue(values[part.indices[valueIndex]!] as unknown)) return true;
     }
@@ -724,7 +728,13 @@ function readDynamicComponentProps(
       continue;
     }
 
-    props[normalizeComponentPropName(prop.name)] = readComponentPropValue(prop, values);
+    const name = normalizeComponentPropName(prop.name);
+    const value = readComponentPropValue(prop, values);
+    if (name === "props") {
+      mergeSpreadProps(props, readValue(value));
+    } else {
+      props[name] = value;
+    }
   }
 
   return props;
