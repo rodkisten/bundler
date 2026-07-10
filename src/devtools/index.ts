@@ -24,6 +24,7 @@ import { Resources, resourcesStyleArtifacts } from "./panels/resources";
 import { Settings, settingsStyleArtifacts } from "./panels/settings";
 import { Snippets, snippetsStyleArtifacts } from "./panels/snippets";
 import { Sources, sourcesStyleArtifacts } from "./panels/sources";
+import { sharedStyleArtifacts } from "./panels/shared-components";
 import { Tool } from "./tool";
 import type { DevtoolsInitOptions, Position, ToolLike } from "./types";
 
@@ -168,6 +169,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       this.style = installDevtoolsStyles(this.rootTarget, [
         ...devtoolsControllerStyleArtifacts,
         ...shellStyleArtifacts,
+        ...sharedStyleArtifacts,
         ...consoleStyleArtifacts,
         ...elementsStyleArtifacts,
         ...networkStyleArtifacts,
