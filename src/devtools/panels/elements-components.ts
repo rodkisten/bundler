@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
-import { describeNode, icon, nodePath, truncate } from "../core/dom";
+import { describeNode, icon, nodePath, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
 import { component, event, html, ref, styled } from "../components/runtime";
