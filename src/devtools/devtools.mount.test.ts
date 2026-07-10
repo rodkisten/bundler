@@ -112,5 +112,27 @@ describe("RodEruda devtools mount", () => {
     expect(styleText).not.toMatch(/(?:^|[^A-Za-z0-9_-])\$border\b/);
     expect(root?.querySelector("#cipo-runtime-style, style[data-cipo='runtime']")).toBeInstanceOf(HTMLStyleElement);
     expect(document.getElementById("cipo-runtime-style")).toBeNull();
+
+    const firstTab = root?.querySelector<HTMLElement>("[data-tool-tab]");
+    expect(firstTab?.querySelector("svg.roderuda-lucide-icon")).toBeInstanceOf(SVGSVGElement);
+    expect(firstTab?.textContent).not.toContain("[object Object]");
+
+    devtools.show("elements");
+    const firstNode = root?.querySelector<HTMLElement>("[data-node-id]");
+    expect(firstNode).toBeInstanceOf(HTMLElement);
+    expect(() => {
+      firstNode?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 24, clientY: 32 }));
+    }).not.toThrow();
+
+    const menu = root?.querySelector<HTMLElement>("[data-elements-menu]");
+    expect(menu).toBeInstanceOf(HTMLElement);
+    expect(typeof menu?.getBoundingClientRect).toBe("function");
+    expect(menu?.style.left).toMatch(/px$/);
+    expect(menu?.style.top).toMatch(/px$/);
+
+    const treeText = root?.querySelector<HTMLElement>("[data-elements-tree]")?.textContent ?? "";
+    expect(treeText).toContain("<html");
+    expect(treeText).not.toContain("&lt;html");
+    expect(treeText).not.toContain("&gt;");
   });
 });
