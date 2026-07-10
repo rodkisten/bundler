@@ -26,6 +26,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ], 
+      "@/devtools/*": [
+        "src/devtools/*"
       ]
     },
     "ignoreDeprecations": "6.0"
