@@ -1,6 +1,6 @@
 import { uiElement } from "../components/runtime";
 import { debugLog, debugTrace, debugWarn } from "./debug";
-import { describeNode } from "../utils";
+import { describeNode, nodePath } from "../utils";
 
 export type Cleanup = () => void;
 
@@ -214,7 +214,7 @@ export function describeNode(node: Node): string {
   return `<${node.tagName.toLowerCase()}${id}${datasetDescription}${classes}>`;
 }
 
-*/
+
 
 export function nodePath(node: Node): string {
   if (!(node instanceof Element)) return describeNode(node);
@@ -241,6 +241,7 @@ export function nodePath(node: Node): string {
   debugTrace("dom", "nodePath", { node: describeNode(node), path });
   return path;
 }
+**/
 
 export async function copyText(value: string): Promise<boolean> {
   try {
