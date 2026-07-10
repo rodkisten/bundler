@@ -19,6 +19,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   line-height: 1.35;
   direction: ltr;
   text-align: left;
+  backdrop-filter: blur(var(--rd-blur, 0px));
   --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
 
   &[data-inline="true"] {
