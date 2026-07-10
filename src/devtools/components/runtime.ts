@@ -71,10 +71,26 @@ export function renderInto(target: Element | ShadowRoot | DocumentFragment, valu
 
 export function asNode(value: RenderInput): Node {
   const fragment = document.createDocumentFragment();
-
   render(fragment, value);
 
-  return fragment.childNodes.length === 1 ? fragment.firstChild! : fragment;
+  const meaningful = Array.from(fragment.childNodes).filter((node) => {
+    if (node.nodeType === Node.COMMENT_NODE) return false;
+    if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim());
+    return true;
+  });
+
+  return meaningful.length === 1 ? meaningful[0]! : fragment;
+}
+
+/** Materializes exactly one element and fails early instead of leaking a DocumentFragment cast. */
+export function asElement<T extends Element = HTMLElement>(value: RenderInput): T {
+  const node = asNode(value);
+  if (node instanceof Element) return node as T;
+  if (node instanceof DocumentFragment) {
+    const elements = Array.from(node.children);
+    if (elements.length === 1) return elements[0] as T;
+  }
+  throw new Error(`[RodEruda] Expected one rendered element, received ${node.nodeName}`);
 }
 
 export interface DevtoolsUiState extends Record<string, unknown> {

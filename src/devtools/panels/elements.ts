@@ -4,28 +4,28 @@ import { getEventListeners, installEventListenerRegistry } from "../core/event-l
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
-import { asNode, html, render } from "../components/runtime";
+import { asElement, html, render } from "../components/runtime";
 import type { ToolContext } from "../types";
 import {
-  attributesTemplate,
-  boxModelTemplate,
-  computedStyleTemplate,
-  contextMenuTemplate,
-  crumbsTemplate,
-  detailBodyTemplate,
-  detailSectionTemplate,
-  detailTitleTemplate,
-  domNodeTemplate,
-  domTreeTemplate,
+  ElementsAttributesView,
+  ElementsBoxModelView,
+  ElementsComputedStyleView,
+  ElementsContextMenuView,
+  ElementsCrumbsView,
+  ElementsDetailBodyView,
+  ElementsDetailHeaderView,
+  ElementsDetailSectionView,
+  ElementsDomNodeView,
+  ElementsDomTreeView,
+  ElementsListenersView,
+  ElementsNodeLabelView,
+  ElementsPreBlockView,
+  ElementsPropertiesView,
+  ElementsStylesView,
   elementsStyleArtifacts,
   listenerModels,
-  listenersTemplate,
-  nodeLabelTemplate,
-  preBlockTemplate,
-  propertiesTemplate,
   propertyModels,
   styleRuleModels,
-  stylesTemplate,
   type ElementsViewModel,
   type RenderPiece,
   type StyleRuleInfo,
@@ -254,7 +254,7 @@ export class Elements extends Tool {
 
   private renderTree(): void {
     if (!this.tree || !document.documentElement) return;
-    render(this.tree, domTreeTemplate(this.renderNode(document.documentElement, 0)));
+    render(this.tree, ElementsDomTreeView({ content: this.renderNode(document.documentElement, 0) }));
   }
 
   private setTree(node: HTMLElement | null): void {
@@ -269,13 +269,13 @@ export class Elements extends Tool {
     const limited = children.slice(0, 300);
     const moreCount = children.length - limited.length;
 
-    return domNodeTemplate({
+    return ElementsDomNodeView({
       nodeId: this.nodeId(node),
       depth,
       selected: node === this.selected,
       expandable,
       expanded,
-      label: nodeLabelTemplate(node),
+      label: ElementsNodeLabelView({ node }),
       children: limited.map((child) => this.renderNode(child, depth + 1)),
       moreCount,
     });
@@ -302,7 +302,7 @@ export class Elements extends Tool {
       current = current.parentElement;
     }
 
-    render(this.crumbs, crumbsTemplate(elements));
+    render(this.crumbs, ElementsCrumbsView({ elements }));
 
     this.crumbs.dataset.crumbPath = elements.map((element) => this.nodeId(element)).join(",");
     this.crumbs.scrollLeft = this.crumbs.scrollWidth;
@@ -329,16 +329,21 @@ export class Elements extends Tool {
     const properties = propertyModels(element);
 
     render(this.detail, html`
-      ${detailTitleTemplate(element, (click: Event) => this.handleAction(click, click.currentTarget as HTMLElement))}
-      ${detailBodyTemplate(html`
-        ${detailSectionTemplate("Attributes", "attributes", attributesTemplate(attributes))}
-        ${detailSectionTemplate("Text Content", "text", preBlockTemplate(element.textContent || ""))}
-        ${detailSectionTemplate("Box Model", "box", boxModelTemplate(style, rect))}
-        ${detailSectionTemplate("Computed Style", "computed", computedStyleTemplate(style))}
-        ${detailSectionTemplate("Styles", "styles", stylesTemplate(rules))}
-        ${detailSectionTemplate("Event Listeners", "listeners", listenersTemplate(listeners))}
-        ${detailSectionTemplate("Properties", "properties", propertiesTemplate(properties))}
-      `)}
+      ${ElementsDetailHeaderView({
+        element,
+        onAction: (click: Event) => this.handleAction(click, click.currentTarget as HTMLElement),
+      })}
+      ${ElementsDetailBodyView({
+        content: html`
+          ${ElementsDetailSectionView({ title: "Attributes", name: "attributes", content: ElementsAttributesView({ attributes }) })}
+          ${ElementsDetailSectionView({ title: "Text Content", name: "text", content: ElementsPreBlockView({ value: element.textContent || "" }) })}
+          ${ElementsDetailSectionView({ title: "Box Model", name: "box", content: ElementsBoxModelView({ style, rect }) })}
+          ${ElementsDetailSectionView({ title: "Computed Style", name: "computed", content: ElementsComputedStyleView({ style }) })}
+          ${ElementsDetailSectionView({ title: "Styles", name: "styles", content: ElementsStylesView({ rules }) })}
+          ${ElementsDetailSectionView({ title: "Event Listeners", name: "listeners", content: ElementsListenersView({ listeners }) })}
+          ${ElementsDetailSectionView({ title: "Properties", name: "properties", content: ElementsPropertiesView({ properties }) })}
+        `,
+      })}
     `);
 
     this.detail.dataset.active = "true";
@@ -480,14 +485,16 @@ export class Elements extends Tool {
   private openContextMenu(element: Element, x: number, y: number): void {
     this.closeContextMenu();
 
-    const menu = asNode(contextMenuTemplate(this.nodeId(element))) as HTMLElement;
+    const menu = asElement<HTMLElement>(ElementsContextMenuView({ elementId: this.nodeId(element) }));
 
     this.contextMenu = menu;
     this.context?.root.append(menu);
 
     const rect = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
+    const width = Number.isFinite(rect.width) ? rect.width : menu.offsetWidth;
+    const height = Number.isFinite(rect.height) ? rect.height : menu.offsetHeight;
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - height - 8))}px`;
 
     const close = (closeEvent: Event): void => {
       if (closeEvent.target instanceof Node && menu.contains(closeEvent.target)) return;

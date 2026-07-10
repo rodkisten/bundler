@@ -8,6 +8,12 @@ const repoRoot = resolve(__dirname, "../..");
 export default defineConfig({
   root: __dirname,
 
+  resolve: {
+    alias: {
+      "@/devtools": resolve(__dirname, "."),
+    },
+  },
+
   server: {
     open: "/index.html",
   },

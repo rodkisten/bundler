@@ -1,8 +1,9 @@
 import type { CipoCssArtifact } from "../cipo";
 import type { ShellRefs } from "./components/shell";
-import { asNode, event, html, ref, styled, uiState } from "./components/runtime";
+import { asElement, event, html, ref, styled, uiState } from "./components/runtime";
 import { ConfigStore } from "./core/config";
 import { on } from "./core/dom";
+import { icon } from "./utils";
 import { Emitter } from "./core/emitter";
 import { applyTheme, themes } from "./core/theme";
 import type {
@@ -263,6 +264,16 @@ export const devtoolsControllerStyleArtifacts: readonly CipoCssArtifact[] = Obje
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
+function renderToolIcon(value: Node | string | undefined, name: string): Node | string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "nodeType" in value) {
+    return (value as Node).cloneNode(true);
+  }
+
+  const fallback = icon(name);
+  return fallback instanceof Node ? fallback : name.slice(0, 1).toUpperCase();
+}
+
 export class DevTools extends Emitter<ControllerEvents> implements DevtoolsControllerLike {
   readonly config: ConfigStore<DevToolsConfig>;
 
@@ -330,7 +341,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     let panel!: HTMLElement;
 
-    asNode(html`
+    panel = asElement<HTMLElement>(html`
       <RodDevtoolsToolPanel
         role="tabpanel"
         data-tool=${name}
@@ -346,7 +357,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     let tab!: HTMLButtonElement;
 
-    asNode(html`
+    tab = asElement<HTMLButtonElement>(html`
       <RodDevtoolsTabButton
         type="button"
         role="tab"
@@ -365,7 +376,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           tab = node;
         })}
       >
-        <RodDevtoolsTabIcon>${tool.icon ?? name.slice(0, 1).toUpperCase()}</RodDevtoolsTabIcon>
+        <RodDevtoolsTabIcon>${renderToolIcon(tool.icon, name)}</RodDevtoolsTabIcon>
         <RodDevtoolsTabLabel>${tool.title ?? name}</RodDevtoolsTabLabel>
       </RodDevtoolsTabButton>
     `);
@@ -549,7 +560,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       window.setTimeout(() => item.remove(), 180);
     };
 
-    asNode(html`
+    item = asElement<HTMLElement>(html`
       <RodDevtoolsNotificationToast
         role=${options.type === "error" ? "alert" : "status"}
         data-type=${options.type ?? "info"}
@@ -588,7 +599,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         resolve(value);
       };
 
-      asNode(html`
+      body = asElement<HTMLFormElement>(html`
         <RodDevtoolsModalSurface
           @submit=${event((submit: Event) => {
             submit.preventDefault();
@@ -636,7 +647,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         resolve(value);
       };
 
-      asNode(html`
+      body = asElement<HTMLElement>(html`
         <RodDevtoolsModalBox
           ref=${ref<HTMLElement>((node) => {
             body = node;
