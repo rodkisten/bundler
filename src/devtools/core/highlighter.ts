@@ -1,4 +1,5 @@
 import { isDevtoolsNode, setStyles } from "./dom";
+import { describeNode } from "@/devtools/utils"
 
 const HIGHLIGHT_DURATION = 850;
 const OVERLAY_CLASS = "__roderuda-overlay__";
@@ -131,7 +132,7 @@ export class ElementHighlighter {
     if (!this.label) return;
     this.label.hidden = !showLabel;
     if (!showLabel) return;
-    const id = element.id ? `#${element.id}` : "";
+   /* const id = element.id ? `#${element.id}` : "";
     const classes = Array.from(element.classList).slice(0, 4).map((name) => `.${name}`).join("");
     const datasets = Array.from(element.dataSet).slice(0, 4).map((data) => `: ${name}`).join("")
     // Aqui vive a criacao de <rod#test>
@@ -140,6 +141,9 @@ export class ElementHighlighter {
     } else {      
       this.label.textContent = `${element.tagName.toLowerCase()}${datasets}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
     }
+    */
+
+    this.label.textContent = describeNode(element);
     
     const viewport = window.visualViewport;
     const viewportWidth = viewport?.width ?? innerWidth;
