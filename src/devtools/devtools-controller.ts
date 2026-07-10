@@ -522,7 +522,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     requestAnimationFrame(() => {
       this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
 
-      this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("transparency")}px`;
+      this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("transparency")}px`);
     });
 
     this.emit("show");
