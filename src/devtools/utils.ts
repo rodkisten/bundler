@@ -1,4 +1,4 @@
-import { create, on, trustedHtml } from "./components/runtime";
+import { create, on, trustedHtml } from "./dom";
 import {
   debugLog,
   debugTrace,
