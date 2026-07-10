@@ -59,11 +59,11 @@ export class Elements extends Tool {
     showWhitespace: false,
   });
 
-  private container: HTMLElement | null = null;
-  private tree: HTMLElement | null = null;
-  private crumbs: HTMLElement | null = null;
-  private detail: HTMLElement | null = null;
-  private selected: Element | null = null;
+  public container: HTMLElement | null = null;
+  public tree: HTMLElement | null = null;
+  public crumbs: HTMLElement | null = null;
+  public detail: HTMLElement | null = null;
+  public selected: Element | null = null;
 
   private readonly expanded = new WeakSet<Node>();
   private readonly nodeIds = new WeakMap<Node, string>();
