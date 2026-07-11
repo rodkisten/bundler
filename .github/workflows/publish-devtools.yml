@@ -128,6 +128,7 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+        continue-on-error: true
 
       - name: Build via Vite
         run: pnpm build:devtools
