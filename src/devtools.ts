@@ -5,5 +5,5 @@
  * @tags devtools browser mobile
  * @description Fork of Eruda using Mata/Folclore tools.
  */
-export * from "./devtools/index";
-export { default } from "./devtools/index";
+export * from "./devtools/core/index";
+export { default } from "./devtools/core/index";
