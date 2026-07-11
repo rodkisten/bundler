@@ -38,6 +38,32 @@ export function materializeElementPayload(payload: ElementPayload, appendValue: 
   return element
 }
 
+
+/** Component-like value that can hand DOM ownership back to Fábrica. */
+type RendererPayloadComponent = ((props?: Record<string, unknown>) => unknown) & {
+  renderPayload?: (props?: Record<string, unknown>) => unknown
+}
+
+/**
+ * Invokes a component while preferring a renderer-owned payload when available.
+ *
+ * Styled factories normally return a live DOM element in standalone mode. When
+ * Fábrica owns the render tree, their `renderPayload()` hook preserves complex
+ * children such as component requests, directives and reactive values so the
+ * renderer can materialize and dispose them with the correct lifecycle.
+ */
+export function invokeComponentLike(
+  componentValue: unknown,
+  props: Record<string, unknown>,
+): unknown {
+  if (typeof componentValue !== 'function') return null
+
+  const component = componentValue as RendererPayloadComponent
+  return typeof component.renderPayload === 'function'
+    ? component.renderPayload(props)
+    : component(props)
+}
+
 /**
  * Materializes a component payload by calling its component function.
  *
@@ -45,8 +71,7 @@ export function materializeElementPayload(payload: ElementPayload, appendValue: 
  * @returns Component render value.
  */
 export function materializeComponentPayload(payload: ComponentPayload): unknown {
-  const componentValue = payload.component
-  return typeof componentValue === 'function' ? componentValue(payload.props || {}) : null
+  return invokeComponentLike(payload.component, payload.props || {})
 }
 
 /**
