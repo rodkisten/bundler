@@ -29,12 +29,17 @@ export type HtmlResult = Node & {
   readonly [FABRICA_HTML_ARTIFACT]: HtmlArtifact;
 };
 
+/** Callable tagged-template function shared by `html` and `jsx.html`. */
+export type HtmlTemplateTag = (
+  strings: TemplateStringsArray,
+  ...values: RenderValue[]
+) => HtmlResult;
+
 /** Public tagged-template surface used by default and instance-local runtimes. */
-export type HtmlTag = {
-  (strings: TemplateStringsArray, ...values: RenderValue[]): HtmlResult;
-  jsx?: (strings: TemplateStringsArray, ...values: RenderValue[]) => HtmlResult;
-  artifact?(value: unknown): HtmlArtifact | undefined;
-  isResult?(value: unknown): value is HtmlResult;
+export type HtmlTag = HtmlTemplateTag & {
+  readonly jsx: HtmlTemplateTag;
+  artifact(value: unknown): HtmlArtifact | undefined;
+  isResult(value: unknown): value is HtmlResult;
 };
 
 /** Values accepted by the DOM renderer use Broto reactive primitives when needed. */
@@ -303,7 +308,7 @@ export type ComponentContext = {
   /** Instance-bound template tag. */
   html: HtmlTag;
   /** Instance-bound JSX namespace. */
-  jsx: { html: NonNullable<HtmlTag["jsx"]> };
+  jsx: { html: HtmlTemplateTag };
   /** Instance-bound component factory. */
   component: <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions) => Component<Props>;
   /** Component owner created by Broto. */

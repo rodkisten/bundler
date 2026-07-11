@@ -22,7 +22,7 @@ import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
 import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "./directives";
-import { html as baseHtml, hydrate as baseHydrate, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
+import { getHtmlArtifact, html as baseHtml, hydrate as baseHydrate, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
 import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
@@ -50,6 +50,7 @@ import type {
   RegistryImportMode,
   RenderValue,
   HtmlTag,
+  HtmlTemplateTag,
 } from "./types";
 
 const INSTANCE_MAP = Symbol.for("rod.fabrica.instances");
@@ -67,14 +68,11 @@ Object.assign(baseHtml, {
   isResult: isHtmlResult,
 });
 
-type HtmlApi = typeof baseHtml & {
-  jsx: NonNullable<HtmlTag["jsx"]>;
+type HtmlApi = HtmlTag & {
   raw(value: string): RawHtml;
   sanitized(value: string): RawHtml;
   trusted(value: string): RawHtml;
   unsafe(value: string): RawHtml;
-  artifact(value: unknown): ReturnType<typeof getHtmlArtifact>;
-  isResult(value: unknown): ReturnType<typeof isHtmlResult>;
 };
 
 /** Public instance API. Every renderer function is bound to one registry. */
@@ -87,7 +85,7 @@ export type FabricaApi = {
   render: typeof baseRender;
   mount: typeof baseMount;
   hydrate: typeof baseHydrate;
-  jsx: { html: NonNullable<HtmlTag["jsx"]> };
+  jsx: { html: HtmlTemplateTag };
   component: {
     <Props extends object = ComponentProps>(factory: ComponentFactory<Props>): Component<Props>;
     <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions): Component<Props>;
@@ -249,19 +247,25 @@ export function createFabricaApi(
       : options.registry ?? createComponentRegistry({ name: `${name}:registry` }),
   };
 
-  const instanceHtml = ((strings: TemplateStringsArray, ...values: RenderValue[]) =>
-    runWithFabricaRuntime(runtime, () => baseHtml(strings, ...values))) as HtmlApi;
+  const instanceHtmlTag: HtmlTemplateTag = (
+    strings: TemplateStringsArray,
+    ...values: RenderValue[]
+  ) => runWithFabricaRuntime(runtime, () => baseHtml(strings, ...values));
+  const instanceJsxHtmlTag: HtmlTemplateTag = (
+    strings: TemplateStringsArray,
+    ...values: RenderValue[]
+  ) => runWithFabricaRuntime(runtime, () => baseJsx.html(strings, ...values));
+  const instanceHtml: HtmlApi = Object.assign(instanceHtmlTag, {
+    jsx: instanceJsxHtmlTag,
+    raw: rawHtml,
+    sanitized: sanitizedHtml,
+    trusted: trustedHtml,
+    unsafe: unsafeHtml,
+    artifact: getHtmlArtifact,
+    isResult: isHtmlResult,
+  });
 
-  instanceHtml.jsx = (strings: TemplateStringsArray, ...values: RenderValue[]) =>
-    runWithFabricaRuntime(runtime, () => baseJsx.html(strings, ...values));
-  instanceHtml.raw = rawHtml;
-  instanceHtml.sanitized = sanitizedHtml;
-  instanceHtml.trusted = trustedHtml;
-  instanceHtml.unsafe = unsafeHtml;
-  instanceHtml.artifact = getHtmlArtifact;
-  instanceHtml.isResult = isHtmlResult;
-
-  const instanceJsx = Object.freeze({ html: instanceHtml.jsx });
+  const instanceJsx = Object.freeze({ html: instanceJsxHtmlTag });
   const instanceRender = ((container, value) =>
     runWithFabricaRuntime(runtime, () => baseRender(container, value))) as typeof baseRender;
   const instanceMount = ((container, value) =>

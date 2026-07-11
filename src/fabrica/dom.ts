@@ -1,4 +1,5 @@
 import { PART_END, PART_START } from "./constants";
+import { FABRICA_HTML_ARTIFACT } from "./types";
 import { debugState } from "./debug";
 import {
   clearRange,
@@ -71,6 +72,11 @@ import type {
   SuspenseDirective,
   BindDirective,
   EventOptionsDirective,
+  FabricaRuntimeContext,
+  HtmlArtifact,
+  HtmlResult,
+  HtmlTag,
+  HtmlTemplateTag,
   KeyedDirective,
   VirtualRepeatDirective,
   WhenDirective,
@@ -83,12 +89,12 @@ type RootRenderState =
 
 const renderStates = new WeakMap<Node, RootRenderState>();
 
-type MaterializedFragmentMetadata = {
+type MaterializedHtmlResultMetadata = {
   cleanupNodes: Node[];
   dynamic: boolean;
 };
 
-const materializedFragmentMetadata = new WeakMap<DocumentFragment, MaterializedFragmentMetadata>();
+const materializedHtmlResultMetadata = new WeakMap<Node, MaterializedHtmlResultMetadata>();
 
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
@@ -99,90 +105,156 @@ function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part 
   return "spread" in part && part.spread === true;
 }
 
-/**
- * Creates DOM from a tagged template.
- *
- * @param strings - Template strings.
- * @param values - Dynamic values.
- * @returns Rendered document fragment.
- *
- * @example
- * ```ts
- * const view = html`<strong>${name}</strong>`;
- * ```
- */
-export function html(
-  strings: TemplateStringsArray,
-  ...values: RenderValue[]
-): DocumentFragment {
-  return runWithCurrentFabricaRuntime(() => {
-    const compiled = getCompiledTemplate(strings, values);
-    const fragment = compiled.template.content.cloneNode(
-      true,
-    ) as DocumentFragment;
+/** Returns the template artifact attached to a Fábrica HTML result. */
+export function getHtmlArtifact(value: unknown): HtmlArtifact | undefined {
+  if (!isDomNode(value)) return undefined;
 
-    if (compiled.orderedParts.length === 0) {
-      materializedFragmentMetadata.set(fragment, { cleanupNodes: [], dynamic: false });
-      return fragment;
-    }
+  return (value as Node & {
+    readonly [FABRICA_HTML_ARTIFACT]?: HtmlArtifact;
+  })[FABRICA_HTML_ARTIFACT];
+}
 
-    const collected = collectCleanupNodes(() => {
-      applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
-    });
+/** Checks whether a value is a real DOM node materialized by a Fábrica HTML tag. */
+export function isHtmlResult(value: unknown): value is HtmlResult {
+  return getHtmlArtifact(value)?.kind === "fabrica.html";
+}
 
-    materializedFragmentMetadata.set(fragment, {
-      cleanupNodes: collected.nodes,
-      dynamic: true,
-    });
-
-    return fragment;
-  });
+/** Internal metadata used by the direct root-render fast path. */
+export function getHtmlResultMetadata(
+  value: unknown,
+): MaterializedHtmlResultMetadata | undefined {
+  return isDomNode(value) ? materializedHtmlResultMetadata.get(value) : undefined;
 }
 
 /**
- * Creates DOM from Fabrica micro-JSX syntax.
+ * Converts a materialized fragment into the public polymorphic HTML result.
  *
- * @remarks
- * `jsx.html` is the preferred entrypoint because many editors highlight that
- * shape better than `html.jsx`. The compatibility alias remains attached to
- * `html.jsx`. Uppercase component tags are resolved from the component registry
- * and HTML comments stay inert, so `<!-- <Panel /> -->` does not mount `Panel`.
- *
- * @param strings - Template strings.
- * @param values - Dynamic values.
- * @returns Rendered document fragment.
+ * A single meaningful root is returned as the real root node. Root-level
+ * indentation whitespace is discarded only in that single-root case. Empty or
+ * multi-root templates remain a `DocumentFragment`.
  */
-(html as typeof html & { jsx: typeof html }).jsx = function jsxHtml(
-  strings: TemplateStringsArray,
-  ...values: RenderValue[]
-): DocumentFragment {
-  return runWithCurrentFabricaRuntime(() => {
-    const compiled = getCompiledJsxTemplate(strings, values);
-    const fragment = compiled.template.content.cloneNode(
-      true,
-    ) as DocumentFragment;
+export function createHtmlResult(
+  fragment: DocumentFragment,
+  artifact: HtmlArtifact,
+  metadata: MaterializedHtmlResultMetadata,
+): HtmlResult {
+  const result = extractHtmlResultRoot(fragment);
 
-    if (compiled.orderedParts.length === 0) {
-      materializedFragmentMetadata.set(fragment, { cleanupNodes: [], dynamic: false });
-      return fragment;
+  Object.defineProperty(result, FABRICA_HTML_ARTIFACT, {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: artifact,
+  });
+
+  materializedHtmlResultMetadata.set(result, metadata);
+  return result as HtmlResult;
+}
+
+function extractHtmlResultRoot(fragment: DocumentFragment): Node {
+  const childNodes = Array.from(fragment.childNodes);
+  if (childNodes.length === 1) return fragment.removeChild(childNodes[0]!);
+
+  const meaningfulNodes = childNodes.filter((node) =>
+    node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()),
+  );
+
+  if (meaningfulNodes.length !== 1) return fragment;
+
+  const root = meaningfulNodes[0]!;
+  for (const node of childNodes) {
+    if (node !== root && node.nodeType === Node.TEXT_NODE && !node.textContent?.trim()) {
+      fragment.removeChild(node);
     }
+  }
 
+  return fragment.removeChild(root);
+}
+
+function createTemplateArtifact(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[],
+  jsxMode: boolean,
+  runtime: FabricaRuntimeContext,
+): HtmlArtifact {
+  const exposedStrings = Object.freeze(Array.from(strings));
+  const capturedValues = Object.freeze(Array.from(values)) as readonly RenderValue[];
+
+  return Object.freeze({
+    kind: "fabrica.html" as const,
+    strings: exposedStrings,
+    values: capturedValues,
+    jsx: jsxMode,
+    materialize: () =>
+      runWithFabricaRuntime(runtime, () =>
+        materializeHtmlTemplate(strings, capturedValues, jsxMode, runtime),
+      ),
+  });
+}
+
+function materializeHtmlTemplate(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[],
+  jsxMode: boolean,
+  runtime: FabricaRuntimeContext,
+): HtmlResult {
+  const compiled = jsxMode
+    ? getCompiledJsxTemplate(strings, values)
+    : getCompiledTemplate(strings, values);
+  const fragment = compiled.template.content.cloneNode(true) as DocumentFragment;
+
+  let cleanupNodes: Node[] = [];
+  if (compiled.orderedParts.length > 0) {
     const collected = collectCleanupNodes(() => {
       applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
     });
+    cleanupNodes = collected.nodes;
+  }
 
-    materializedFragmentMetadata.set(fragment, {
-      cleanupNodes: collected.nodes,
-      dynamic: true,
-    });
+  return createHtmlResult(
+    fragment,
+    createTemplateArtifact(strings, values, jsxMode, runtime),
+    {
+      cleanupNodes,
+      dynamic: compiled.orderedParts.length > 0 || cleanupNodes.length > 0,
+    },
+  );
+}
 
-    return fragment;
+const htmlTemplateTag: HtmlTemplateTag = (
+  strings: TemplateStringsArray,
+  ...values: RenderValue[]
+): HtmlResult =>
+  runWithCurrentFabricaRuntime(() => {
+    const runtime = getCurrentFabricaRuntime();
+    return materializeHtmlTemplate(strings, values, false, runtime);
   });
-};
+
+const jsxHtmlTemplateTag: HtmlTemplateTag = (
+  strings: TemplateStringsArray,
+  ...values: RenderValue[]
+): HtmlResult =>
+  runWithCurrentFabricaRuntime(() => {
+    const runtime = getCurrentFabricaRuntime();
+    return materializeHtmlTemplate(strings, values, true, runtime);
+  });
+
+/**
+ * Creates DOM from a tagged template.
+ *
+ * A template with one meaningful root returns that real root node. Empty and
+ * multi-root templates return a `DocumentFragment`. Every result carries a
+ * non-enumerable artifact that can materialize a fresh DOM instance.
+ */
+export const html: HtmlTag = Object.assign(htmlTemplateTag, {
+  jsx: jsxHtmlTemplateTag,
+  artifact: getHtmlArtifact,
+  isResult: isHtmlResult,
+});
 
 /** JSX-friendly namespace for `jsx.html` authoring. */
 export const jsx = Object.freeze({
-  html: (html as typeof html & { jsx: typeof html }).jsx,
+  html: jsxHtmlTemplateTag,
 });
 
 /**
@@ -209,21 +281,21 @@ export function render(
     /**
      * Runtime v2 fast root path.
      *
-     * `html``...`` already returns a fully materialized DocumentFragment whose
+     * `html``...`` already returns a fully materialized `HtmlResult` whose
      * compiled parts, reactive effects and event listeners were installed while
-     * the fragment was cloned. For the common root-render shape
+     * the template was cloned. For the common root-render shape
      * `render(host, html`...`)`, routing that fragment through a generic
      * ChildPart adds two comment markers, a range clear and another render-value
      * classification pass. Fresh containers can mount the fragment directly and
      * still dispose correctly through `disposeTree(container)`.
      *
      * Existing containers keep the stable ChildPart path so repeated renders,
-     * directives and non-fragment values preserve the old reconciliation API.
+     * directives and non-template values preserve the old reconciliation API.
      */
-    if ((!state || state.kind === "direct") && resolvedValue instanceof DocumentFragment) {
+    if ((!state || state.kind === "direct") && isHtmlResult(resolvedValue)) {
       state?.dispose();
 
-      const metadata = materializedFragmentMetadata.get(resolvedValue);
+      const metadata = getHtmlResultMetadata(resolvedValue);
       const cleanupNodes = metadata?.cleanupNodes ?? [];
       const dynamic = Boolean(metadata?.dynamic || cleanupNodes.length > 0);
 

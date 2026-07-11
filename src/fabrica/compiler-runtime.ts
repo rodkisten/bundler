@@ -1,14 +1,17 @@
-import { appendValue, html } from "./dom";
+import { appendValue, createHtmlResult, html } from "./dom";
 import { invokeComponentLike } from "./dom-payload";
 import {
+  getCurrentFabricaRuntime,
   resolveRuntimeComponent,
   runWithCurrentFabricaRuntime,
+  runWithFabricaRuntime,
 } from "./runtime-context";
 import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
 import { isSignal } from "./guards";
-import type { RenderValue } from "./types";
+import { collectCleanupNodes } from "./dom-cleanup";
+import type { FabricaRuntimeContext, HtmlArtifact, HtmlResult, RenderValue } from "./types";
 import {
   createElementForTag,
   FABRICA_SPREAD_PREFIX,
@@ -68,35 +71,72 @@ export function createCompiledFragment(
 export function createCompiledTemplate(
   input: RuntimeCompiledTemplate | TemplateStringsArray | readonly string[],
   ...values: readonly RenderValue[]
-): DocumentFragment {
+): HtmlResult {
   return runWithCurrentFabricaRuntime(() => {
-    const compiled = isRuntimeCompiledTemplate(input)
+    const runtime = getCurrentFabricaRuntime();
+    const runtimeDefinition = isRuntimeCompiledTemplate(input);
+    const normalizedStrings = runtimeDefinition
+      ? null
+      : normalizeTemplateStrings(input);
+    const compiled = runtimeDefinition
       ? input
-      : getCachedCompiledRuntimeTemplate(normalizeTemplateStrings(input));
-    if (!compiled)
-      return html(
-        normalizeTemplateStrings(
-          input as TemplateStringsArray | readonly string[],
-        ) as TemplateStringsArray,
-        ...values,
-      );
+      : getCachedCompiledRuntimeTemplate(normalizedStrings!);
+
+    if (!compiled) {
+      return html(normalizedStrings!, ...values);
+    }
 
     try {
       const fragment = document.createDocumentFragment();
-      for (const node of compiled.nodes)
-        appendCompiledNode(fragment, node, values);
-      return fragment;
+      const collected = collectCleanupNodes(() => {
+        for (const node of compiled.nodes) {
+          appendCompiledNode(fragment, node, values);
+        }
+      });
+
+      return createHtmlResult(
+        fragment,
+        createCompiledHtmlArtifact(
+          runtimeDefinition ? input : normalizedStrings!,
+          values,
+          runtime,
+        ),
+        {
+          cleanupNodes: collected.nodes,
+          dynamic: collected.nodes.length > 0,
+        },
+      );
     } catch (error) {
       // The compiled definition is an optimization, not a second source of truth. If an older
       // transform shape or browser edge case slips through, the normal html runtime remains the
       // semantic fallback for string-template inputs.
-      if (!isRuntimeCompiledTemplate(input))
-        return html(
-          normalizeTemplateStrings(input) as TemplateStringsArray,
-          ...values,
-        );
+      if (!runtimeDefinition) {
+        return html(normalizedStrings!, ...values);
+      }
       throw error;
     }
+  });
+}
+
+function createCompiledHtmlArtifact(
+  input: RuntimeCompiledTemplate | TemplateStringsArray,
+  values: readonly RenderValue[],
+  runtime: FabricaRuntimeContext,
+): HtmlArtifact {
+  const capturedValues = Object.freeze(Array.from(values)) as readonly RenderValue[];
+  const artifactStrings = Object.freeze(
+    isRuntimeCompiledTemplate(input) ? [] : Array.from(input),
+  );
+
+  return Object.freeze({
+    kind: "fabrica.html" as const,
+    strings: artifactStrings,
+    values: capturedValues,
+    jsx: false,
+    materialize: () =>
+      runWithFabricaRuntime(runtime, () =>
+        createCompiledTemplate(input, ...capturedValues),
+      ),
   });
 }
 
