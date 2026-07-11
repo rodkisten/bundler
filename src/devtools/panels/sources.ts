@@ -20,8 +20,8 @@ import {
   html,
   ref,
   render,
-} from "../components/runtime";
-import { Tool } from "../tool";
+} from "../core/runtime";
+import { Tool } from "../core/tool";
 import type {
   NetworkRecord,
   SourcePayload,
