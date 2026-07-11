@@ -19,10 +19,64 @@ import { Snippets, snippetsStyleArtifacts } from "../panels/snippets";
 import { Sources, sourcesStyleArtifacts } from "../panels/sources";
 import { sharedStyleArtifacts } from "../panels/shared-components";
 import { Tool } from "../tool";
-import type { DevtoolsInitOptions, Position, ToolLike } from "../types";
+//import type { DevtoolsInitOptions, Position, ToolLike } from "../types";
 
 export const VERSION = "4.0.0-native";
 
+export type AnyRecord = Record<string, unknown>;
+export type ConsoleLevel = "debug" | "trace" | "log" | "info" | "warn" | "error" | "table" | "dir" | "result" | "command" | "html";
+export type NetworkKind = "fetch" | "xhr" | "websocket" | "resource";
+export type NetworkState = "pending" | "complete" | "failed";
+export type SourceType = "auto" | "text" | "raw" | "html" | "css" | "javascript" | "json" | "object" | "image" | "iframe";
+export type DebugLevel = "trace" | "debug" | "info" | "warn" | "error" | "silent";
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface DevtoolsDefaults {
+  transparency?: number;
+  displaySize?: number;
+  theme?: string;
+  blur?: number;
+}
+
+export interface DevtoolsDebugOptions {
+  enabled?: boolean;
+  level?: DebugLevel;
+}
+
+export interface DevtoolsInitPanelConfig {
+  readonly console?: AnyRecord;
+  readonly elements?: AnyRecord;
+  readonly network?: AnyRecord;
+  readonly resources?: AnyRecord;
+  readonly sources?: AnyRecord;
+  readonly info?: AnyRecord;
+  readonly snippets?: AnyRecord;
+  readonly settings?: AnyRecord;
+  readonly [panel: string]: AnyRecord | undefined;
+}
+
+export interface DevtoolsInitConfig {
+  readonly devtools?: Partial<DevtoolsDefaults & {
+    panelOrder: string[];
+    disabledPanels: string[];
+  }>;
+  readonly panels?: DevtoolsInitPanelConfig;
+}
+
+export interface DevtoolsInitOptions {
+  container?: HTMLElement;
+  tool?: string | readonly string[];
+  autoScale?: boolean;
+  useShadowDom?: boolean;
+  inline?: boolean;
+  defaults?: DevtoolsDefaults;
+  config?: DevtoolsInitConfig;
+  debug?: boolean | DevtoolsDebugOptions;
+}
 export type ToolFactory = ToolLike | ((api: RodDevtoolsApi) => ToolLike);
 
 export interface RodDevtoolsApi {
