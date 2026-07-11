@@ -73,7 +73,7 @@ export {
   virtualRepeat,
   when,
 } from "./directives";
-export { getHtmlArtifact, html, hydrate, isHtmlResult, jsx, mount, render } from "./dom";
+export { html, hydrate, jsx, mount, render } from "./dom";
 export { batch, computed, effect, signal } from "../broto/reactivity";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";
