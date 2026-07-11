@@ -3,7 +3,8 @@ import { renderShell, shellStyleArtifacts, type ShellRefs } from "../components/
 import { asNode, event, html, ref, uiState } from "../components/runtime";
 import { ConfigStore } from "./config";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./debug";
-import { applyImportantStyle, detectMobile, forceAppendToPage, isDevtoolsNode, viewportScale } from "./dom";
+import { detectMobile, isDevtoolsNode, viewportScale } from "./utils";
+import { applyImportantStyle, forceAppendToPage } from "./dom";
 import { NativeProtocol } from "./protocol";
 import { installDevtoolsStyles } from "./style";
 import { applyTheme, isDarkTheme, resolveTheme, themes } from "./theme";
