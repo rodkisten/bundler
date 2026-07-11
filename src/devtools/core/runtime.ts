@@ -1,7 +1,7 @@
-import { store } from "../../../broto";
-import { createStyled } from "../../../cipo";
-import { createFabrica } from "../../../fabrica";
-import type { Cleanup, Component, RefDirective, RenderValue } from "../../../fabrica";
+import { store } from "../../broto";
+import { createStyled } from "../../cipo";
+import { createFabrica } from "../../fabrica";
+import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica";
 import { bootstrapDevtoolsCipo } from "./cipo-bootstrap";
 
 // Theme tokens (`$background`, `$font.ui`, prefix `rd`, …) must exist before
