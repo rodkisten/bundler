@@ -1,0 +1,222 @@
+name: 📦 Publish DEVTOOLS ONLY
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      min_hours_between_runs:
+        description: "Minimum hours between automatic builds"
+        required: false
+        default: "2"
+      should_run_tests:
+        type: boolean
+        description: "Wanna run all tests?"
+        default: true
+        
+concurrency:
+  group: publish-browser-bundle-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
+env:
+  WORKFLOW_FILE: publish-devtools.yml
+  MIN_HOURS_BETWEEN_RUNS: 2
+
+jobs:
+  test:
+    name: "🧪 Run all tests"
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || inputs.should_run_tests == true }}
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
+
+          mkdir -p artifacts/test
+
+          pnpm test 2>&1 | tee artifacts/test/test-output.log
+
+      - name: Write test summary
+        if: always()
+        run: |
+          {
+            echo "## 🧪 Test Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ steps.tests.outcome }}\` |"
+            echo "| Blocking build | \`false\` |"
+            echo ""
+            echo "### Last test output lines"
+            echo ""
+            echo '```markdown'
+            tail -n 200 artifacts/test/test-output.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Benchmarks
+        id: benchmarks_cipo
+        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
+
+          mkdir -p artifacts/test
+
+          pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
+
+
+            ary
+        if: ${{ always() && needs.changes.outputs.should_benchmark != 'true' }}
+        run: |
+          {
+            echo "## ⏱️ Benchmark Report"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`skipped\` |"
+            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report
+          path: artifacts/test
+          retention-days: 14
+
+  build:
+    name: "👷🏼‍♂️ Build"
+    needs: guard
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    runs-on: ubuntu-24.04
+    env:
+      GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+      GIST_ID: ${{ secrets.GIST_ID }}
+
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build browser bundles
+        run: pnpm build
+
+      - name: Build via Vite
+        run: pnpm build:devtools
+
+      - name: Collect release assets
+        id: assets
+        run: |
+          set -euo pipefail
+
+          {
+            echo "files<<EOF"
+            find dist -type f \( \
+              -name "*.js" \
+              -o -name "*.js.map" \
+              -o -name "*.html" \
+              -o -name "*.json" \
+              -o -name "*.css" \
+              -o -name "*.txt" \
+            \) | sort
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+        if: ${{ (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') || needs.guard.outputs.should_run == 'true' }}
+
+      - name: Write build summary
+        if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+        run: |
+          {
+            echo "## 📦 Browser Bundle"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Status | \`${{ job.status }}\` |"
+            echo "| Artifact | \`browser-bundle\` |"
+            echo "| Release tag | \`browser-bundle-latest\` |"
+            echo ""
+            echo "### Published files"
+            echo ""
+            echo '```txt'
+            find dist -type f | sort || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-pages:
+    name: "📟 Deploy to Github pages"
+    needs:
+      - guard
+      - build
+    if: ${{ github.ref_name == 'main' || github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Notify Pushcut
+        if: ${{ success() }}
+        id: pushcut
+        env:
+          WORKFLOW_ID: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+
+          curl -X POST -d "{\"input\": \"$WORKFLOW_ID\", \"text\": \"Abrir pipeline {teste}\", \"title\": \"Build finished\"}" -H "Content-Type: application/json" https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published
