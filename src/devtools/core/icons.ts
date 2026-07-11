@@ -168,10 +168,42 @@ const ICONS = {
 } as const;
 
 
-      });
+/* ******************** */
+/* Icons                */
+/* ******************** */
 
-      return true;
-    } catch (error) {
-      debugWarn("dom", "copyText:clipboard-failed", {
-    lerror);
+export function icon(name: IconName | string): IconNode {
+  if (typeof document === "undefined") {
+    return "•";
+  }
+
+  const body = ICONS[name as IconName];
+
+  if (!body) {
+    return document.createTextNode("•");
+  }
+
+  const svg = document.createElementNS(
+    SVG_NAMESPACE,
+    "svg",
+  );
+
+  setAttributes(svg, {
+    viewBox: "0 0 24 24",
+    width: "1em",
+    height: "1em",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true",
+    focusable: "false",
+  });
+
+  svg.classList.add("roderuda-lucide-icon");
+
+  svg.innerHTML = trustedHtml(body) as string;
+
+  return svg;
 }
