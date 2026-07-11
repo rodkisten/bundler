@@ -89,6 +89,7 @@ export class Sources extends Tool {
     formatCode: true,
     indentSize: "2",
     wrapLines: false,
+    maxFormatSourceLength: "30_000"
   });
 
   private body: HTMLElement | null = null;
@@ -206,6 +207,13 @@ export class Sources extends Tool {
       this.config,
       "wrapLines",
       "Wrap long lines",
+    );
+
+    context.settings.registerText(
+      this.config,
+      "maxFormatSourceLength",
+      "Max format source length", 
+      String(MAX_FORMAT_SOURCE_LENGTH)
     );
   }
 
