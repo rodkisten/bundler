@@ -80,6 +80,7 @@ export interface SourcesConfig {
   formatCode: boolean;
   indentSize: "2" | "4" | "8";
   wrapLines: boolean;
+  maxFormatSourceLength: string | number;
 }
 
 export interface DevToolsConfig {
