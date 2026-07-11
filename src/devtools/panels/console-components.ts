@@ -1,13 +1,12 @@
 import type { Store } from "../../broto";
 import type { CipoCssArtifact } from "../../cipo";
-import type { ConsoleLevel, ConsoleRecord } from "../types";
-export type Filter = string | RegExp | ((record: ConsoleRecord) => boolean) | null;
+import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord } from "../types";
 import { component, event, html, ref, styled } from "../components/runtime";
 import { icon } from "../utils";
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];
-  filterValue: Filter;
+  filterValue: ConsoleFilterValue;
   filterText: string;
   history: string[];
   historyIndex: number;

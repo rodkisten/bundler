@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import { component, event, html, ref, styled } from "../components/runtime";
-import { icon } from "../core/dom";
+import { icon } from "../utils";
 import "./shared-components";
 
 export interface SourcesViewModel {

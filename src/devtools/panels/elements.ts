@@ -3,7 +3,7 @@ import { getEventListeners, installEventListenerRegistry } from "../core/event-l
 import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
-import type { ToolContext } from "../types";
+import type { Cleanup, ElementsConfig, ToolContext } from "../types";
 import { copyText, debounce, icon, isDevtoolsNode, nodePath } from "../utils";
 import { asElement, event, html, ref, render } from "../components/runtime";
 import {
@@ -12,17 +12,10 @@ import {
   propertyModels,
   styleRuleModels,
   type ElementsViewModel,
-  type RenderPiece,
   type StyleRuleInfo,
 } from "./elements-components";
 
 export { elementsStyleArtifacts };
-
-interface ElementsConfig {
-  overrideEventTarget: boolean;
-  observeElement: boolean;
-  showWhitespace: boolean;
-}
 
 type SelectOptions = {
   addHistory?: boolean;
@@ -30,8 +23,6 @@ type SelectOptions = {
   reveal?: boolean;
   highlight?: boolean;
 };
-
-type ContextMenuCleanup = () => void;
 
 export class Elements extends Tool {
   readonly name = "elements";
@@ -68,7 +59,7 @@ export class Elements extends Tool {
   private disposeView: (() => void) | null = null;
 
   private contextMenu: HTMLElement | null = null;
-  private contextMenuCleanup: ContextMenuCleanup | null = null;
+  private contextMenuCleanup: Cleanup | null = null;
 
   private picking = false;
   private isUserScrolling = false;
@@ -358,7 +349,7 @@ export class Elements extends Tool {
     `);
   }
 
-  private renderNode(node: Node, depth: number): RenderPiece {
+  private renderNode(node: Node, depth: number): import("../../fabrica").RenderValue {
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
     const expanded = this.expanded.has(node);

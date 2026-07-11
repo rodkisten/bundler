@@ -6,8 +6,6 @@ import { component, event, html, ref, styled } from "../components/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 
-export type RenderPiece = RenderValue;
-
 export interface NetworkViewModel {
   setList(node: HTMLElement | null): void;
   setDetail(node: HTMLElement | null): void;
@@ -343,7 +341,7 @@ component("RodNetworkView", function RodNetworkView(props) {
   `;
 });
 
-export function networkListTemplate(records: NetworkRecord[], selectedId: string | null, onOpen: (id: string) => void): RenderPiece {
+export function networkListTemplate(records: NetworkRecord[], selectedId: string | null, onOpen: (id: string) => void): RenderValue {
   if (!records.length) {
     return html`
       <RodNetworkEmpty>
@@ -372,7 +370,7 @@ export function networkListTemplate(records: NetworkRecord[], selectedId: string
   `;
 }
 
-export function networkRowTemplate(record: NetworkRecord, selectedId: string | null, onOpen: (id: string) => void): RenderPiece {
+export function networkRowTemplate(record: NetworkRecord, selectedId: string | null, onOpen: (id: string) => void): RenderValue {
   const url = safeUrl(record.url);
   const name = url.pathname.split("/").filter(Boolean).at(-1) || url.hostname || record.url;
   const status = record.status == null ? (record.state === "pending" ? "…" : "—") : String(record.status);
@@ -394,7 +392,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
   captureResponseBody: boolean;
   onAction(event: Event): void;
   onTab(event: Event): void;
-}): RenderPiece {
+}): RenderValue {
   const responseType = inferSourceType(record.responseBody ?? "", record.url);
   const responseCode = options.captureResponseBody
     ? (record.responseBody ?? "Response body is not available.")
@@ -462,13 +460,13 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
   `;
 }
 
-function detailTabTemplate(tab: string, label: string, activeTab: string, onTab: (event: Event) => void): RenderPiece {
+function detailTabTemplate(tab: string, label: string, activeTab: string, onTab: (event: Event) => void): RenderValue {
   return html`
     <RodNetworkTabButton type="button" data-detail-tab=${tab} data-active=${String(tab === activeTab)} @click=${event(onTab)}>${label}</RodNetworkTabButton>
   `;
 }
 
-function sectionTableTemplate(title: string, rows: Array<readonly [string, unknown]>): RenderPiece {
+function sectionTableTemplate(title: string, rows: Array<readonly [string, unknown]>): RenderValue {
   return html`
     <RodNetworkSection>
       <RodNetworkSectionTitle>${title}</RodNetworkSectionTitle>
@@ -488,14 +486,14 @@ function sectionTableTemplate(title: string, rows: Array<readonly [string, unkno
   `;
 }
 
-function headerTableTemplate(title: string, headers: NetworkHeader[]): RenderPiece {
+function headerTableTemplate(title: string, headers: NetworkHeader[]): RenderValue {
   return sectionTableTemplate(
     title,
     headers.length ? headers.map((header) => [header.name, header.value] as const) : [["—", "No headers"]],
   );
 }
 
-function sectionPreTemplate(title: string, value: string): RenderPiece {
+function sectionPreTemplate(title: string, value: string): RenderValue {
   return html`
     <RodNetworkSection>
       <RodNetworkSectionTitle>${title}</RodNetworkSectionTitle>
@@ -504,7 +502,7 @@ function sectionPreTemplate(title: string, value: string): RenderPiece {
   `;
 }
 
-function messagesTableTemplate(record: NetworkRecord): RenderPiece {
+function messagesTableTemplate(record: NetworkRecord): RenderValue {
   const messages = record.messages ?? [];
 
   return html`
