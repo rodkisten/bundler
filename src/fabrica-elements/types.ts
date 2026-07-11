@@ -179,6 +179,8 @@ export interface StyledComponentMetadata<Artifact = unknown> {
 
 /** Styled component with class/artifact/registry metadata. */
 export type StyledComponent<Props extends ElementsRecord = ElementsRecord, Artifact = unknown> = ElementsComponent<Props> & StyledComponentMetadata<Artifact> & {
+  /** Produces a renderer-owned payload so Fábrica can materialize complex children safely. */
+  renderPayload(props?: Props): ElementsRecord
   register(name?: string, collision?: StyledRegistryCollision): StyledRegistrationStatus
   unregister(): boolean
   withComponent<TargetProps extends ElementsRecord = Props>(target: string | ElementsComponent<TargetProps>): StyledComponent<TargetProps, Artifact>
