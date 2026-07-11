@@ -8,6 +8,7 @@ export {
   getOrCreateFabrica as getOrCreate,
 } from "./public-api";
 export type { FabricaApi } from "./public-api";
+export { FABRICA_HTML_ARTIFACT } from "./types";
 export type {
   Cleanup,
   Component,
@@ -27,6 +28,9 @@ export type {
   RegistryCollision,
   RegistryImportMode,
   RenderValue,
+  HtmlArtifact,
+  HtmlResult,
+  HtmlTag,
   RepeatContext,
   VirtualRepeatOptions,
 } from "./types";
@@ -69,7 +73,7 @@ export {
   virtualRepeat,
   when,
 } from "./directives";
-export { html, hydrate, jsx, mount, render } from "./dom";
+export { getHtmlArtifact, html, hydrate, isHtmlResult, jsx, mount, render } from "./dom";
 export { batch, computed, effect, signal } from "../broto/reactivity";
 export { defineElement, elements } from "./elements";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw";

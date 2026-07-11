@@ -22,7 +22,7 @@ import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
 import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "./directives";
-import { html as baseHtml, hydrate as baseHydrate, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
+import { getHtmlArtifact, html as baseHtml, hydrate as baseHydrate, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
 import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
@@ -49,6 +49,7 @@ import type {
   RawHtml,
   RegistryImportMode,
   RenderValue,
+  HtmlTag,
 } from "./types";
 
 const INSTANCE_MAP = Symbol.for("rod.fabrica.instances");
@@ -62,14 +63,18 @@ Object.assign(baseHtml, {
   sanitized: sanitizedHtml,
   trusted: trustedHtml,
   unsafe: unsafeHtml,
+  artifact: getHtmlArtifact,
+  isResult: isHtmlResult,
 });
 
 type HtmlApi = typeof baseHtml & {
-  jsx: typeof baseHtml;
+  jsx: NonNullable<HtmlTag["jsx"]>;
   raw(value: string): RawHtml;
   sanitized(value: string): RawHtml;
   trusted(value: string): RawHtml;
   unsafe(value: string): RawHtml;
+  artifact(value: unknown): ReturnType<typeof getHtmlArtifact>;
+  isResult(value: unknown): ReturnType<typeof isHtmlResult>;
 };
 
 /** Public instance API. Every renderer function is bound to one registry. */
@@ -82,7 +87,7 @@ export type FabricaApi = {
   render: typeof baseRender;
   mount: typeof baseMount;
   hydrate: typeof baseHydrate;
-  jsx: { html: typeof baseHtml };
+  jsx: { html: NonNullable<HtmlTag["jsx"]> };
   component: {
     <Props extends object = ComponentProps>(factory: ComponentFactory<Props>): Component<Props>;
     <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions): Component<Props>;
@@ -253,6 +258,8 @@ export function createFabricaApi(
   instanceHtml.sanitized = sanitizedHtml;
   instanceHtml.trusted = trustedHtml;
   instanceHtml.unsafe = unsafeHtml;
+  instanceHtml.artifact = getHtmlArtifact;
+  instanceHtml.isResult = isHtmlResult;
 
   const instanceJsx = Object.freeze({ html: instanceHtml.jsx });
   const instanceRender = ((container, value) =>

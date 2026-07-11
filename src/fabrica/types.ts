@@ -11,6 +11,32 @@ export type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveExpression
  * job instead of becoming a kitchen drawer.
  */
 
+
+/** Symbol used to attach non-enumerable template metadata to materialized DOM nodes. */
+export const FABRICA_HTML_ARTIFACT = Symbol.for("rod.fabrica.html.artifact");
+
+/** Re-materializable metadata carried by every `html``...`` result. */
+export type HtmlArtifact = {
+  readonly kind: "fabrica.html";
+  readonly strings: readonly string[];
+  readonly values: readonly RenderValue[];
+  readonly jsx: boolean;
+  materialize(): HtmlResult;
+};
+
+/** A real DOM node that also exposes its Fábrica template artifact through a symbol. */
+export type HtmlResult = Node & {
+  readonly [FABRICA_HTML_ARTIFACT]: HtmlArtifact;
+};
+
+/** Public tagged-template surface used by default and instance-local runtimes. */
+export type HtmlTag = {
+  (strings: TemplateStringsArray, ...values: RenderValue[]): HtmlResult;
+  jsx?: (strings: TemplateStringsArray, ...values: RenderValue[]) => HtmlResult;
+  artifact?(value: unknown): HtmlArtifact | undefined;
+  isResult?(value: unknown): value is HtmlResult;
+};
+
 /** Values accepted by the DOM renderer use Broto reactive primitives when needed. */
 /** Values accepted by the DOM renderer. */
 export type RenderValue =
@@ -275,9 +301,9 @@ export type ComponentContext = {
   /** Instance-local registry used by named component tags. */
   registry: ComponentRegistry;
   /** Instance-bound template tag. */
-  html: ((strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment) & { jsx?: (strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment };
+  html: HtmlTag;
   /** Instance-bound JSX namespace. */
-  jsx: { html: (strings: TemplateStringsArray, ...values: RenderValue[]) => DocumentFragment };
+  jsx: { html: NonNullable<HtmlTag["jsx"]> };
   /** Instance-bound component factory. */
   component: <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions) => Component<Props>;
   /** Component owner created by Broto. */
