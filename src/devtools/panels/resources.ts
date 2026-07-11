@@ -56,13 +56,11 @@ export class Resources extends Tool {
     this.disposeView = render(container, html`<RodResourcesView view=${view as never} />`);
 
     this.config.on("change", this.onConfigChange);
-    this.observe();
     this.registerSettings(context);
-    this.refresh();
   }
 
   refresh(): void {
-    if (!this.body) return;
+    if (!this.active || !this.body) return;
 
     render(this.body, html`
       ${this.storageSection("Local Storage", "local", safeStorage("local"))}
@@ -74,6 +72,18 @@ export class Resources extends Tool {
       ${this.linkSection("Iframes", "iframe", this.iframeUrls())}
       ${this.imageSection(this.imageUrls())}
     `);
+  }
+
+
+  override show(): void {
+    super.show();
+    this.observe();
+    this.refresh();
+  }
+
+  override hide(): void {
+    super.hide();
+    this.observer?.disconnect();
   }
 
   refreshScript(): void { this.refresh(); }
@@ -98,10 +108,10 @@ export class Resources extends Tool {
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
     if (key === "observeElement") {
-      value ? this.observe() : this.observer?.disconnect();
+      value && this.active ? this.observe() : this.observer?.disconnect();
     }
 
-    this.refresh();
+    if (this.active) this.refresh();
   };
 
   private registerSettings(context: ToolContext): void {
@@ -114,12 +124,12 @@ export class Resources extends Tool {
   private observe(): void {
     this.observer?.disconnect();
 
-    if (!this.config.get("observeElement") || !document.documentElement) return;
+    if (!this.active || !this.config.get("observeElement") || !document.documentElement) return;
 
     this.observer = new MutationObserver((mutations) => {
       const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-      if (mutations.some((mutation) => !isDevtoolsNode(mutation.target, host))) {
+      if (mutations.some((mutation) => mutationTouchesResources(mutation, host))) {
         this.scheduleRefresh();
       }
     });
@@ -317,22 +327,37 @@ export class Resources extends Tool {
 
   private imageUrls(): string[] {
     const images = Array.from(document.images)
+      .filter((image) => !isDevtoolsNode(image, this.context?.shadowRoot?.host as HTMLElement | undefined))
       .flatMap((image) => [image.currentSrc, image.src])
       .filter(Boolean);
 
-    const backgrounds: string[] = [];
+    const inlineBackgrounds = Array.from(document.querySelectorAll<HTMLElement>("[style]"))
+      .filter((element) => !isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined))
+      .flatMap((element) => extractCssUrls(`${element.style.backgroundImage} ${element.style.background}`));
 
-    for (const element of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
-      if (backgrounds.length > 1000) break;
-
-      const value = getComputedStyle(element).backgroundImage;
-
-      for (const match of value.matchAll(/url\(["']?(.+?)["']?\)/g)) {
-        if (match[1]) backgrounds.push(new URL(match[1], location.href).href);
+    const stylesheetBackgrounds: string[] = [];
+    for (const stylesheet of Array.from(document.styleSheets)) {
+      try {
+        collectCssRuleUrls(stylesheet.cssRules, stylesheetBackgrounds);
+      } catch {
+        // Cross-origin stylesheets cannot expose their rules. Loaded resources
+        // are still picked up from the Performance API below.
       }
     }
 
-    return unique([...images, ...backgrounds]).filter((url) => !this.hidden(url));
+    const performanceImages = typeof performance.getEntriesByType === "function"
+      ? performance.getEntriesByType("resource")
+        .filter((entry): entry is PerformanceResourceTiming => "initiatorType" in entry)
+        .filter((entry) => entry.initiatorType === "img" || looksLikeImageUrl(entry.name))
+        .map((entry) => entry.name)
+      : [];
+
+    return unique([
+      ...images,
+      ...inlineBackgrounds,
+      ...stylesheetBackgrounds,
+      ...performanceImages,
+    ]).filter((url) => !this.hidden(url));
   }
 
   private hidden(url: string): boolean {
@@ -427,6 +452,73 @@ export class Resources extends Tool {
       this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
     }
   }
+}
+
+const RESOURCE_ELEMENT_SELECTOR = [
+  "script",
+  "style",
+  "link[href]",
+  "iframe[src]",
+  "img[src]",
+  "source[src]",
+  "video[src]",
+  "audio[src]",
+  "[style]",
+].join(",");
+
+function mutationTouchesResources(
+  mutation: MutationRecord,
+  devtoolsHost?: HTMLElement,
+): boolean {
+  if (isDevtoolsNode(mutation.target, devtoolsHost)) return false;
+
+  if (mutation.type === "attributes") {
+    return mutation.target instanceof Element
+      && mutation.target.matches(RESOURCE_ELEMENT_SELECTOR);
+  }
+
+  for (const node of [...mutation.addedNodes, ...mutation.removedNodes]) {
+    if (!(node instanceof Element) || isDevtoolsNode(node, devtoolsHost)) continue;
+    if (node.matches(RESOURCE_ELEMENT_SELECTOR) || node.querySelector(RESOURCE_ELEMENT_SELECTOR)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function collectCssRuleUrls(rules: CSSRuleList, output: string[]): void {
+  for (const rule of Array.from(rules)) {
+    if (rule instanceof CSSStyleRule) {
+      output.push(...extractCssUrls(`${rule.style.backgroundImage} ${rule.style.background}`));
+      continue;
+    }
+
+    if ("cssRules" in rule) {
+      try {
+        collectCssRuleUrls((rule as CSSGroupingRule).cssRules, output);
+      } catch {
+        // Browser-specific grouping rules can be inaccessible.
+      }
+    }
+  }
+}
+
+function extractCssUrls(value: string): string[] {
+  const urls: string[] = [];
+  for (const match of value.matchAll(/url\(["']?(.+?)["']?\)/g)) {
+    if (!match[1]) continue;
+    try {
+      urls.push(new URL(match[1], location.href).href);
+    } catch {
+      // Ignore malformed CSS URLs.
+    }
+  }
+  return urls;
+}
+
+function looksLikeImageUrl(value: string): boolean {
+  return /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(value);
 }
 
 function storageRows(type: StorageType, storage: Storage): Array<{ type: StorageType; key: string; value: string; json: boolean }> {

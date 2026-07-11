@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
   const highlighterInstances: Array<{
     highlight: ReturnType<typeof vi.fn>;
     hide: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
   }> = [];
 
   return {
@@ -54,6 +55,7 @@ vi.mock("../core/highlighter", () => ({
   ElementHighlighter: class ElementHighlighter {
     readonly highlight = vi.fn();
     readonly hide = vi.fn();
+    readonly destroy = vi.fn(() => this.hide());
 
     constructor(_host?: HTMLElement) {
       mocks.highlighterInstances.push(this);
@@ -116,7 +118,7 @@ function polyfillBrowserApis(): void {
   });
 }
 
-function createFixture(): Fixture {
+function createFixture(show = true): Fixture {
   document.body.innerHTML = `
     <main id="page-app">
       <section id="page-target" class="card selected">
@@ -173,6 +175,7 @@ function createFixture(): Fixture {
 
   const tool = new Elements();
   tool.init(container, context);
+  if (show) tool.show();
 
   return {
     tool,
@@ -208,6 +211,13 @@ function findNodeRow(
   ).toBeInstanceOf(HTMLElement);
 
   return row!;
+}
+
+function findPageTargetRow(container: ParentNode): HTMLElement {
+  const mainRow = findNodeRow(container, 'id="page-app"');
+  const toggle = mainRow.querySelector<HTMLElement>("[data-toggle-node]");
+  if (toggle?.textContent === "▸") click(toggle);
+  return findNodeRow(container, 'id="page-target"');
 }
 
 function click(element: Element): void {
@@ -266,8 +276,8 @@ describe("Elements panel", () => {
     vi.restoreAllMocks();
   });
 
-  it("mounts the complete Fabrica Elements view", () => {
-    fixture = createFixture();
+  it("mounts the shell lazily without traversing the page while inactive", () => {
+    fixture = createFixture(false);
 
     const { container, tool } = fixture;
 
@@ -304,6 +314,9 @@ describe("Elements panel", () => {
     expect(
       container.querySelectorAll("[data-elements-detail]"),
     ).toHaveLength(1);
+
+    expect(container.querySelectorAll("[data-node-id]")).toHaveLength(0);
+    expect(mocks.getEventListeners).not.toHaveBeenCalled();
   });
 
   it("renders the inspected page DOM without rendering its own DevTools host", () => {
@@ -332,10 +345,7 @@ describe("Elements panel", () => {
   it("selects a DOM node and renders its complete detail inspector", () => {
     fixture = createFixture();
 
-    const row = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const row = findPageTargetRow(fixture.container);
 
     click(row);
 
@@ -368,10 +378,7 @@ describe("Elements panel", () => {
   it("renders breadcrumbs and lets delegated breadcrumb clicks navigate", () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     doubleClick(targetRow);
 
@@ -475,16 +482,32 @@ describe("Elements panel", () => {
     ).toHaveLength(1);
   });
 
+  it("does not rebuild the visible tree for mutations inside collapsed branches", async () => {
+    vi.useFakeTimers();
+    fixture = createFixture();
+
+    const tree = fixture.container.querySelector<HTMLElement>("[data-elements-tree]");
+    const renderedRoot = tree?.firstElementChild;
+    expect(renderedRoot).toBeInstanceOf(HTMLElement);
+
+    const nested = document.createElement("span");
+    nested.id = "collapsed-branch-mutation";
+    document.querySelector("#page-target")?.append(nested);
+
+    await flushMutationObserver();
+    vi.advanceTimersByTime(200);
+
+    expect(tree?.firstElementChild).toBe(renderedRoot);
+    expect(tree?.textContent).not.toContain("collapsed-branch-mutation");
+  });
+
   it("supports whitespace-only text nodes when the setting is enabled", () => {
     fixture = createFixture();
 
     const target = document.querySelector("#page-target")!;
     target.append(document.createTextNode("   \n   "));
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     const toggle = targetRow.querySelector<HTMLElement>(
       "[data-toggle-node]",
@@ -510,10 +533,7 @@ describe("Elements panel", () => {
   it("opens a real context menu inside the delegated event boundary", async () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     contextMenu(targetRow, 5000, 5000);
 
@@ -548,10 +568,7 @@ describe("Elements panel", () => {
   it("executes context-menu actions through delegated handlers", async () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     contextMenu(targetRow);
 
@@ -582,10 +599,7 @@ describe("Elements panel", () => {
   it("edits an attribute using delegated change handling", () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     click(targetRow);
 
@@ -631,10 +645,7 @@ describe("Elements panel", () => {
   it("updates inline styles from the Styles editor", () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     click(targetRow);
 
@@ -693,10 +704,7 @@ describe("Elements panel", () => {
   it("highlights nodes on selection and hides the overlay on panel hide", () => {
     fixture = createFixture();
 
-    const targetRow = findNodeRow(
-      fixture.container,
-      'id="page-target"',
-    );
+    const targetRow = findPageTargetRow(fixture.container);
 
     click(targetRow);
 
@@ -740,6 +748,7 @@ describe("Elements panel", () => {
 
     const secondTool = new Elements();
     secondTool.init(container, context);
+    secondTool.show();
 
     expect(
       container.querySelectorAll("[data-elements-layout]"),

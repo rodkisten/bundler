@@ -30,6 +30,7 @@ export class Network extends Tool {
   private filterInput: HTMLInputElement | null = null;
   private disposeView: (() => void) | null = null;
   private activeDetailTab = "headers";
+  private renderFrame = 0;
   private readonly state = store({ selectedId: null as string | null });
 
   constructor(capture = new NetworkCapture()) {
@@ -65,7 +66,20 @@ export class Network extends Tool {
     this.capture.install();
 
     this.registerSettings(context);
+  }
+
+  override show(): void {
+    super.show();
+    this.cancelScheduledRender();
     this.render();
+
+    const selected = this.selectedRecord();
+    if (selected && this.detail?.dataset.active === "true") this.renderDetail(selected);
+  }
+
+  override hide(): void {
+    super.hide();
+    this.cancelScheduledRender();
   }
 
   clear(): void {
@@ -77,6 +91,7 @@ export class Network extends Tool {
   }
 
   override destroy(): void {
+    this.cancelScheduledRender();
     this.capture.off("request", this.onRequest);
     this.capture.off("update", this.onUpdate);
     this.capture.off("clear", this.onClear);
@@ -93,13 +108,14 @@ export class Network extends Tool {
   }
 
   private readonly onRequest = (): void => {
-    this.render();
+    if (this.active) this.scheduleRender();
   };
 
   private readonly onUpdate = (record: NetworkRecord): void => {
-    this.render();
+    if (!this.active) return;
 
-    if (this.state.snapshot().selectedId === record.id) {
+    this.scheduleRender();
+    if (this.state.snapshot().selectedId === record.id && this.detail?.dataset.active === "true") {
       this.renderDetail(record);
     }
   };
@@ -107,7 +123,7 @@ export class Network extends Tool {
   private readonly onClear = (): void => {
     this.state.setPath("selectedId", null);
     this.detail?.dataset && (this.detail.dataset.active = "false");
-    this.render();
+    if (this.active) this.scheduleRender();
   };
 
   private registerSettings(context: ToolContext): void {
@@ -117,8 +133,22 @@ export class Network extends Tool {
     context.settings.registerSwitch(this.config, "captureResponseBody", "Capture response bodies");
   }
 
+  private scheduleRender(): void {
+    if (this.renderFrame || !this.active) return;
+
+    this.renderFrame = requestAnimationFrame(() => {
+      this.renderFrame = 0;
+      if (this.active) this.render();
+    });
+  }
+
+  private cancelScheduledRender(): void {
+    if (this.renderFrame) cancelAnimationFrame(this.renderFrame);
+    this.renderFrame = 0;
+  }
+
   private render(): void {
-    if (!this.list) return;
+    if (!this.active || !this.list) return;
 
     const selectedId = this.state.snapshot().selectedId;
     const records = this.capture.requests().filter((record) => this.matches(record));
@@ -171,7 +201,7 @@ export class Network extends Tool {
     const value = event.target instanceof HTMLInputElement ? event.target.value : "";
 
     this.config.set("filter", value);
-    this.render();
+    if (this.active) this.render();
   }
 
   private handleAction(event: Event, element: HTMLElement): void {
