@@ -832,8 +832,7 @@ export class Elements extends Tool {
     || this.isUserScrolling
     || !(event instanceof PointerEvent)
     || event.pointerType !== "mouse"
-  ) {
-    return;
+  ) return;
 
     const node = this.resolveNode(element.dataset.nodeId ?? "");
 
