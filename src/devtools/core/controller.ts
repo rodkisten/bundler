@@ -9,6 +9,7 @@ import { applyTheme, themes } from "./theme";
 import type {
   DevtoolsControllerLike,
   DevtoolsDefaults,
+  DevToolsConfig,
   NotificationOptions,
   SettingsLike,
   ToolContext,
@@ -22,15 +23,6 @@ interface ControllerEvents {
   add: [tool: ToolLike];
   remove: [name: string];
   [key: string]: unknown[];
-}
-
-interface DevToolsConfig extends Record<string, unknown> {
-  transparency: number;
-  displaySize: number;
-  blur: number;
-  theme: string;
-  panelOrder: string[];
-  disabledPanels: string[];
 }
 
 const ToolPanel = styled.section("RodDevtoolsToolPanel").css`
@@ -520,9 +512,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     this.refs.devtools.setAttribute("aria-hidden", "false");
 
     requestAnimationFrame(() => {
-      this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
+      this.refs.devtools.style.opacity = String(this.config.get("transparency"));
 
-      this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("transparency")}px`);
+      this.refs.root.style.setProperty("--rd-blur", `${this.config.get("blur")}px`);
     });
 
     this.emit("show");
@@ -739,7 +731,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       pointer.preventDefault();
       this.resizing = true;
       this.resizeStartY = pointer.clientY;
-      this.resizeStartSize = this.config.get<number>("displaySize");
+      this.resizeStartSize = this.config.get("displaySize");
       this.refs.resizer.setPointerCapture?.(pointer.pointerId);
       this.refs.resizer.style.height = "100%";
     }));
@@ -771,7 +763,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       const media = matchMedia("(prefers-color-scheme: dark)");
 
       const listener = () => {
-        if (this.config.get<string>("theme") === "System preference") {
+        if (this.config.get("theme") === "System preference") {
           this.applyConfiguration("theme");
         }
       };
@@ -792,20 +784,20 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     if (!key || key === "transparency") {
       if (this.visible || this.inline) {
-        this.refs.devtools.style.opacity = String(this.config.get<number>("transparency"));
+        this.refs.devtools.style.opacity = String(this.config.get("transparency"));
       }
     }
 
     if (!key || key === "blur") {
       if (this.visible || this.inline) {
-        this.refs.root.style.setProperty("--rd-blur", `${this.config.get<number>("blur")}px`);
+        this.refs.root.style.setProperty("--rd-blur", `${this.config.get("blur")}px`);
       }
     }
 
     if (!key || key === "displaySize") {
       this.refs.devtools.style.height = this.inline
         ? "100%"
-        : `calc(${this.config.get<number>("displaySize")}% - var(--rd-safe-bottom))`;
+        : `calc(${this.config.get("displaySize")}% - var(--rd-safe-bottom))`;
     }
 
     if (!key || key === "panelOrder" || key === "disabledPanels") {
@@ -909,7 +901,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private panelOrder(): string[] {
-    const configured = this.config.get<string[]>("panelOrder");
+    const configured = this.config.get("panelOrder");
     const known = [...this.tools.keys()];
     const ordered = Array.isArray(configured)
       ? configured.filter((name) => this.tools.has(name))
@@ -925,7 +917,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   private isPanelDisabled(name: string): boolean {
     if (name === "settings") return false;
 
-    const disabled = this.config.get<string[]>("disabledPanels");
+    const disabled = this.config.get("disabledPanels");
 
     return Array.isArray(disabled) && disabled.includes(name);
   }

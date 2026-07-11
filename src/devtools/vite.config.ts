@@ -23,7 +23,7 @@ export default defineConfig({
       entry: resolve(__dirname, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
       name: "DevTools",
-      fileName: (format) => `devtools.${format}.js`,
+      fileName: (format: string) => `devtools.${format}.js`,
     },
   },
 

@@ -8,8 +8,6 @@ import "./shared-components";
 
 bootstrapDevtoolsCipo();
 
-export type RenderPiece = RenderValue;
-
 export interface ElementsViewModel {
   setTree(node: HTMLElement | null): void;
   setCrumbs(node: HTMLElement | null): void;
@@ -574,7 +572,7 @@ component("RodElementsView", function RodElementsView(props) {
 export const ElementsDetailSectionView = component<{
   title: string;
   name: string;
-  children?: RenderPiece;
+  children?: RenderValue;
   onToggle?: (event: Event) => void;
 }>("RodElementsDetailSectionView", function RodElementsDetailSectionView(props) {
   return html`
@@ -767,7 +765,7 @@ export const ElementsDetailHeaderView = component<{
   `;
 });
 
-export const ElementsDetailBodyView = component<{ children?: RenderPiece }>(
+export const ElementsDetailBodyView = component<{ children?: RenderValue }>(
   "RodElementsDetailBodyView",
   (props) => html`<RodSharedScrollableBody>${props.children}</RodSharedScrollableBody>`,
 );
@@ -777,7 +775,7 @@ export const ElementsPreBlockView = component<{ value: string }>(
   (props) => html`<RodSharedPreBlock>${props.value}</RodSharedPreBlock>`,
 );
 
-export const ElementsDomTreeView = component<{ children?: RenderPiece }>(
+export const ElementsDomTreeView = component<{ children?: RenderValue }>(
   "RodElementsDomTreeView",
   (props) => html`<RodElementsDomList data-root="true">${props.children}</RodElementsDomList>`,
 );
@@ -789,7 +787,7 @@ export const ElementsDomNodeView = component<{
   selected: boolean;
   expandable: boolean;
   expanded: boolean;
-  children?: RenderPiece;
+  children?: RenderValue;
   moreCount?: number;
   onClick?: (event: Event) => void;
   onDoubleClick?: (event: Event) => void;

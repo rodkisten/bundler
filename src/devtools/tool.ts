@@ -1,1 +1,1 @@
-export * from './core/tool.ts';
+export * from './core/tool';

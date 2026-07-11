@@ -1,9 +1,9 @@
+import type { Position, SettingsLike } from "../types";
 import { ConfigStore } from "./config";
 import { eventPoint, on } from "./dom";
 import { detectMobile } from "./utils";
-import type { Position, SettingsLike } from "../types";
 
-interface EntryButtonConfig extends Record<string, unknown> {
+interface EntryButtonConfig {
   rememberPos: boolean;
   pos: Position | null;
 }
@@ -51,7 +51,7 @@ export class EntryBtn {
     const value = this.clamp(position);
     this.element.style.left = `${value.x}px`;
     this.element.style.top = `${value.y}px`;
-    if (this.config.get<boolean>("rememberPos")) this.config.set("pos", value);
+    if (this.config.get("rememberPos")) this.config.set("pos", value);
     return this;
   }
 
@@ -96,7 +96,7 @@ export class EntryBtn {
         this.lastPointerActivation = Date.now();
         this.clickListener?.();
       }
-      if (this.config.get<boolean>("rememberPos")) this.config.set("pos", this.getPos());
+      if (this.config.get("rememberPos")) this.config.set("pos", this.getPos());
     }));
     this.cleanup.push(on(this.element, "click", (event: MouseEvent) => {
       event.preventDefault();
@@ -110,8 +110,8 @@ export class EntryBtn {
 
   private resetPosition(orientationChanged: boolean): void {
     requestAnimationFrame(() => {
-      const remembered = this.config.get<Position | null>("pos");
-      const shouldRemember = this.config.get<boolean>("rememberPos") && !orientationChanged;
+      const remembered = this.config.get("pos");
+      const shouldRemember = this.config.get("rememberPos") && !orientationChanged;
       const fallback = this.defaultPosition();
       this.setPos(shouldRemember && remembered ? remembered : fallback);
       if (detectMobile()) this.element.setAttribute("aria-label", "Open RodEruda developer tools");

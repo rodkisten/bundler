@@ -2,7 +2,7 @@ import { ConfigStore } from "../core/config";
 import { debounce, icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
-import type { SourcePayload, ToolContext } from "../types";
+import type { ResourcesConfig, SourcePayload, ToolContext } from "../types";
 import { event, html, render } from "../components/runtime";
 import {
   ResourcesIconButton,
@@ -21,11 +21,6 @@ import {
 } from "./resources-components";
 
 export { resourcesStyleArtifacts };
-
-interface ResourcesConfig {
-  hideDevtoolsSetting: boolean;
-  observeElement: boolean;
-}
 
 type StorageType = "local" | "session";
 

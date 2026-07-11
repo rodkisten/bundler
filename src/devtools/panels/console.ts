@@ -6,7 +6,7 @@ import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import { copyText, icon, safeStringify } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
-import type { ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
+import type { ConsoleConfig, ConsoleFilter, ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
 import {
   ConsoleCodeEditorHost,
   ConsoleGroup,
@@ -24,21 +24,6 @@ import {
 } from "./console-components";
 
 export { consoleStyleArtifacts };
-
-interface ConsoleConfig {
-  asyncRender: boolean;
-  jsExecution: boolean;
-  catchGlobalErr: boolean;
-  overrideConsole: boolean;
-  displayExtraInfo: boolean;
-  displayUnenumerable: boolean;
-  displayGetterVal: boolean;
-  lazyEvaluation: boolean;
-  displayIfErr: boolean;
-  maxLogNum: string;
-}
-
-type Filter = string | RegExp | ((record: ConsoleRecord) => boolean) | null;
 
 const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   asyncRender: true,
@@ -166,7 +151,7 @@ export class Console extends Tool {
   catchGlobalErr(): this { this.capture.enableGlobalErrors(); return this; }
   ignoreGlobalErr(): this { this.capture.disableGlobalErrors(); return this; }
 
-  filter(filter: Filter): void {
+  filter(filter: ConsoleFilter): void {
     this.state.patch({
       filterValue: typeof filter === "string" && !filter.trim() ? null : filter,
       filterText: typeof filter === "string" ? filter : "",

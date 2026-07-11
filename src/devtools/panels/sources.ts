@@ -24,6 +24,7 @@ import { Tool } from "../tool";
 import type {
   SourcePayload,
   SourceType,
+  SourcesConfig,
   ToolContext,
 } from "../types";
 import {
@@ -32,13 +33,6 @@ import {
 } from "./sources-components";
 
 export { sourcesStyleArtifacts };
-
-interface SourcesConfig {
-  showLineNum: boolean;
-  formatCode: boolean;
-  indentSize: string;
-  wrapLines: boolean;
-}
 
 type ResolvedSource = {
   type: SourceType | string;

@@ -1,6 +1,13 @@
+import type { RenderValue } from "../../fabrica";
 import { event, html, render } from "../components/runtime";
 import { icon } from "../utils";
-import type { ConfigLike, RangeOptions, ToolContext } from "../types";
+import type {
+  ConfigChangeListener,
+  ConfigLike,
+  KeysOfValue,
+  RangeOptions,
+  ToolContext,
+} from "../types";
 import { Tool } from "../tool";
 import {
   SettingsButton,
@@ -17,19 +24,39 @@ import {
 
 export { settingsStyleArtifacts };
 
-type SettingKind = "text" | "separator" | "button" | "switch" | "select" | "range";
-
-type SettingEntry = {
+type BaseSettingEntry = {
   id: string;
-  kind: SettingKind;
   label?: string;
-  handler?: () => void | Promise<void>;
-  config?: ConfigLike;
-  key?: string;
-  selections?: readonly string[];
-  range?: RangeOptions;
   dispose?: () => void;
 };
+
+type SettingEntry =
+  | (BaseSettingEntry & { kind: "text" })
+  | (BaseSettingEntry & { kind: "separator" })
+  | (BaseSettingEntry & { kind: "button"; handler: () => void | Promise<void> })
+  | (BaseSettingEntry & {
+      kind: "switch";
+      getValue: () => boolean;
+      setValue: (value: boolean) => void;
+    })
+  | (BaseSettingEntry & {
+      kind: "select";
+      selections: readonly string[];
+      getValue: () => string;
+      setValue: (value: string) => void;
+    })
+  | (BaseSettingEntry & {
+      kind: "range";
+      range: RangeOptions;
+      getValue: () => number;
+      setValue: (value: number) => void;
+    });
+
+type NewSettingEntry = SettingEntry extends infer Entry
+  ? Entry extends SettingEntry
+    ? Omit<Entry, "id">
+    : never
+  : never;
 
 export class Settings extends Tool {
   readonly name = "settings";
@@ -76,44 +103,86 @@ export class Settings extends Tool {
     return this.add({ kind: "button", label, handler });
   }
 
-  registerSwitch(config: ConfigLike, key: string, description: string): string {
-    return this.addConfigEntry({ kind: "switch", label: description, config, key });
+  registerSwitch<Values extends object, Key extends KeysOfValue<Values, boolean>>(
+    config: ConfigLike<Values>,
+    key: Key,
+    description: string,
+  ): string {
+    return this.addConfigEntry(config, key, {
+      kind: "switch",
+      label: description,
+      getValue: () => config.get(key) as boolean,
+      setValue: (value: boolean) => config.set(key, value as Values[Key]),
+    });
   }
 
-  registerSelect(config: ConfigLike, key: string, description: string, selections: readonly string[]): string {
-    return this.addConfigEntry({ kind: "select", label: description, config, key, selections });
+  registerSelect<Values extends object, Key extends KeysOfValue<Values, string>>(
+    config: ConfigLike<Values>,
+    key: Key,
+    description: string,
+    selections: readonly string[],
+  ): string {
+    return this.addConfigEntry(config, key, {
+      kind: "select",
+      label: description,
+      selections,
+      getValue: () => config.get(key) as string,
+      setValue: (value: string) => config.set(key, value as Values[Key]),
+    });
   }
 
-  registerRange(config: ConfigLike, key: string, description: string, options: RangeOptions = {}): string {
-    return this.addConfigEntry({ kind: "range", label: description, config, key, range: options });
+  registerRange<Values extends object, Key extends KeysOfValue<Values, number>>(
+    config: ConfigLike<Values>,
+    key: Key,
+    description: string,
+    range: RangeOptions = {},
+  ): string {
+    return this.addConfigEntry(config, key, {
+      kind: "range",
+      label: description,
+      range,
+      getValue: () => config.get(key) as number,
+      setValue: (value: number) => config.set(key, value as Values[Key]),
+    });
   }
 
   removeSetting(id: string): void {
     const index = this.entries.findIndex((entry) => entry.id === id);
     if (index < 0) return;
+
     const [entry] = this.entries.splice(index, 1);
     entry?.dispose?.();
     this.render();
   }
 
-  private add(entry: Omit<SettingEntry, "id">): string {
+  private add(entry: NewSettingEntry): string {
     const id = `setting-${++this.sequence}`;
-    this.entries.push({ ...entry, id });
+    this.entries.push({ ...entry, id } as SettingEntry);
     this.render();
     return id;
   }
 
-  private addConfigEntry(entry: Omit<SettingEntry, "id" | "dispose"> & { config: ConfigLike; key: string }): string {
+  private addConfigEntry<
+    Values extends object,
+    Key extends Extract<keyof Values, string>,
+    Entry extends Omit<SettingEntry, "id" | "dispose">,
+  >(
+    config: ConfigLike<Values>,
+    key: Key,
+    entry: Entry,
+  ): string {
     const id = `setting-${++this.sequence}`;
-    const listener = (changedKey: string) => {
-      if (changedKey === entry.key) this.render();
+    const listener: ConfigChangeListener<Values> = (changedKey) => {
+      if (changedKey === key) this.render();
     };
-    entry.config.on("change", listener);
+
+    config.on("change", listener);
     this.entries.push({
       ...entry,
       id,
-      dispose: () => entry.config.off("change", listener),
-    });
+      dispose: () => config.off("change", listener),
+    } as SettingEntry);
+
     this.render();
     return id;
   }
@@ -124,86 +193,84 @@ export class Settings extends Tool {
     render(this.body, html`
       <SettingsSection>
         <SettingsSectionTitle>Settings</SettingsSectionTitle>
-        ${this.entries.length ? this.entries.map((entry) => this.renderEntry(entry)) : html`
-          <SettingsRow>
-            <SettingsText>No settings registered.</SettingsText>
-          </SettingsRow>
-        `}
+        ${this.entries.length
+          ? this.entries.map((entry) => this.renderEntry(entry))
+          : html`
+              <SettingsRow>
+                <SettingsText>No settings registered.</SettingsText>
+              </SettingsRow>
+            `}
       </SettingsSection>
     `);
   }
 
-  private renderEntry(entry: SettingEntry) {
-    if (entry.kind === "separator") return html`<SettingsSeparator />`;
-    if (entry.kind === "text") return html`<SettingsSectionTitle>${entry.label ?? ""}</SettingsSectionTitle>`;
+  private renderEntry(entry: SettingEntry): RenderValue {
+    switch (entry.kind) {
+      case "separator":
+        return html`<SettingsSeparator />`;
 
-    if (entry.kind === "button") {
-      return html`
-        <SettingsRow>
-          <SettingsText>${entry.label ?? ""}</SettingsText>
-          <SettingsButton type="button" @click=${event(() => void entry.handler?.())}>Run</SettingsButton>
-        </SettingsRow>
-      `;
+      case "text":
+        return html`<SettingsSectionTitle>${entry.label ?? ""}</SettingsSectionTitle>`;
+
+      case "button":
+        return html`
+          <SettingsRow>
+            <SettingsText>${entry.label ?? ""}</SettingsText>
+            <SettingsButton type="button" @click=${event(() => void entry.handler())}>Run</SettingsButton>
+          </SettingsRow>
+        `;
+
+      case "switch":
+        return html`
+          <SettingsRow>
+            <SettingsText>${entry.label ?? ""}</SettingsText>
+            <SettingsInput
+              type="checkbox"
+              .checked=${entry.getValue()}
+              @change=${event((change: Event) => {
+                entry.setValue(change.target instanceof HTMLInputElement && change.target.checked);
+              })}
+            />
+          </SettingsRow>
+        `;
+
+      case "select": {
+        const value = entry.getValue();
+        return html`
+          <SettingsRow>
+            <SettingsText>${entry.label ?? ""}</SettingsText>
+            <SettingsSelect
+              .value=${value}
+              @change=${event((change: Event) => {
+                if (change.target instanceof HTMLSelectElement) entry.setValue(change.target.value);
+              })}
+            >
+              ${entry.selections.map((selection) => html`
+                <option value=${selection} .selected=${selection === value}>${selection}</option>
+              `)}
+            </SettingsSelect>
+          </SettingsRow>
+        `;
+      }
+
+      case "range": {
+        const value = entry.getValue();
+        return html`
+          <SettingsRow>
+            <SettingsText>${entry.label ?? ""}: ${String(value)}</SettingsText>
+            <SettingsInput
+              type="range"
+              min=${String(entry.range.min ?? 0)}
+              max=${String(entry.range.max ?? 100)}
+              step=${String(entry.range.step ?? 1)}
+              .value=${String(value)}
+              @input=${event((input: Event) => {
+                if (input.target instanceof HTMLInputElement) entry.setValue(Number(input.target.value));
+              })}
+            />
+          </SettingsRow>
+        `;
+      }
     }
-
-    if (!entry.config || !entry.key) return "";
-
-    if (entry.kind === "switch") {
-      return html`
-        <SettingsRow>
-          <SettingsText>${entry.label ?? entry.key}</SettingsText>
-          <SettingsInput
-            type="checkbox"
-            .checked=${Boolean(entry.config.get(entry.key))}
-            @change=${event((change: Event) => {
-              const checked = change.target instanceof HTMLInputElement ? change.target.checked : false;
-              entry.config?.set(entry.key!, checked);
-            })}
-          />
-        </SettingsRow>
-      `;
-    }
-
-    if (entry.kind === "select") {
-      const value = String(entry.config.get(entry.key) ?? "");
-      return html`
-        <SettingsRow>
-          <SettingsText>${entry.label ?? entry.key}</SettingsText>
-          <SettingsSelect
-            .value=${value}
-            @change=${event((change: Event) => {
-              const next = change.target instanceof HTMLSelectElement ? change.target.value : value;
-              entry.config?.set(entry.key!, next);
-            })}
-          >
-            ${(entry.selections ?? []).map((selection) => html`
-              <option value=${selection} .selected=${selection === value}>${selection}</option>
-            `)}
-          </SettingsSelect>
-        </SettingsRow>
-      `;
-    }
-
-    if (entry.kind === "range") {
-      const value = Number(entry.config.get(entry.key) ?? 0);
-      return html`
-        <SettingsRow>
-          <SettingsText>${entry.label ?? entry.key}: ${String(entry.config.get(entry.key))}</SettingsText>
-          <SettingsInput
-            type="range"
-            min=${String(entry.range?.min ?? 0)}
-            max=${String(entry.range?.max ?? 100)}
-            step=${String(entry.range?.step ?? 1)}
-            .value=${String(value)}
-            @input=${event((input: Event) => {
-              const next = input.target instanceof HTMLInputElement ? Number(input.target.value) : value;
-              entry.config?.set(entry.key!, next);
-            })}
-          />
-        </SettingsRow>
-      `;
-    }
-
-    return "";
   }
 }
