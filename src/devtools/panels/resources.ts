@@ -1,5 +1,5 @@
 import { ConfigStore } from "../core/config";
-import { debounce, icon, isDevtoolsNode, truncate } from "../core/dom";
+import { debounce, icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { SourcePayload, ToolContext } from "../types";
