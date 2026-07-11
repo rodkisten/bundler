@@ -1,5 +1,5 @@
 import { debugLog } from "../core/debug";
-import { icon } from "../core/dom";
+import { icon } from "../utils";
 import type { CipoCssArtifact } from "../../cipo";
 import { html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
 
