@@ -78,7 +78,36 @@ export interface DevtoolsInitOptions {
   config?: DevtoolsInitConfig;
   debug?: boolean | DevtoolsDebugOptions;
 }
+
 export type ToolFactory = ToolLike | ((api: RodDevtoolsApi) => ToolLike);
+
+export interface ToolContext {
+  readonly root: HTMLElement;
+  readonly shadowRoot: ShadowRoot | null;
+  readonly container: HTMLElement;
+  readonly devtools: DevtoolsControllerLike;
+  readonly settings: SettingsLike;
+  notify(message: string, options?: NotificationOptions): void;
+  prompt(message: string, initialValue?: string): Promise<string | null>;
+  confirm(message: string): Promise<boolean>;
+}
+
+export interface NotificationOptions {
+  type?: "info" | "success" | "warning" | "error";
+  duration?: number;
+}
+
+export interface ToolLike {
+  readonly name: string;
+  readonly title?: string;
+  readonly icon?: Node | string;
+  active?: boolean;
+  init(container: HTMLElement, context: ToolContext): void | Promise<void>;
+  show(): void;
+  hide(): void;
+  destroy(): void;
+}
+
 
 export interface RodDevtoolsApi {
   readonly version: string;
