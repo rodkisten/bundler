@@ -3,7 +3,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { ConsoleLevel, ConsoleRecord } from "../types";
 export type Filter = string | RegExp | ((record: ConsoleRecord) => boolean) | null;
 import { component, event, html, ref, styled } from "../components/runtime";
-import { icon } from "../core/dom";
+import { icon } from "../utils";
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];
