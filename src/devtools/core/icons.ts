@@ -1,4 +1,4 @@
-import { create, on, trustedHtml } from "./core/dom"
+import { create, on, trustedHtml } from "./dom"
 
 export type IconName = keyof typeof ICONS;
 
