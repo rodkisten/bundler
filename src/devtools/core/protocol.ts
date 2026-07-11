@@ -1,7 +1,6 @@
 import { Emitter } from "./emitter";
 import { ElementHighlighter } from "./highlighter";
-import { isDevtoolsNode } from "./dom";
-import { nodePath, safeStringify } from "../utils";
+import { isDevtoolsNode, nodePath, safeStringify } from "../utils";
 import { NetworkCapture } from "./network-capture";
 import type { NetworkRecord } from "../types";
 
