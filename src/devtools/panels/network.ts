@@ -1,7 +1,7 @@
 import { store } from "../../broto";
 import { ConfigStore } from "../core/config";
 import { NetworkCapture } from "../core/network-capture";
-import { copyText, icon } from "../core/dom";
+import { copyText, icon } from "../utils";
 import { Tool } from "../tool";
 import { html, render } from "../components/runtime";
 import type { NetworkRecord, ToolContext } from "../types";
