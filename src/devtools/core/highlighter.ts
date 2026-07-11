@@ -69,6 +69,8 @@ export class ElementHighlighter {
   font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
   contain: layout style paint;
 `;
+host.inert = true;
+    
    
     const colors = [
       "rgb(246 178 107 / .32)",
