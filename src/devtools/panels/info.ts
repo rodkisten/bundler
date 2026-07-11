@@ -1,4 +1,4 @@
-import { copyText, icon, safeStringify } from "../core/dom";
+import { copyText, icon, safeStringify } from "../utils";
 import { html, render } from "../components/runtime";
 import type { RenderValue } from "../../fabrica";
 import { Tool } from "../tool";
