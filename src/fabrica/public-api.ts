@@ -22,7 +22,7 @@ import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
 import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "./directives";
-import { getHtmlArtifact, html as baseHtml, hydrate as baseHydrate, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
+import { html as baseHtml, hydrate as baseHydrate, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
 import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
 import { defineElement, elements } from "./elements";
 import { install as installGlobal, noConflict as restoreGlobals } from "./install";
