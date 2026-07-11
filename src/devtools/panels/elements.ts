@@ -512,6 +512,15 @@ export class Elements extends Tool {
             onRemove: (click: Event) => this.removeAttribute(click.currentTarget as HTMLElement),
           }} />
         </RodElementsDetailSectionView>
+        <RodElementsDetailSectionView props=${{ title: "Styles", name: "styles", onToggle: toggle }}>
+          <RodElementsStylesView props=${{
+            rules,
+            onChange: (change: Event) => this.updateInlineStyle(change, change.currentTarget as HTMLElement),
+          }} />
+        </RodElementsDetailSectionView>
+        <RodElementsDetailSectionView props=${{ title: "Properties", name: "properties", onToggle: toggle }}>
+          <RodElementsPropertiesView props=${{ properties }} />
+        </RodElementsDetailSectionView>
         <RodElementsDetailSectionView props=${{ title: "Text Content", name: "text", onToggle: toggle }}>
           <RodElementsPreBlockView value=${element.textContent || ""} />
         </RodElementsDetailSectionView>
@@ -521,17 +530,8 @@ export class Elements extends Tool {
         <RodElementsDetailSectionView props=${{ title: "Computed Style", name: "computed", onToggle: toggle }}>
           <RodElementsComputedStyleView props=${{ style }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView props=${{ title: "Styles", name: "styles", onToggle: toggle }}>
-          <RodElementsStylesView props=${{
-            rules,
-            onChange: (change: Event) => this.updateInlineStyle(change, change.currentTarget as HTMLElement),
-          }} />
-        </RodElementsDetailSectionView>
         <RodElementsDetailSectionView props=${{ title: "Event Listeners", name: "listeners", onToggle: toggle }}>
           <RodElementsListenersView props=${{ listeners }} />
-        </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView props=${{ title: "Properties", name: "properties", onToggle: toggle }}>
-          <RodElementsPropertiesView props=${{ properties }} />
         </RodElementsDetailSectionView>
       </RodElementsDetailBodyView>
     `);
