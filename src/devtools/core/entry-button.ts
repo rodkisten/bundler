@@ -1,5 +1,6 @@
 import { ConfigStore } from "./config";
-import { detectMobile, eventPoint, on } from "./dom";
+import { eventPoint, on } from "./dom";
+import { detectMobile } from "./utils";
 import type { Position, SettingsLike } from "../types";
 
 interface EntryButtonConfig extends Record<string, unknown> {
