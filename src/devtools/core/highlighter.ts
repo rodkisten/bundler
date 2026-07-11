@@ -18,23 +18,26 @@ export class ElementHighlighter {
 
   highlight(element: Element, label = true, duration = HIGHLIGHT_DURATION): void {
     if (isDevtoolsNode(element, this.devtoolsHost) || element.closest(`.${OVERLAY_CLASS}`)) return;
+
     this.ensure();
     this.selected = element;
+    this.stopTracking();
     this.draw(label);
-    this.resizeObserver?.disconnect();
-    if (typeof ResizeObserver !== "undefined") {
-      this.resizeObserver = new ResizeObserver(() => this.scheduleDraw(label));
-      this.resizeObserver.observe(element);
+
+    // Short click/hover highlights do not need live observers. On mobile Safari,
+    // repeatedly attaching ResizeObserver and visualViewport listeners to a
+    // full-screen composited overlay can monopolize the main thread. Persistent
+    // inspect mode opts into tracking by passing duration <= 0.
+    if (!Number.isFinite(duration) || duration <= 0) {
+      this.startTracking(element, label);
     }
+
     this.scheduleHide(duration);
   }
 
   hide(): void {
     this.selected = null;
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-    this.viewportCleanup?.();
-    this.viewportCleanup = null;
+    this.stopTracking();
     this.host?.remove();
     this.host = null;
     this.label = null;
@@ -100,20 +103,31 @@ host.inert = true;
     host.appendChild(this.label);
     document.documentElement.appendChild(host);
     this.host = host;
-    this.observeViewport();
   }
 
-  private observeViewport(): void {
-    this.viewportCleanup?.();
+  private startTracking(element: Element, label: boolean): void {
+    if (typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(() => this.scheduleDraw(label));
+      this.resizeObserver.observe(element);
+    }
+
     const viewport = window.visualViewport;
     if (!viewport) return;
-    const redraw = () => this.scheduleDraw(true);
+
+    const redraw = () => this.scheduleDraw(label);
     viewport.addEventListener("resize", redraw);
     viewport.addEventListener("scroll", redraw);
     this.viewportCleanup = () => {
       viewport.removeEventListener("resize", redraw);
       viewport.removeEventListener("scroll", redraw);
     };
+  }
+
+  private stopTracking(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.viewportCleanup?.();
+    this.viewportCleanup = null;
   }
 
   private scheduleHide(duration: number): void {
