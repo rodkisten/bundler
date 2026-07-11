@@ -1,4 +1,4 @@
-import { appendValue, html } from "./dom";
+import { appendValue, decorateHtmlResult, html } from "./dom";
 import {
   resolveRuntimeComponent,
   runWithCurrentFabricaRuntime,
@@ -6,7 +6,7 @@ import {
 import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
-import type { RenderValue } from "./types";
+import type { HtmlArtifact, HtmlResult, RenderValue } from "./types";
 import {
   createElementForTag,
   FABRICA_SPREAD_PREFIX,
@@ -64,7 +64,7 @@ export function createCompiledFragment(
 export function createCompiledTemplate(
   input: RuntimeCompiledTemplate | TemplateStringsArray | readonly string[],
   ...values: readonly RenderValue[]
-): DocumentFragment {
+): HtmlResult {
   return runWithCurrentFabricaRuntime(() => {
     const compiled = isRuntimeCompiledTemplate(input)
       ? input
@@ -81,7 +81,27 @@ export function createCompiledTemplate(
       const fragment = document.createDocumentFragment();
       for (const node of compiled.nodes)
         appendCompiledNode(fragment, node, values);
-      return fragment;
+
+      const result = fragment.childNodes.length === 1
+        ? fragment.removeChild(fragment.firstChild!)
+        : fragment;
+      const strings = isRuntimeCompiledTemplate(input)
+        ? Object.freeze(["[compiled template]"])
+        : normalizeTemplateStrings(input);
+      const artifact: HtmlArtifact = Object.freeze({
+        kind: "fabrica.html" as const,
+        strings,
+        values: Object.freeze([...values]),
+        jsx: false,
+        materialize: () => createCompiledTemplate(input, ...values),
+      });
+
+      // Compiled nodes may own event/ref cleanups. Mark the result dynamic so
+      // direct root disposal falls back to the normal cleanup traversal.
+      return decorateHtmlResult(result, artifact, {
+        cleanupNodes: [],
+        dynamic: true,
+      });
     } catch (error) {
       // The compiled definition is an optimization, not a second source of truth. If an older
       // transform shape or browser edge case slips through, the normal html runtime remains the

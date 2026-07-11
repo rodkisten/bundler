@@ -60,7 +60,7 @@ render(root, html`
 
 ### Hot paths optimized
 
-- Fresh root renders of `DocumentFragment` values mount directly instead of paying for a generic child range controller.
+- Fresh root renders of Fábrica `HtmlResult` nodes mount directly instead of paying for a generic child range controller.
 - Direct root renders collect cleanup owners during materialization, so disposal runs exact listener/effect cleanups instead of recursively walking static descendants. Fully static fragments skip cleanup collection and dispose with a plain host clear.
 - Static attribute, property, boolean and conditional class bindings write directly without allocating effect/update closures.
 - String `class` and `style` bindings use `className` and `style.cssText` for the browser's fastest common path.
@@ -74,9 +74,28 @@ The goal is not to change how authors write Fábrica. The goal is to make the en
 
 
 
+### Polymorphic `html` results
+
+`html``...`` and `jsx.html``...`` now return real DOM nodes by default while retaining a re-materializable artifact:
+
+```ts
+const button = html`<button>Save</button>`;
+button instanceof HTMLButtonElement; // true
+
+const group = html`<span>A</span><span>B</span>`;
+group instanceof DocumentFragment; // true
+
+const artifact = html.artifact(button);
+const freshButton = artifact?.materialize();
+```
+
+A template with exactly one root returns that root `Node`. Multiple-root and empty templates return a `DocumentFragment`. The artifact is attached through a non-enumerable symbol, so normal DOM APIs, property enumeration and spread behavior remain clean. `html.isResult(value)`, `getHtmlArtifact(value)` and `isHtmlResult(value)` are available for tooling and compiler integrations.
+
+The artifact captures the originating Fábrica runtime, including its component registry, so `materialize()` recreates the template with the same component resolution semantics.
+
 ### Direct root cleanup collector
 
-`html` still returns a real `DocumentFragment`, but the fragment now carries private metadata when it was created by the Fabrica compiler. That metadata records whether the fragment has dynamic work and which nodes actually own cleanup callbacks. The direct root renderer uses that list on disposal:
+Every Fábrica `HtmlResult` carries private cleanup metadata. That metadata records whether the materialized node has dynamic work and which nodes actually own cleanup callbacks. The direct root renderer uses that list on disposal:
 
 ```txt
 static template   -> replaceChildren() only
@@ -92,7 +111,7 @@ This keeps event listeners, effects and owners safe while avoiding a full DOM tr
 
 ## Runtime v2 execution plan
 
-Fabrica's public API still returns real `DocumentFragment` values from `html` and `jsx.html`. That compatibility is intentional: userscripts, DOM bags, adapters and test fixtures can continue appending or inspecting fragments directly. Runtime v2 therefore focuses on removing repeated work that can be removed without changing that contract.
+Fábrica's public API returns real DOM values from `html` and `jsx.html`: a single root is returned directly, while multiple roots remain a `DocumentFragment`. Both shapes carry the same non-enumerable artifact contract and can be appended, inspected or rendered without wrappers.
 
 ### Compile-time work
 
@@ -157,14 +176,13 @@ That matters for real UI patterns:
 
 The dedicated `append-only` and `indexed` strategies remain available for workloads that can skip keyed reordering entirely.
 
-### What remains intentionally API-compatible
+### DOM-first artifact contract
 
-The current API returns materialized `DocumentFragment` objects. A more radical Lit-style lazy `TemplateResult` would allow even more update reuse, but it would change observable behavior for code that expects `html``...`` instanceof DocumentFragment`. Runtime v2 therefore keeps compatibility and targets the biggest safe wins first: component planning, registry caching, raw HTML caching, ordered parts and minimal keyed moves.
-
+Fábrica deliberately avoids proxy-based or wrapper-based template results. A single-root `html``...`` result is the actual root node, and a multi-root result is the actual `DocumentFragment`. The attached artifact adds cloning, diagnostics and compiler metadata without compromising DOM identity or causing `[object Object]` coercion paths.
 
 ### Root render fast path
 
-`html()` still returns a real `DocumentFragment`, but `render()` now recognizes that common shape:
+`render()` recognizes artifact-backed Fábrica nodes directly:
 
 ```ts
 const dispose = render(root, html`<section>${title}</section>`);
@@ -172,7 +190,7 @@ const dispose = render(root, html`<section>${title}</section>`);
 
 On a fresh root, Fábrica mounts the fragment directly. That avoids creating an extra render marker, a `ChildPart`, two range markers and one generic value classification pass. The returned dispose function still calls `disposeTree(root)` before clearing the container, so events, owners and reactive effects installed inside the fragment are released.
 
-Repeated renders into the same root remain compatible. If the root was previously mounted through the direct path and receives another fragment, the old tree is disposed and the new fragment is installed directly. If the root receives a directive, primitive, array or other dynamic value, Fábrica falls back to the stable `ChildPart` reconciliation path.
+Repeated renders into the same root remain compatible. If the root was previously mounted through the direct path and receives another `HtmlResult`, the old tree is disposed and the new node is installed directly. If the root receives a directive, primitive, array or other dynamic value, Fábrica falls back to the stable `ChildPart` reconciliation path.
 
 ### Static binding instructions
 

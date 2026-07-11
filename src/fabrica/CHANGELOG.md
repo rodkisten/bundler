@@ -1,5 +1,23 @@
 # Fábrica Changelog
 
+## Unreleased - polymorphic DOM-first HTML results
+
+### Added
+
+- `html``...`` and `jsx.html``...`` now return the real single root `Node` when a template has exactly one root, while multiple-root and empty templates continue to return a real `DocumentFragment`.
+- Added a non-enumerable `FABRICA_HTML_ARTIFACT` symbol to every materialized HTML result. The artifact exposes `materialize()` for creating a fresh DOM instance with the originating Fábrica runtime and component registry.
+- Added `html.artifact(value)`, `html.isResult(value)`, `getHtmlArtifact(value)` and `isHtmlResult(value)` for tooling, adapters, compilers and devtools.
+- Added compiled-template parity so `createCompiledTemplate()` returns the same polymorphic, artifact-backed DOM shape.
+
+### Fixed
+
+- Eliminated wrapper-object coercion paths for ordinary template usage, preventing template results from leaking as `[object Object]` when a real DOM node is expected.
+- Extended the direct root renderer to mount and dispose any artifact-backed Fábrica node, not only `DocumentFragment` instances.
+
+### Tests
+
+- Added coverage for single-root elements, multi-root fragments, artifact enumerability, fresh materialization, isolated registry preservation, compiled templates and direct-root cleanup.
+
 ## Unreleased - props bags and property binding parity
 
 ### Added
