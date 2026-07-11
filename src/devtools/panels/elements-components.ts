@@ -752,9 +752,13 @@ export const ElementsPropertiesView = component<{
   properties: PropertyModel[];
 }>("RodElementsPropertiesView", function RodElementsPropertiesView(props) {
   return html`
-    <RodElementsTableWrap><RodElementsKvTable><tbody>
-      ${props.properties.map((property) => html`<tr><td>${property.key}</td><td>${property.value}</td></tr>`)}
-    </tbody></RodElementsKvTable></RodElementsTableWrap>
+    <RodElementsTableWrap>
+      <RodElementsKvTable>
+        <tbody>
+          ${props.properties.map((property) => html`<tr><td>${property.key}</td><td>${property.value}</td></tr>`)}
+        </tbody>
+      </RodElementsKvTable>
+    </RodElementsTableWrap>
   `;
 });
 
@@ -768,7 +772,7 @@ export const ElementsDetailHeaderView = component<{
       <RodSharedDetailTitle>
         <RodElementsDomTag>&lt;${props.element.tagName.toLowerCase()}</RodElementsDomTag>
         ${props.element.id ? html`<RodElementsDomAttrName>#${props.element.id}</RodElementsDomAttrName>` : ""}
-        ${Array.from(props.element.classList).slice(0, 3).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
+        ${Array.from(props.element.classList).slice(0, 6).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
         <RodElementsDomTag>&gt;</RodElementsDomTag>
       </RodSharedDetailTitle>
       <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
@@ -845,16 +849,17 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
     const node = props.node;
     if (node.nodeType === Node.TEXT_NODE) {
       const text = (node.textContent ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/\s+/g, " ").trim();
-      return text ? html`<RodElementsDomText>"${truncate(text, 120)}"</RodElementsDomText>` : html`<RodElementsDomText data-empty-text>[empty text]</RodElementsDomText>`;
+      //return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html`<RodElementsDomText data-empty-text>[empty text]</RodElementsDomText>`;
+      return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html``;
     }
     if (node.nodeType === Node.COMMENT_NODE) {
-      return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 120)}--&gt;</RodElementsDomText>`;
+      return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 300)}--&gt;</RodElementsDomText>`;
     }
     if (!(node instanceof Element)) return node.nodeName;
     return html`
       <RodElementsDomTag>&lt;${node.tagName.toLowerCase()}</RodElementsDomTag>
-      ${Array.from(node.attributes).slice(0, 12).map((attribute) => html`
-        ${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 100)}</RodElementsDomAttrValue>"
+      ${Array.from(node.attributes).slice(0, 24).map((attribute) => html`
+        ${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 200)}</RodElementsDomAttrValue>"
       `)}
       <RodElementsDomTag>&gt;</RodElementsDomTag>
     `;
