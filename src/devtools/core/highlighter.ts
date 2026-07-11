@@ -80,7 +80,11 @@ host.inert = true;
     ];
     this.boxes = colors.map((color) => {
       const box = document.createElement("div");
-      box.style.cssText = `position:absolute;background:${color};outline:1px solid ${color.replace("/.3", "/.9")};`;
+      box.style.cssText = `
+        position:absolute;
+        background:${color};
+        outline:1px solid ${color.replace("/.3", "/.9")};
+        `;
     
       box.style.pointerEvents = "none";
       
