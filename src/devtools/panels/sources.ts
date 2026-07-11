@@ -89,7 +89,7 @@ export class Sources extends Tool {
     formatCode: true,
     indentSize: "2",
     wrapLines: false,
-    maxFormatSourceLength: "30_000"
+    maxFormatSourceLength: 30_000
   });
 
   private body: HTMLElement | null = null;
@@ -209,12 +209,21 @@ export class Sources extends Tool {
       "Wrap long lines",
     );
 
-    context.settings.registerText(
-      this.config,
-      "maxFormatSourceLength",
-      "Max format source length", 
-      String(MAX_FORMAT_SOURCE_LENGTH)
-    );
+    if (typeof context.settings.registerNumber === "function") {
+      context.settings.registerNumber(
+        this.config,
+        "maxFormatSourceLength",
+        "Max format source length",
+        { min: 1_000, max: MAX_FORMAT_SOURCE_LENGTH, step: 1_000 },
+      );
+    } else {
+      context.settings.registerRange(
+        this.config,
+        "maxFormatSourceLength",
+        "Max format source length",
+        { min: 1_000, max: MAX_FORMAT_SOURCE_LENGTH, step: 1_000 },
+      );
+    }
   }
 
   private mountShell(): void {
@@ -326,7 +335,12 @@ export class Sources extends Tool {
 
         this.renderCode(
           this.config.get("formatCode")
-            ? formatSource(source, type, this.indentSize())
+            ? formatSource(
+                source,
+                type,
+                this.indentSize(),
+                this.config.get("maxFormatSourceLength"),
+              )
             : source,
           type,
         );
@@ -966,15 +980,16 @@ function sourceLanguage(
   }
 }
 
-function formatSource(
+export function formatSource(
   source: string,
   type: string,
   indentSize: number,
+  maxLength = MAX_FORMAT_SOURCE_LENGTH,
 ): string {
   // Formatting allocates a second representation of the whole source. Keep
   // syntax highlighting for large files, but avoid a synchronous formatter
   // pass that can freeze mobile pages for several seconds.
-  if (source.length > MAX_FORMAT_SOURCE_LENGTH) return source;
+  if (source.length > Math.max(1_000, maxLength)) return source;
 
   switch (type) {
     case "json":
@@ -998,38 +1013,50 @@ function formatHtml(
   source: string,
   indentSize: number,
 ): string {
-  const tokens = source
+  const embedded: string[] = [];
+  const protectedSource = source.replace(
+    /<(script|style)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi,
+    (_match, tag: string, attributes = "", content: string) => {
+      const language = tag.toLowerCase() === "style" ? "css" : "javascript";
+      const formatted = language === "css"
+        ? formatCss(content.trim(), indentSize)
+        : formatJavaScript(content.trim(), indentSize);
+      const token = `<roderuda-embedded data-index="${embedded.length}"/>`;
+      embedded.push(`<${tag}${attributes}>\n${indentBlock(formatted, indentSize)}\n</${tag}>`);
+      return token;
+    },
+  );
+
+  const tokens = protectedSource
     .replace(/>\s*</g, "><")
     .split(/(?=<)|(?<=>)/)
-    .filter(Boolean);
+    .filter((token) => token.trim().length > 0);
 
   let depth = 0;
+  const output = tokens.map((token) => {
+    const trimmed = token.trim();
+    const embeddedMatch = /^<roderuda-embedded data-index="(\d+)"\/>$/.exec(trimmed);
+    if (embeddedMatch) {
+      const block = embedded[Number(embeddedMatch[1])] ?? "";
+      return indentBlock(block, depth * indentSize);
+    }
 
-  return tokens
-    .map((token) => {
-      const trimmed = token.trim();
+    if (/^<\//.test(trimmed)) depth = Math.max(0, depth - 1);
+    const line = `${" ".repeat(depth * indentSize)}${trimmed}`;
+    const opensContainer =
+      /^<[^!/][^>]*[^/]>/i.test(trimmed)
+      && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i.test(trimmed)
+      && !trimmed.includes("</");
+    if (opensContainer) depth += 1;
+    return line;
+  });
 
-      if (/^<\//.test(trimmed)) {
-        depth = Math.max(0, depth - 1);
-      }
+  return output.join("\n");
+}
 
-      const line =
-        `${" ".repeat(depth * indentSize)}${trimmed}`;
-
-      const opensContainer =
-        /^<[^!/][^>]*[^/]>/i.test(trimmed)
-        && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i.test(
-          trimmed,
-        )
-        && !trimmed.includes("</");
-
-      if (opensContainer) {
-        depth += 1;
-      }
-
-      return line;
-    })
-    .join("\n");
+function indentBlock(value: string, spaces: number): string {
+  const prefix = " ".repeat(Math.max(0, spaces));
+  return value.split(/\r?\n/).map((line) => `${prefix}${line}`).join("\n");
 }
 
 function formatCss(

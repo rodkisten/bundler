@@ -33,6 +33,7 @@ export class Elements extends Tool {
     overrideEventTarget: true,
     observeElement: true,
     showWhitespace: false,
+    wrapLines: true,
   });
 
   public container: HTMLElement | null = null;
@@ -62,6 +63,7 @@ export class Elements extends Tool {
   private contextMenuCleanup: Cleanup | null = null;
 
   private picking = false;
+  private detailsOpen = false;
   private isUserScrolling = false;
   private suppressNextClickUntil = 0;
 
@@ -100,6 +102,7 @@ export class Elements extends Tool {
       onTreeScroll: () => {
         this.handleTreeScroll();
       },
+      wrapLines: () => this.config.get("wrapLines"),
     };
 
     this.disposeView?.();
@@ -146,7 +149,8 @@ export class Elements extends Tool {
     this.observe();
     this.renderTree();
     this.renderCrumbs();
-    this.renderDetail();
+    if (this.detailsOpen) this.renderDetail();
+    else if (this.detail) this.detail.dataset.active = "false";
   }
 
   override hide(): void {
@@ -237,7 +241,7 @@ export class Elements extends Tool {
     if (this.active) {
       this.renderTree();
       this.renderCrumbs();
-      this.renderDetail();
+      if (this.detailsOpen) this.renderDetail();
     }
 
     if (highlight && (this.active || this.picking)) {
@@ -271,7 +275,11 @@ export class Elements extends Tool {
       if (this.active) this.renderDetail();
     }
 
-    if (key === "showWhitespace" && this.active) {
+    if (key === "wrapLines" && this.tree) {
+      this.tree.dataset.wrap = String(Boolean(value));
+    }
+
+    if ((key === "showWhitespace" || key === "wrapLines") && this.active) {
       this.renderTree();
     }
   };
@@ -296,6 +304,12 @@ export class Elements extends Tool {
       this.config,
       "showWhitespace",
       "Show whitespace-only text nodes",
+    );
+
+    context.settings.registerSwitch(
+      this.config,
+      "wrapLines",
+      "Soft wrap long DOM rows",
     );
   }
 
@@ -422,7 +436,7 @@ export class Elements extends Tool {
       if (
         !this.config.get("showWhitespace")
         && child.nodeType === Node.TEXT_NODE
-        && !child.textContent?.trim()
+        && !meaningfulText(child.textContent)
       ) {
         return false;
       }
@@ -566,12 +580,16 @@ export class Elements extends Tool {
       return;
     }
 
+    this.detailsOpen = false;
+    if (this.detail) this.detail.dataset.active = "false";
     this.select(node, {
       addHistory: true,
       expandAncestors: false,
       reveal: false,
-      highlight: true,
+      highlight: false,
     });
+    this.renderDetail();
+    if (this.detail) this.detail.dataset.active = "false";
   }
 
   private handleNodeOpen(event: Event, element: HTMLElement): void {
@@ -580,16 +598,14 @@ export class Elements extends Tool {
     const node = this.resolveNode(element.dataset.nodeId ?? "");
     if (!node) return;
 
+    this.detailsOpen = true;
     this.select(node, {
       addHistory: true,
       expandAncestors: true,
-      reveal: true,
+      reveal: false,
       highlight: true,
     });
-
-    if (this.detail) {
-      this.detail.dataset.active = "true";
-    }
+    this.renderDetail();
   }
 
   private handleNodeMenu(event: Event, element: HTMLElement): void {
@@ -837,6 +853,23 @@ export class Elements extends Tool {
         await this.editClass(node);
         break;
 
+      case "open-details":
+        this.detailsOpen = true;
+        this.renderDetail();
+        break;
+
+      case "reveal-element":
+        this.selected?.scrollIntoView({ block: "center", inline: "nearest" });
+        break;
+
+      case "toggle-children":
+        if (this.selected) {
+          if (this.expanded.has(this.selected)) this.expanded.delete(this.selected);
+          else this.expanded.add(this.selected);
+          this.renderTree();
+        }
+        break;
+
       case "delete-element":
         this.deleteSelected();
         break;
@@ -896,9 +929,8 @@ export class Elements extends Tool {
         break;
 
       case "close-detail":
-        if (this.detail) {
-          this.detail.dataset.active = "false";
-        }
+        this.detailsOpen = false;
+        if (this.detail) this.detail.dataset.active = "false";
         break;
     }
   }
@@ -1090,9 +1122,11 @@ export class Elements extends Tool {
       this.context?.devtools.show().showTool("elements");
 
       if (target && !isDevtoolsNode(target, host)) {
+        this.detailsOpen = false;
         this.select(target, {
           expandAncestors: true,
-          reveal: true,
+          reveal: false,
+          highlight: true,
         });
       }
     };
@@ -1105,12 +1139,12 @@ export class Elements extends Tool {
     };
 
     document.addEventListener("pointermove", move, true);
-    document.addEventListener("pointerdown", choose, true);
+    document.addEventListener("pointerup", choose, true);
     document.addEventListener("keydown", cancel, true);
 
     this.pickerCleanup.push(
       () => document.removeEventListener("pointermove", move, true),
-      () => document.removeEventListener("pointerdown", choose, true),
+      () => document.removeEventListener("pointerup", choose, true),
       () => document.removeEventListener("keydown", cancel, true),
       () => {
         delete button.dataset.active;
@@ -1379,4 +1413,8 @@ function collectRules(
 function clamp(value: number, minimum: number, maximum: number): number {
   if (maximum < minimum) return minimum;
   return Math.min(Math.max(value, minimum), maximum);
+}
+
+function meaningfulText(value: string | null | undefined): string {
+  return (value ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").trim();
 }

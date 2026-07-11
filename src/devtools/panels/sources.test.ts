@@ -20,7 +20,7 @@ vi.mock("../core/code-editor", async (importOriginal) => {
   };
 });
 
-import { Sources } from "./sources";
+import { Sources, formatSource } from "./sources";
 
 type GlobalWithUserscriptRequest = typeof globalThis & {
   GM_xmlhttpRequest?: (details: {
@@ -62,6 +62,7 @@ function createContext(
       registerSwitch: vi.fn(),
       registerSelect: vi.fn(),
       registerRange: vi.fn(),
+      registerNumber: vi.fn(),
       registerButton: vi.fn(),
     },
     notify: vi.fn(),
@@ -231,4 +232,18 @@ describe("Sources panel", () => {
     expect(options.value).toContain("fetch: CORS blocked");
     expect(container.textContent).not.toContain("Unable to load");
   });
+  it("formats embedded CSS and JavaScript inside HTML before highlighting", () => {
+    const formatted = formatSource(
+      "<html><head><style>body{color:red;}</style><script>const x={a:1};console.log(x);</script></head><body><main>ok</main></body></html>",
+      "html",
+      2,
+      30_000,
+    );
+
+    expect(formatted).toContain("<style>\n");
+    expect(formatted).toContain("body{");
+    expect(formatted).toContain("<script>\n");
+    expect(formatted).toContain("const x={");
+  });
+
 });

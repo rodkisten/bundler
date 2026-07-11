@@ -43,7 +43,7 @@ const HISTORY_LIMIT = 100;
 const sharedCapture = new ConsoleCapture();
 
 try {
-  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true });
+  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true, watchdog: true, watchdogMs: 500, patchPrototype: true, lockConsole: false });
 } catch {}
 
 export class Console extends Tool {
@@ -76,7 +76,6 @@ export class Console extends Tool {
   private codeEditor: CodeEditorHandle | null = null;
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
-  private restoreCaptureRecord: (() => void) | null = null;
   private renderFrame = 0;
   private scrollAfterRender = false;
 
@@ -114,7 +113,6 @@ export class Console extends Tool {
     if (input instanceof HTMLTextAreaElement) this.setInput(input);
     this.capture.on("record", this.onRecord);
     this.capture.on("clear", this.onClear);
-    this.patchCaptureRecord();
     this.hydrateCapturedRecords();
     this.hydrateHistory();
 
@@ -123,9 +121,9 @@ export class Console extends Tool {
         overrideConsole: true,
         catchGlobalErrors: true,
         watchdog: true,
-        watchdogMs: 1000,
+        watchdogMs: 500,
         lockConsole: false,
-        patchPrototype: false,
+        patchPrototype: true,
       });
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
@@ -183,8 +181,6 @@ export class Console extends Tool {
     this.cancelScheduledRender();
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
-    this.restoreCaptureRecord?.();
-    this.restoreCaptureRecord = null;
     this.config.off("change", this.onConfigChange);
     this.disposeView?.();
     this.disposeView = null;
@@ -218,8 +214,8 @@ export class Console extends Tool {
     this.state.records.set(records);
     this.trimRecords();
 
-    if (record.level === "error" && this.config.get("displayIfErr")) {
-      this.context?.devtools.show().showTool(this.name);
+    if (record.level === "error" && this.config.get("displayIfErr") && !this.active) {
+      this.context?.notify("New console error", { type: "error", duration: 2200 });
     }
 
     if (!this.active) return;
@@ -233,19 +229,6 @@ export class Console extends Tool {
     }
   };
 
-  private patchCaptureRecord(): void {
-    if (this.restoreCaptureRecord) return;
-    const capture = this.capture;
-    const original = capture.record.bind(capture);
-    capture.record = ((level: ConsoleLevel, args: unknown[], extra: Partial<ConsoleRecord> = {}) => {
-      const record = original(level, args, extra);
-      if (!this.state.records.peek().some((candidate) => candidate.id === record.id)) this.onRecord(record);
-      return record;
-    }) as ConsoleCapture["record"];
-    this.restoreCaptureRecord = () => {
-      if (capture.record !== original) capture.record = original as ConsoleCapture["record"];
-    };
-  }
 
   private readonly onClear = (): void => {
     this.state.patch({ records: [], selectedRecordId: null }, { cause: "console:clear" });

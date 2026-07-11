@@ -14,6 +14,7 @@ export interface ElementsViewModel {
   setDetail(node: HTMLElement | null): void;
   onAction(event: Event): void;
   onTreeScroll(): void;
+  wrapLines(): boolean;
 }
 
 export type ElementAttributeModel = {
@@ -121,6 +122,15 @@ const DomTree = styled.div("RodElementsDomTree").css`
   min-width: max-content;
   padding: 5px 0 12px 12px;
   font: 12px / 1.45 $font.mono;
+
+  &[data-wrap="true"] {
+    min-width: 100%;
+  }
+
+  &[data-wrap="true"] RodElementsDomRow {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 
   ul {
     margin: 0;
@@ -549,7 +559,7 @@ component("RodElementsView", function RodElementsView(props) {
         </RodSharedControlBar>
 
         <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event(() => view.onTreeScroll())}>
-          <RodElementsDomTree data-elements-tree ref=${ref((node) => {
+          <RodElementsDomTree data-elements-tree data-wrap=${String(view.wrapLines())} ref=${ref((node) => {
             view.setTree(node as HTMLElement);
             return () => view.setTree(null);
           })} />
@@ -576,13 +586,13 @@ export const ElementsDetailSectionView = component<{
   onToggle?: (event: Event) => void;
 }>("RodElementsDetailSectionView", function RodElementsDetailSectionView(props) {
   return html`
-    <RodElementsDetailSection data-section=${props.name}>
+    <RodElementsDetailSection data-section=${props.name} draggable="true">
       <RodElementsSectionTitle
         type="button"
         data-detail-section=${props.name}
         @click=${event((click: Event) => props.onToggle?.(click))}
       >
-        <span><em><strong>${props.title}</strong></em></span>
+        <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span><strong>${props.title}</strong></span>
         <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
       </RodElementsSectionTitle>
       <RodElementsSectionContent data-section-content>${props.children}</RodElementsSectionContent>
@@ -759,7 +769,12 @@ export const ElementsDetailHeaderView = component<{
   return html`
     <RodSharedControlBar data-elements-detail-control>
       <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event(props.onAction)}>${icon("back")}</RodElementsIconButton>
-      <RodSharedDetailTitle>${describeNode(props.element)}</RodSharedDetailTitle>
+      <RodSharedDetailTitle>
+        <RodElementsDomTag>&lt;${props.element.tagName.toLowerCase()}</RodElementsDomTag>
+        ${props.element.id ? html`<RodElementsDomAttrName>#${props.element.id}</RodElementsDomAttrName>` : ""}
+        ${Array.from(props.element.classList).slice(0, 3).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
+        <RodElementsDomTag>&gt;</RodElementsDomTag>
+      </RodSharedDetailTitle>
       <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
     </RodSharedControlBar>
   `;
@@ -833,7 +848,8 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
   function RodElementsNodeLabelView(props) {
     const node = props.node;
     if (node.nodeType === Node.TEXT_NODE) {
-      return html`<RodElementsDomText>"${truncate(node.textContent?.replace(/\s+/g, " ").trim() || "", 120)}"</RodElementsDomText>`;
+      const text = (node.textContent ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/\s+/g, " ").trim();
+      return text ? html`<RodElementsDomText>"${truncate(text, 120)}"</RodElementsDomText>` : html`<RodElementsDomText data-empty-text>[empty text]</RodElementsDomText>`;
     }
     if (node.nodeType === Node.COMMENT_NODE) {
       return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 120)}--&gt;</RodElementsDomText>`;
@@ -868,6 +884,9 @@ export const ElementsContextMenuView = component<{
   onAction?: (action: string, event: Event) => void;
 }>("RodElementsContextMenuView", function RodElementsContextMenuView(props) {
   const actions = [
+    ["open-details", "Open details"],
+    ["reveal-element", "Reveal on page"],
+    ["toggle-children", "Expand / collapse"],
     ["copy-element", "Copy element"],
     ["copy-selector", "Copy selector"],
     ["edit-attributes", "Edit attributes"],

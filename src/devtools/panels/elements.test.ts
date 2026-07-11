@@ -354,6 +354,9 @@ describe("Elements panel", () => {
     );
 
     expect(detail).toBeInstanceOf(HTMLElement);
+    expect(detail?.dataset.active).toBe("false");
+
+    doubleClick(row);
     expect(detail?.dataset.active).toBe("true");
 
     expect(detail?.textContent).toContain("Attributes");
@@ -549,7 +552,7 @@ describe("Elements panel", () => {
 
     expect(
       menu?.querySelectorAll("[data-elements-menu-action]"),
-    ).toHaveLength(6);
+    ).toHaveLength(9);
 
     await Promise.resolve();
 
@@ -711,6 +714,9 @@ describe("Elements panel", () => {
     const highlighter = mocks.highlighterInstances.at(-1);
 
     expect(highlighter).toBeDefined();
+    expect(highlighter?.highlight).not.toHaveBeenCalled();
+
+    doubleClick(targetRow);
     expect(highlighter?.highlight).toHaveBeenCalled();
 
     fixture.tool.hide();
@@ -791,6 +797,14 @@ describe("Elements panel", () => {
     expect(cssText).not.toContain("$$controlHeight");
     expect(cssText).not.toContain("$$safeBottom");
   });
+  it("toggles soft wrapping for long DOM rows from panel config", () => {
+    fixture = createFixture();
+    const tree = fixture.container.querySelector<HTMLElement>("[data-elements-tree]");
+    expect(tree?.dataset.wrap).toBe("true");
+    fixture.tool.config.set("wrapLines", false);
+    expect(tree?.dataset.wrap).toBe("false");
+  });
+
 });
 
 type CipoArtifactLike = {

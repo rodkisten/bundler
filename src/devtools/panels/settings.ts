@@ -50,6 +50,12 @@ type SettingEntry =
       range: RangeOptions;
       getValue: () => number;
       setValue: (value: number) => void;
+    })
+  | (BaseSettingEntry & {
+      kind: "number";
+      range: RangeOptions;
+      getValue: () => number;
+      setValue: (value: number) => void;
     });
 
 type NewSettingEntry = SettingEntry extends infer Entry
@@ -139,6 +145,21 @@ export class Settings extends Tool {
   ): string {
     return this.addConfigEntry(config, key, {
       kind: "range",
+      label: description,
+      range,
+      getValue: () => config.get(key) as number,
+      setValue: (value: number) => config.set(key, value as Values[Key]),
+    });
+  }
+
+  registerNumber<Values extends object, Key extends KeysOfValue<Values, number>>(
+    config: ConfigLike<Values>,
+    key: Key,
+    description: string,
+    range: RangeOptions = {},
+  ): string {
+    return this.addConfigEntry(config, key, {
+      kind: "number",
       label: description,
       range,
       getValue: () => config.get(key) as number,
@@ -249,6 +270,27 @@ export class Settings extends Tool {
                 <option value=${selection} .selected=${selection === value}>${selection}</option>
               `)}
             </SettingsSelect>
+          </SettingsRow>
+        `;
+      }
+
+      case "number": {
+        const value = entry.getValue();
+        return html`
+          <SettingsRow>
+            <SettingsText>${entry.label ?? ""}</SettingsText>
+            <SettingsInput
+              type="number"
+              min=${String(entry.range.min ?? "")}
+              max=${String(entry.range.max ?? "")}
+              step=${String(entry.range.step ?? 1)}
+              .value=${String(value)}
+              @change=${event((change: Event) => {
+                if (!(change.currentTarget instanceof HTMLInputElement)) return;
+                const next = change.currentTarget.valueAsNumber;
+                if (Number.isFinite(next)) entry.setValue(next);
+              })}
+            />
           </SettingsRow>
         `;
       }

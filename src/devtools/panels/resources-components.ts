@@ -164,6 +164,51 @@ export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
   }
 `;
 
+
+export const ResourcesJsonDialog = styled.div("RodResourcesJsonDialog").css`
+  position: absolute;
+  inset: 8px;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid $border;
+  border-radius: $section;
+  background: $background;
+  box-shadow: 0 18px 60px rgb(0 0 0 / .45);
+`;
+
+export const ResourcesJsonHeader = styled.div("RodResourcesJsonHeader").css`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid $border;
+  color: $primary;
+  background: $backgroundDark;
+  font-weight: 700;
+`;
+
+export const ResourcesJsonEditorHost = styled.div("RodResourcesJsonEditorHost").css`
+  min-height: 0;
+  overflow: hidden;
+
+  .cm-editor,
+  .cm-scroller {
+    height: 100%;
+  }
+`;
+
+export const ResourcesJsonActions = styled.div("RodResourcesJsonActions").css`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px calc(8px + var(--rd-safe-bottom));
+  border-top: 1px solid $border;
+  background: $backgroundDark;
+`;
+
 const RESOURCES_STYLED_COMPONENTS = Object.freeze([
   ResourcesSection,
   ResourcesTableWrap,
@@ -176,6 +221,10 @@ const RESOURCES_STYLED_COMPONENTS = Object.freeze([
   ResourcesSectionContent,
   ResourcesImageList,
   ResourcesImageCard,
+  ResourcesJsonDialog,
+  ResourcesJsonHeader,
+  ResourcesJsonEditorHost,
+  ResourcesJsonActions,
 ]);
 
 export const resourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
