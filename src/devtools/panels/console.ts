@@ -3,7 +3,7 @@ import { html, render } from "../components/runtime";
 import { ConfigStore } from "../core/config";
 import { ConsoleCapture } from "../core/console-capture";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
-import { copyText, icon, safeStringify } from "../core/dom";
+import { copyText, icon, safeStringify } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
