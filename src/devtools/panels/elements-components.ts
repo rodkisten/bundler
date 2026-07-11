@@ -582,7 +582,7 @@ export const ElementsDetailSectionView = component<{
         data-detail-section=${props.name}
         @click=${event((click: Event) => props.onToggle?.(click))}
       >
-        <span>${props.title}</span>
+        <span><em><strong>${props.title}</strong></em></span>
         <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
       </RodElementsSectionTitle>
       <RodElementsSectionContent data-section-content>${props.children}</RodElementsSectionContent>
