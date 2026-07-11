@@ -79,11 +79,18 @@ export class ElementHighlighter {
     this.boxes = colors.map((color) => {
       const box = document.createElement("div");
       box.style.cssText = `position:absolute;background:${color};outline:1px solid ${color.replace("/.3", "/.9")};`;
+    
+      box.style.pointerEvents = "none";
+      
       host.appendChild(box);
       return box;
     });
+   
     this.label = document.createElement("div");
     this.label.style.cssText = "position:absolute;max-width:min(90vw,520px);padding:5px 7px;border-radius:4px;background:#111;color:#fff;box-shadow:0 3px 14px rgb(0 0 0/.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+  
+    this.label.style.pointerEvents = "none";
+   
     host.appendChild(this.label);
     document.documentElement.appendChild(host);
     this.host = host;
