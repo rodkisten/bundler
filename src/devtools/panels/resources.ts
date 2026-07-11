@@ -3,7 +3,8 @@ import { debounce, icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ResourcesConfig, SourcePayload, ToolContext } from "../types";
-import { event, html, render } from "../components/runtime";
+import { event, html, ref, render } from "../components/runtime";
+import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import {
   ResourcesIconButton,
   ResourcesImageCard,
@@ -16,6 +17,10 @@ import {
   ResourcesSectionTitle,
   ResourcesTable,
   ResourcesTableWrap,
+  ResourcesJsonDialog,
+  ResourcesJsonHeader,
+  ResourcesJsonEditorHost,
+  ResourcesJsonActions,
   resourcesStyleArtifacts,
   type ResourcesViewModel,
 } from "./resources-components";
@@ -41,6 +46,8 @@ export class Resources extends Tool {
   private body: HTMLElement | null = null;
   private observer: MutationObserver | null = null;
   private disposeView: (() => void) | null = null;
+  private disposeJsonEditor: (() => void) | null = null;
+  private jsonEditor: CodeEditorHandle | null = null;
   private readonly scheduleRefresh = debounce(() => this.refresh(), 120);
 
   override init(container: HTMLElement, context: ToolContext): void {
@@ -99,6 +106,7 @@ export class Resources extends Tool {
     this.observer = null;
     this.config.off("change", this.onConfigChange);
 
+    this.closeJsonEditor();
     this.disposeView?.();
     this.disposeView = null;
     this.body = null;
@@ -149,9 +157,9 @@ export class Resources extends Tool {
       : html`<tr><td colspan="3">Empty</td></tr>`;
 
     return html`
-      <ResourcesSection>
+      <ResourcesSection data-section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span>${title} (${rows.length})</span>
+          <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>${title} (${rows.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
             <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addStorage(type))}>+</ResourcesIconButton>
@@ -193,9 +201,9 @@ export class Resources extends Tool {
 
   private cookieSection(cookies: Array<{ name: string; value: string }>) {
     return html`
-      <ResourcesSection>
+      <ResourcesSection data-section="cookies" draggable="true">
         <ResourcesSectionTitle>
-          <span>Cookies (${cookies.length})</span>
+          <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Cookies (${cookies.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addCookie())}>+</ResourcesIconButton>
             <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
@@ -238,9 +246,9 @@ export class Resources extends Tool {
     const items = capabilityItems();
 
     return html`
-      <ResourcesSection>
+      <ResourcesSection data-section="capabilities" draggable="true">
         <ResourcesSectionTitle>
-          <span>Storage capabilities</span>
+          <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Storage capabilities</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
@@ -257,9 +265,9 @@ export class Resources extends Tool {
 
   private linkSection(title: string, type: string, urls: string[]) {
     return html`
-      <ResourcesSection>
+      <ResourcesSection data-section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span>${title} (${urls.length})</span>
+          <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>${title} (${urls.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
@@ -278,9 +286,9 @@ export class Resources extends Tool {
 
   private imageSection(urls: string[]) {
     return html`
-      <ResourcesSection>
+      <ResourcesSection data-section="images" draggable="true">
         <ResourcesSectionTitle>
-          <span>Images (${urls.length})</span>
+          <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Images (${urls.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
@@ -440,17 +448,63 @@ export class Resources extends Tool {
   private async editJsonStorage(type: StorageType, key: string): Promise<void> {
     const storage = safeStorage(type);
     const current = storage.getItem(key) ?? "";
-    const next = await this.context?.prompt(`Edit JSON for ${key}`, formatJsonValue(current));
+    this.closeJsonEditor();
 
-    if (next == null) return;
+    let host: HTMLElement | null = null;
+    let editorValue = formatJsonValue(current);
 
-    try {
-      JSON.parse(next);
-      storage.setItem(key, next);
-      this.refresh();
-    } catch (error) {
-      this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
-    }
+    this.disposeJsonEditor = render(this.container!, html`
+      <RodResourcesJsonDialog role="dialog" aria-modal="true" aria-label=${`Edit JSON for ${key}`}>
+        <RodResourcesJsonHeader>
+          <span>JSON · ${key}</span>
+          <RodResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Format" @click=${event(() => {
+              try {
+                const formatted = JSON.stringify(JSON.parse(this.jsonEditor?.getValue() ?? editorValue), null, 2);
+                this.jsonEditor?.setValue(formatted);
+              } catch (error) {
+                this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
+              }
+            })}>⌘</ResourcesIconButton>
+          </RodResourcesSectionActions>
+        </RodResourcesJsonHeader>
+        <RodResourcesJsonEditorHost ref=${ref<HTMLElement>((node) => { host = node; })} />
+        <RodResourcesJsonActions>
+          <ResourcesIconButton type="button" @click=${event(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
+          <ResourcesIconButton type="button" @click=${event(() => {
+            const next = this.jsonEditor?.getValue() ?? editorValue;
+            try {
+              JSON.parse(next);
+              storage.setItem(key, next);
+              this.closeJsonEditor();
+              this.refresh();
+              this.context?.notify("JSON saved", { type: "success" });
+            } catch (error) {
+              this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
+            }
+          })}>Save</ResourcesIconButton>
+        </RodResourcesJsonActions>
+      </RodResourcesJsonDialog>
+    `);
+
+    if (!host) return;
+    this.jsonEditor = mountCodeEditor({
+      parent: host,
+      value: editorValue,
+      language: "json",
+      dark: true,
+      lineNumbers: true,
+      lineWrapping: true,
+      onChange: (value) => { editorValue = value; },
+    });
+    this.jsonEditor.focus();
+  }
+
+  private closeJsonEditor(): void {
+    this.jsonEditor?.destroy();
+    this.jsonEditor = null;
+    this.disposeJsonEditor?.();
+    this.disposeJsonEditor = null;
   }
 }
 

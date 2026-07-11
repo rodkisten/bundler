@@ -64,9 +64,12 @@ export const ConsoleControl = styled.div("RodConsoleControl").css`
   z-index: 12;
   display: flex;
   align-items: center;
-  gap: 5px;
-  height: 40px;
-  padding: 7px 8px;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 9px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
   border-bottom: 1px solid $border;
   color: $primary;
   background: $backgroundDark;
@@ -86,16 +89,17 @@ export const ConsoleIconButton = styled.button("RodConsoleIconButton").css`
 
 export const ConsoleLevels = styled.div("RodConsoleLevels").css`
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 `;
 
 export const ConsoleLevelButton = styled.button("RodConsoleLevelButton").css`
   appearance: none;
-  height: 24px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: $md;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid $border;
+  border-radius: $pill;
   color: $foreground;
   background: transparent;
 
@@ -110,26 +114,30 @@ export const ConsoleControlSpacer = styled.div("RodConsoleControlSpacer").css`
 `;
 
 export const ConsoleFilter = styled.input("RodConsoleFilter").css`
-  min-width: 0;
-  max-width: 260px;
-  height: 27px;
-  flex: 1 1 120px;
-  padding: 4px 9px;
+  min-width: 150px;
+  max-width: 280px;
+  height: 30px;
+  flex: 1 0 150px;
+  padding: 5px 10px;
   border: 1px solid $border;
-  border-radius: $section;
+  border-radius: $pill;
   color: $primary;
   background: $background;
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  font: 12px / 1.45 $font.mono;
+  padding-top: 46px;
+  font: 12px / 1.5 $font.mono;
   user-select: text;
 `;
 
 export const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
-  min-height: 25px;
-  padding: 4px 35px 4px calc(9px + var(--rd-console-depth, 0) * 14px);
+  min-height: 31px;
+  margin: 0 6px 4px;
+  padding: 7px 38px 7px calc(11px + var(--rd-console-depth, 0) * 14px);
+  border: 1px solid alpha($border / 72%);
+  border-radius: $md;
   border-bottom: 1px solid alpha($border / 65%);
   color: $foreground;
   white-space: pre-wrap;
@@ -354,7 +362,7 @@ component("RodConsoleView", function RodConsoleView(props) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter data-console-filter type="search" placeholder="Filter" aria-label="Filter console" .value=${() => view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
+        <RodConsoleFilter data-console-filter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${() => view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
         <RodConsoleIconButton type="button" title="Copy console" data-action="copy" @click=${event((copyEvent: Event) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
       <RodConsoleList data-console-list ref=${ref((node) => {

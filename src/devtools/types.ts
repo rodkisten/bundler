@@ -62,6 +62,7 @@ export interface ElementsConfig {
   overrideEventTarget: boolean;
   observeElement: boolean;
   showWhitespace: boolean;
+  wrapLines: boolean;
 }
 
 export interface NetworkConfig {
@@ -80,7 +81,7 @@ export interface SourcesConfig {
   formatCode: boolean;
   indentSize: "2" | "4" | "8";
   wrapLines: boolean;
-  maxFormatSourceLength: string | number;
+  maxFormatSourceLength: number;
 }
 
 export interface DevToolsConfig {
@@ -198,6 +199,12 @@ export interface SettingsLike extends ToolLike {
     selections: readonly string[],
   ): string;
   registerRange<Values extends object, Key extends KeysOfValue<Values, number>>(
+    config: ConfigLike<Values>,
+    key: Key,
+    description: string,
+    options?: RangeOptions,
+  ): string;
+  registerNumber<Values extends object, Key extends KeysOfValue<Values, number>>(
     config: ConfigLike<Values>,
     key: Key,
     description: string,
