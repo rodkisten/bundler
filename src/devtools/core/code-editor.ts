@@ -5,7 +5,7 @@ import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { EditorState, type Extension } from "@codemirror/state";
-import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
+import { drawSelection, EditorView, type ViewUpdate, highlightActiveLine, keymap, lineNumbers } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 
 export type CodeEditorLanguage = "javascript" | "json" | "html" | "css" | "text";
