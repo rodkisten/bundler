@@ -8,6 +8,7 @@ import {
   copyText,
   downloadText,
   icon,
+  isDevtoolsNode,
 } from "../utils";
 import {
   inferSourceType,
@@ -22,10 +23,12 @@ import {
 } from "../components/runtime";
 import { Tool } from "../tool";
 import type {
+  NetworkRecord,
   SourcePayload,
   SourceType,
   SourcesConfig,
   ToolContext,
+  ToolLike,
 } from "../types";
 import {
   sourcesStyleArtifacts,
@@ -39,6 +42,36 @@ type ResolvedSource = {
   value: unknown;
   url: string;
 };
+
+interface NetworkSourceTool extends ToolLike {
+  requests(): NetworkRecord[];
+}
+
+interface UserscriptRequestDetails {
+  method: "GET";
+  url: string;
+  responseType: "text";
+  timeout: number;
+  onload(response: UserscriptResponse): void;
+  onerror(error: unknown): void;
+  ontimeout(): void;
+  onabort(): void;
+}
+
+interface UserscriptResponse {
+  status?: number;
+  statusText?: string;
+  response?: unknown;
+  responseText?: string;
+}
+
+interface UserscriptApi {
+  xmlHttpRequest?(details: UserscriptRequestDetails): unknown;
+}
+
+type UserscriptRequest = (details: UserscriptRequestDetails) => unknown;
+
+const MAX_FORMAT_SOURCE_LENGTH = 500_000;
 
 const DEFAULT_SOURCE_PAYLOAD: SourcePayload = {
   type: "html",
@@ -67,16 +100,18 @@ export class Sources extends Tool {
   private editor: CodeEditorHandle | null = null;
   private requestController: AbortController | null = null;
   private destroyed = false;
+  private dirty = true;
+  private shellTitle = "";
+  private indexedSources: SourcePayload[] = [];
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
 
     this.destroyed = false;
+    this.dirty = true;
     this.mountShell();
     this.config.on("change", this.onConfigChange);
     this.registerSettings(context);
-
-    void this.renderSource();
   }
 
   set(payload: SourcePayload): this;
@@ -95,15 +130,25 @@ export class Sources extends Tool {
             : String(typeOrPayload),
         };
 
-    this.mountShell();
-    void this.renderSource();
+    this.dirty = true;
+
+    if (this.active) {
+      this.mountShell();
+      void this.renderSource();
+    }
 
     return this;
   }
 
   override show(): void {
     super.show();
-    void this.renderSource();
+    this.mountShell();
+    if (this.dirty || !this.editor) void this.renderSource();
+  }
+
+  override hide(): void {
+    super.hide();
+    this.abortRequest();
   }
 
   override destroy(): void {
@@ -122,12 +167,16 @@ export class Sources extends Tool {
 
     this.body = null;
     this.renderedText = "";
+    this.dirty = true;
+    this.shellTitle = "";
+    this.indexedSources = [];
 
     super.destroy();
   }
 
   private readonly onConfigChange = (): void => {
-    void this.renderSource();
+    this.dirty = true;
+    if (this.active) void this.renderSource();
   };
 
   private registerSettings(context: ToolContext): void {
@@ -163,11 +212,14 @@ export class Sources extends Tool {
   private mountShell(): void {
     if (!this.container || this.destroyed) return;
 
+    const title = this.sourceTitle();
+    if (this.disposeView && this.body && this.shellTitle === title) return;
+
     this.abortRequest();
     this.destroyEditor();
-
     this.disposeBody?.();
     this.disposeBody = null;
+    this.body = null;
 
     const view: SourcesViewModel = {
       setBody: (node) => {
@@ -179,25 +231,27 @@ export class Sources extends Tool {
     };
 
     this.disposeView?.();
-
     this.disposeView = render(
       this.container,
       html`
         <RodSourcesView
           view=${view as never}
-          title=${this.sourceTitle()}
+          title=${title}
         />
       `,
     );
 
-    // Ref is the primary path. This fallback makes failures in compiled refs
-    // visible without leaving the panel permanently blank.
-    this.body ??= this.container.querySelector<HTMLElement>(
-      "[data-sources-body]",
-    );
+    this.shellTitle = title;
+    this.body ??= this.container.querySelector<HTMLElement>("[data-sources-body]");
   }
 
   private async renderSource(): Promise<void> {
+    if (!this.active) {
+      this.dirty = true;
+      return;
+    }
+
+    this.mountShell();
     if (!this.body || !this.container || this.destroyed) return;
 
     const token = ++this.renderToken;
@@ -233,6 +287,7 @@ export class Sources extends Tool {
     }
 
     this.renderedText = plainText(value);
+    this.dirty = false;
 
     switch (type) {
       case "image":
@@ -272,67 +327,104 @@ export class Sources extends Tool {
 
       case "raw":
       case "text":
-      default:
-        this.renderText(String(value ?? ""));
+      default: {
+        const inferredType = inferTextSourceType(type, url || this.sourceTitle());
+        this.renderCode(String(value ?? ""), inferredType);
+      }
     }
   }
 
-  private async resolveSource(
-    payload: SourcePayload,
-  ): Promise<ResolvedSource> {
+  private async resolveSource(payload: SourcePayload): Promise<ResolvedSource> {
     let value = typeof payload.value === "function"
       ? await payload.value()
       : payload.value;
 
     let type = payload.type || "auto";
-
     const url = payload.url
-      || (
-        typeof value === "string"
-        && looksLikeUrl(value)
-          ? value
-          : ""
-      );
+      || (typeof value === "string" && looksLikeUrl(value) ? value : "");
 
-    if (url && type !== "image" && type !== "iframe") {
-      const controller = new AbortController();
-      this.requestController = controller;
+    if (!url || type === "image" || type === "iframe") {
+      return { type, value, url };
+    }
 
-      try {
-        const response = await fetch(url, {
-          signal: controller.signal,
-        });
+    const normalizedType = inferTextSourceType(type, url);
+    const failures: string[] = [];
 
-        if (!response.ok) {
-          throw new Error(
-            `${response.status} ${response.statusText}`.trim(),
-          );
-        }
+    const documentSource = readCurrentDocumentSource(url, normalizedType);
+    if (documentSource != null) {
+      return { type: normalizedType, value: documentSource, url };
+    }
 
-        value = await response.text();
-
-        if (type === "auto" || type === "text") {
-          type = inferSourceType(value, url) as SourceType;
-        }
-      } catch (error) {
-        if (controller.signal.aborted) {
-          throw error;
-        }
-
-        value = `Unable to load ${url}\n\n${plainText(error)}`;
-        type = "text";
-      } finally {
-        if (this.requestController === controller) {
-          this.requestController = null;
-        }
+    if (normalizedType === "css") {
+      const cssomSource = readStylesheetSource(url);
+      if (cssomSource != null) {
+        return { type: "css", value: cssomSource, url };
       }
     }
 
+    const capturedSource = this.readCapturedNetworkSource(url);
+    if (capturedSource != null) {
+      return {
+        type: inferTextSourceType(type, url, capturedSource),
+        value: capturedSource,
+        url,
+      };
+    }
+
+    const cachedSource = await readCachedSource(url, failures);
+    if (cachedSource != null) {
+      return {
+        type: inferTextSourceType(type, url, cachedSource),
+        value: cachedSource,
+        url,
+      };
+    }
+
+    const controller = new AbortController();
+    this.requestController = controller;
+
+    try {
+      const fetchedSource = await fetchSourceText(url, controller.signal);
+      return {
+        type: inferTextSourceType(type, url, fetchedSource),
+        value: fetchedSource,
+        url,
+      };
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+      failures.push(`fetch: ${sourceErrorMessage(error)}`);
+    } finally {
+      if (this.requestController === controller) this.requestController = null;
+    }
+
+    const userscriptSource = await readUserscriptSource(url, failures);
+    if (userscriptSource != null) {
+      return {
+        type: inferTextSourceType(type, url, userscriptSource),
+        value: userscriptSource,
+        url,
+      };
+    }
+
     return {
-      type,
-      value,
+      type: normalizedType,
+      value: sourceFailureText(normalizedType, url, failures),
       url,
     };
+  }
+
+  private readCapturedNetworkSource(url: string): string | null {
+    const network = this.context?.devtools.get<NetworkSourceTool>("network");
+    if (!network || typeof network.requests !== "function") return null;
+
+    const normalized = normalizeSourceUrl(url);
+    const record = [...network.requests()].reverse().find((candidate) => (
+      normalizeSourceUrl(candidate.url) === normalized
+      && typeof candidate.responseBody === "string"
+      && candidate.responseBody.length > 0
+    ));
+
+    return record?.responseBody ?? null;
   }
 
   private renderLoading(): void {
@@ -350,17 +442,6 @@ export class Sources extends Tool {
     );
   }
 
-  private renderText(value: string): void {
-    if (!this.body) return;
-
-    this.destroyEditor();
-    this.disposeBody?.();
-
-    this.disposeBody = render(
-      this.body,
-      html`<RodSourcesPre>${value}</RodSourcesPre>`,
-    );
-  }
 
   private renderCode(code: string, type: string): void {
     if (!this.body) return;
@@ -473,6 +554,7 @@ export class Sources extends Tool {
         return;
 
       case "source-refresh":
+        this.dirty = true;
         void this.renderSource();
         return;
     }
@@ -485,6 +567,7 @@ export class Sources extends Tool {
     this.destroyEditor();
 
     const sources = collectSources();
+    this.indexedSources = sources;
 
     this.renderedText = sources
       .map((source) => `${source.type}\t${source.title}`)
@@ -519,7 +602,7 @@ export class Sources extends Tool {
   }
 
   private openIndexedSource(index: number): void {
-    const source = collectSources()[index];
+    const source = this.indexedSources[index];
 
     if (source) {
       this.set(source);
@@ -582,16 +665,20 @@ function collectSources(): SourcePayload[] {
   const sources: SourcePayload[] = [
     {
       type: "html",
-      value: document.documentElement.outerHTML,
+      value: serializeDocumentSource,
       title: "Document HTML",
+      url: location.href,
     },
   ];
+  const seenUrls = new Set<string>();
 
-  for (
-    const [index, script]
-    of Array.from(document.scripts).entries()
-  ) {
+  for (const [index, script] of Array.from(document.scripts).entries()) {
+    if (isDevtoolsNode(script)) continue;
+
     if (script.src) {
+      const normalized = normalizeSourceUrl(script.src);
+      if (seenUrls.has(normalized)) continue;
+      seenUrls.add(normalized);
       sources.push({
         type: "javascript",
         value: script.src,
@@ -600,43 +687,222 @@ function collectSources(): SourcePayload[] {
       });
     } else if (script.textContent?.trim()) {
       sources.push({
-        type: "javascript",
+        type: inferInlineScriptType(script.type),
         value: script.textContent,
         title: `Inline script #${index + 1}`,
       });
     }
   }
 
-  for (
-    const [index, style]
-    of Array.from(document.querySelectorAll("style")).entries()
-  ) {
-    if (style.textContent?.trim()) {
-      sources.push({
-        type: "css",
-        value: style.textContent,
-        title: `Inline stylesheet #${index + 1}`,
-      });
-    }
-  }
-
-  for (
-    const link
-    of Array.from(
-      document.querySelectorAll<HTMLLinkElement>(
-        'link[rel~="stylesheet"][href]',
-      ),
-    )
-  ) {
+  for (const [index, style] of Array.from(document.querySelectorAll("style")).entries()) {
+    if (isDevtoolsNode(style) || !style.textContent?.trim()) continue;
     sources.push({
       type: "css",
-      value: link.href,
-      url: link.href,
-      title: link.href,
+      value: style.textContent,
+      title: `Inline stylesheet #${index + 1}`,
+    });
+  }
+
+  const stylesheetUrls = [
+    ...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map((link) => link.href),
+    ...Array.from(document.styleSheets).map((sheet) => sheet.href).filter((href): href is string => Boolean(href)),
+  ];
+
+  for (const url of stylesheetUrls) {
+    const normalized = normalizeSourceUrl(url);
+    if (seenUrls.has(normalized)) continue;
+    seenUrls.add(normalized);
+    sources.push({
+      type: "css",
+      value: url,
+      url,
+      title: url,
     });
   }
 
   return sources;
+}
+
+function serializeDocumentSource(): string {
+  const devtoolsHost = document.querySelector<HTMLElement>("#roderuda,.__roderuda-host__");
+
+  // Shadow DOM content is not included by outerHTML, so the common path can
+  // serialize without cloning the whole page. Light-DOM installations need a
+  // cleaned clone to avoid recursively embedding the DevTools UI in Sources.
+  if (!devtoolsHost || devtoolsHost.shadowRoot) {
+    return `<!doctype html>\n${document.documentElement.outerHTML}`;
+  }
+
+  const clone = document.documentElement.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(
+    "#roderuda,.__roderuda-host__,.__roderuda-overlay__,[data-roderuda-root],[data-roderuda-internal]",
+  ).forEach((node) => node.remove());
+  return `<!doctype html>\n${clone.outerHTML}`;
+}
+
+function inferInlineScriptType(type: string): SourceType {
+  return /json|ld\+json/i.test(type) ? "json" : "javascript";
+}
+
+function inferTextSourceType(
+  requestedType: SourceType | string,
+  sourceHint: string,
+  value?: string,
+): CodeEditorLanguage {
+  if (["html", "css", "javascript", "json"].includes(requestedType)) {
+    return requestedType as CodeEditorLanguage;
+  }
+
+  const inferred = inferSourceType(value ?? "", sourceHint);
+  if (["html", "css", "javascript", "json"].includes(inferred)) {
+    return inferred as CodeEditorLanguage;
+  }
+
+  return "text";
+}
+
+function readCurrentDocumentSource(url: string, type: string): string | null {
+  if (type !== "html") return null;
+  return normalizeSourceUrl(url) === normalizeSourceUrl(location.href)
+    ? serializeDocumentSource()
+    : null;
+}
+
+function readStylesheetSource(url: string): string | null {
+  const normalized = normalizeSourceUrl(url);
+
+  for (const stylesheet of Array.from(document.styleSheets)) {
+    if (!stylesheet.href || normalizeSourceUrl(stylesheet.href) !== normalized) continue;
+
+    try {
+      return Array.from(stylesheet.cssRules)
+        .map((rule) => rule.cssText)
+        .join("\n");
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function readCachedSource(url: string, failures: string[]): Promise<string | null> {
+  if (typeof caches === "undefined") return null;
+
+  try {
+    const response = await caches.match(url);
+    if (!response) return null;
+    return await response.text();
+  } catch (error) {
+    failures.push(`cache: ${sourceErrorMessage(error)}`);
+    return null;
+  }
+}
+
+async function fetchSourceText(url: string, signal: AbortSignal): Promise<string> {
+  const target = new URL(url, location.href);
+  const response = await fetch(target.href, {
+    signal,
+    cache: "no-cache",
+    credentials: target.origin === location.origin ? "include" : "omit",
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`.trim());
+  }
+
+  return response.text();
+}
+
+async function readUserscriptSource(url: string, failures: string[]): Promise<string | null> {
+  const globalScope = globalThis as typeof globalThis & {
+    GM?: UserscriptApi;
+    GM_xmlhttpRequest?: UserscriptRequest;
+  };
+  const request = globalScope.GM?.xmlHttpRequest
+    ? globalScope.GM.xmlHttpRequest.bind(globalScope.GM)
+    : globalScope.GM_xmlhttpRequest;
+  if (!request) return null;
+
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      let settled = false;
+      const settle = (callback: () => void): void => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+
+      const handleResponse = (response: UserscriptResponse): void => settle(() => {
+        const status = response.status ?? 200;
+        if (status < 200 || status >= 400) {
+          reject(new Error(`${status} ${response.statusText ?? ""}`.trim()));
+          return;
+        }
+        resolve(String(response.responseText ?? response.response ?? ""));
+      });
+
+      const result = request({
+        method: "GET",
+        url,
+        responseType: "text",
+        timeout: 15000,
+        onload: handleResponse,
+        onerror: (error) => settle(() => reject(error)),
+        ontimeout: () => settle(() => reject(new Error("request timed out"))),
+        onabort: () => settle(() => reject(new DOMException("request aborted", "AbortError"))),
+      });
+
+      if (isPromiseLike<UserscriptResponse>(result)) {
+        void result.then(handleResponse, (error) => settle(() => reject(error)));
+      }
+    });
+  } catch (error) {
+    failures.push(`userscript request: ${sourceErrorMessage(error)}`);
+    return null;
+  }
+}
+
+function sourceFailureText(type: string, url: string, failures: readonly string[]): string {
+  const detail = failures.length ? failures.join("\n") : "No readable response body was available.";
+  const message = [
+    "RodEruda could not read this resource from the page context.",
+    `URL: ${url || "unknown"}`,
+    "Tried: current DOM/CSSOM, captured Network responses, Cache Storage, fetch and userscript cross-origin request.",
+    detail,
+  ].join("\n");
+
+  if (type === "html") return `<!--\n${message}\n-->`;
+  if (type === "json") {
+    return JSON.stringify({
+      error: "RodEruda could not read this resource from the page context.",
+      url: url || "unknown",
+      attempts: failures,
+    }, null, 2);
+  }
+  if (type === "css" || type === "javascript") return `/*\n${message}\n*/`;
+  return message;
+}
+
+function normalizeSourceUrl(value: string): string {
+  try {
+    const url = new URL(value, location.href);
+    url.hash = "";
+    return url.href;
+  } catch {
+    return value;
+  }
+}
+
+function isPromiseLike<Value>(value: unknown): value is PromiseLike<Value> {
+  return value !== null
+    && typeof value === "object"
+    && "then" in value
+    && typeof (value as { then?: unknown }).then === "function";
+}
+
+function sourceErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function looksLikeUrl(value: string): boolean {
@@ -697,6 +963,11 @@ function formatSource(
   type: string,
   indentSize: number,
 ): string {
+  // Formatting allocates a second representation of the whole source. Keep
+  // syntax highlighting for large files, but avoid a synchronous formatter
+  // pass that can freeze mobile pages for several seconds.
+  if (source.length > MAX_FORMAT_SOURCE_LENGTH) return source;
+
   switch (type) {
     case "json":
       return formatJson(source, indentSize);

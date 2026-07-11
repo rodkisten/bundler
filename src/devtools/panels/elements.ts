@@ -70,8 +70,12 @@ export class Elements extends Tool {
   private scrollIdleTimer = 0;
 
   private readonly scheduleRender = debounce(() => {
-    this.renderTree();
+    if (this.active) this.renderTree();
   }, 80);
+
+  private readonly scheduleDetailRender = debounce(() => {
+    if (this.active) this.renderDetail();
+  }, 120);
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
@@ -122,40 +126,33 @@ export class Elements extends Tool {
       this.restoreEventRegistry = installEventListenerRegistry();
     }
 
-    this.observe();
     this.registerSettings(context);
 
-    if (document.documentElement) {
-      this.expanded.add(document.documentElement);
-    }
-
-    if (document.body) {
-      this.expanded.add(document.body);
-      for (const child of this.visibleChildren(document.body)) {
-        this.expanded.add(child);
-      }
-    }
-
-    this.select(document.body || document.documentElement, {
-      addHistory: false,
-      expandAncestors: true,
-      reveal: false,
-      
-      highlight: false,
-    });
+    // Keep the panel shell mounted, but defer document traversal and the
+    // full-page MutationObserver until Elements is actually visible. Large
+    // application DOMs otherwise consume the main thread while another tool
+    // is selected.
+    this.selected = document.body || document.documentElement;
+    if (document.documentElement) this.expanded.add(document.documentElement);
+    if (document.body) this.expanded.add(document.body);
   }
 
   override show(): void {
     super.show();
 
-    if (this.selected) {
-      this.renderDetail();
-    }
+    if (!this.selected) this.selected = document.body || document.documentElement;
+    if (this.selected) this.expandAncestors(this.selected);
+
+    this.observe();
+    this.renderTree();
+    this.renderCrumbs();
+    this.renderDetail();
   }
 
   override hide(): void {
     super.hide();
 
+    this.observer?.disconnect();
     this.stopPicker();
     this.closeContextMenu();
     this.highlighter?.hide();
@@ -186,6 +183,7 @@ export class Elements extends Tool {
     this.disposeView?.();
     this.disposeView = null;
 
+    this.highlighter?.destroy();
     this.highlighter = null;
     this.container = null;
     this.tree = null;
@@ -236,11 +234,13 @@ export class Elements extends Tool {
       }
     }
 
-    this.renderTree();
-    this.renderCrumbs();
-    this.renderDetail();
+    if (this.active) {
+      this.renderTree();
+      this.renderCrumbs();
+      this.renderDetail();
+    }
 
-    if (highlight) {
+    if (highlight && (this.active || this.picking)) {
       this.highlighter?.highlight(element);
     }
 
@@ -258,7 +258,7 @@ export class Elements extends Tool {
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
     if (key === "observeElement") {
-      if (value) this.observe();
+      if (value && this.active) this.observe();
       else this.observer?.disconnect();
     }
 
@@ -268,10 +268,10 @@ export class Elements extends Tool {
         ? installEventListenerRegistry()
         : null;
 
-      this.renderDetail();
+      if (this.active) this.renderDetail();
     }
 
-    if (key === "showWhitespace") {
+    if (key === "showWhitespace" && this.active) {
       this.renderTree();
     }
   };
@@ -302,7 +302,7 @@ export class Elements extends Tool {
   private observe(): void {
     this.observer?.disconnect();
 
-    if (!this.config.get("observeElement") || !document.documentElement) {
+    if (!this.active || !this.config.get("observeElement") || !document.documentElement) {
       return;
     }
 
@@ -313,11 +313,14 @@ export class Elements extends Tool {
         (mutation) => !isDevtoolsNode(mutation.target, devtoolsHost),
       );
 
-      if (!relevantMutations.length) {
-        return;
-      }
+      if (!this.active || !relevantMutations.length) return;
 
-      this.scheduleRender();
+      // Collapsed branches have no mounted rows below them, so rebuilding the
+      // visible tree for mutations deep inside those branches only burns CPU.
+      // Their contents are read fresh when the user expands the branch.
+      if (relevantMutations.some((mutation) => this.mutationTouchesVisibleTree(mutation))) {
+        this.scheduleRender();
+      }
 
       if (
         this.selected
@@ -327,7 +330,7 @@ export class Elements extends Tool {
             || this.selected?.contains(mutation.target),
         )
       ) {
-        this.renderDetail();
+        this.scheduleDetailRender();
       }
     });
 
@@ -337,6 +340,30 @@ export class Elements extends Tool {
       attributes: true,
       characterData: true,
     });
+  }
+
+  private mutationTouchesVisibleTree(mutation: MutationRecord): boolean {
+    const target = mutation.target;
+
+    if (mutation.type === "childList") {
+      return this.isNodeVisibleInTree(target) && this.expanded.has(target);
+    }
+
+    return this.isNodeVisibleInTree(target);
+  }
+
+  private isNodeVisibleInTree(node: Node): boolean {
+    let current: Node | null = node.nodeType === Node.TEXT_NODE
+      ? node.parentNode
+      : node;
+
+    while (current && current !== document.documentElement) {
+      const parent = current.parentNode;
+      if (!parent || !this.expanded.has(parent)) return false;
+      current = parent;
+    }
+
+    return current === document.documentElement;
   }
 
   private renderTree(): void {
@@ -374,12 +401,12 @@ export class Elements extends Tool {
           onPointerUp: () => this.cancelLongPress(),
           onPointerCancel: () => this.cancelLongPress(),
           onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
-          onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent.currentTarget as HTMLElement),
+          onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
           onPointerOut: () => this.highlighter?.hide(),
         }}
       >
 
-        ${limited.map((child) => this.renderNode(child, depth + 1))}
+        ${expanded ? limited.map((child) => this.renderNode(child, depth + 1)) : null}
       </RodElementsDomNodeView>
     `;
   }
@@ -816,20 +843,19 @@ export class Elements extends Tool {
     }
   }
 
-  private hoverNode(element: HTMLElement): void {
-   if (
-    !this.active
-    || this.picking
-    || this.isUserScrolling
-    || !(event instanceof PointerEvent)
-    || event.pointerType !== "mouse"
-  ) return;
+  private hoverNode(pointerEvent: Event, element: HTMLElement): void {
+    if (
+      !this.active
+      || this.picking
+      || this.isUserScrolling
+      || !(pointerEvent instanceof PointerEvent)
+      || pointerEvent.pointerType !== "mouse"
+    ) {
+      return;
+    }
 
     const node = this.resolveNode(element.dataset.nodeId ?? "");
-
-    if (node instanceof Element) {
-      this.highlighter?.highlight(node);
-    }
+    if (node instanceof Element) this.highlighter?.highlight(node);
   }
 
   private handleAction(event: Event, element: HTMLElement): void {
@@ -1047,7 +1073,7 @@ export class Elements extends Tool {
       );
 
       if (target && !isDevtoolsNode(target, host)) {
-        this.highlighter?.highlight(target);
+        this.highlighter?.highlight(target, true, 0);
       }
     };
 

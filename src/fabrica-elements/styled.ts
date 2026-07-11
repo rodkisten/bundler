@@ -238,7 +238,7 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
   const staticArtifacts = Object.freeze(plan.staticStyle.artifacts.slice())
   let registeredName = displayName?.trim() || undefined
 
-  const styledComponent = ((props: Props = {} as Props) => {
+  const resolveRender = (props: Props): { target: unknown; props: ElementsRecord; className: string } => {
     const defaultProps = resolveAttrs(attrs, props)
     const merged = composeProps(defaultProps, props)
     const requestedTarget = merged.as
@@ -248,7 +248,12 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
       ? resolveStylePlan(plan, merged as Props, options)
       : plan.staticStyle
     applyResolvedStyleToProps(merged, resolved)
-    return createStyledOutput(requestedTarget ?? target, merged, resolved.className, adapter)
+    return { target: requestedTarget ?? target, props: merged, className: resolved.className }
+  }
+
+  const styledComponent = ((props: Props = {} as Props) => {
+    const render = resolveRender(props)
+    return createStyledOutput(render.target, render.props, render.className, adapter)
   }) as StyledComponent<Props, Artifact>
 
   Object.defineProperties(styledComponent, {
@@ -260,6 +265,14 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
     target: { configurable: false, enumerable: false, value: target },
     tag: { configurable: false, enumerable: true, value: typeof target === 'string' ? target : undefined },
     registeredName: { configurable: false, enumerable: true, get: () => registeredName },
+    renderPayload: {
+      configurable: false,
+      enumerable: false,
+      value(nextProps: Props = {} as Props) {
+        const render = resolveRender(nextProps)
+        return createStyledPayload(render.target, render.props, render.className, adapter)
+      },
+    },
     register: {
       configurable: false,
       enumerable: false,
@@ -472,6 +485,18 @@ function mergeStyleValues(generated: unknown, caller: unknown): unknown {
 
 function isInlineStyleArtifact(value: ElementsRecord): boolean {
   return value.kind === 'cipo.inline-css' && typeof value.cssText === 'string'
+}
+
+function createStyledPayload(
+  target: unknown,
+  props: ElementsRecord,
+  className: string,
+  adapter: ElementsAdapter,
+): ElementsRecord {
+  const nextProps = adapter.mergeProps(props, className)
+  return typeof target === 'string'
+    ? { tag: target, props: nextProps }
+    : { component: target, props: nextProps }
 }
 
 function createStyledOutput(

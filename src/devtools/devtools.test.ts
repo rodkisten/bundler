@@ -102,7 +102,7 @@ describe("RodEruda native devtools", () => {
     expect(shadow?.querySelector("RodElementsDomText, rodelementsdomtext, RodElementsDomTag, rodelementsdomtag")).toBeNull();
   });
 
-  it("captures console methods emitted on window.console without locking global object helpers", () => {
+  it("captures console methods emitted on window.console without locking global object helpers", async () => {
     const defineProperty = Object.defineProperty;
     const reflectDefineProperty = Reflect.defineProperty;
     const objectAssign = Object.assign;
@@ -115,6 +115,11 @@ describe("RodEruda native devtools", () => {
 
     console.log("captured window log");
     console.trace("captured trace");
+
+    // Console rendering is intentionally frame-batched so log storms cannot
+    // rebuild the entire list synchronously for every console call.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     const shadow = document.querySelector("#roderuda")?.shadowRoot;
     const consoleText = shadow?.querySelector("[data-console-list]")?.textContent ?? "";

@@ -77,6 +77,8 @@ export class Console extends Tool {
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
   private restoreCaptureRecord: (() => void) | null = null;
+  private renderFrame = 0;
+  private scrollAfterRender = false;
 
   constructor({ name = "console" }: { name?: string } = {}) {
     super();
@@ -156,16 +158,29 @@ export class Console extends Tool {
       filterValue: typeof filter === "string" && !filter.trim() ? null : filter,
       filterText: typeof filter === "string" ? filter : "",
     }, { cause: "console:filter" });
-    this.syncDom();
-    flushSync();
+    if (this.active) {
+      this.syncDom();
+      flushSync();
+    }
   }
 
   override show(): void {
     super.show();
+    if (this.input) this.mountCodeEditor(this.input);
+    this.cancelScheduledRender();
+    this.syncDom();
+    flushSync();
     queueMicrotask(() => this.scrollToBottom());
   }
 
+  override hide(): void {
+    super.hide();
+    this.cancelScheduledRender();
+    this.destroyCodeEditor();
+  }
+
   override destroy(): void {
+    this.cancelScheduledRender();
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
     this.restoreCaptureRecord?.();
@@ -202,10 +217,20 @@ export class Console extends Tool {
     }
     this.state.records.set(records);
     this.trimRecords();
-    this.syncDom();
-    if (!this.config.get("asyncRender")) flushSync();
-    this.scrollToBottom();
-    if (record.level === "error" && this.config.get("displayIfErr")) this.context?.devtools.show().showTool(this.name);
+
+    if (record.level === "error" && this.config.get("displayIfErr")) {
+      this.context?.devtools.show().showTool(this.name);
+    }
+
+    if (!this.active) return;
+
+    if (this.config.get("asyncRender")) {
+      this.scheduleDomSync(true);
+    } else {
+      this.syncDom();
+      flushSync();
+      this.scrollToBottom();
+    }
   };
 
   private patchCaptureRecord(): void {
@@ -224,6 +249,8 @@ export class Console extends Tool {
 
   private readonly onClear = (): void => {
     this.state.patch({ records: [], selectedRecordId: null }, { cause: "console:clear" });
+    if (!this.active) return;
+    this.cancelScheduledRender();
     this.syncDom();
     flushSync();
   };
@@ -233,13 +260,17 @@ export class Console extends Tool {
     if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
     if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
-      this.syncDom();
-      flushSync();
+      if (this.active) {
+        this.syncDom();
+        flushSync();
+      }
     }
     if (key === "maxLogNum") {
       this.trimRecords();
-      this.syncDom();
-      flushSync();
+      if (this.active) {
+        this.syncDom();
+        flushSync();
+      }
     }
   };
 
@@ -307,7 +338,7 @@ export class Console extends Tool {
 
   private setInput(node: HTMLTextAreaElement | null): void {
     this.input = node;
-    if (!node) {
+    if (!node || !this.active) {
       this.destroyCodeEditor();
       return;
     }
@@ -344,6 +375,7 @@ export class Console extends Tool {
     this.codeEditor = null;
     this.codeEditorHost?.remove();
     this.codeEditorHost = null;
+    if (this.input) this.input.hidden = false;
   }
 
   private handleInputFocus(): void {
@@ -425,6 +457,26 @@ export class Console extends Tool {
   private async copyVisibleRecords(): Promise<void> {
     await copyText(this.visibleRecords().map((record) => record.args.map(plainText).join(" ")).join("\n"));
     this.context?.notify("Console copied", { type: "success" });
+  }
+
+  private scheduleDomSync(scrollAfterRender = false): void {
+    this.scrollAfterRender ||= scrollAfterRender;
+    if (this.renderFrame || !this.active) return;
+
+    this.renderFrame = requestAnimationFrame(() => {
+      this.renderFrame = 0;
+      if (!this.active) return;
+      this.syncDom();
+      flushSync();
+      if (this.scrollAfterRender) this.scrollToBottom();
+      this.scrollAfterRender = false;
+    });
+  }
+
+  private cancelScheduledRender(): void {
+    if (this.renderFrame) cancelAnimationFrame(this.renderFrame);
+    this.renderFrame = 0;
+    this.scrollAfterRender = false;
   }
 
   private syncDom(): void {

@@ -233,6 +233,7 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("[data-roderuda-shell-ref='tools']")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("fabrica-component-error")).toBeNull();
+    expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")?.textContent).not.toContain("[object Object]");
 
     expectStylesInjected(root);
 
@@ -255,6 +256,8 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.querySelector("[data-console-input]")).toBeInstanceOf(HTMLElement);
 
     console.log("bundle console smoke");
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     expect(root.querySelector("[data-console-list]")?.textContent ?? "").toContain("bundle console smoke");
 
     runtime!.show("elements");
@@ -266,6 +269,11 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.querySelector("[data-elements-tree]")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("[data-elements-detail]")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
+
+    const elementsPanel = root.querySelector<HTMLElement>('[data-tool="elements"]');
+    expect(elementsPanel?.textContent).toContain("<html");
+    expect(elementsPanel?.textContent).not.toContain("[object Object]");
+    expect(elementsPanel?.querySelector("fabrica-component-error")).toBeNull();
 
     runtime!.show("network");
     expectSelectedTab(root, "network");

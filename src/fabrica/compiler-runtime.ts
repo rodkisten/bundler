@@ -1,4 +1,5 @@
-import { appendValue, decorateHtmlResult, html } from "./dom";
+import { appendValue, html } from "./dom";
+import { invokeComponentLike } from "./dom-payload";
 import {
   resolveRuntimeComponent,
   runWithCurrentFabricaRuntime,
@@ -6,7 +7,8 @@ import {
 import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
-import type { HtmlArtifact, HtmlResult, RenderValue } from "./types";
+import { isSignal } from "./guards";
+import type { RenderValue } from "./types";
 import {
   createElementForTag,
   FABRICA_SPREAD_PREFIX,
@@ -37,7 +39,9 @@ export function createCompiledElement(
   props: FabricaCompiledElementProps | null,
   ...children: readonly RenderValue[]
 ): RenderValue {
-  if (typeof tag === "function") return tag({ ...(props ?? {}), children });
+  if (typeof tag === "function") {
+    return invokeComponentLike(tag, { ...(props ?? {}), children }) as RenderValue;
+  }
 
   const element = createElementForTag(tag);
   applyCompiledProps(element, props);
@@ -64,7 +68,7 @@ export function createCompiledFragment(
 export function createCompiledTemplate(
   input: RuntimeCompiledTemplate | TemplateStringsArray | readonly string[],
   ...values: readonly RenderValue[]
-): HtmlResult {
+): DocumentFragment {
   return runWithCurrentFabricaRuntime(() => {
     const compiled = isRuntimeCompiledTemplate(input)
       ? input
@@ -81,27 +85,7 @@ export function createCompiledTemplate(
       const fragment = document.createDocumentFragment();
       for (const node of compiled.nodes)
         appendCompiledNode(fragment, node, values);
-
-      const result = fragment.childNodes.length === 1
-        ? fragment.removeChild(fragment.firstChild!)
-        : fragment;
-      const strings = isRuntimeCompiledTemplate(input)
-        ? Object.freeze(["[compiled template]"])
-        : normalizeTemplateStrings(input);
-      const artifact: HtmlArtifact = Object.freeze({
-        kind: "fabrica.html" as const,
-        strings,
-        values: Object.freeze([...values]),
-        jsx: false,
-        materialize: () => createCompiledTemplate(input, ...values),
-      });
-
-      // Compiled nodes may own event/ref cleanups. Mark the result dynamic so
-      // direct root disposal falls back to the normal cleanup traversal.
-      return decorateHtmlResult(result, artifact, {
-        cleanupNodes: [],
-        dynamic: true,
-      });
+      return fragment;
     } catch (error) {
       // The compiled definition is an optimization, not a second source of truth. If an older
       // transform shape or browser edge case slips through, the normal html runtime remains the
@@ -171,17 +155,17 @@ export function applyCompiledProps(
       continue;
     }
 
-    const value = readValue(rawValue);
-    if (value == null || value === false) continue;
-
     if (rawName.startsWith(".")) {
-      // Explicit dot bindings are property-only. Unlike normal props, they must
-      // also support application-defined properties that do not already exist
-      // on the element prototype. Falling back to setAttribute() here turns
-      // objects, Nodes and callbacks into "[object Object]" strings.
-      setCompiledProperty(element, rawName.slice(1), value);
+      // A dot binding is an explicit property assignment. Plain functions are
+      // valid callback values and must not be executed as reactive expressions.
+      // Signals are the only function-like values resolved at this boundary.
+      const propertyValue = isSignal(rawValue) ? rawValue() : rawValue;
+      setCompiledProperty(element, rawName.slice(1), propertyValue);
       continue;
     }
+
+    const value = readValue(rawValue);
+    if (value == null || value === false) continue;
 
     if (rawName.startsWith("?")) {
       setPropertyOrAttribute(element, rawName.slice(1), Boolean(value));
@@ -363,7 +347,10 @@ function readCompiledComponentProps(
     }
 
     const name = normalizeCompiledComponentPropName(prop.name);
-    const value = readCompiledPropValue(prop, values);
+    const rawValue = prop.type === "value" ? values[prop.index] : undefined;
+    const value = prop.type === "value" && isSignal(rawValue)
+      ? rawValue()
+      : readCompiledPropValue(prop, values);
     if (name === "props") {
       mergeCompiledComponentSpreadProps(output, value);
     } else {
@@ -379,7 +366,7 @@ function mergeCompiledComponentSpreadProps(target: Record<string, unknown>, valu
   if (!resolved || typeof resolved !== "object") return;
 
   for (const [name, item] of Object.entries(resolved as Record<string, unknown>)) {
-    target[normalizeCompiledComponentPropName(name)] = item;
+    target[normalizeCompiledComponentPropName(name)] = isSignal(item) ? item() : item;
   }
 }
 
@@ -602,7 +589,7 @@ function collectCompiledChildValue(
   output: RenderValue[],
 ): void {
   if (node.type === "text") {
-    if (node.value) output.push(node.value);
+    if (node.value) output.push(decodeHtmlEntities(node.value));
     return;
   }
   if (node.type === "value") {

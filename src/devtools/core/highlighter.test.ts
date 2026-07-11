@@ -58,6 +58,34 @@ describe("ElementHighlighter", () => {
     highlighter.destroy();
   });
 
+
+  it("attaches live observers only for persistent inspect highlights", () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+
+    Object.defineProperty(globalThis, "ResizeObserver", {
+      configurable: true,
+      value: class ResizeObserver {
+        observe = observe;
+        disconnect = disconnect;
+      },
+    });
+
+    const element = document.createElement("main");
+    document.body.appendChild(element);
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue(rect(0, 0, 320, 180));
+
+    const highlighter = new ElementHighlighter();
+    highlighter.highlight(element, true, 850);
+    expect(observe).not.toHaveBeenCalled();
+
+    highlighter.highlight(element, true, 0);
+    expect(observe).toHaveBeenCalledWith(element);
+
+    highlighter.destroy();
+    expect(disconnect).toHaveBeenCalled();
+  });
+
   it("writes overlay styles through setProperty-compatible names", () => {
     const element = document.createElement("div");
 
