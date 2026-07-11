@@ -5,6 +5,8 @@ import {
   debugWarn,
 } from "./core/debug";
 
+export  { setStyles } from "./core/dom"!
+
 export type Cleanup = () => void;
 
 export type IconName = keyof typeof ICONS;
