@@ -1,4 +1,4 @@
-import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../core/dom";
+import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../utils";
 import { html, render } from "../components/runtime";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
