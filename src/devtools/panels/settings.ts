@@ -1,5 +1,5 @@
 import { event, html, render } from "../components/runtime";
-import { icon } from "../core/dom";
+import { icon } from "../utils";
 import type { ConfigLike, RangeOptions, ToolContext } from "../types";
 import { Tool } from "../tool";
 import {
