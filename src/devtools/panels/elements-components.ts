@@ -55,7 +55,6 @@ export type PropertyModel = {
 /* Styled elements */
 /* *************** */
 
-
 const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
   position: relative;
   width: 100%;
@@ -67,8 +66,6 @@ const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
     border-right: 1px solid $border;
   }
 `;
-
-
 
 const ElementsIconButton = styled.button("RodElementsIconButton").css`
   appearance: none;
@@ -261,14 +258,13 @@ const DetailPanel = styled.section("RodElementsDetailPanel").css`
   }
 `;
 
-
-
 const DetailSection = styled.section("RodElementsDetailSection").css`
   margin: 10px 0;
   overflow: hidden;
   border-top: 1px solid $border;
   border-bottom: 1px solid $border;
   background: $background;
+  user-select: nome;
 `;
 
 const SectionTitle = styled.button("RodElementsSectionTitle").css`
