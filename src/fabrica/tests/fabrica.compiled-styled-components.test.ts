@@ -217,6 +217,28 @@ describe("compiled templates with styled Fabrica components", () => {
     expect(div?.textContent).toBe("<node> & &gt;");
   });
 
+  it("decodes entities inside compiled styled component children", () => {
+    const fabrica = createFabrica({ name: "compiled-styled-entities", isolated: true });
+    const styled = createStyled({ fabrica });
+    styled.span("EntityLabel").css`color: $brand;`;
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "EntityLabel",
+          props: [],
+          children: [{ type: "text", value: "&lt;html&gt; &amp; &amp;gt;" }],
+        },
+      ],
+    };
+
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition)));
+
+    expect(host.textContent).toBe("<html> & &gt;");
+    expect(host.textContent).not.toContain("&lt;");
+  });
+
   it("keeps DOM nodes as component children instead of stringifying them", () => {
     const fabrica = createFabrica({ name: "compiled-node-child", isolated: true });
     const styled = createStyled({ fabrica });
@@ -239,6 +261,43 @@ describe("compiled templates with styled Fabrica components", () => {
     fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition, svg)));
 
     expect(host.querySelector("svg[data-icon='probe']")).toBe(svg);
+    expect(host.textContent).not.toContain("[object Object]");
+  });
+
+  it("keeps nested Fábrica components and directives inside compiled styled elements", () => {
+    const fabrica = createFabrica({ name: "compiled-styled-renderables", isolated: true });
+    const styled = createStyled({ fabrica });
+
+    styled.div("StyledRenderableHost").css`color: $brand;`;
+    fabrica.component<{ label: string }>("NestedRenderable", (props) => (
+      fabrica.html`<strong data-nested>${props.label}</strong>`
+    ));
+
+    const items = fabrica.signal(["one", "two"]);
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "StyledRenderableHost",
+          props: [],
+          children: [
+            { type: "element", tag: "NestedRenderable", props: [{ type: "static", name: "label", value: "ready" }], children: [] },
+            { type: "value", index: 0 },
+          ],
+        },
+      ],
+    };
+
+    const repeated = fabrica.repeat(
+      items,
+      (item) => item,
+      ({ item }) => fabrica.html`<span data-repeat>${item()}</span>`,
+    );
+
+    fabrica.run(() => fabrica.render(host, createCompiledTemplate(definition, repeated)));
+
+    expect(host.querySelector("[data-nested]")?.textContent).toBe("ready");
+    expect(Array.from(host.querySelectorAll("[data-repeat]")).map((node) => node.textContent)).toEqual(["one", "two"]);
     expect(host.textContent).not.toContain("[object Object]");
   });
 
