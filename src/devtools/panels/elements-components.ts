@@ -110,8 +110,11 @@ const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
   height: 100%;
   padding-top: $$controlHeight;
   padding-bottom: calc(25px + var(--rd-safe-bottom));
-  overflow: auto;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  text-wrap: wrap;
+  overflow-wrap: wrap;
+  white-space: wrap;
   -webkit-overflow-scrolling: touch;
 `;
 
@@ -164,8 +167,8 @@ const DomRow = styled.div("RodElementsDomRow").css`
   min-height: 20px;
   padding: 1px 8px 1px 2px;
   cursor: default;
-  white-space: nowrap;
-
+  white-space: wrap;
+  
   &:hover {
     background: $highlight;
   }
@@ -850,7 +853,7 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
     if (node.nodeType === Node.TEXT_NODE) {
       const text = (node.textContent ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/\s+/g, " ").trim();
       //return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html`<RodElementsDomText data-empty-text>[empty text]</RodElementsDomText>`;
-      return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html``;
+      return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : null;
     }
     if (node.nodeType === Node.COMMENT_NODE) {
       return html`<RodElementsDomText>&lt;!--${truncate(node.textContent || "", 300)}--&gt;</RodElementsDomText>`;
