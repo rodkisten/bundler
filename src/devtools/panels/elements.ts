@@ -125,7 +125,6 @@ export class Elements extends Tool {
 
     this.highlighter = new ElementHighlighter(host);
 
-
     this.config.on("change", this.onConfigChange);
 
     if (this.config.get("overrideEventTarget")) {
@@ -150,6 +149,8 @@ export class Elements extends Tool {
       addHistory: false,
       expandAncestors: true,
       reveal: false,
+      
+      highlight: false,
     });
   }
 
@@ -825,7 +826,14 @@ export class Elements extends Tool {
   }
 
   private hoverNode(element: HTMLElement): void {
-    if (this.isUserScrolling) return;
+   if (
+    !this.active
+    || this.picking
+    || this.isUserScrolling
+    || !(event instanceof PointerEvent)
+    || event.pointerType !== "mouse"
+  ) {
+    return;
 
     const node = this.resolveNode(element.dataset.nodeId ?? "");
 
