@@ -31,7 +31,7 @@ export interface CodeEditorHandle {
 }
 
 export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
-  const updateListener = EditorView.updateListener.of((update) => {
+  const updateListener = EditorView.updateListener.of((update: ViewUpdate) => {
     if (update.docChanged) options.onChange?.(update.state.doc.toString());
   });
   const extensions: Extension[] = [

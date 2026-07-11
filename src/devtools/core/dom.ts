@@ -1,3 +1,4 @@
+import type { Cleanup } from "../types";
 import { uiElement } from "../components/runtime";
 import { debugLog, debugTrace, debugWarn } from "./debug";
 import {
@@ -17,8 +18,6 @@ import {
   formatTime, 
   safeStringify 
 } from "../utils";
-
-export type Cleanup = () => void;
 
 type TrustedTypesPolicy = { createHTML(value: string): unknown };
 

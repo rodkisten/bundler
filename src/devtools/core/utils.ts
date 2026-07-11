@@ -1,3 +1,4 @@
+import type { Cleanup } from "../types";
 import { create, on, trustedHtml, setStyles } from "./dom";
 import {
   debugLog,
@@ -8,14 +9,12 @@ import {
 
 export { setStyles };
 
-export type Cleanup = () => void;
-
 export type IconName = keyof typeof ICONS;
 
 export type IconNode = SVGSVGElement | Text | string;
 
-export type DebouncedFunction<T extends (...args: never[]) => unknown> = (
-  ...args: Parameters<T>
+export type DebouncedFunction<Callback extends (...args: never[]) => unknown> = (
+  ...args: Parameters<Callback>
 ) => void;
 
 /* ******************** */
@@ -845,11 +844,11 @@ export function viewportScale(): number {
 /* ******************** */
 
 export function debounce<
-  T extends (...args: never[]) => unknown,
+  Callback extends (...args: never[]) => unknown,
 >(
-  fn: T,
+  callback: Callback,
   wait: number,
-): DebouncedFunction<T> {
+): DebouncedFunction<Callback> {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const delay =
@@ -857,14 +856,14 @@ export function debounce<
       ? wait
       : 0;
 
-  return (...args: Parameters<T>): void => {
+  return (...args: Parameters<Callback>): void => {
     if (timer !== undefined) {
       clearTimeout(timer);
     }
 
     timer = setTimeout(() => {
       timer = undefined;
-      fn(...args);
+      callback(...args);
     }, delay);
   };
 }

@@ -1,34 +1,6 @@
-export type DebugLevel =
-  | "trace"
-  | "debug"
-  | "info"
-  | "warn"
-  | "error"
-  | "silent";
+import type { DebugLevel, DevtoolsDebugOptions } from "../types";
 
-export interface DebugOptions {
-  enabled?: boolean;
-  level?: DebugLevel;
-
-  /**
-   * Intervalo usado para acumular e agrupar logs repetidos.
-   *
-   * Logs iguais recebidos durante essa janela serão emitidos
-   * como uma única entrada com contador.
-   *
-   * @default 250
-   */
-  chunkMs?: number;
-
-  /**
-   * Quantidade máxima de logs diferentes mantidos em um chunk.
-   *
-   * Ao atingir o limite, o chunk atual é emitido imediatamente.
-   *
-   * @default 100
-   */
-  maxChunkEntries?: number;
-}
+export type DebugOptions = DevtoolsDebugOptions;
 
 type DebugMeta = Record<string, unknown>;
 type EmittableDebugLevel = Exclude<DebugLevel, "silent">;
