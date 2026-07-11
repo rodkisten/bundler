@@ -19,8 +19,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   line-height: 1.35;
   direction: ltr;
   text-align: left;
-  backdrop-filter: blur(var(--rd-blur, 0px));
-  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
 
   &[data-inline="true"] {
     position: relative;
@@ -100,6 +99,7 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   transition: opacity .3s;
   overflow: hidden;
   contain: layout style paint;
+ backdrop-filter: blur(var(--rd-blur, 0px));
 
   &[data-inline="true"] {
     position: absolute;
