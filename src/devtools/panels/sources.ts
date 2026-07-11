@@ -8,7 +8,7 @@ import {
   copyText,
   downloadText,
   icon,
-} from "../core/dom";
+} from "../utils";
 import {
   inferSourceType,
   plainText,
