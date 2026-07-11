@@ -267,7 +267,7 @@ const DetailSection = styled.section("RodElementsDetailSection").css`
   border-top: 1px solid $border;
   border-bottom: 1px solid $border;
   background: $background;
-  user-select: nome;
+  user-select: none;
 `;
 
 const SectionTitle = styled.button("RodElementsSectionTitle").css`
@@ -402,7 +402,7 @@ const StyleSource = styled.small("RodElementsStyleSource").css`
 
 const StyleDeclaration = styled.div("RodElementsStyleDeclaration").css`
   display: grid;
-  grid-template-columns: minmax(90px, .45fr) minmax(120px, 1fr);
+  grid-template-columns: minmax(fit-content, .45fr) minmax(120px, 1fr);
   gap: 6px;
   padding-left: 13px;
 `;
