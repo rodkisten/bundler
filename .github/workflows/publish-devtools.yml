@@ -1,4 +1,4 @@
-name: 📦 Publish DEVTOOLS ONLY
+name: 📦🐳 Publish DEVTOOLS ONLY
 
 on:
   push:
@@ -7,10 +7,10 @@ on:
 
   workflow_dispatch:
     inputs:
-      type: 'boolean'
-      name: 'should_benchmark'
-      description: 'Should benchmark?'
-      default: 'false'
+      should_benchmark:
+        type: 'boolean'
+        description: 'Should benchmark?'
+        default: false
 
   workflow_call:
         
