@@ -273,11 +273,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+       #github.ref_name == 'main' &&
       - name: "📟 Upload GitHub Pages artifact"
         if: >-
           ${{
             github.event_name == 'workflow_dispatch' &&
-            github.ref_name == 'main' &&
             inputs.should_deploy_pages
           }}
         uses: actions/upload-pages-artifact@v3
@@ -315,7 +315,6 @@ jobs:
       ${{
         needs.build.result == 'success' &&
         github.event_name == 'workflow_dispatch' &&
-        github.ref_name == 'main' &&
         inputs.should_deploy_pages
       }}
 
