@@ -8,14 +8,39 @@ on:
   workflow_dispatch:
     inputs:
       should_benchmark:
-        type: 'boolean'
-        description: 'Should benchmark?'
+        type: boolean
+        description: "Run DevTools benchmarks?"
         default: false
 
+      should_publish_canary:
+        type: boolean
+        description: "Create devtools.canary.iife.min.js?"
+        default: true
+
+      should_deploy_pages:
+        type: boolean
+        description: "Deploy the build to GitHub Pages?"
+        default: true
+
   workflow_call:
-        
+    inputs:
+      should_benchmark:
+        type: boolean
+        required: false
+        default: false
+
+      should_publish_canary:
+        type: boolean
+        required: false
+        default: true
+
+      should_deploy_pages:
+        type: boolean
+        required: false
+        default: false
+
 concurrency:
-  group: publish-browser-bundle-${{ github.ref }}
+  group: publish-devtools-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -26,45 +51,50 @@ permissions:
 
 env:
   WORKFLOW_FILE: publish-devtools.yml
-  MIN_HOURS_BETWEEN_RUNS: 2
+  DEVTOOLS_DIST_DIR: src/devtools/dist
+  CANARY_FILE_NAME: devtools.canary.iife.min.js
 
 jobs:
   test:
     name: "🧪 Run all tests"
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' }}
-    
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
     runs-on: ubuntu-24.04
     continue-on-error: true
+
     steps:
-      - name: Checkout private source
+      - name: "📥 Checkout private source"
         uses: actions/checkout@v6
 
-      - name: Setup pnpm
+      - name: "📦 Setup pnpm"
         uses: pnpm/action-setup@v6
 
-      - name: Setup Node.js
+      - name: "🟢 Setup Node.js"
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
-      - name: Install dependencies
+      - name: "📚 Install dependencies"
         run: pnpm install --frozen-lockfile
 
-      - name: Run tests
+      - name: "🧪 Run tests"
         id: tests
         continue-on-error: true
+        shell: bash
         run: |
           set -o pipefail
+
           export LANG=C.UTF-8
           export LC_ALL=C.UTF-8
 
           mkdir -p artifacts/test
 
-          pnpm test 2>&1 | tee artifacts/test/test-output.log
+          pnpm test 2>&1 |
+            tee artifacts/test/test-output.log
 
-      - name: Write test summary
+      - name: "📝 Write test summary"
         if: always()
+        shell: bash
         run: |
           {
             echo "## 🧪 Test Report"
@@ -76,111 +106,219 @@ jobs:
             echo ""
             echo "### Last test output lines"
             echo ""
-            echo '```markdown'
+            echo '```text'
             tail -n 200 artifacts/test/test-output.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run Benchmarks
-        id: benchmarks_cipo
-        if: ${{ inputs.should_benchmark == 'true' }}
+      - name: "📊 Run DevTools benchmarks"
+        id: benchmarks
+        if: ${{ inputs.should_benchmark }}
         continue-on-error: true
+        shell: bash
         run: |
           set -o pipefail
+
           export LANG=C.UTF-8
           export LC_ALL=C.UTF-8
 
           mkdir -p artifacts/test
 
-          pnpm bench:devtools 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
+          pnpm bench:devtools 2>&1 |
+            tee artifacts/test/benchmarks-devtools-output.log
 
-      - name: Upload test artifact
+      - name: "📤 Upload test reports"
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-report
+          name: devtools-test-report
           path: artifacts/test
+          if-no-files-found: warn
           retention-days: 14
 
   build:
-    name: "👷🏼‍♂️ Build"
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: "👷🏼‍♂️ Build DevTools"
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
     runs-on: ubuntu-24.04
+
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
       GIST_ID: ${{ secrets.GIST_ID }}
 
     steps:
-      - name: Checkout private source
+      - name: "📥 Checkout private source"
         uses: actions/checkout@v6
 
-      - name: Setup pnpm
+      - name: "📦 Setup pnpm"
         uses: pnpm/action-setup@v6
 
-      - name: Setup Node.js
+      - name: "🟢 Setup Node.js"
         uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
 
-      - name: Install dependencies
+      - name: "📚 Install dependencies"
         run: pnpm install --frozen-lockfile=false
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: "🔎 Typecheck"
         continue-on-error: true
+        run: pnpm typecheck
 
-      - name: Build via Vite
+      - name: "🏗️ Build via Vite"
         run: pnpm build:devtools
 
-      - name: Collect release assets
-        id: assets
+      - name: "🐤 Create canary IIFE alias"
+        id: canary
+        if: ${{ inputs.should_publish_canary }}
+        shell: bash
         run: |
           set -euo pipefail
 
+          DIST_DIR="${DEVTOOLS_DIST_DIR}"
+          CANARY_PATH="${DIST_DIR}/${CANARY_FILE_NAME}"
+
+          if [[ ! -d "$DIST_DIR" ]]; then
+            echo "::error::DevTools dist directory was not created: $DIST_DIR"
+            exit 1
+          fi
+
+          # Prefer an explicitly minified IIFE build.
+          SOURCE_FILE="$(
+            find "$DIST_DIR" -type f \
+              \( \
+                -name "*.iife.min.js" \
+                -o -name "*iife*.min.js" \
+                -o -name "*.iife.js" \
+              \) \
+              ! -name "$CANARY_FILE_NAME" \
+              | sort \
+              | head -n 1
+          )"
+
+          # Fall back to the smallest JavaScript bundle, which is normally
+          # the production/minified browser bundle.
+          if [[ -z "$SOURCE_FILE" ]]; then
+            SOURCE_FILE="$(
+              find "$DIST_DIR" -type f -name "*.js" \
+                ! -name "*.map" \
+                ! -name "$CANARY_FILE_NAME" \
+                -printf '%s %p\n' \
+                | sort -n \
+                | head -n 1 \
+                | cut -d' ' -f2-
+            )"
+          fi
+
+          if [[ -z "$SOURCE_FILE" || ! -f "$SOURCE_FILE" ]]; then
+            echo "::error::Could not find an IIFE JavaScript bundle in $DIST_DIR"
+            echo ""
+            echo "Available files:"
+            find "$DIST_DIR" -type f | sort || true
+            exit 1
+          fi
+
+          cp "$SOURCE_FILE" "$CANARY_PATH"
+
+          {
+            echo "source=$SOURCE_FILE"
+            echo "path=$CANARY_PATH"
+            echo "filename=$CANARY_FILE_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Created canary bundle:"
+          echo "  $SOURCE_FILE"
+          echo "  → $CANARY_PATH"
+
+      - name: "🔍 Verify release assets"
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -d "$DEVTOOLS_DIST_DIR" ]]; then
+            echo "::error::Missing build directory: $DEVTOOLS_DIST_DIR"
+            exit 1
+          fi
+
+          mapfile -t FILES < <(
+            find "$DEVTOOLS_DIST_DIR" -type f \
+              \( \
+                -name "*.js" \
+                -o -name "*.js.map" \
+                -o -name "*.html" \
+                -o -name "*.json" \
+                -o -name "*.css" \
+                -o -name "*.txt" \
+              \) \
+              | sort
+          )
+
+          if (( ${#FILES[@]} == 0 )); then
+            echo "::error::No release assets were generated."
+            exit 1
+          fi
+
           {
             echo "files<<EOF"
-            find src/devtools/dist -type f \( \
-              -name "*.js" \
-              -o -name "*.js.map" \
-              -o -name "*.html" \
-              -o -name "*.json" \
-              -o -name "*.css" \
-              -o -name "*.txt" \
-            \) | sort
+            printf '%s\n' "${FILES[@]}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Upload GitHub Pages artifact
+      - name: "📦 Upload DevTools build artifact"
+        uses: actions/upload-artifact@v7
+        with:
+          name: devtools-browser-bundle
+          path: ${{ env.DEVTOOLS_DIST_DIR }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: "📟 Upload GitHub Pages artifact"
+        if: >-
+          ${{
+            github.event_name == 'workflow_dispatch' &&
+            github.ref_name == 'main' &&
+            inputs.should_deploy_pages
+          }}
         uses: actions/upload-pages-artifact@v3
         with:
-          path: src/devtools/dist
-        if: ${{ github.ref_name == 'main' && github.event_name == 'workflow_dispatch' }}
+          path: ${{ env.DEVTOOLS_DIST_DIR }}
 
-      - name: Write build summary
-        if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' }}
+      - name: "📝 Write build summary"
+        if: always()
+        shell: bash
         run: |
           {
-            echo "## 📦 Browser Bundle"
+            echo "## 📦 DevTools Browser Bundle"
             echo ""
             echo "| Field | Value |"
             echo "| --- | --- |"
             echo "| Status | \`${{ job.status }}\` |"
-            echo "| Artifact | \`browser-bundle\` |"
-            echo "| Release tag | \`browser-bundle-latest\` |"
+            echo "| Artifact | \`devtools-browser-bundle\` |"
+            echo "| Canary enabled | \`${{ inputs.should_publish_canary }}\` |"
+            echo "| Canary filename | \`${CANARY_FILE_NAME}\` |"
+            echo "| Deploy Pages | \`${{ inputs.should_deploy_pages }}\` |"
             echo ""
             echo "### Published files"
             echo ""
-            echo '```txt'
-            find dist -type f | sort || true
+            echo '```text'
+            find "$DEVTOOLS_DIST_DIR" -type f | sort || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-pages:
-    name: "📟 Deploy to Github pages"
+    name: "📟 Deploy to GitHub Pages"
     needs:
       - build
-    if: ${{ github.ref_name == 'main' || github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' }}
+
+    if: >-
+      ${{
+        needs.build.result == 'success' &&
+        github.event_name == 'workflow_dispatch' &&
+        github.ref_name == 'main' &&
+        inputs.should_deploy_pages
+      }}
+
     runs-on: ubuntu-24.04
 
     environment:
@@ -188,16 +326,35 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Deploy to GitHub Pages
+      - name: "🚀 Deploy to GitHub Pages"
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Notify Pushcut
+      - name: "📲 Notify Pushcut"
         if: ${{ success() }}
-        id: pushcut
         env:
           WORKFLOW_ID: ${{ github.workflow_ref }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          curl -X POST -d "{\"input\": \"$WORKFLOW_ID\", \"text\": \"Abrir pipeline {teste}\", \"title\": \"Build finished\"}" -H "Content-Type: application/json" https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published
+          PAYLOAD="$(
+            jq -n \
+              --arg input "$WORKFLOW_ID" \
+              --arg text "Abrir pipeline do DevTools" \
+              --arg title "DevTools build published" \
+              '{
+                input: $input,
+                text: $text,
+                title: $title
+              }'
+          )"
+
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data "$PAYLOAD" \
+            "https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published"
