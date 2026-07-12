@@ -549,6 +549,19 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   notify(message: string, options: NotificationOptions = {}): void {
+    const duplicate = Array.from(this.refs.notifications.children).find(
+      (child) => child.textContent === message && child.getAttribute("data-type") === (options.type ?? "info"),
+    );
+
+    if (duplicate instanceof HTMLElement) {
+      duplicate.dataset.active = "true";
+      return;
+    }
+
+    while (this.refs.notifications.children.length >= 3) {
+      this.refs.notifications.firstElementChild?.remove();
+    }
+
     let item!: HTMLElement;
 
     const remove = () => {

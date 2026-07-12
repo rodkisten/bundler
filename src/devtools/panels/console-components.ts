@@ -47,7 +47,8 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   width: 100%;
   height: 100%;
-  padding-bottom: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: calc(72px + var(--rd-safe-bottom));
+  scroll-padding-bottom: calc(84px + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -128,7 +129,7 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  padding-top: 46px;
+  padding: 54px 10px calc(84px + var(--rd-safe-bottom));
   font: 12px / 1.5 $font.mono;
   user-select: text;
 `;
@@ -136,8 +137,8 @@ export const ConsoleList = styled.div("RodConsoleList").css`
 export const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
   min-height: 31px;
-  margin: 0 6px 4px;
-  padding: 7px 38px 7px calc(11px + var(--rd-console-depth, 0) * 14px);
+  margin: 0 0 8px;
+  padding: 10px 42px 10px calc(13px + var(--rd-console-depth, 0) * 14px);
   border: 1px solid alpha($border / 72%);
   border-radius: $md;
   border-bottom: 1px solid alpha($border / 65%);
@@ -364,7 +365,7 @@ component("RodConsoleView", function RodConsoleView(props) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter data-console-filter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${() => view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
+        <RodConsoleFilter data-console-filter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${view.state.filterText()} @input=${event((inputEvent: Event) => view.filter((inputEvent.currentTarget as HTMLInputElement).value))} />
         <RodConsoleIconButton type="button" title="Copy console" data-action="copy" @click=${event((copyEvent: Event) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
       <RodConsoleList data-console-list ref=${ref((node) => {

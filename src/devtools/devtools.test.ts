@@ -128,6 +128,20 @@ describe("RodEruda native devtools", () => {
     expect(consoleText).toContain("captured trace");
   });
 
+
+  it("renders a real console filter value instead of stringifying reactive functions", () => {
+    devtools.init({ autoScale: false, tool: ["console"] });
+    devtools.show("console");
+
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const filter = shadow?.querySelector<HTMLInputElement>("[data-console-filter]");
+
+    expect(filter).toBeInstanceOf(HTMLInputElement);
+    expect(filter?.placeholder).toBe("Filter logs…");
+    expect(filter?.value).toBe("");
+    expect(filter?.value).not.toContain("=>");
+  });
+
   it("supports the public plugin API", () => {
     devtools.init({ tool: [], autoScale: false });
     const custom = {

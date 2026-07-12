@@ -109,7 +109,8 @@ const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
   width: 100%;
   height: 100%;
   padding-top: $$controlHeight;
-  padding-bottom: calc(25px + var(--rd-safe-bottom));
+  padding-bottom: calc(58px + var(--rd-safe-bottom));
+  scroll-padding-bottom: calc(72px + var(--rd-safe-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
   text-wrap: wrap;
@@ -151,6 +152,8 @@ const DomList = styled.ul("RodElementsDomList").css`
 
 const DomItem = styled.li("RodElementsDomItem").css`
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   m: 0;
   p: 0;
 `;
@@ -167,7 +170,11 @@ const DomRow = styled.div("RodElementsDomRow").css`
   min-height: 20px;
   padding: 1px 8px 1px 2px;
   cursor: default;
-  white-space: wrap;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+  white-space: normal;
   
   &:hover {
     background: $highlight;
@@ -472,6 +479,10 @@ const ElementsMenu = styled.div("RodElementsMenu").css`
   color: $primary;
   background: $backgroundDark;
   box-shadow: $shadow.notification;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 `;
 
 const ElementsMenuButton = styled.button("RodElementsMenuButton").css`

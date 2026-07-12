@@ -74,6 +74,8 @@ export class Console extends Tool {
   private list: HTMLElement | null = null;
   private input: HTMLTextAreaElement | null = null;
   private codeEditor: CodeEditorHandle | null = null;
+  private hiddenErrorCount = 0;
+  private hiddenErrorNoticeTimer = 0;
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
   private renderFrame = 0;
@@ -121,9 +123,10 @@ export class Console extends Tool {
         overrideConsole: true,
         catchGlobalErrors: true,
         watchdog: true,
-        watchdogMs: 500,
+        watchdogMs: 250,
         lockConsole: false,
         patchPrototype: true,
+        bridgePageRealm: true,
       });
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
@@ -179,6 +182,9 @@ export class Console extends Tool {
 
   override destroy(): void {
     this.cancelScheduledRender();
+    if (this.hiddenErrorNoticeTimer) window.clearTimeout(this.hiddenErrorNoticeTimer);
+    this.hiddenErrorNoticeTimer = 0;
+    this.hiddenErrorCount = 0;
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
     this.config.off("change", this.onConfigChange);
@@ -215,7 +221,18 @@ export class Console extends Tool {
     this.trimRecords();
 
     if (record.level === "error" && this.config.get("displayIfErr") && !this.active) {
-      this.context?.notify("New console error", { type: "error", duration: 2200 });
+      this.hiddenErrorCount += 1;
+      if (!this.hiddenErrorNoticeTimer) {
+        this.hiddenErrorNoticeTimer = window.setTimeout(() => {
+          const count = this.hiddenErrorCount;
+          this.hiddenErrorCount = 0;
+          this.hiddenErrorNoticeTimer = 0;
+          this.context?.notify(
+            count === 1 ? "1 new console error" : `${count} new console errors`,
+            { type: "error", duration: 2400 },
+          );
+        }, 350);
+      }
     }
 
     if (!this.active) return;

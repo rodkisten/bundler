@@ -122,3 +122,7 @@ devtools.init({
 | `debug` | `boolean \| DevtoolsDebugOptions` | `false` | Enables runtime debug logs. |
 
 The floating entry button is rendered outside the panel dock stacking context and keeps the highest RodEruda z-index so it remains reachable above the shell and every panel.
+
+### Mobile robustness
+
+The console capture layer now combines direct console wrapping, prototype/watchdog recovery, global error listeners, and an optional page-realm bridge for userscript sandboxes. Hidden console errors are grouped into one notification instead of flooding the screen. Scrollable panels reserve extra bottom space for Safari toolbars and safe areas, while Elements long-press menus use panel-local coordinates and suppress native text selection.

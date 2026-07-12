@@ -651,6 +651,9 @@ export class Elements extends Tool {
 
     this.cancelLongPress();
 
+    event.preventDefault();
+    element.setPointerCapture?.(event.pointerId);
+
     const startX = event.clientX;
     const startY = event.clientY;
 
@@ -740,6 +743,13 @@ export class Elements extends Tool {
     const menuHost = this.container ?? this.context?.root;
     menuHost?.append(menu);
 
+    const hostRect = menuHost?.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportOffsetX = viewport?.offsetLeft ?? 0;
+    const viewportOffsetY = viewport?.offsetTop ?? 0;
+    const localX = x + viewportOffsetX - (hostRect?.left ?? 0);
+    const localY = y + viewportOffsetY - (hostRect?.top ?? 0);
+
     const rect = menu.getBoundingClientRect?.();
 
     const width =
@@ -752,18 +762,11 @@ export class Elements extends Tool {
         ? rect.height
         : menu.offsetHeight || 220;
 
-    const viewportWidth =
-      document.documentElement.clientWidth
-      || window.innerWidth
-      || width + 16;
+    const availableWidth = hostRect?.width || viewport?.width || window.innerWidth || width + 16;
+    const availableHeight = hostRect?.height || viewport?.height || window.innerHeight || height + 16;
 
-    const viewportHeight =
-      document.documentElement.clientHeight
-      || window.innerHeight
-      || height + 16;
-
-    menu.style.left = `${clamp(x, 8, viewportWidth - width - 8)}px`;
-    menu.style.top = `${clamp(y, 8, viewportHeight - height - 8)}px`;
+    menu.style.left = `${clamp(localX, 8, availableWidth - width - 8)}px`;
+    menu.style.top = `${clamp(localY, 8, availableHeight - height - 8)}px`;
 
     const close = (closeEvent: Event): void => {
       if (

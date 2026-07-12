@@ -75,6 +75,12 @@ interface InstallOptions {
    * Watchdog interval in ms.
    */
   watchdogMs?: number;
+
+  /**
+   * Installs an additional page-realm bridge. This is useful for userscript
+   * sandboxes where the isolated world has a different console object.
+   */
+  bridgePageRealm?: boolean;
 }
 
 const noop: Fn = () => undefined;
@@ -123,6 +129,8 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private originalReflectDefineProperty: typeof Reflect.defineProperty | null = null;
   private originalObjectAssign: typeof Object.assign | null = null;
   private originalConsoleDescriptor: PropertyDescriptor | undefined;
+  private pageBridgeCleanup: (() => void) | null = null;
+  private readonly bridgeEventName = `__roderuda_console_${Math.random().toString(36).slice(2)}`;
 
   install(options: InstallOptions = {}): void {
     if (options.overrideConsole !== false) {
@@ -158,6 +166,10 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       if (options.watchdog === true) {
         this.startWatchdog(options.watchdogMs ?? 1000);
       }
+
+      if (options.bridgePageRealm === true) {
+        this.installPageRealmBridge();
+      }
     } finally {
       this.installing = false;
     }
@@ -167,6 +179,8 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     if (!this.installed) return;
 
     this.stopWatchdog();
+    this.pageBridgeCleanup?.();
+    this.pageBridgeCleanup = null;
     this.restoreConsoleLock();
 
     for (const method of methods) {
@@ -281,8 +295,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       catchGlobalErrors: this.catchErrors,
       watchdog: true,
       lockConsole: false,
-      patchPrototype: false,
-      watchdogMs: 1000,
+      patchPrototype: true,
+      watchdogMs: 250,
+      bridgePageRealm: true,
     });
   }
 
@@ -332,9 +347,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       };
 
       try {
-        Object.defineProperty(wrapper, "name", {
-          configurable: true,
-          value: method,
+        Object.defineProperties(wrapper, {
+          name: { configurable: true, value: method },
+          __roderudaCaptureWrapper: { configurable: false, value: true },
         });
       } catch {
         // Fine.
@@ -612,6 +627,93 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.lockInstalled = false;
   }
 
+
+  private installPageRealmBridge(): void {
+    if (this.pageBridgeCleanup || typeof document === "undefined") return;
+
+    const eventName = this.bridgeEventName;
+    const onBridge = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail = event.detail as { level?: ConsoleLevel; args?: unknown[] } | null;
+      if (!detail || typeof detail.level !== "string" || !Array.isArray(detail.args)) return;
+      this.record(detail.level, detail.args);
+    };
+
+    document.addEventListener(eventName, onBridge as EventListener, true);
+
+    const source = `(() => {
+      const EVENT = ${JSON.stringify('${EVENT_NAME}')};
+      const KEY = '__roderudaConsoleBridge__';
+      if (window[KEY]?.event === EVENT) return;
+      const levels = ${JSON.stringify(['log','debug','trace','info','warn','error','dir','table'])};
+      const preview = (value) => {
+        if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+        if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack };
+        if (value instanceof Element) return '<' + value.tagName.toLowerCase() + (value.id ? '#' + value.id : '') + '>';
+        try { return JSON.parse(JSON.stringify(value)); } catch {}
+        try { return String(value); } catch { return '[unserializable]'; }
+      };
+      const originals = {};
+      for (const level of levels) {
+        const original = console[level];
+        if (typeof original !== 'function' || original.__roderudaCaptureWrapper) continue;
+        originals[level] = original;
+        const wrapped = function(...args) {
+          try { document.dispatchEvent(new CustomEvent(EVENT, { detail: { level, args: args.map(preview) } })); } catch {}
+          return Reflect.apply(original, console, args);
+        };
+        try { Object.defineProperty(console, level, { configurable: true, writable: true, value: wrapped }); }
+        catch { try { console[level] = wrapped; } catch {} }
+      }
+      window[KEY] = { event: EVENT, originals };
+    })();`.replace('${EVENT_NAME}', eventName);
+
+    const attempts: Array<() => boolean> = [
+      () => {
+        const unsafe = (globalThis as { unsafeWindow?: Window }).unsafeWindow;
+        if (!unsafe || unsafe === window) return false;
+        const evaluator = (unsafe as unknown as { Function?: FunctionConstructor }).Function;
+        if (typeof evaluator !== "function") return false;
+        evaluator(source);
+        return true;
+      },
+      () => {
+        const script = document.createElement("script");
+        script.setAttribute("data-roderuda-internal", "console-bridge");
+        const nonce = document.querySelector<HTMLScriptElement>("script[nonce]")?.nonce;
+        if (nonce) script.nonce = nonce;
+        script.textContent = source;
+        (document.head || document.documentElement).append(script);
+        script.remove();
+        return true;
+      },
+      () => {
+        const blob = new Blob([source], { type: "text/javascript" });
+        const url = URL.createObjectURL(blob);
+        const script = document.createElement("script");
+        script.setAttribute("data-roderuda-internal", "console-bridge-blob");
+        script.src = url;
+        script.onload = script.onerror = () => {
+          URL.revokeObjectURL(url);
+          script.remove();
+        };
+        (document.head || document.documentElement).append(script);
+        return true;
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        if (attempt()) break;
+      } catch {
+        // Keep trying. CSP and userscript realm restrictions vary by site.
+      }
+    }
+
+    this.pageBridgeCleanup = () => {
+      document.removeEventListener(eventName, onBridge as EventListener, true);
+    };
+  }
   private handle(method: ConsoleMethod, args: unknown[]): void {
     switch (method) {
       case "clear":
