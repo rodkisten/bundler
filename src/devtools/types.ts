@@ -56,6 +56,17 @@ export interface ConsoleConfig {
   lazyEvaluation: boolean;
   displayIfErr: boolean;
   maxLogNum: string;
+  captureWatchdogMs: number;
+  captureBridgePageRealm: boolean;
+  capturePatchPrototype: boolean;
+  captureLockConsole: boolean;
+  historyLimit: number;
+  hiddenErrorNoticeDelay: number;
+  logRowGap: number;
+  logRowPadding: number;
+  listBottomPadding: number;
+  filterMinWidth: number;
+  editorMinHeight: number;
 }
 
 export interface ElementsConfig {
@@ -63,17 +74,34 @@ export interface ElementsConfig {
   observeElement: boolean;
   showWhitespace: boolean;
   wrapLines: boolean;
+  highlightDuration: number;
+  persistentHighlight: boolean;
+  mutationRenderDelay: number;
+  detailRenderDelay: number;
+  longPressDuration: number;
+  longPressMoveTolerance: number;
+  contextMenuMargin: number;
+  treeBottomPadding: number;
+  rowIndent: number;
+  maxVisibleChildren: number;
 }
 
 export interface NetworkConfig {
   preserveLog: boolean;
   captureResponseBody: boolean;
   filter: string;
+  renderDelay: number;
+  bodyPreviewLimit: number;
+  listBottomPadding: number;
 }
 
 export interface ResourcesConfig {
   hideDevtoolsSetting: boolean;
   observeElement: boolean;
+  refreshDelay: number;
+  jsonEditorLineNumbers: boolean;
+  jsonEditorWrapLines: boolean;
+  listBottomPadding: number;
 }
 
 export interface SourcesConfig {
@@ -82,6 +110,10 @@ export interface SourcesConfig {
   indentSize: "2" | "4" | "8";
   wrapLines: boolean;
   maxFormatSourceLength: number;
+  requestTimeout: number;
+  editorFontSize: number;
+  editorTabSize: number;
+  listBottomPadding: number;
 }
 
 export interface DevToolsConfig {
@@ -91,6 +123,26 @@ export interface DevToolsConfig {
   theme: string;
   panelOrder: string[];
   disabledPanels: string[];
+  tabHeight: number;
+  tabMinWidth: number;
+  compactTabMinWidth: number;
+  tabFontSize: number;
+  uiFontSize: number;
+  entryButtonSize: number;
+  safeAreaMinimum: number;
+  dockBottomGap: number;
+  resizerHeight: number;
+  resizerHandleWidth: number;
+  resizerHandleHeight: number;
+  notificationDuration: number;
+  notificationMaxVisible: number;
+  notificationWidth: number;
+  notificationTop: number;
+  modalMaxWidth: number;
+  modalMaxHeight: number;
+  animationDuration: number;
+  panelPadding: number;
+  panelGap: number;
 }
 
 export interface DevtoolsInitPanelConfig {
@@ -183,8 +235,21 @@ export interface RangeOptions {
   step?: number;
 }
 
+
+export type ConfigSettingDefinition<Values extends object> =
+  | { readonly kind: "switch"; readonly key: KeysOfValue<Values, boolean>; readonly label: string }
+  | { readonly kind: "select"; readonly key: KeysOfValue<Values, string>; readonly label: string; readonly selections: readonly string[] }
+  | { readonly kind: "range" | "number"; readonly key: KeysOfValue<Values, number>; readonly label: string; readonly options?: RangeOptions };
+
+export interface ConfigSettingsGroup<Values extends object> {
+  readonly title: string;
+  readonly config: ConfigLike<Values>;
+  readonly settings: readonly ConfigSettingDefinition<Values>[];
+}
+
 export interface SettingsLike extends ToolLike {
   registerText(text: string): string;
+  registerConfigGroup<Values extends object>(group: ConfigSettingsGroup<Values>): readonly string[];
   registerSeparator(): string;
   registerButton(label: string, handler: () => void | Promise<void>): string;
   registerSwitch<Values extends object, Key extends KeysOfValue<Values, boolean>>(
