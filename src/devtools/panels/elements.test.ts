@@ -78,6 +78,7 @@ type Fixture = {
   settings: {
     registerSeparator: ReturnType<typeof vi.fn>;
     registerText: ReturnType<typeof vi.fn>;
+    registerConfigGroup: ReturnType<typeof vi.fn>;
     registerSwitch: ReturnType<typeof vi.fn>;
   };
   devtools: {
@@ -150,6 +151,7 @@ function createFixture(show = true): Fixture {
   const settings = {
     registerSeparator: vi.fn(),
     registerText: vi.fn(),
+      registerConfigGroup: vi.fn(),
     registerSwitch: vi.fn(),
   };
 

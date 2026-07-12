@@ -2,6 +2,7 @@ import { copyText, icon, safeStringify } from "../utils";
 import { html, render } from "../components/runtime";
 import type { RenderValue } from "../../fabrica";
 import { Tool } from "../tool";
+import { DEVTOOLS_BUILD_INFO } from "../core/build-info";
 import type { InfoItem, ToolContext } from "../types";
 import {
   InfoKey,
@@ -110,6 +111,18 @@ function defaultItems(): InfoItem[] {
         stylesheets: document.styleSheets.length,
         images: document.images.length,
       }),
+    },
+    {
+      name: "RodEruda build",
+      value: {
+        version: DEVTOOLS_BUILD_INFO.version,
+        commit: DEVTOOLS_BUILD_INFO.sha,
+        shortCommit: DEVTOOLS_BUILD_INFO.shortSha,
+        builtAt: DEVTOOLS_BUILD_INFO.builtAt,
+        builtAtGmtMinus3: DEVTOOLS_BUILD_INFO.builtAtGmtMinus3,
+        timezone: DEVTOOLS_BUILD_INFO.timezone,
+        mode: DEVTOOLS_BUILD_INFO.mode,
+      },
     },
     {
       name: "RodEruda Devtools",

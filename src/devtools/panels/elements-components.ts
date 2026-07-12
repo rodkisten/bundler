@@ -109,8 +109,8 @@ const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
   width: 100%;
   height: 100%;
   padding-top: $$controlHeight;
-  padding-bottom: calc(58px + var(--rd-safe-bottom));
-  scroll-padding-bottom: calc(72px + var(--rd-safe-bottom));
+  padding-bottom: calc(var(--rd-elements-bottom-padding, 96px) + var(--rd-safe-bottom));
+  scroll-padding-bottom: calc(var(--rd-elements-bottom-padding, 96px) + var(--rd-safe-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
   text-wrap: wrap;
@@ -135,14 +135,14 @@ const DomTree = styled.div("RodElementsDomTree").css`
 
   ul {
     margin: 0;
-    padding-left: 15px;
+    padding-left: var(--rd-elements-indent, 15px);
     list-style: none;
   }
 `;
 
 const DomList = styled.ul("RodElementsDomList").css`
   margin: 0;
-  padding-left: 15px;
+  padding-left: var(--rd-elements-indent, 15px);
   list-style: none;
 
   &[data-root="true"] {

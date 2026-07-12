@@ -73,7 +73,7 @@ const NetworkList = styled.div("RodNetworkList").css`
   width: 100%;
   height: 100%;
   padding-top: $$controlHeight;
-  padding-bottom: var(--rd-safe-bottom);
+  padding-bottom: calc(var(--rd-network-bottom-padding, 96px) + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -390,13 +390,18 @@ export function networkRowTemplate(record: NetworkRecord, selectedId: string | n
 export function networkDetailTemplate(record: NetworkRecord, options: {
   activeTab: string;
   captureResponseBody: boolean;
+  bodyPreviewLimit: number;
   onAction(event: Event): void;
   onTab(event: Event): void;
 }): RenderValue {
   const responseType = inferSourceType(record.responseBody ?? "", record.url);
-  const responseCode = options.captureResponseBody
+  const rawResponseCode = options.captureResponseBody
     ? (record.responseBody ?? "Response body is not available.")
     : "Response body capture is disabled.";
+  const responseCode = rawResponseCode.length > options.bodyPreviewLimit
+    ? `${rawResponseCode.slice(0, options.bodyPreviewLimit)}
+… truncated ${rawResponseCode.length - options.bodyPreviewLimit} characters`
+    : rawResponseCode;
 
   const preview = responseType === "json" || responseType === "javascript" || responseType === "css" || responseType === "html"
     ? withLineNumbers(highlightCode(prettyBody(responseCode, responseType), responseType))

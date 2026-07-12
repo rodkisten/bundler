@@ -1,3 +1,9 @@
+## Unreleased
+
+- Added typed tweak-first settings groups for shell layout, notifications, console capture, Elements interaction, Network rendering, Resources editing, and Sources loading/editor behavior.
+- Added build metadata injection, a compact SHA/date badge in the tab bar, and detailed build information in the Info panel.
+- Added a project policy requiring every new configurable feature to register its typed setting.
+
 
 
 ## Unreleased

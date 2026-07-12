@@ -126,3 +126,10 @@ The floating entry button is rendered outside the panel dock stacking context an
 ### Mobile robustness
 
 The console capture layer now combines direct console wrapping, prototype/watchdog recovery, global error listeners, and an optional page-realm bridge for userscript sandboxes. Hidden console errors are grouped into one notification instead of flooding the screen. Scrollable panels reserve extra bottom space for Safari toolbars and safe areas, while Elements long-press menus use panel-local coordinates and suppress native text selection.
+
+
+## Tweak-first configuration policy
+
+Every user-visible behavior, timing, size, limit, spacing, capture strategy, editor preference, and performance threshold must be backed by a typed `ConfigStore` field and registered in Settings. New features should use `Settings.registerConfigGroup()` with descriptors beside the owning panel instead of introducing unexplained numeric literals. Panel-private values stay in that panel config; cross-panel visual values belong to `DevToolsConfig`.
+
+The shell shows a compact build badge containing the seven-character commit SHA and the build date/time in GMT-3. The Info panel exposes the full SHA, ISO timestamp, GMT-3 timestamp, version, timezone, and build mode. Vite injects this metadata at build time through `__RODERUDA_BUILD__`.

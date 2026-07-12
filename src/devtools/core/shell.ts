@@ -2,6 +2,7 @@ import { debugLog } from "./debug";
 import { icon } from "./utils";
 import type { CipoCssArtifact } from "../../cipo";
 import { html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
+import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "./build-info";
 
 const EMPTY_PANELS = signal<string[]>([]);
 
@@ -15,11 +16,11 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   contain: layout style paint;
   color: $foreground;
   font-family: $font.ui;
-  font-size: 14px;
+  font-size: var(--rd-ui-font-size, 14px);
   line-height: 1.35;
   direction: ltr;
   text-align: left;
-  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--rd-safe-area-minimum, 20px));
 
   &[data-inline="true"] {
     position: relative;
@@ -55,8 +56,8 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   touch-action: none;
   position: fixed;
-  width: $$entrySize;
-  height: $$entrySize;
+  width: var(--rd-entry-button-size, $$entrySize);
+  height: var(--rd-entry-button-size, $$entrySize);
   display: grid;
   place-items: center;
   border-radius: $panel;
@@ -86,17 +87,17 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   pointer-events: auto;
   position: absolute;
   left: 0;
-  bottom: var(--rd-safe-bottom);
+  bottom: calc(var(--rd-safe-bottom) + var(--rd-dock-bottom-gap, 0px));
   width: 100%;
   height: calc(80% - var(--rd-safe-bottom));
   z-index: 2147483645;
   display: none;
-  padding-top: $$tabHeight;
+  padding-top: var(--rd-tab-height, $$tabHeight);
   opacity: 0;
   background: $background;
   border-top: 1px solid $border;
   box-shadow: $shadow.panel;
-  transition: opacity .3s;
+  transition: opacity var(--rd-animation-duration, 300ms);
   overflow: hidden;
   contain: layout style paint;
  backdrop-filter: blur(var(--rd-blur, 0px));
@@ -113,9 +114,9 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
 const Resizer = styled.div("RodDevtoolsResizer").css`
   position: absolute;
   left: 0;
-  top: -18px;
+  top: calc(var(--rd-resizer-height, 30px) * -.6);
   width: 100%;
-  height: 30px;
+  height: var(--rd-resizer-height, 30px);
   touch-action: none;
   cursor: row-resize;
   z-index: 2147483647;
@@ -123,8 +124,8 @@ const Resizer = styled.div("RodDevtoolsResizer").css`
   &::after {
     content: "";
     display: block;
-    width: 64px;
-    height: 6px;
+    width: var(--rd-resizer-handle-width, 64px);
+    height: var(--rd-resizer-handle-height, 6px);
     margin: 12px auto 0;
     border-radius: $pill;
     background: mix($primary, transparent, 55%);
@@ -137,7 +138,7 @@ const Tabbar = styled.nav("RodDevtoolsTabbar").css`
   left: 0;
   right: 0;
   top: 0;
-  height: $$tabHeight;
+  height: var(--rd-tab-height, $$tabHeight);
   display: flex;
   align-items: stretch;
   overflow-x: auto;
@@ -153,6 +154,24 @@ const Tabbar = styled.nav("RodDevtoolsTabbar").css`
   }
 `;
 
+
+const BuildBadge = styled.span("RodDevtoolsBuildBadge").css`
+  position: sticky;
+  right: 4px;
+  align-self: center;
+  flex: 0 0 auto;
+  margin-inline: auto 6px;
+  padding: 2px 6px;
+  border: 1px solid $border;
+  border-radius: $pill;
+  background: mix($backgroundDark, transparent, 88%);
+  color: $muted;
+  font: 600 9px / 1.4 $font.mono;
+  white-space: nowrap;
+  pointer-events: auto;
+  user-select: text;
+`;
+
 const Tools = styled.main("RodDevtoolsTools").css`
   position: relative;
   width: 100%;
@@ -164,10 +183,10 @@ const Tools = styled.main("RodDevtoolsTools").css`
 
 const Notifications = styled.div("RodDevtoolsNotifications").css`
   position: absolute;
-  top: 48px;
+  top: var(--rd-notification-top, 48px);
   left: 50%;
   z-index: 1000;
-  width: min(92%, 440px);
+  width: min(92%, var(--rd-notification-width, 440px));
   display: grid;
   gap: 7px;
   transform: translateX(-50%);
@@ -198,6 +217,7 @@ const SHELL_STYLED_COMPONENTS = Object.freeze([
   DevtoolsDock,
   Resizer,
   Tabbar,
+  BuildBadge,
   Tools,
   Notifications,
   ModalRoot,
@@ -280,6 +300,7 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
           })}
         >
           ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
+          <RodDevtoolsBuildBadge data-roderuda-build-badge title=${`Build ${DEVTOOLS_BUILD_INFO.sha} · ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
         </RodDevtoolsTabbar>
 
         <RodDevtoolsTools

@@ -1,5 +1,5 @@
 import { ConfigStore } from "../core/config";
-import { debounce, icon, isDevtoolsNode, truncate } from "../utils";
+import { icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ResourcesConfig, SourcePayload, ToolContext } from "../types";
@@ -41,6 +41,10 @@ export class Resources extends Tool {
   readonly config = new ConfigStore<ResourcesConfig>("resources", {
     hideDevtoolsSetting: true,
     observeElement: true,
+    refreshDelay: 120,
+    jsonEditorLineNumbers: true,
+    jsonEditorWrapLines: true,
+    listBottomPadding: 96,
   });
 
   private body: HTMLElement | null = null;
@@ -48,7 +52,14 @@ export class Resources extends Tool {
   private disposeView: (() => void) | null = null;
   private disposeJsonEditor: (() => void) | null = null;
   private jsonEditor: CodeEditorHandle | null = null;
-  private readonly scheduleRefresh = debounce(() => this.refresh(), 120);
+  private refreshTimer = 0;
+  private scheduleRefresh = (): void => {
+    window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = window.setTimeout(() => {
+      this.refreshTimer = 0;
+      this.refresh();
+    }, this.config.get("refreshDelay"));
+  };
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
@@ -63,6 +74,7 @@ export class Resources extends Tool {
     this.disposeView = render(container, html`<RodResourcesView view=${view as never} />`);
 
     this.config.on("change", this.onConfigChange);
+    this.applyTweakVariables();
     this.registerSettings(context);
   }
 
@@ -104,6 +116,7 @@ export class Resources extends Tool {
   override destroy(): void {
     this.observer?.disconnect();
     this.observer = null;
+    window.clearTimeout(this.refreshTimer);
     this.config.off("change", this.onConfigChange);
 
     this.closeJsonEditor();
@@ -119,14 +132,23 @@ export class Resources extends Tool {
       value && this.active ? this.observe() : this.observer?.disconnect();
     }
 
+    if (["listBottomPadding"].includes(key)) this.applyTweakVariables();
     if (this.active) this.refresh();
   };
 
   private registerSettings(context: ToolContext): void {
-    context.settings.registerSeparator();
-    context.settings.registerText("Resources");
-    context.settings.registerSwitch(this.config, "hideDevtoolsSetting", "Hide RodEruda resources from lists");
-    context.settings.registerSwitch(this.config, "observeElement", "Automatically refresh resource mutations");
+    context.settings.registerConfigGroup({
+      title: "Resources",
+      config: this.config,
+      settings: [
+        { kind: "switch", key: "hideDevtoolsSetting", label: "Hide RodEruda resources from lists" },
+        { kind: "switch", key: "observeElement", label: "Automatically refresh resource mutations" },
+        { kind: "number", key: "refreshDelay", label: "Resource refresh debounce (ms)", options: { min: 0, max: 5000, step: 25 } },
+        { kind: "switch", key: "jsonEditorLineNumbers", label: "JSON editor line numbers" },
+        { kind: "switch", key: "jsonEditorWrapLines", label: "JSON editor soft wrap" },
+        { kind: "number", key: "listBottomPadding", label: "Resources bottom scroll padding", options: { min: 0, max: 320, step: 4 } },
+      ],
+    });
   }
 
   private observe(): void {
@@ -148,6 +170,10 @@ export class Resources extends Tool {
       attributes: true,
       attributeFilter: ["src", "href"],
     });
+  }
+
+  private applyTweakVariables(): void {
+    this.container?.style.setProperty("--rd-resources-bottom-padding", `${this.config.get("listBottomPadding")}px`);
   }
 
   private storageSection(title: string, type: StorageType, storage: Storage) {
@@ -493,8 +519,8 @@ export class Resources extends Tool {
       value: editorValue,
       language: "json",
       dark: true,
-      lineNumbers: true,
-      lineWrapping: true,
+      lineNumbers: this.config.get("jsonEditorLineNumbers"),
+      lineWrapping: this.config.get("jsonEditorWrapLines"),
       onChange: (value) => { editorValue = value; },
     });
     this.jsonEditor.focus();

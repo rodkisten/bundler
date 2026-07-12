@@ -47,8 +47,8 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   width: 100%;
   height: 100%;
-  padding-bottom: calc(72px + var(--rd-safe-bottom));
-  scroll-padding-bottom: calc(84px + var(--rd-safe-bottom));
+  padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
+  scroll-padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -117,10 +117,10 @@ export const ConsoleControlSpacer = styled.div("RodConsoleControlSpacer").css`
 `;
 
 export const ConsoleFilter = styled.input("RodConsoleFilter").css`
-  min-width: 150px;
+  min-width: var(--rd-console-filter-min-width, 150px);
   max-width: 280px;
   height: 30px;
-  flex: 1 0 150px;
+  flex: 1 0 var(--rd-console-filter-min-width, 150px);
   padding: 5px 10px;
   border: 1px solid $border;
   border-radius: $pill;
@@ -129,7 +129,7 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  padding: 54px 10px calc(84px + var(--rd-safe-bottom));
+  padding: 54px var(--rd-panel-padding, 10px) calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
   font: 12px / 1.5 $font.mono;
   user-select: text;
 `;
@@ -137,8 +137,8 @@ export const ConsoleList = styled.div("RodConsoleList").css`
 export const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
   min-height: 31px;
-  margin: 0 0 8px;
-  padding: 10px 42px 10px calc(13px + var(--rd-console-depth, 0) * 14px);
+  margin: 0 0 var(--rd-console-row-gap, 8px);
+  padding: var(--rd-console-row-padding, 10px) 42px var(--rd-console-row-padding, 10px) calc(13px + var(--rd-console-depth, 0) * 14px);
   border: 1px solid alpha($border / 72%);
   border-radius: $md;
   border-bottom: 1px solid alpha($border / 65%);
