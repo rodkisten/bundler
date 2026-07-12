@@ -17,6 +17,8 @@ export interface CodeEditorOptions {
   readOnly?: boolean;
   lineNumbers?: boolean;
   lineWrapping?: boolean;
+  fontSize?: number;
+  tabSize?: number;
   parent: HTMLElement;
   completions?: (context: CompletionContext) => CompletionResult | null;
   onChange?(value: string): void;
@@ -48,8 +50,9 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
     autocompletion({ override: options.completions ? [options.completions as never] : undefined }),
     updateListener,
     ...(options.lineWrapping === false ? [] : [EditorView.lineWrapping]),
+    EditorState.tabSize.of(Math.max(1, Math.min(16, options.tabSize ?? 2))),
     EditorView.theme({
-      "&": { minHeight: "100%", fontSize: "12px" },
+      "&": { minHeight: "100%", fontSize: `${options.fontSize ?? 12}px` },
       ".cm-scroller": { fontFamily: "var(--rd-font-mono)", minHeight: "100%" },
     }),
     EditorState.readOnly.of(options.readOnly === true),

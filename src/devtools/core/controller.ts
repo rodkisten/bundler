@@ -41,9 +41,9 @@ const ToolPanel = styled.section("RodDevtoolsToolPanel").css`
 const TabButton = styled.button("RodDevtoolsTabButton").css`
   position: relative;
   flex: 0 0 auto;
-  min-width: 78px;
-  height: 40px;
-  padding: 0 10px;
+  min-width: var(--rd-tab-min-width, 78px);
+  height: var(--rd-tab-height, 40px);
+  padding: 0 var(--rd-panel-gap, 10px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -52,7 +52,7 @@ const TabButton = styled.button("RodDevtoolsTabButton").css`
   color: inherit;
   cursor: pointer;
   text-transform: capitalize;
-  font-size: 12px;
+  font-size: var(--rd-tab-font-size, 12px);
   white-space: nowrap;
   transition: color .2s, background .2s;
 
@@ -76,7 +76,7 @@ const TabButton = styled.button("RodDevtoolsTabButton").css`
   }
 
   x:not(xs) {
-    min-width: 58px;
+    min-width: var(--rd-compact-tab-min-width, 58px);
     padding-inline: 7px;
   }
 `;
@@ -142,8 +142,8 @@ const NotificationToast = styled.div("RodDevtoolsNotificationToast").css`
 `;
 
 const ModalSurface = styled.form("RodDevtoolsModalSurface").css`
-  width: min(100%, 480px);
-  max-height: min(80vh, 620px);
+  width: min(100%, var(--rd-modal-max-width, 480px));
+  max-height: min(80vh, var(--rd-modal-max-height, 620px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -154,8 +154,8 @@ const ModalSurface = styled.form("RodDevtoolsModalSurface").css`
 `;
 
 const ModalBox = styled.div("RodDevtoolsModalBox").css`
-  width: min(100%, 480px);
-  max-height: min(80vh, 620px);
+  width: min(100%, var(--rd-modal-max-width, 480px));
+  max-height: min(80vh, var(--rd-modal-max-height, 620px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -302,6 +302,26 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       theme: defaults.theme ?? "System preference",
       panelOrder: [],
       disabledPanels: [],
+      tabHeight: 40,
+      tabMinWidth: 78,
+      compactTabMinWidth: 58,
+      tabFontSize: 12,
+      uiFontSize: 14,
+      entryButtonSize: 48,
+      safeAreaMinimum: 20,
+      dockBottomGap: 0,
+      resizerHeight: 30,
+      resizerHandleWidth: 64,
+      resizerHandleHeight: 6,
+      notificationDuration: 2800,
+      notificationMaxVisible: 3,
+      notificationWidth: 440,
+      notificationTop: 48,
+      modalMaxWidth: 480,
+      modalMaxHeight: 620,
+      animationDuration: 300,
+      panelPadding: 12,
+      panelGap: 10,
     });
 
     this.context = {
@@ -376,8 +396,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     `);
 
     const settingsTab = this.tabs.get("settings");
-    if (name !== "settings" && settingsTab) this.refs.tabbar.insertBefore(tab, settingsTab);
-    else this.refs.tabbar.append(tab);
+    const buildBadge = this.refs.tabbar.querySelector("[data-roderuda-build-badge]");
+    this.refs.tabbar.insertBefore(tab, settingsTab ?? buildBadge);
 
     this.tools.set(name, tool);
     this.tabs.set(name, tab);
@@ -530,7 +550,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     window.setTimeout(() => {
       if (!this.visible) this.refs.devtools.style.display = "none";
-    }, 300);
+    }, this.config.get("animationDuration"));
 
     this.emit("hide");
     return this;
@@ -558,7 +578,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       return;
     }
 
-    while (this.refs.notifications.children.length >= 3) {
+    while (this.refs.notifications.children.length >= this.config.get("notificationMaxVisible")) {
       this.refs.notifications.firstElementChild?.remove();
     }
 
@@ -566,7 +586,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     const remove = () => {
       item.dataset.active = "false";
-      window.setTimeout(() => item.remove(), 180);
+      window.setTimeout(() => item.remove(), Math.max(80, Math.round(this.config.get("animationDuration") * .6)));
     };
 
     item = asElement<HTMLElement>(html`
@@ -593,7 +613,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       item.dataset.active = "true";
     });
 
-    window.setTimeout(remove, Math.max(900, options.duration ?? 2800));
+    window.setTimeout(remove, Math.max(300, options.duration ?? this.config.get("notificationDuration")));
   }
 
   async prompt(message: string, initialValue = ""): Promise<string | null> {
@@ -687,14 +707,38 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   initCfg(settings: SettingsLike): void {
-    settings.registerSeparator();
-    settings.registerSelect(this.config, "theme", "Theme", ["System preference", ...Object.keys(themes)]);
-
-    if (!this.inline) {
-      settings.registerRange(this.config, "transparency", "Transparency", { min: 0.2, max: 1, step: 0.01 });
-      settings.registerRange(this.config, "blur", "Background blur", { min: 0, max: 10, step: 0.01 });
-      settings.registerRange(this.config, "displaySize", "Display Size", { min: 40, max: 100, step: 1 });
-    }
+    settings.registerConfigGroup({
+      title: "DevTools appearance and layout",
+      config: this.config,
+      settings: [
+        { kind: "select", key: "theme", label: "Theme", selections: ["System preference", ...Object.keys(themes)] },
+        ...(!this.inline ? [
+          { kind: "range" as const, key: "transparency" as const, label: "Transparency", options: { min: 0.2, max: 1, step: 0.01 } },
+          { kind: "range" as const, key: "blur" as const, label: "Background blur", options: { min: 0, max: 24, step: 0.25 } },
+          { kind: "range" as const, key: "displaySize" as const, label: "Display size (%)", options: { min: 30, max: 100, step: 1 } },
+        ] : []),
+        { kind: "number", key: "uiFontSize", label: "UI font size", options: { min: 9, max: 24, step: 1 } },
+        { kind: "number", key: "tabHeight", label: "Tab bar height", options: { min: 30, max: 72, step: 1 } },
+        { kind: "number", key: "tabMinWidth", label: "Desktop tab minimum width", options: { min: 42, max: 160, step: 1 } },
+        { kind: "number", key: "compactTabMinWidth", label: "Compact tab minimum width", options: { min: 36, max: 120, step: 1 } },
+        { kind: "number", key: "tabFontSize", label: "Tab label font size", options: { min: 9, max: 20, step: 1 } },
+        { kind: "number", key: "entryButtonSize", label: "Floating entry button size", options: { min: 32, max: 96, step: 1 } },
+        { kind: "number", key: "safeAreaMinimum", label: "Minimum bottom safe area", options: { min: 0, max: 80, step: 1 } },
+        { kind: "number", key: "dockBottomGap", label: "Dock bottom gap", options: { min: 0, max: 80, step: 1 } },
+        { kind: "number", key: "resizerHeight", label: "Resize gesture height", options: { min: 16, max: 80, step: 1 } },
+        { kind: "number", key: "resizerHandleWidth", label: "Resize handle width", options: { min: 24, max: 160, step: 1 } },
+        { kind: "number", key: "resizerHandleHeight", label: "Resize handle thickness", options: { min: 2, max: 16, step: 1 } },
+        { kind: "number", key: "panelPadding", label: "Panel content padding", options: { min: 0, max: 40, step: 1 } },
+        { kind: "number", key: "panelGap", label: "Panel spacing", options: { min: 0, max: 32, step: 1 } },
+        { kind: "number", key: "notificationDuration", label: "Notification duration (ms)", options: { min: 300, max: 30000, step: 100 } },
+        { kind: "number", key: "notificationMaxVisible", label: "Maximum visible notifications", options: { min: 1, max: 12, step: 1 } },
+        { kind: "number", key: "notificationWidth", label: "Notification maximum width", options: { min: 220, max: 900, step: 10 } },
+        { kind: "number", key: "notificationTop", label: "Notification top offset", options: { min: 0, max: 240, step: 1 } },
+        { kind: "number", key: "modalMaxWidth", label: "Modal maximum width", options: { min: 280, max: 1200, step: 10 } },
+        { kind: "number", key: "modalMaxHeight", label: "Modal maximum height", options: { min: 240, max: 1200, step: 10 } },
+        { kind: "number", key: "animationDuration", label: "Animation duration (ms)", options: { min: 0, max: 2000, step: 25 } },
+      ],
+    });
 
     settings.registerButton("Choose active panels", () => this.configureActivePanels());
     settings.registerButton("Reset panel order", () => {
@@ -813,6 +857,35 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         : `calc(${this.config.get("displaySize")}% - var(--rd-safe-bottom))`;
     }
 
+    const cssVariables: Partial<Record<keyof DevToolsConfig, string>> = {
+      tabHeight: "--rd-tab-height",
+      tabMinWidth: "--rd-tab-min-width",
+      compactTabMinWidth: "--rd-compact-tab-min-width",
+      tabFontSize: "--rd-tab-font-size",
+      uiFontSize: "--rd-ui-font-size",
+      entryButtonSize: "--rd-entry-button-size",
+      safeAreaMinimum: "--rd-safe-area-minimum",
+      dockBottomGap: "--rd-dock-bottom-gap",
+      resizerHeight: "--rd-resizer-height",
+      resizerHandleWidth: "--rd-resizer-handle-width",
+      resizerHandleHeight: "--rd-resizer-handle-height",
+      notificationWidth: "--rd-notification-width",
+      notificationTop: "--rd-notification-top",
+      modalMaxWidth: "--rd-modal-max-width",
+      modalMaxHeight: "--rd-modal-max-height",
+      panelPadding: "--rd-panel-padding",
+      panelGap: "--rd-panel-gap",
+    };
+
+    for (const [configKey, variable] of Object.entries(cssVariables) as Array<[keyof DevToolsConfig, string]>) {
+      if (key && key !== configKey) continue;
+      this.refs.root.style.setProperty(variable, `${this.config.snapshot()[configKey]}px`);
+    }
+
+    if (!key || key === "animationDuration") {
+      this.refs.root.style.setProperty("--rd-animation-duration", `${this.config.get("animationDuration")}ms`);
+    }
+
     if (!key || key === "panelOrder" || key === "disabledPanels") {
       this.applyPanelPreferences();
     }
@@ -908,7 +981,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       }
     }
 
-    if (settingsTab) this.refs.tabbar.append(settingsTab);
+    const buildBadge = this.refs.tabbar.querySelector("[data-roderuda-build-badge]");
+    if (settingsTab) this.refs.tabbar.insertBefore(settingsTab, buildBadge);
+    if (buildBadge) this.refs.tabbar.append(buildBadge);
 
     uiState.setPath("panels.names", order);
   }
