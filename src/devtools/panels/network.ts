@@ -22,6 +22,9 @@ export class Network extends Tool {
     preserveLog: true,
     captureResponseBody: true,
     filter: "",
+    renderDelay: 16,
+    bodyPreviewLimit: 200_000,
+    listBottomPadding: 96,
   });
   readonly capture: NetworkCapture;
 
@@ -64,6 +67,8 @@ export class Network extends Tool {
     this.capture.on("update", this.onUpdate);
     this.capture.on("clear", this.onClear);
     this.capture.install();
+    this.applyTweakVariables();
+    this.config.on("change", this.onConfigChange);
 
     this.registerSettings(context);
   }
@@ -96,6 +101,7 @@ export class Network extends Tool {
     this.capture.off("update", this.onUpdate);
     this.capture.off("clear", this.onClear);
     this.capture.destroy();
+    this.config.off("change", this.onConfigChange);
 
 
     this.disposeView?.();
@@ -126,24 +132,40 @@ export class Network extends Tool {
     if (this.active) this.scheduleRender();
   };
 
+  private readonly onConfigChange = (key: string): void => {
+    if (key === "listBottomPadding") this.applyTweakVariables();
+    if (this.active) this.scheduleRender();
+  };
+
   private registerSettings(context: ToolContext): void {
-    context.settings.registerSeparator();
-    context.settings.registerText("Network");
-    context.settings.registerSwitch(this.config, "preserveLog", "Preserve network log across navigation events");
-    context.settings.registerSwitch(this.config, "captureResponseBody", "Capture response bodies");
+    context.settings.registerConfigGroup({
+      title: "Network",
+      config: this.config,
+      settings: [
+        { kind: "switch", key: "preserveLog", label: "Preserve log across navigation" },
+        { kind: "switch", key: "captureResponseBody", label: "Capture response bodies" },
+        { kind: "number", key: "renderDelay", label: "Render batching delay (ms)", options: { min: 0, max: 1000, step: 5 } },
+        { kind: "number", key: "bodyPreviewLimit", label: "Response preview character limit", options: { min: 1000, max: 5_000_000, step: 1000 } },
+        { kind: "number", key: "listBottomPadding", label: "Network bottom scroll padding", options: { min: 0, max: 320, step: 4 } },
+      ],
+    });
+  }
+
+  private applyTweakVariables(): void {
+    this.container?.style.setProperty("--rd-network-bottom-padding", `${this.config.get("listBottomPadding")}px`);
   }
 
   private scheduleRender(): void {
     if (this.renderFrame || !this.active) return;
 
-    this.renderFrame = requestAnimationFrame(() => {
+    this.renderFrame = window.setTimeout(() => {
       this.renderFrame = 0;
       if (this.active) this.render();
-    });
+    }, this.config.get("renderDelay"));
   }
 
   private cancelScheduledRender(): void {
-    if (this.renderFrame) cancelAnimationFrame(this.renderFrame);
+    if (this.renderFrame) window.clearTimeout(this.renderFrame);
     this.renderFrame = 0;
   }
 
@@ -183,6 +205,7 @@ export class Network extends Tool {
     render(this.detail, networkDetailTemplate(record, {
       activeTab: this.activeDetailTab,
       captureResponseBody: this.config.get("captureResponseBody"),
+      bodyPreviewLimit: this.config.get("bodyPreviewLimit"),
       onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
       onTab: (tabEvent) => this.switchDetailTab((tabEvent.currentTarget as HTMLElement).dataset.detailTab || "headers"),
     }));

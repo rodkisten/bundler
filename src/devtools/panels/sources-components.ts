@@ -81,7 +81,7 @@ export const SourcesPre = styled.pre("RodSourcesPre").css`
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
-  font: 12px / 1.5 $font.mono;
+  font: var(--rd-sources-font-size, 12px) / 1.5 $font.mono;
   color: $foreground;
 `;
 
@@ -122,7 +122,7 @@ export const SourcesObject = styled.div("RodSourcesObject").css`
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
-  font: 12px / 1.5 $font.mono;
+  font: var(--rd-sources-font-size, 12px) / 1.5 $font.mono;
   color: $foreground;
 `;
 

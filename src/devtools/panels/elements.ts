@@ -4,7 +4,7 @@ import { ElementHighlighter } from "../core/highlighter";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { Cleanup, ElementsConfig, ToolContext } from "../types";
-import { copyText, debounce, icon, isDevtoolsNode, nodePath } from "../utils";
+import { copyText, icon, isDevtoolsNode, nodePath } from "../utils";
 import { asElement, event, html, ref, render } from "../components/runtime";
 import {
   elementsStyleArtifacts,
@@ -34,6 +34,16 @@ export class Elements extends Tool {
     observeElement: true,
     showWhitespace: false,
     wrapLines: true,
+    highlightDuration: 850,
+    persistentHighlight: false,
+    mutationRenderDelay: 80,
+    detailRenderDelay: 120,
+    longPressDuration: 650,
+    longPressMoveTolerance: 10,
+    contextMenuMargin: 8,
+    treeBottomPadding: 96,
+    rowIndent: 14,
+    maxVisibleChildren: 300,
   });
 
   public container: HTMLElement | null = null;
@@ -71,13 +81,24 @@ export class Elements extends Tool {
   private longPressPoint: { x: number; y: number } | null = null;
   private scrollIdleTimer = 0;
 
-  private readonly scheduleRender = debounce(() => {
-    if (this.active) this.renderTree();
-  }, 80);
+  private renderTimer = 0;
+  private detailRenderTimer = 0;
 
-  private readonly scheduleDetailRender = debounce(() => {
-    if (this.active) this.renderDetail();
-  }, 120);
+  private scheduleRender(): void {
+    window.clearTimeout(this.renderTimer);
+    this.renderTimer = window.setTimeout(() => {
+      this.renderTimer = 0;
+      if (this.active) this.renderTree();
+    }, this.config.get("mutationRenderDelay"));
+  }
+
+  private scheduleDetailRender(): void {
+    window.clearTimeout(this.detailRenderTimer);
+    this.detailRenderTimer = window.setTimeout(() => {
+      this.detailRenderTimer = 0;
+      if (this.active) this.renderDetail();
+    }, this.config.get("detailRenderDelay"));
+  }
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
@@ -124,6 +145,7 @@ export class Elements extends Tool {
     this.highlighter = new ElementHighlighter(host);
 
     this.config.on("change", this.onConfigChange);
+    this.applyTweakVariables();
 
     if (this.config.get("overrideEventTarget")) {
       this.restoreEventRegistry = installEventListenerRegistry();
@@ -166,6 +188,9 @@ export class Elements extends Tool {
     this.stopPicker();
     this.cancelLongPress();
     this.closeContextMenu();
+
+    window.clearTimeout(this.renderTimer);
+    window.clearTimeout(this.detailRenderTimer);
 
     if (this.scrollIdleTimer) {
       window.clearTimeout(this.scrollIdleTimer);
@@ -245,7 +270,7 @@ export class Elements extends Tool {
     }
 
     if (highlight && (this.active || this.picking)) {
-      this.highlighter?.highlight(element);
+      this.highlighter?.highlight(element, true, this.config.get("persistentHighlight") ? 0 : this.config.get("highlightDuration"));
     }
 
     if (reveal) {
@@ -279,38 +304,40 @@ export class Elements extends Tool {
       this.tree.dataset.wrap = String(Boolean(value));
     }
 
-    if ((key === "showWhitespace" || key === "wrapLines") && this.active) {
+    if (["treeBottomPadding", "rowIndent"].includes(key)) this.applyTweakVariables();
+
+    if ((key === "showWhitespace" || key === "wrapLines" || key === "maxVisibleChildren") && this.active) {
       this.renderTree();
     }
   };
 
   private registerSettings(context: ToolContext): void {
-    context.settings.registerSeparator();
-    context.settings.registerText("Elements");
+    context.settings.registerConfigGroup({
+      title: "Elements",
+      config: this.config,
+      settings: [
+        { kind: "switch", key: "overrideEventTarget", label: "Track EventTarget listeners" },
+        { kind: "switch", key: "observeElement", label: "Automatically refresh DOM mutations" },
+        { kind: "switch", key: "showWhitespace", label: "Show whitespace-only text nodes" },
+        { kind: "switch", key: "wrapLines", label: "Soft wrap long DOM rows" },
+        { kind: "number", key: "highlightDuration", label: "Highlight duration (ms)", options: { min: 0, max: 10000, step: 50 } },
+        { kind: "switch", key: "persistentHighlight", label: "Keep selected node highlighted" },
+        { kind: "number", key: "mutationRenderDelay", label: "DOM mutation render delay (ms)", options: { min: 0, max: 2000, step: 10 } },
+        { kind: "number", key: "detailRenderDelay", label: "Details render delay (ms)", options: { min: 0, max: 2000, step: 10 } },
+        { kind: "number", key: "longPressDuration", label: "Long press duration (ms)", options: { min: 150, max: 2000, step: 25 } },
+        { kind: "number", key: "longPressMoveTolerance", label: "Long press movement tolerance", options: { min: 2, max: 60, step: 1 } },
+        { kind: "number", key: "contextMenuMargin", label: "Context menu edge margin", options: { min: 0, max: 64, step: 1 } },
+        { kind: "number", key: "treeBottomPadding", label: "DOM tree bottom padding", options: { min: 0, max: 320, step: 4 } },
+        { kind: "number", key: "rowIndent", label: "DOM nesting indentation", options: { min: 4, max: 40, step: 1 } },
+        { kind: "number", key: "maxVisibleChildren", label: "Maximum children per expanded node", options: { min: 25, max: 5000, step: 25 } },
+      ],
+    });
+  }
 
-    context.settings.registerSwitch(
-      this.config,
-      "overrideEventTarget",
-      "Track event listeners added through EventTarget",
-    );
-
-    context.settings.registerSwitch(
-      this.config,
-      "observeElement",
-      "Automatically refresh DOM mutations",
-    );
-
-    context.settings.registerSwitch(
-      this.config,
-      "showWhitespace",
-      "Show whitespace-only text nodes",
-    );
-
-    context.settings.registerSwitch(
-      this.config,
-      "wrapLines",
-      "Soft wrap long DOM rows",
-    );
+  private applyTweakVariables(): void {
+    if (!this.container) return;
+    this.container.style.setProperty("--rd-elements-bottom-padding", `${this.config.get("treeBottomPadding")}px`);
+    this.container.style.setProperty("--rd-elements-indent", `${this.config.get("rowIndent")}px`);
   }
 
   private observe(): void {
@@ -394,7 +421,7 @@ export class Elements extends Tool {
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
     const expanded = this.expanded.has(node);
-    const limited = children.slice(0, 300);
+    const limited = children.slice(0, this.config.get("maxVisibleChildren"));
     const moreCount = children.length - limited.length;
     const nodeId = this.nodeId(node);
 
@@ -545,6 +572,9 @@ export class Elements extends Tool {
 
     this.cancelLongPress();
 
+    window.clearTimeout(this.renderTimer);
+    window.clearTimeout(this.detailRenderTimer);
+
     if (this.scrollIdleTimer) {
       window.clearTimeout(this.scrollIdleTimer);
     }
@@ -688,7 +718,7 @@ export class Elements extends Tool {
 
       this.openContextMenu(node, startX, startY);
       this.cancelLongPress();
-    }, 650);
+    }, this.config.get("longPressDuration"));
   }
 
   private trackLongPress(event: Event): void {
@@ -705,7 +735,7 @@ export class Elements extends Tool {
       event.clientY - this.longPressPoint.y,
     );
 
-    if (distance > 10) {
+    if (distance > this.config.get("longPressMoveTolerance")) {
       this.suppressNextClickUntil = Date.now() + 250;
       this.cancelLongPress();
     }
@@ -765,8 +795,9 @@ export class Elements extends Tool {
     const availableWidth = hostRect?.width || viewport?.width || window.innerWidth || width + 16;
     const availableHeight = hostRect?.height || viewport?.height || window.innerHeight || height + 16;
 
-    menu.style.left = `${clamp(localX, 8, availableWidth - width - 8)}px`;
-    menu.style.top = `${clamp(localY, 8, availableHeight - height - 8)}px`;
+    const margin = this.config.get("contextMenuMargin");
+    menu.style.left = `${clamp(localX, margin, availableWidth - width - margin)}px`;
+    menu.style.top = `${clamp(localY, margin, availableHeight - height - margin)}px`;
 
     const close = (closeEvent: Event): void => {
       if (

@@ -204,7 +204,7 @@ export const ResourcesJsonActions = styled.div("RodResourcesJsonActions").css`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 8px 10px calc(8px + var(--rd-safe-bottom));
+  padding: 8px 10px calc(var(--rd-resources-bottom-padding, 96px) + var(--rd-safe-bottom));
   border-top: 1px solid $border;
   background: $backgroundDark;
 `;

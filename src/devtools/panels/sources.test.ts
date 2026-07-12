@@ -59,6 +59,7 @@ function createContext(
     settings: {
       registerSeparator: vi.fn(),
       registerText: vi.fn(),
+      registerConfigGroup: vi.fn(),
       registerSwitch: vi.fn(),
       registerSelect: vi.fn(),
       registerRange: vi.fn(),

@@ -89,7 +89,11 @@ export class Sources extends Tool {
     formatCode: true,
     indentSize: "2",
     wrapLines: false,
-    maxFormatSourceLength: 30_000
+    maxFormatSourceLength: 30_000,
+    requestTimeout: 15_000,
+    editorFontSize: 12,
+    editorTabSize: 2,
+    listBottomPadding: 96,
   });
 
   private body: HTMLElement | null = null;
@@ -112,6 +116,7 @@ export class Sources extends Tool {
     this.dirty = true;
     this.mountShell();
     this.config.on("change", this.onConfigChange);
+    this.applyTweakVariables();
     this.registerSettings(context);
   }
 
@@ -176,6 +181,7 @@ export class Sources extends Tool {
   }
 
   private readonly onConfigChange = (): void => {
+    this.applyTweakVariables();
     this.dirty = true;
     if (this.active) void this.renderSource();
   };
@@ -224,6 +230,16 @@ export class Sources extends Tool {
         { min: 1_000, max: MAX_FORMAT_SOURCE_LENGTH, step: 1_000 },
       );
     }
+
+    context.settings.registerNumber(this.config, "requestTimeout", "Source request timeout (ms)", { min: 1000, max: 120000, step: 1000 });
+    context.settings.registerNumber(this.config, "editorFontSize", "Source editor font size", { min: 8, max: 32, step: 1 });
+    context.settings.registerNumber(this.config, "editorTabSize", "Source editor tab size", { min: 1, max: 8, step: 1 });
+    context.settings.registerNumber(this.config, "listBottomPadding", "Sources bottom scroll padding", { min: 0, max: 320, step: 4 });
+  }
+
+  private applyTweakVariables(): void {
+    this.container?.style.setProperty("--rd-sources-font-size", `${this.config.get("editorFontSize")}px`);
+    this.container?.style.setProperty("--rd-sources-bottom-padding", `${this.config.get("listBottomPadding")}px`);
   }
 
   private mountShell(): void {
@@ -490,6 +506,8 @@ export class Sources extends Tool {
       dark: this.isDarkTheme(),
       lineNumbers: this.config.get("showLineNum"),
       lineWrapping: this.config.get("wrapLines"),
+      fontSize: this.config.get("editorFontSize"),
+      tabSize: this.config.get("editorTabSize"),
     });
   }
 
@@ -868,7 +886,7 @@ async function readUserscriptSource(url: string, failures: string[]): Promise<st
         method: "GET",
         url,
         responseType: "text",
-        timeout: 15000,
+        timeout: this.config.get("requestTimeout"),
         onload: handleResponse,
         onerror: (error) => settle(() => reject(error)),
         ontimeout: () => settle(() => reject(new Error("request timed out"))),

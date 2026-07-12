@@ -4,6 +4,7 @@ import { icon } from "../utils";
 import type {
   ConfigChangeListener,
   ConfigLike,
+  ConfigSettingsGroup,
   KeysOfValue,
   RangeOptions,
   ToolContext,
@@ -99,6 +100,29 @@ export class Settings extends Tool {
 
   registerText(text: string): string {
     return this.add({ kind: "text", label: text });
+  }
+
+  registerConfigGroup<Values extends object>(group: ConfigSettingsGroup<Values>): readonly string[] {
+    const ids: string[] = [this.registerSeparator(), this.registerText(group.title)];
+
+    for (const setting of group.settings) {
+      switch (setting.kind) {
+        case "switch":
+          ids.push(this.registerSwitch(group.config, setting.key, setting.label));
+          break;
+        case "select":
+          ids.push(this.registerSelect(group.config, setting.key, setting.label, setting.selections));
+          break;
+        case "range":
+          ids.push(this.registerRange(group.config, setting.key, setting.label, setting.options));
+          break;
+        case "number":
+          ids.push(this.registerNumber(group.config, setting.key, setting.label, setting.options));
+          break;
+      }
+    }
+
+    return ids;
   }
 
   registerSeparator(): string {

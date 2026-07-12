@@ -36,14 +36,24 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   lazyEvaluation: true,
   displayIfErr: true,
   maxLogNum: "250",
+  captureWatchdogMs: 250,
+  captureBridgePageRealm: true,
+  capturePatchPrototype: true,
+  captureLockConsole: false,
+  historyLimit: 100,
+  hiddenErrorNoticeDelay: 350,
+  logRowGap: 8,
+  logRowPadding: 10,
+  listBottomPadding: 84,
+  filterMinWidth: 150,
+  editorMinHeight: 120,
 });
 
 const HISTORY_STORAGE_KEY = "roderuda:console-history";
-const HISTORY_LIMIT = 100;
 const sharedCapture = new ConsoleCapture();
 
 try {
-  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true, watchdog: true, watchdogMs: 500, patchPrototype: true, lockConsole: false });
+  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true, watchdog: true, watchdogMs: DEFAULT_CONSOLE_CONFIG.captureWatchdogMs, patchPrototype: DEFAULT_CONSOLE_CONFIG.capturePatchPrototype, lockConsole: DEFAULT_CONSOLE_CONFIG.captureLockConsole, bridgePageRealm: DEFAULT_CONSOLE_CONFIG.captureBridgePageRealm });
 } catch {}
 
 export class Console extends Tool {
@@ -133,6 +143,8 @@ export class Console extends Tool {
     }
 
     this.config.on("change", this.onConfigChange);
+    this.applyTweakVariables();
+    this.reconfigureCapture();
     this.registerSettings(context);
     this.syncConfigState();
     this.syncDom();
@@ -205,7 +217,7 @@ export class Console extends Tool {
   }
 
   private hydrateHistory(): void {
-    const history = readHistory();
+    const history = readHistory(this.config.get("historyLimit"));
     this.state.patch({ history, historyIndex: history.length }, { cause: "console:history-hydrate" });
   }
 
@@ -229,9 +241,9 @@ export class Console extends Tool {
           this.hiddenErrorNoticeTimer = 0;
           this.context?.notify(
             count === 1 ? "1 new console error" : `${count} new console errors`,
-            { type: "error", duration: 2400 },
+            { type: "error" },
           );
-        }, 350);
+        }, this.config.get("hiddenErrorNoticeDelay"));
       }
     }
 
@@ -256,8 +268,9 @@ export class Console extends Tool {
   };
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
-    if (key === "overrideConsole" && value) this.capture.forceIntercept();
+    if (["overrideConsole", "captureWatchdogMs", "captureBridgePageRealm", "capturePatchPrototype", "captureLockConsole"].includes(key)) this.reconfigureCapture();
     if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
+    if (["logRowGap", "logRowPadding", "listBottomPadding", "filterMinWidth", "editorMinHeight"].includes(key)) this.applyTweakVariables();
     if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
       if (this.active) {
@@ -284,19 +297,57 @@ export class Console extends Tool {
   }
 
   private registerSettings(context: ToolContext): void {
-    const settings = context.settings;
-    settings.registerSeparator();
-    settings.registerText("Console");
-    settings.registerSwitch(this.config, "asyncRender", "Asynchronous rendering");
-    settings.registerSwitch(this.config, "jsExecution", "Enable JavaScript execution");
-    settings.registerSwitch(this.config, "catchGlobalErr", "Catch global errors");
-    settings.registerSwitch(this.config, "overrideConsole", "Override window.console");
-    settings.registerSwitch(this.config, "displayExtraInfo", "Display timestamps and extra information");
-    settings.registerSwitch(this.config, "displayUnenumerable", "Display non-enumerable properties");
-    settings.registerSwitch(this.config, "displayGetterVal", "Read getter values");
-    settings.registerSwitch(this.config, "lazyEvaluation", "Lazy object evaluation");
-    settings.registerSwitch(this.config, "displayIfErr", "Open Console when an error occurs");
-    settings.registerSelect(this.config, "maxLogNum", "Maximum log count", ["infinite", "500", "250", "125", "100", "50", "10"]);
+    context.settings.registerConfigGroup({
+      title: "Console",
+      config: this.config,
+      settings: [
+        { kind: "switch", key: "asyncRender", label: "Asynchronous rendering" },
+        { kind: "switch", key: "jsExecution", label: "Enable JavaScript execution" },
+        { kind: "switch", key: "catchGlobalErr", label: "Catch global errors" },
+        { kind: "switch", key: "overrideConsole", label: "Override window.console" },
+        { kind: "switch", key: "captureBridgePageRealm", label: "Capture logs from the page realm" },
+        { kind: "switch", key: "capturePatchPrototype", label: "Patch Console.prototype" },
+        { kind: "switch", key: "captureLockConsole", label: "Protect console hooks from replacement" },
+        { kind: "number", key: "captureWatchdogMs", label: "Console re-hook interval (ms)", options: { min: 50, max: 5000, step: 50 } },
+        { kind: "switch", key: "displayExtraInfo", label: "Display timestamps and extra information" },
+        { kind: "switch", key: "displayUnenumerable", label: "Display non-enumerable properties" },
+        { kind: "switch", key: "displayGetterVal", label: "Read getter values" },
+        { kind: "switch", key: "lazyEvaluation", label: "Lazy object evaluation" },
+        { kind: "switch", key: "displayIfErr", label: "Notify when hidden errors arrive" },
+        { kind: "select", key: "maxLogNum", label: "Maximum log count", selections: ["infinite", "1000", "500", "250", "125", "100", "50", "10"] },
+        { kind: "number", key: "historyLimit", label: "Command history limit", options: { min: 0, max: 1000, step: 10 } },
+        { kind: "number", key: "hiddenErrorNoticeDelay", label: "Hidden error batching delay (ms)", options: { min: 0, max: 5000, step: 50 } },
+        { kind: "number", key: "logRowGap", label: "Log row spacing", options: { min: 0, max: 32, step: 1 } },
+        { kind: "number", key: "logRowPadding", label: "Log row padding", options: { min: 2, max: 32, step: 1 } },
+        { kind: "number", key: "listBottomPadding", label: "Console bottom scroll padding", options: { min: 0, max: 320, step: 4 } },
+        { kind: "number", key: "filterMinWidth", label: "Filter minimum width", options: { min: 80, max: 480, step: 10 } },
+        { kind: "number", key: "editorMinHeight", label: "Expanded editor minimum height", options: { min: 60, max: 600, step: 10 } },
+      ],
+    });
+  }
+
+  private reconfigureCapture(): void {
+    if (!this.config.get("overrideConsole")) {
+      this.capture.restoreConsole();
+      return;
+    }
+    this.capture.overrideConsole({
+      watchdog: true,
+      watchdogMs: this.config.get("captureWatchdogMs"),
+      patchPrototype: this.config.get("capturePatchPrototype"),
+      lockConsole: this.config.get("captureLockConsole"),
+      bridgePageRealm: this.config.get("captureBridgePageRealm"),
+    });
+  }
+
+  private applyTweakVariables(): void {
+    const target = this.container;
+    if (!target) return;
+    target.style.setProperty("--rd-console-row-gap", `${this.config.get("logRowGap")}px`);
+    target.style.setProperty("--rd-console-row-padding", `${this.config.get("logRowPadding")}px`);
+    target.style.setProperty("--rd-console-bottom-padding", `${this.config.get("listBottomPadding")}px`);
+    target.style.setProperty("--rd-console-filter-min-width", `${this.config.get("filterMinWidth")}px`);
+    target.style.setProperty("--rd-console-editor-min-height", `${this.config.get("editorMinHeight")}px`);
   }
 
   private visibleRecords(): readonly ConsoleRecord[] {
@@ -418,8 +469,8 @@ export class Console extends Tool {
   private async executeInput(): Promise<void> {
     const code = this.state.inputValue.peek().trim();
     if (!code) return;
-    const history = appendHistory(this.state.history.peek(), code);
-    writeHistory(history);
+    const history = appendHistory(this.state.history.peek(), code, this.config.get("historyLimit"));
+    writeHistory(history, this.config.get("historyLimit"));
     this.state.patch({ history, historyIndex: history.length, inputValue: "", editorExpanded: false }, { cause: "console:execute" });
     this.syncDom();
     flushSync();
@@ -606,27 +657,27 @@ async function executeJavaScript(code: string, context: { $_: unknown; $0: unkno
   }
 }
 
-function readHistory(): string[] {
+function readHistory(limit: number): string[] {
   try {
     const value = localStorage.getItem(HISTORY_STORAGE_KEY);
     const parsed = value ? JSON.parse(value) : [];
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(-HISTORY_LIMIT) : [];
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(-Math.max(0, limit)) : [];
   } catch {
     return [];
   }
 }
 
-function writeHistory(history: readonly string[]): void {
+function writeHistory(history: readonly string[], limit: number): void {
   try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history.slice(-HISTORY_LIMIT)));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(limit <= 0 ? [] : history.slice(-limit)));
   } catch {}
 }
 
-function appendHistory(history: readonly string[], code: string): string[] {
+function appendHistory(history: readonly string[], code: string, limit: number): string[] {
   const trimmed = code.trim();
   if (!trimmed) return [...history];
   const next = history.at(-1) === trimmed ? [...history] : [...history, trimmed];
-  return next.slice(-HISTORY_LIMIT);
+  return limit <= 0 ? [] : next.slice(-limit);
 }
 
 function consoleCompletions(context: { 
