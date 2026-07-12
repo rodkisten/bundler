@@ -52,6 +52,7 @@ export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   background: $background;
+  scrollbar-gutter: stable;
 
   &[data-js-execution="false"] {
     padding-bottom: 0;
@@ -70,6 +71,7 @@ export const ConsoleControl = styled.div("RodConsoleControl").css`
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scrollbar-width: none;
+  scrollbar-gutter: stable;
   border-bottom: 1px solid $border;
   color: $primary;
   background: $backgroundDark;
