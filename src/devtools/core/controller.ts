@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { ShellRefs } from "../core/shell";
-import { asElement, event, html,  styled, uiState } from "../core/runtime";
+import type { ShellRefs } from "../components/shell";
+import { asElement, event, html,  styled, uiState } from "../components/runtime";
 import { ConfigStore } from "./config";
 import { on } from "./dom";
 import { icon } from "./utils";
@@ -380,13 +380,13 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-selected="false"
         aria-selected="false"
         draggable=${name === "settings" ? "false" : "true"}
-        @click=${event((click: Event) => {
+        @click=${event.click((click) => {
           click.preventDefault();
           this.showTool(name);
         })}
-        @dragstart=${event((drag: Event) => this.handleTabDragStart(drag, name, tab))}
-        @dragover=${event((drag: Event) => this.handleTabDragOver(drag))}
-        @drop=${event((drop: Event) => this.handleTabDrop(drop, name))}
+        @dragstart=${event.dragstart((drag) => this.handleTabDragStart(drag, name, tab))}
+        @dragover=${event.dragover((drag) => this.handleTabDragOver(drag))}
+        @drop=${event.drop((drop) => this.handleTabDrop(drop, name))}
         ref=${(node) => {
           tab = node;
         }}
@@ -596,7 +596,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-type=${options.type ?? "info"}
         data-active="false"
         data-notification=${++this.notificationSequence}
-        @click=${event((click: Event) => {
+        @click=${event.click((click) => {
           click.preventDefault();
           remove();
         })}
@@ -631,7 +631,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
       body = asElement<HTMLFormElement>(html`
         <RodDevtoolsModalSurface
-          @submit=${event((submit: Event) => {
+          @submit=${event.submit((submit) => {
             submit.preventDefault();
             finish(input.value);
           })}
@@ -650,7 +650,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             />
           </RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
-            <RodDevtoolsTextButton type="button" @click=${event(() => finish(null))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(null))}>Cancel</RodDevtoolsTextButton>
             <RodDevtoolsTextButton type="submit" data-primary="true">OK</RodDevtoolsTextButton>
           </RodDevtoolsModalActions>
         </RodDevtoolsModalSurface>
@@ -686,11 +686,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           <RodDevtoolsModalTitle>Confirm</RodDevtoolsModalTitle>
           <RodDevtoolsModalBody>${message}</RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
-            <RodDevtoolsTextButton type="button" @click=${event(() => finish(false))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(false))}>Cancel</RodDevtoolsTextButton>
             <RodDevtoolsTextButton
               type="button"
               data-primary="true"
-              @click=${event(() => finish(true))}
+              @click=${event.click(() => finish(true))}
               ref=${(node) => {
                 accept = node;
               }}
