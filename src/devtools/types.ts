@@ -163,6 +163,28 @@ export interface DevtoolsInitConfig {
   readonly panels?: DevtoolsInitPanelConfig;
 }
 
+/*export interface DevtoolsInitOptions {
+  container?: HTMLElement;
+  tool?: string | readonly string[];
+  autoScale?: boolean;
+  useShadowDom?: boolean;
+  inline?: boolean;
+  defaults?: DevtoolsDefaults;
+  config?: DevtoolsInitConfig;
+  debug?: boolean | DevtoolsDebugOptions;
+}
+*/
+
+export interface InitialConsoleEntry {
+  readonly level?: ConsoleLevel;
+  readonly args?: readonly unknown[];
+  readonly message?: unknown;
+  readonly timestamp?: number;
+  readonly stack?: string;
+}
+
+export type InitialConsoleBag = readonly (InitialConsoleEntry | Error | unknown)[];
+
 export interface DevtoolsInitOptions {
   container?: HTMLElement;
   tool?: string | readonly string[];
@@ -172,6 +194,10 @@ export interface DevtoolsInitOptions {
   defaults?: DevtoolsDefaults;
   config?: DevtoolsInitConfig;
   debug?: boolean | DevtoolsDebugOptions;
+  /** Logs or errors captured by a userscript before RodEruda finished mounting. */
+  initialLogs?: InitialConsoleBag;
+  /** Alias focused on startup failures. Both bags are merged in insertion order. */
+  initialErrors?: InitialConsoleBag;
 }
 
 export interface NotificationOptions {
