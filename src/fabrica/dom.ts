@@ -172,23 +172,44 @@ function extractHtmlResultRoot(fragment: DocumentFragment): Node {
 }
 
 
-/** Removes indentation-only text nodes without deleting intentional single-space separators. */
+/**
+ * Removes indentation-only text nodes while preserving HTML's inline spacing semantics.
+ *
+ * Whitespace between two concrete elements is formatting indentation and can be
+ * removed. Whitespace touching a Fábrica part marker is normalized to one space,
+ * because it separates interpolated primitive values just like native HTML parsing.
+ */
 export function pruneInsignificantWhitespace(root: ParentNode): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const removals: Text[] = [];
+  const normalizations: Text[] = [];
   let current = walker.nextNode();
+
   while (current) {
     const text = current as Text;
     const parent = text.parentElement;
     const value = text.data;
+
     if (
       parent
       && !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parent.tagName)
       && /^[\t\r\n ]+$/.test(value)
       && /[\t\r\n]/.test(value)
-    ) removals.push(text);
+    ) {
+      const previous = text.previousSibling;
+      const next = text.nextSibling;
+      const touchesDynamicPart =
+        previous?.nodeType === Node.COMMENT_NODE
+        || next?.nodeType === Node.COMMENT_NODE;
+
+      if (touchesDynamicPart) normalizations.push(text);
+      else removals.push(text);
+    }
+
     current = walker.nextNode();
   }
+
+  for (const text of normalizations) text.data = " ";
   for (const text of removals) text.remove();
 }
 

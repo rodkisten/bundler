@@ -29,16 +29,16 @@ export const devtoolsStyles = sheet.css`
   @theme {
     zIndex<number>: (
       base: 2147483500,
-      container: $base + 10,
-      dock: $base + 20,
-      toolbar: $base + 30,
-      sticky: $base + 40,
-      dropdown: $base + 50,
-      notification: $base + 60,
-      modal: $base + 70,
-      inspector: $base + 80,
-      resizer: $base + 90,
-      entry: $base + 100
+      container: 2147483510,
+      dock: 2147483520,
+      toolbar: 2147483530,
+      sticky: 2147483540,
+      dropdown: 2147483550,
+      notification: 2147483560,
+      modal: 2147483570,
+      inspector: 2147483580,
+      resizer: 2147483590,
+      entry: 2147483600
     );
     colors<color>: (
       background: var(--background),
@@ -346,7 +346,10 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-dev-tools {
     pointer-events: auto
-    pos(fixed, left: 0, right: 0, bottom: calc(var(--rd-visual-viewport-bottom, 0px) + max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)))
+    position: fixed
+    left: 0
+    right: 0
+    bottom: calc(var(--rd-visual-viewport-bottom, 0px) + max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)))
     top: auto
     w: 100%
     h: min(var(--rd-devtools-height, 72dvh), calc(100dvh - max(env(safe-area-inset-top, 0px), 12px) - max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)) - 12px))
