@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
-import { component, event, html, ref, styled } from "../components/runtime";
+import { component, event, html, ref, styled } from "../core/runtime";
 import "./shared-components";
 
 export type InfoModel = {
