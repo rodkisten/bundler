@@ -169,8 +169,15 @@ export class Console extends Tool {
         this.capture.record(entry.level ?? "error", args.length ? args : [entry]);
         continue;
       }
+
       this.capture.record(entry instanceof Error ? "error" : "log", [entry]);
     }
+
+    // Startup records are part of initialization, so they must be visible before
+    // init() returns even when normal console rendering is configured as async.
+    this.cancelScheduledRender();
+    this.syncDom();
+    flushSync();
   }
   
   filter(filter: ConsoleFilter): void {
