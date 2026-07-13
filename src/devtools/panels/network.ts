@@ -3,7 +3,7 @@ import { ConfigStore } from "../core/config";
 import { NetworkCapture } from "../core/network-capture";
 import { copyText, icon } from "../utils";
 import { Tool } from "../tool";
-import { html, render } from "../components/runtime";
+import { html, render } from "../core/runtime";
 import type { NetworkConfig, NetworkRecord, ToolContext } from "../types";
 import {
   networkDetailTemplate,
