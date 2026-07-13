@@ -1,4 +1,4 @@
-name: 📦 Publish browser bundle
+name: 📦 Publish browser bundles
 
 on:
   push:
@@ -7,406 +7,337 @@ on:
 
   workflow_dispatch:
     inputs:
-      min_hours_between_runs:
-        description: "Minimum hours between automatic builds"
-        required: false
-        default: "2"
-      should_run_tests:
+      build_scope:
+        type: choice
+        description: "Build scope"
+        default: auto
+        options:
+          - auto
+          - devtools
+          - all
+      should_typecheck:
         type: boolean
-        description: "Wanna run all tests?"
+        description: "Run typecheck?"
         default: true
-        
+      should_test:
+        type: boolean
+        description: "Run tests?"
+        default: true
+      should_benchmark:
+        type: boolean
+        description: "Run benchmarks?"
+        default: false
+      should_publish_canary:
+        type: boolean
+        description: "Create canary aliases?"
+        default: true
+      should_deploy_pages:
+        type: boolean
+        description: "Deploy to GitHub Pages?"
+        default: true
+
+  workflow_call:
+    inputs:
+      build_scope:
+        type: string
+        required: false
+        default: auto
+      should_typecheck:
+        type: boolean
+        required: false
+        default: true
+      should_test:
+        type: boolean
+        required: false
+        default: true
+      should_benchmark:
+        type: boolean
+        required: false
+        default: false
+      should_publish_canary:
+        type: boolean
+        required: false
+        default: true
+      should_deploy_pages:
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      GIST_TOKEN:
+        required: false
+      GIST_ID:
+        required: false
+
 concurrency:
-  group: publish-browser-bundle-${{ github.ref }}
+  group: publish-browser-bundles-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
   actions: read
 
 env:
-  WORKFLOW_FILE: publish-browser-bundle.yml
-  MIN_HOURS_BETWEEN_RUNS: 2
+  NODE_VERSION: "24"
+  PNPM_VERSION: "11.5.1"
+  DEVTOOLS_DIST_DIR: src/devtools/dist
+  FULL_DIST_DIR: dist
+  DEVTOOLS_CANARY_FILE: devtools.canary.iife.min.js
 
 jobs:
-  guard:
-    name: "🛡️ Guard"
+  scope:
+    name: 🧭 Detect build scope
     runs-on: ubuntu-24.04
 
     outputs:
-      should_run: ${{ steps.guard.outputs.should_run }}
-      reason: ${{ steps.guard.outputs.reason }}
+      build_scope: ${{ steps.resolve.outputs.build_scope }}
+      only_devtools: ${{ steps.resolve.outputs.only_devtools }}
+      changed_files: ${{ steps.resolve.outputs.changed_files }}
 
     steps:
-      - name: Decide whether this run should continue
-        id: guard
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          REPOSITORY: ${{ github.repository }}
-          WORKFLOW_FILE: ${{ env.WORKFLOW_FILE }}
-          CURRENT_RUN_ID: ${{ github.run_id }}
-          DEFAULT_MIN_HOURS: ${{ env.MIN_HOURS_BETWEEN_RUNS }}
-          INPUT_MIN_HOURS: ${{ github.event.inputs.min_hours_between_runs }}
-        run: |
-          set -euo pipefail
-
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            MIN_HOURS="${INPUT_MIN_HOURS:-$DEFAULT_MIN_HOURS}"
-          else
-            MIN_HOURS="$DEFAULT_MIN_HOURS"
-          fi
-
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=manual_run_always_allowed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=pull_request_always_allowed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          MIN_SECONDS=$((MIN_HOURS * 3600))
-
-          RUNS_JSON="$(gh api "repos/$REPOSITORY/actions/workflows/$WORKFLOW_FILE/runs?per_page=10&status=completed")"
-
-          LAST_TWO_CONCLUSIONS="$(echo "$RUNS_JSON" | jq -r --arg current "$CURRENT_RUN_ID" '
-            .workflow_runs
-            | map(select((.id | tostring) != $current))
-            | .[0:2]
-            | .[].conclusion
-          ')"
-
-          FAILURE_COUNT="$(echo "$LAST_TWO_CONCLUSIONS" | grep -c '^failure$' || true)"
-
-          if [ "$FAILURE_COUNT" -eq 2 ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=last_two_completed_runs_failed" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          LAST_CREATED_AT="$(echo "$RUNS_JSON" | jq -r --arg current "$CURRENT_RUN_ID" '
-            .workflow_runs
-            | map(select((.id | tostring) != $current))
-            | .[0].created_at // empty
-          ')"
-
-          if [ -z "$LAST_CREATED_AT" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=no_previous_completed_run" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          LAST_SECONDS="$(date -d "$LAST_CREATED_AT" +%s)"
-          NOW_SECONDS="$(date +%s)"
-          DIFF_SECONDS=$((NOW_SECONDS - LAST_SECONDS))
-
-          if [ "$DIFF_SECONDS" -lt "$MIN_SECONDS" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "reason=last_completed_run_is_too_recent" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "should_run=true" >> "$GITHUB_OUTPUT"
-          echo "reason=guard_passed" >> "$GITHUB_OUTPUT"
-
-      - name: Write guard summary
-        run: |
-          {
-            echo "## 🛡️ Build Guard"
-            echo ""
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Should run | \`${{ steps.guard.outputs.should_run }}\` |"
-            echo "| Reason | \`${{ steps.guard.outputs.reason }}\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  changes:
-    name: "📋 Check incoming changes"
-    needs: guard
-    if: ${{ inputs.should_run_tests == true && (github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true') }}
-    runs-on: ubuntu-24.04
-
-    outputs:
-      should_test: ${{ steps.detect.outputs.should_test }}
-      should_benchmark: ${{ steps.detect.outputs.should_benchmark }}
-      reason: ${{ steps.detect.outputs.reason }}
-      benchmark_reason: ${{ steps.detect.outputs.benchmark_reason }}
-
-    steps:
-      - name: Checkout private source
-        if: ${{ github.event_name != 'workflow_dispatch' }}
-        uses: actions/checkout@v4
+      - name: 📥 Checkout source
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - name: Detect test and benchmark relevant changes
-        id: detect
+      - name: 🧭 Resolve affected build
+        id: resolve
+        shell: bash
         env:
+          REQUESTED_SCOPE: ${{ inputs.build_scope || 'auto' }}
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should_test=true" >> "$GITHUB_OUTPUT"
-            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
-            echo "reason=manual_run_always_tests" >> "$GITHUB_OUTPUT"
-            echo "benchmark_reason=manual_run_without_changed_files" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          requested_scope="${REQUESTED_SCOPE:-auto}"
 
-          EMPTY_SHA="0000000000000000000000000000000000000000"
-
-          if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "$EMPTY_SHA" ] || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
-            CHANGED_FILES="$(git diff-tree --root --no-commit-id --name-status -r --diff-filter=AMR "$HEAD_SHA")"
+          if [[ "$requested_scope" == "devtools" || "$requested_scope" == "all" ]]; then
+            build_scope="$requested_scope"
+            changed_files="manual:${requested_scope}"
+          elif [[ "$EVENT_NAME" != "push" ]]; then
+            build_scope="all"
+            changed_files="manual:auto"
           else
-            CHANGED_FILES="$(git diff --name-status --diff-filter=AMR "$BEFORE_SHA" "$HEAD_SHA")"
+            empty_sha="0000000000000000000000000000000000000000"
+
+            if [[ -z "${BEFORE_SHA:-}" || "$BEFORE_SHA" == "$empty_sha" ]] \
+              || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+              changed_files="$(git diff-tree --root --no-commit-id --name-only -r "$HEAD_SHA")"
+            else
+              changed_files="$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")"
+            fi
+
+            # Changes are DevTools-only when every changed path belongs to the
+            # DevTools package or to this publishing workflow itself.
+            non_devtools_files="$(
+              printf '%s\n' "$changed_files" \
+                | sed '/^$/d' \
+                | grep -Ev '^src/devtools/|^src/devtools\.ts$|^\.github/workflows/(publish-browser-bundle|publish-devtools)\.yml$' \
+                || true
+            )"
+
+            if [[ -n "$changed_files" && -z "$non_devtools_files" ]]; then
+              build_scope="devtools"
+            else
+              build_scope="all"
+            fi
           fi
 
-          CHANGED_PATHS="$(echo "$CHANGED_FILES" | awk '{ print $NF }')"
-
-          TEST_RELEVANT_FILES="$(echo "$CHANGED_PATHS" | grep -E '^(src|scripts)/.*\.ts$|(^|/)package\.json$|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|(^|/)tsconfig([^/]*)?\.json$|(^|/)vitest\.config\.(js|cjs|mjs|ts|cts|mts)$|(^|/)vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)$' || true)"
-
-          BENCHMARK_RELEVANT_FILES="$(echo "$CHANGED_PATHS" | grep -E '^src/(fabrica|broto|cipo|fabrica-elements)/' || true)"
-
-          if [ -n "$TEST_RELEVANT_FILES" ]; then
-            echo "should_test=true" >> "$GITHUB_OUTPUT"
-            echo "reason=test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+          if [[ "$build_scope" == "devtools" ]]; then
+            only_devtools=true
           else
-            echo "should_test=false" >> "$GITHUB_OUTPUT"
-            echo "reason=no_test_relevant_files_changed" >> "$GITHUB_OUTPUT"
+            only_devtools=false
           fi
 
-          if [ -n "$BENCHMARK_RELEVANT_FILES" ]; then
-            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
-            echo "benchmark_reason=benchmark_relevant_packages_changed" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_benchmark=false" >> "$GITHUB_OUTPUT"
-            echo "benchmark_reason=no_fabrica_broto_cipo_or_fabrica_elements_changes" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Write changes summary
-        run: |
           {
-            echo "## 🧭 Change Detector"
-            echo ""
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Should test | \`${{ steps.detect.outputs.should_test }}\` |"
-            echo "| Test reason | \`${{ steps.detect.outputs.reason }}\` |"
-            echo "| Should benchmark | \`${{ steps.detect.outputs.should_benchmark }}\` |"
-            echo "| Benchmark reason | \`${{ steps.detect.outputs.benchmark_reason }}\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  test:
-    name: "🧪 Run all tests"
-    needs:
-      - guard
-      - changes
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (needs.guard.outputs.should_run == 'true' && needs.changes.outputs.should_test == 'true') || inputs.should_run_tests == true }}
-    runs-on: ubuntu-24.04
-    continue-on-error: true
-
-    steps:
-      - name: Checkout private source
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
-
-      - name: Run tests
-        id: tests
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          export LANG=C.UTF-8
-          export LC_ALL=C.UTF-8
-
-          mkdir -p artifacts/test
-
-          pnpm test 2>&1 | tee artifacts/test/test-output.log
-
-      - name: Write test summary
-        if: always()
-        run: |
-          {
-            echo "## 🧪 Test Report"
-            echo ""
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ steps.tests.outcome }}\` |"
-            echo "| Blocking build | \`false\` |"
-            echo ""
-            echo "### Last test output lines"
-            echo ""
-            echo '```markdown'
-            tail -n 200 artifacts/test/test-output.log || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Run Benchmarks
-        id: benchmarks_cipo
-        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          export LANG=C.UTF-8
-          export LC_ALL=C.UTF-8
-
-          mkdir -p artifacts/test
-
-          pnpm bench:all 2>&1 | tee artifacts/test/benchmarks-cipo-output.log
-
-      - name: 🌿 Run Cipo benchmarks
-        if: ${{ needs.changes.outputs.should_benchmark == 'true' }}
-        shell: bash
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          mkdir -p artifacts
-
-          pnpm exec vitest bench src/cipo/tests/cipo.bench.ts --run \
-            2>&1 \
-            | node scripts/strip-ansi-stream.mjs \
-            | tee artifacts/cipo-benchmark.log
-
-      - name: Write benchmark summary
-        if: ${{ always() && needs.changes.outputs.should_benchmark == 'true' }}
-        run: |
-          {
-            echo "## ⏱️ Benchmark Report"
-            echo ""
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`${{ steps.benchmarks_cipo.outcome }}\` |"
-            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
-            echo ""
-            echo "### Last benchmark output lines"
-            echo ""
-            echo '```markdown'
-            tail -n 200 artifacts/test/benchmarks-cipo-output.log || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Write skipped benchmark summary
-        if: ${{ always() && needs.changes.outputs.should_benchmark != 'true' }}
-        run: |
-          {
-            echo "## ⏱️ Benchmark Report"
-            echo ""
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo "| Status | \`skipped\` |"
-            echo "| Reason | \`${{ needs.changes.outputs.benchmark_reason }}\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload test artifact
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-report
-          path: artifacts/test
-          retention-days: 14
-
-  build:
-    name: "👷🏼‍♂️ Build"
-    needs: guard
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
-    runs-on: ubuntu-24.04
-    env:
-      GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-      GIST_ID: ${{ secrets.GIST_ID }}
-
-    steps:
-      - name: Checkout private source
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile=false
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Build browser bundles
-        run: pnpm build
-
-      - name: Build via Vite
-        run: pnpm build:devtools
-
-      - name: Collect release assets
-        id: assets
-        run: |
-          set -euo pipefail
-
-          {
-            echo "files<<EOF"
-            find dist -type f \( \
-              -name "*.js" \
-              -o -name "*.js.map" \
-              -o -name "*.html" \
-              -o -name "*.json" \
-              -o -name "*.css" \
-              -o -name "*.txt" \
-            \) | sort
+            echo "build_scope=$build_scope"
+            echo "only_devtools=$only_devtools"
+            echo "changed_files<<EOF"
+            printf '%s\n' "$changed_files"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-        if: ${{ (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') || needs.guard.outputs.should_run == 'true' }}
-
-      - name: Write build summary
-        if: ${{ github.ref_name == 'main' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+      - name: 📝 Write scope summary
+        shell: bash
         run: |
           {
-            echo "## 📦 Browser Bundle"
-            echo ""
+            echo "## 🧭 Build scope"
+            echo
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Status | \`${{ job.status }}\` |"
-            echo "| Artifact | \`browser-bundle\` |"
-            echo "| Release tag | \`browser-bundle-latest\` |"
-            echo ""
-            echo "### Published files"
-            echo ""
-            echo '```txt'
-            find dist -type f | sort || true
+            echo '| Scope | `${{ steps.resolve.outputs.build_scope }}` |'
+            echo '| DevTools only | `${{ steps.resolve.outputs.only_devtools }}` |'
+            echo
+            echo "### Changed files"
+            echo
+            echo '```text'
+            printf '%s\n' '${{ steps.resolve.outputs.changed_files }}'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  build:
+    name: 👷 Build ${{ needs.scope.outputs.build_scope }}
+    needs: scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+      GIST_ID: ${{ secrets.GIST_ID }}
+      RODERUDA_BUILD_SHA: ${{ github.sha }}
+      TZ: America/Sao_Paulo
+
+    steps:
+      - name: 📥 Checkout source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: 📚 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🔎 Typecheck
+        if: ${{ inputs.should_typecheck != false }}
+        run: pnpm typecheck
+
+      - name: 🧪 Run tests
+        if: ${{ inputs.should_test != false }}
+        run: pnpm test
+
+      - name: ⚡ Run benchmarks
+        if: ${{ inputs.should_benchmark == true }}
+        continue-on-error: true
+        run: |
+          if [[ '${{ needs.scope.outputs.build_scope }}' == 'devtools' ]]; then
+            pnpm bench:devtools
+          else
+            pnpm bench:ci
+          fi
+
+      - name: 🏗️ Build DevTools only
+        if: ${{ needs.scope.outputs.build_scope == 'devtools' }}
+        run: pnpm build:devtools
+
+      - name: 🏗️ Build every browser script
+        if: ${{ needs.scope.outputs.build_scope == 'all' }}
+        run: pnpm build
+
+      - name: 🐤 Create DevTools canary alias
+        if: >-
+          ${{
+            inputs.should_publish_canary != false
+            && needs.scope.outputs.build_scope == 'devtools'
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source_file="$(
+            find "$DEVTOOLS_DIST_DIR" -type f \
+              \( -name 'devtools.iife.min.js' -o -name '*devtools*iife*.min.js' -o -name '*iife*.min.js' \) \
+              ! -name "$DEVTOOLS_CANARY_FILE" \
+              | sort \
+              | head -n 1
+          )"
+
+          if [[ -z "$source_file" ]]; then
+            echo "::error::No minified DevTools IIFE was found in $DEVTOOLS_DIST_DIR"
+            find "$DEVTOOLS_DIST_DIR" -type f | sort || true
+            exit 1
+          fi
+
+          cp "$source_file" "$DEVTOOLS_DIST_DIR/$DEVTOOLS_CANARY_FILE"
+
+      - name: 🐤 Create canary aliases for complete build
+        if: >-
+          ${{
+            inputs.should_publish_canary != false
+            && needs.scope.outputs.build_scope == 'all'
+          }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r source_file; do
+            filename="$(basename "$source_file")"
+            canary_name="${filename/.iife.min.js/.canary.iife.min.js}"
+
+            if [[ "$filename" == *'.canary.iife.min.js' ]]; then
+              continue
+            fi
+
+            cp "$source_file" "$(dirname "$source_file")/$canary_name"
+          done < <(find "$FULL_DIST_DIR" -type f -name '*.iife.min.js' | sort)
+
+      - name: 📁 Prepare publication directory
+        id: publication
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          publication_dir="$RUNNER_TEMP/pages-publication"
+          rm -rf "$publication_dir"
+          mkdir -p "$publication_dir"
+
+          if [[ '${{ needs.scope.outputs.build_scope }}' == 'devtools' ]]; then
+            cp -R "$DEVTOOLS_DIST_DIR"/. "$publication_dir"/
+          else
+            cp -R "$FULL_DIST_DIR"/. "$publication_dir"/
+          fi
+
+          echo "path=$publication_dir" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## 📦 Published files"
+            echo
+            echo '```text'
+            find "$publication_dir" -type f | sed "s#^$publication_dir/##" | sort
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 📤 Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-bundles-${{ needs.scope.outputs.build_scope }}-${{ github.sha }}
+          path: ${{ steps.publication.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 📟 Upload GitHub Pages artifact
+        if: >-
+          ${{
+            inputs.should_deploy_pages != false
+            && github.ref_name == 'main'
+          }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.publication.outputs.path }}
+
   deploy-pages:
-    name: "📟 Deploy to Github pages"
+    name: 📟 Deploy GitHub Pages
     needs:
-      - guard
+      - scope
       - build
-    if: ${{ github.ref_name == 'main' || github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch' || needs.guard.outputs.should_run == 'true' }}
+    if: >-
+      ${{
+        needs.build.result == 'success'
+        && inputs.should_deploy_pages != false
+        && github.ref_name == 'main'
+      }}
     runs-on: ubuntu-24.04
 
     environment:
@@ -414,16 +345,6 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Deploy to GitHub Pages
+      - name: 🚀 Deploy
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Notify Pushcut
-        if: ${{ success() }}
-        id: pushcut
-        env:
-          WORKFLOW_ID: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-
-          curl -X POST -d "{\"input\": \"$WORKFLOW_ID\", \"text\": \"Abrir pipeline {teste}\", \"title\": \"Build finished\"}" -H "Content-Type: application/json" https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published
