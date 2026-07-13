@@ -1,13 +1,10 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, html, ref, styled } from "../components/runtime";
+import { component, html, ref, styled } from "../core/runtime";
 import "./shared-components";
 
 export interface ResourcesViewModel {
   setBody(node: HTMLElement | null): void;
 }
-
-
-
 
 export const ResourcesSection = styled.section("RodResourcesSection").css`
   margin: 10px;
