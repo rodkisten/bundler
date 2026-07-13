@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, event, html,  styled } from "../components/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import { icon } from "../utils";
 import "./shared-components";
 
