@@ -12,6 +12,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   position: fixed;
   inset: 0;
   z-index: 2147483647;
+  transform: translateZ(1px);
   isolation: isolate;
   contain: layout style paint;
   color: $foreground;
