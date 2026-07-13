@@ -5,7 +5,7 @@ import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { Cleanup, ElementsConfig, ToolContext } from "../types";
 import { copyText, icon, isDevtoolsNode, nodePath } from "../utils";
-import { asElement, event, html, ref, render } from "../core/runtime";
+import { asElement, event, html,  render } from "../core/runtime";
 import {
   elementsStyleArtifacts,
   listenerModels,

@@ -18,7 +18,7 @@ import {
 import {
   event,
   html,
-  ref,
+  
   render,
 } from "../core/runtime";
 import { Tool } from "../core/tool";
@@ -503,7 +503,7 @@ const userscriptSource = await readUserscriptSource(
     this.disposeBody = render(this.body, html`
       <RodSourcesEditor>
         <RodSourcesBreadcrumb>${this.sourceTitle(type)}</RodSourcesBreadcrumb>
-        <RodSourcesCodeMirrorHost ref=${ref<HTMLElement>((node) => { editorHost = node; })} />
+        <RodSourcesCodeMirrorHost ref=${(node) => { editorHost = node; }} />
       </RodSourcesEditor>
     `);
 
@@ -555,9 +555,9 @@ const userscriptSource = await readUserscriptSource(
           @error=${event(() => {
             if (info) info.textContent = "Image failed to load";
           })}
-          ref=${ref<HTMLImageElement>((node) => { image = node; })}
+          ref=${(node) => { image = node; }}
         />
-        <p data-image-info ref=${ref<HTMLParagraphElement>((node) => { info = node; })}>Loading image…</p>
+        <p data-image-info ref=${(node) => { info = node; }}>Loading image…</p>
       </RodSourcesImage>
     `);
   }

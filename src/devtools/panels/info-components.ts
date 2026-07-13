@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export type InfoModel = {
@@ -78,10 +78,10 @@ component("RodInfoView", function RodInfoView(props) {
   const model = view.model();
 
   return html`
-    <RodSharedPanelRoot ref=${ref<HTMLElement>((node) => {
+    <RodSharedPanelRoot ref=${(node) => {
       view.setRoot(node);
       return () => view.setRoot(null);
-    })}>
+    }}>
       <RodSharedHeader>
         <RodInfoTitle>Page information</RodInfoTitle>
         <RodSharedActions>

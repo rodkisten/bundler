@@ -3,7 +3,7 @@ import type { RenderValue } from "../../fabrica";
 import { describeNode, icon, nodePath, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 bootstrapDevtoolsCipo();
@@ -571,22 +571,22 @@ component("RodElementsView", function RodElementsView(props) {
         </RodSharedControlBar>
 
         <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event(() => view.onTreeScroll())}>
-          <RodElementsDomTree data-elements-tree data-wrap=${String(view.wrapLines())} ref=${ref((node) => {
+          <RodElementsDomTree data-elements-tree data-wrap=${String(view.wrapLines())} ref=${(node) => {
             view.setTree(node as HTMLElement);
             return () => view.setTree(null);
-          })} />
+          }} />
         </RodElementsTreeWrap>
 
-        <RodElementsCrumbs data-elements-crumbs ref=${ref((node) => {
+        <RodElementsCrumbs data-elements-crumbs ref=${(node) => {
           view.setCrumbs(node as HTMLElement);
           return () => view.setCrumbs(null);
-        })} />
+        }} />
       </RodElementsTreeSide>
 
-      <RodElementsDetailPanel data-elements-detail data-active="false" ref=${ref((node) => {
+      <RodElementsDetailPanel data-elements-detail data-active="false" ref=${(node) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
-      })} />
+      }} />
     </RodSharedPanelLayout>
   `;
 });

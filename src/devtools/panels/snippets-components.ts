@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { SnippetItem } from "../types";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export type SnippetsModel = {
@@ -64,10 +64,10 @@ component("RodSnippetsView", function RodSnippetsView(props) {
           <RodSharedButton type="button" @click=${event(() => view.reset())}>Reset</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
-      <RodSharedPanelBody data-snippets-body ref=${ref<HTMLElement>((node) => {
+      <RodSharedPanelBody data-snippets-body ref=${(node) => {
         view.setBody(node);
         return () => view.setBody(null);
-      })}>
+      }}>
         ${model.snippets.length ? model.snippets.map((snippet, index) => {
           const active = model.activeNames.has(snippet.name);
           return html`

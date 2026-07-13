@@ -2,7 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 
@@ -322,23 +322,23 @@ component("RodNetworkView", function RodNetworkView(props) {
           aria-label="Filter network requests"
           .value=${filter}
           @input=${event((input: Event) => view.onFilterInput(input))}
-          ref=${ref((node) => {
+          ref=${(node) => {
             view.setFilterInput(node as HTMLInputElement);
             return () => view.setFilterInput(null);
-          })}
+          }}
         />
         <RodNetworkIconButton type="button" data-action="copy" title="Copy as cURL" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
       </RodSharedControlBar>
 
-      <RodNetworkList data-network-list ref=${ref((node) => {
+      <RodNetworkList data-network-list ref=${(node) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
-      })} />
+      }} />
 
-      <RodNetworkDetail data-network-detail data-active="false" ref=${ref((node) => {
+      <RodNetworkDetail data-network-detail data-active="false" ref=${(node) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
-      })} />
+      }} />
     </RodSharedPanelLayout>
   `;
 });

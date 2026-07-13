@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, html, ref, styled } from "../core/runtime";
+import { component, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export interface SettingsViewModel {
@@ -111,10 +111,10 @@ component("RodSettingsView", function RodSettingsView(props) {
   return html`
     <RodSharedScrollableBody
       data-settings-body
-      ref=${ref((node) => {
+      ref=${(node) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
-      })}
+      }}
     />
   `;
 });

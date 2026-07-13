@@ -3,7 +3,7 @@ import { icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ResourcesConfig, SourcePayload, ToolContext } from "../types";
-import { event, html, ref, render } from "../core/runtime";
+import { event, html,  render } from "../core/runtime";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import {
   ResourcesIconButton,
@@ -494,7 +494,7 @@ export class Resources extends Tool {
             })}>⌘</ResourcesIconButton>
           </RodResourcesSectionActions>
         </RodResourcesJsonHeader>
-        <RodResourcesJsonEditorHost ref=${ref<HTMLElement>((node) => { host = node; })} />
+        <RodResourcesJsonEditorHost ref=${(node) => { host = node; }} />
         <RodResourcesJsonActions>
           <ResourcesIconButton type="button" @click=${event(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
           <ResourcesIconButton type="button" @click=${event(() => {

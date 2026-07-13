@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../components/runtime";
 import { icon } from "../utils";
 import "./shared-components";
 
@@ -216,10 +216,10 @@ component("RodSourcesView", function RodSourcesView(props) {
         <RodSourcesIconButton type="button" title="Download" @click=${event(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Refresh" @click=${event(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
       </RodSharedControlBar>
-      <RodSourcesBody data-sources-body ref=${ref<HTMLElement>((node) => {
+      <RodSourcesBody data-sources-body ref=${(node) => {
         view.setBody(node);
         return () => view.setBody(null);
-      })} />
+      }} />
     </RodSourcesRoot>
   `;
 });
