@@ -168,7 +168,7 @@ export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
 export const ResourcesJsonDialog = styled.div("RodResourcesJsonDialog").css`
   position: absolute;
   inset: 8px;
-  z-index: 80;
+  z-index: var(--rd-z-modal, 2147483570);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;

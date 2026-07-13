@@ -246,7 +246,7 @@ const CrumbButton = styled.button("RodElementsCrumbButton").css`
 const DetailPanel = styled.section("RodElementsDetailPanel").css`
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--rd-z-dropdown, 2147483550);
   display: none;
   padding-top: $$controlHeight;
   background: $background;
@@ -471,7 +471,7 @@ const EmptyState = styled.div("RodElementsEmptyState").css`
 
 const ElementsMenu = styled.div("RodElementsMenu").css`
   position: fixed;
-  z-index: 2147483647;
+  z-index: var(--rd-z-inspector, 2147483580);
   min-width: 165px;
   padding: 5px;
   border: 1px solid $border;

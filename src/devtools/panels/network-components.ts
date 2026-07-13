@@ -92,7 +92,7 @@ const NetworkTable = styled.table("RodNetworkTable").css`
   th {
     position: sticky;
     top: 0;
-    z-index: 2;
+    z-index: var(--rd-z-sticky, 2147483540);
     color: $primary;
     background: $backgroundDark;
     font-weight: 600;
@@ -152,7 +152,7 @@ const NetworkMethod = styled.span("RodNetworkMethod").css`
 const NetworkDetail = styled.section("RodNetworkDetail").css`
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--rd-z-dropdown, 2147483550);
   display: none;
   padding-top: $$controlHeight;
   background: $background;
@@ -174,7 +174,7 @@ const NetworkDetail = styled.section("RodNetworkDetail").css`
 const NetworkTabs = styled.div("RodNetworkTabs").css`
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: var(--rd-z-toolbar, 2147483530);
   display: flex;
   overflow-x: auto;
   border-bottom: 1px solid $border;
