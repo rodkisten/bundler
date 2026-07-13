@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { ShellRefs } from "../core/shell";
-import { asElement, event, html, ref, styled, uiState } from "../core/runtime";
+import type { ShellRefs } from "../components/shell";
+import { asElement, event, html,  styled, uiState } from "../components/runtime";
 import { ConfigStore } from "./config";
 import { on } from "./dom";
 import { icon } from "./utils";
@@ -362,9 +362,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-tool=${name}
         aria-label=${tool.title ?? name}
         hidden
-        ref=${ref<HTMLElement>((node) => {
+        ref=${(node) => {
           panel = node;
-        })}
+        }}
       />
     `);
 
@@ -387,9 +387,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         @dragstart=${event((drag: Event) => this.handleTabDragStart(drag, name, tab))}
         @dragover=${event((drag: Event) => this.handleTabDragOver(drag))}
         @drop=${event((drop: Event) => this.handleTabDrop(drop, name))}
-        ref=${ref<HTMLButtonElement>((node) => {
+        ref=${(node) => {
           tab = node;
-        })}
+        }}
       >
         <RodDevtoolsTabIcon>${renderToolIcon(tool.icon, name)}</RodDevtoolsTabIcon>
         <RodDevtoolsTabLabel>${tool.title ?? name}</RodDevtoolsTabLabel>
@@ -600,9 +600,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           click.preventDefault();
           remove();
         })}
-        ref=${ref<HTMLElement>((node) => {
+        ref=${(node) => {
           item = node;
-        })}
+        }}
       >
         ${message}
       </RodDevtoolsNotificationToast>
@@ -635,18 +635,18 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             submit.preventDefault();
             finish(input.value);
           })}
-          ref=${ref<HTMLFormElement>((node) => {
+          ref=${(node) => {
             body = node;
-          })}
+          }}
         >
           <RodDevtoolsModalTitle>${message}</RodDevtoolsModalTitle>
           <RodDevtoolsModalBody>
             <RodDevtoolsModalInput
               .value=${initialValue}
               autocomplete="off"
-              ref=${ref<HTMLInputElement>((node) => {
+              ref=${(node) => {
                 input = node;
-              })}
+              }}
             />
           </RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
@@ -679,9 +679,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
       body = asElement<HTMLElement>(html`
         <RodDevtoolsModalBox
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             body = node;
-          })}
+          }}
         >
           <RodDevtoolsModalTitle>Confirm</RodDevtoolsModalTitle>
           <RodDevtoolsModalBody>${message}</RodDevtoolsModalBody>
@@ -691,9 +691,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
               type="button"
               data-primary="true"
               @click=${event(() => finish(true))}
-              ref=${ref<HTMLButtonElement>((node) => {
+              ref=${(node) => {
                 accept = node;
-              })}
+              }}
             >
               Continue
             </RodDevtoolsTextButton>

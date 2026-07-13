@@ -1,6 +1,6 @@
 import "./cipo-bootstrap";
 import { renderShell, shellStyleArtifacts, type ShellRefs } from "./shell";
-import { asNode, event, html, ref, uiState } from "./runtime";
+import { asNode, event, html,  uiState } from "./runtime";
 import { ConfigStore } from "./config";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./debug";
 import { detectMobile, isDevtoolsNode, viewportScale } from "./utils";
