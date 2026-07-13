@@ -12,7 +12,7 @@ on:
         description: "Run typecheck"
         default: true
         
-     should_run_tests:
+      should_run_tests:
         type: boolean
         description: "Run all test suite"
         default: true
