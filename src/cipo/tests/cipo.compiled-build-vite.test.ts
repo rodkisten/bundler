@@ -65,7 +65,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
   it('creates dynamic DOM templates with runtime-backed @event bindings', () => {
     let clicked = 0
     const view = createCompiledTemplate(['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
-    const button = view.firstChild as HTMLButtonElement
+    const button = view as HTMLButtonElement
 
     expect(button.tagName).toBe('BUTTON')
     expect(button.textContent).toBe('Save now')
@@ -80,7 +80,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
       class: 'spread',
       onClick: () => { clicked += 1 },
     })
-    const button = view.firstChild as HTMLButtonElement
+    const button = view as HTMLButtonElement
 
     expect(button.type).toBe('button')
     expect(button.className).toBe('spread')
