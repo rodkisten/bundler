@@ -1,6 +1,10 @@
 # Fábrica Changelog
 
-## Unreleased - props bags and property binding parity
+## Unreleased
+
+- Added the instance-local `event` helper with strongly typed properties for every DOM event name, including `event.click`, `event.pointerup`, `event.input`, and `event.keydown`.
+- Added `FabricaEvent`, `FabricaEventHandler`, and augmentable `FabricaCustomEventMap` public types.
+- Preserved the callable `event(handler)` compatibility form while making named event helpers zero-cost runtime identities. - props bags and property binding parity
 
 ### Added
 

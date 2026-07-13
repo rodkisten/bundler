@@ -888,6 +888,20 @@ html`<input .value=${bind(name)} />`
 
 ```ts
 html`<button @click=${eventOptions(onClick, { once: true })}>Save</button>`
+
+Named event helpers provide contextual DOM event types without manual callback annotations:
+
+```ts
+const { event } = Fabrica;
+
+html`
+  <button @click=${event.click((click) => click.preventDefault())}>Save</button>
+  <input @input=${event.input((input) => console.log(input.currentTarget.value))} />
+  <div @pointerup=${event.pointerup((pointer) => console.log(pointer.pointerId))}></div>
+`;
+```
+
+Every key from `GlobalEventHandlersEventMap` is available, including `keydown`, `submit`, `change`, `focus`, and the complete pointer-event family. The callable `event(handler)` form remains available for compatibility and custom explicit event types.
 ```
 
 ```ts
