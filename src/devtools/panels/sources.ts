@@ -435,7 +435,12 @@ export class Sources extends Tool {
       if (this.requestController === controller) this.requestController = null;
     }
 
-    const userscriptSource = await readUserscriptSource(url, failures);
+const userscriptSource = await readUserscriptSource(
+  url,
+  failures,
+  this.config.get("requestTimeout"),
+);
+    
     if (userscriptSource != null) {
       return {
         type: inferTextSourceType(type, url, userscriptSource),
@@ -854,51 +859,97 @@ async function fetchSourceText(url: string, signal: AbortSignal): Promise<string
   return response.text();
 }
 
-async function readUserscriptSource(url: string, failures: string[]): Promise<string | null> {
+async function readUserscriptSource(
+  url: string,
+  failures: string[],
+  requestTimeout: number,
+): Promise<string | null> {
   const globalScope = globalThis as typeof globalThis & {
     GM?: UserscriptApi;
     GM_xmlhttpRequest?: UserscriptRequest;
   };
+
   const request = globalScope.GM?.xmlHttpRequest
     ? globalScope.GM.xmlHttpRequest.bind(globalScope.GM)
     : globalScope.GM_xmlhttpRequest;
+
   if (!request) return null;
 
   try {
     return await new Promise<string>((resolve, reject) => {
       let settled = false;
+
       const settle = (callback: () => void): void => {
         if (settled) return;
         settled = true;
         callback();
       };
 
-      const handleResponse = (response: UserscriptResponse): void => settle(() => {
-        const status = response.status ?? 200;
-        if (status < 200 || status >= 400) {
-          reject(new Error(`${status} ${response.statusText ?? ""}`.trim()));
-          return;
-        }
-        resolve(String(response.responseText ?? response.response ?? ""));
-      });
+      const handleResponse = (
+        response: UserscriptResponse,
+      ): void => {
+        settle(() => {
+          const status = response.status ?? 200;
+
+          if (status < 200 || status >= 400) {
+            reject(
+              new Error(
+                `${status} ${response.statusText ?? ""}`.trim(),
+              ),
+            );
+            return;
+          }
+
+          resolve(
+            String(
+              response.responseText
+              ?? response.response
+              ?? "",
+            ),
+          );
+        });
+      };
 
       const result = request({
         method: "GET",
         url,
         responseType: "text",
-        timeout: this.config.get("requestTimeout"),
+        timeout: requestTimeout,
         onload: handleResponse,
-        onerror: (error) => settle(() => reject(error)),
-        ontimeout: () => settle(() => reject(new Error("request timed out"))),
-        onabort: () => settle(() => reject(new DOMException("request aborted", "AbortError"))),
+        onerror: (error: unknown): void => {
+          settle(() => reject(error));
+        },
+        ontimeout: (): void => {
+          settle(() => {
+            reject(new Error("Request timed out"));
+          });
+        },
+        onabort: (): void => {
+          settle(() => {
+            reject(
+              new DOMException(
+                "Request aborted",
+                "AbortError",
+              ),
+            );
+          });
+        },
       });
 
       if (isPromiseLike<UserscriptResponse>(result)) {
-        void result.then(handleResponse, (error) => settle(() => reject(error)));
+        void result.then(
+          handleResponse,
+          (error: unknown): void => {
+            settle(() => reject(error));
+          },
+        );
       }
     });
-  } catch (error) {
-    failures.push(`userscript request: ${sourceErrorMessage(error)}`);
+  } catch (error: unknown) {
+    failures.push(
+      `userscript request: ${sourceErrorMessage(error)}`,
+    );
+
     return null;
   }
 }
