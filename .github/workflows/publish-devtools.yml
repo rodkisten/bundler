@@ -7,10 +7,16 @@ on:
 
   workflow_dispatch:
     inputs:
+      should_typecheck:
+        type: boolean
+        description: "Run typecheck"
+        default: true
+        
       should_benchmark:
         type: boolean
         description: "Run DevTools benchmarks?"
         default: false
+      
 
       should_publish_canary:
         type: boolean
@@ -138,7 +144,15 @@ jobs:
 
   build:
     name: "👷🏼‍♂️ Build DevTools"
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+    if: >-
+      ${{
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+        )
+        || github.event_name == 'workflow_dispatch'
+        || github.event_name == 'workflow_call'
+      }}
     runs-on: ubuntu-24.04
 
     env:
@@ -162,6 +176,7 @@ jobs:
         run: pnpm install --frozen-lockfile=false
 
       - name: "🔎 Typecheck"
+        if: ${{ inputs.should_typecheck }}
         continue-on-error: true
         run: pnpm typecheck
 
