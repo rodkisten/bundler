@@ -746,3 +746,7 @@ function collectPropertyNames(value: unknown, prefix: string): string[] {
   }
   return [...names].sort();
 }
+
+function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {
+  return value !== null && typeof value === "object" && !(value instanceof Error) && ("args" in value || "message" in value || "level" in value);
+}
