@@ -1,5 +1,5 @@
 import { copyText, icon, safeStringify } from "../utils";
-import { html, render } from "../components/runtime";
+import { html, render } from "../core/runtime";
 import type { RenderValue } from "../../fabrica";
 import { Tool } from "../tool";
 import { DEVTOOLS_BUILD_INFO } from "../core/build-info";
