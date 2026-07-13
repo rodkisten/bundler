@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Fixed an infinite DevTools error feedback loop where an emitter subscriber failure was rethrown, captured as a global console error, and emitted back through the same failing subscriber.
+- Console-captured errors no longer create global snackbar notifications. Full error messages, locations, and stacks remain available inside the Console panel.
+- Restored patched `Console.prototype` descriptors when console capture is disabled or rebuilt.
+- Added short-window deduplication for duplicate `error` and `unhandledrejection` browser events.
+- Deferred console interception until the Console tool is initialized, preventing module-import side effects.
+
+
 - Added typed tweak-first settings groups for shell layout, notifications, console capture, Elements interaction, Network rendering, Resources editing, and Sources loading/editor behavior.
 - Added build metadata injection, a compact SHA/date badge in the tab bar, and detailed build information in the Info panel.
 - Added a project policy requiring every new configurable feature to register its typed setting.
