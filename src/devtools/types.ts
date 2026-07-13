@@ -67,6 +67,7 @@ export interface ConsoleConfig {
   listBottomPadding: number;
   filterMinWidth: number;
   editorMinHeight: number;
+  logPreviewLines: number;
 }
 
 export interface ElementsConfig {
@@ -161,6 +162,18 @@ export interface DevtoolsInitConfig {
   readonly devtools?: Partial<DevToolsConfig>;
   readonly panels?: DevtoolsInitPanelConfig;
 }
+
+/*export interface DevtoolsInitOptions {
+  container?: HTMLElement;
+  tool?: string | readonly string[];
+  autoScale?: boolean;
+  useShadowDom?: boolean;
+  inline?: boolean;
+  defaults?: DevtoolsDefaults;
+  config?: DevtoolsInitConfig;
+  debug?: boolean | DevtoolsDebugOptions;
+}
+*/
 
 export interface InitialConsoleEntry {
   readonly level?: ConsoleLevel;

@@ -22,7 +22,7 @@ export const SharedPanelRoot = styled.section("RodSharedPanelRoot").css`
 export const SharedControlBar = styled.div("RodSharedControlBar").css`
   position: absolute;
   inset: 0 0 auto 0;
-  z-index: 12;
+  z-index: var(--rd-z-toolbar, 2147483530);
   display: flex;
   align-items: center;
   gap: 5px;

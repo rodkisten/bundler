@@ -28,9 +28,18 @@ export const devtoolsStyles = sheet.css`
 
   @theme {
     zIndex<number>: (
-      container: 9999999
-      button: $container + 10 
-    ); 
+      base: 2147483500,
+      container: $base + 10,
+      dock: $base + 20,
+      toolbar: $base + 30,
+      sticky: $base + 40,
+      dropdown: $base + 50,
+      notification: $base + 60,
+      modal: $base + 70,
+      inspector: $base + 80,
+      resizer: $base + 90,
+      entry: $base + 100
+    );
     colors<color>: (
       background: var(--background),
       backgroundDark: var(--darker-background),
@@ -156,24 +165,26 @@ export const devtoolsStyles = sheet.css`
   :host {
     contain: layout style
     color-scheme: dark light
-    user-select: none
-    -webkit-user-select: none
-    -webkit-touch-callout: none
-
-    input, textarea, pre, code, [contenteditable="true"], .cm-editor, .cm-content {
-      user-select: text
-      -webkit-user-select: text
-      -webkit-touch-callout: default
-    }
 
     $$safeBottom: env(safe-area-inset-bottom, 0px)
     --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px)
     $$tabHeight: 40px
     $$controlHeight: 40px
     $$entrySize: 40px
-    $$entryZ: 2147483647
-    $$toolsZ: 500
-    $$overlayZ: 1200
+    $$entryZ: $zIndex.entry
+    $$toolsZ: $zIndex.dock
+    $$overlayZ: $zIndex.modal
+
+    --rd-z-container: 2147483510
+    --rd-z-dock: 2147483520
+    --rd-z-toolbar: 2147483530
+    --rd-z-sticky: 2147483540
+    --rd-z-dropdown: 2147483550
+    --rd-z-notification: 2147483560
+    --rd-z-modal: 2147483570
+    --rd-z-inspector: 2147483580
+    --rd-z-resizer: 2147483590
+    --rd-z-entry: 2147483600
 
     --rd-colors-background: var(--background)
     --rd-colors-backgroundDark: var(--darker-background)
@@ -338,7 +349,7 @@ export const devtoolsStyles = sheet.css`
     pos(absolute, left: 0, bottom: var(--rd-safe-bottom))
     w: 100%
     h: calc(80% - var(--rd-safe-bottom))
-    z: 2147483645
+    z: $zIndex.dock
     display: none
     pt: $$tabHeight
     opacity: 0
@@ -362,7 +373,7 @@ export const devtoolsStyles = sheet.css`
     h: 30px
     touch-action: none
     cursor: row-resize
-    z: 2147483647
+    z: $zIndex.resizer
 
     &::after {
       content: ""
@@ -460,7 +471,7 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-control {
     pos(absolute, left: 0, right: 0, top: 0)
-    z: 12
+    z: $zIndex.toolbar
     h: $$controlHeight
     p: 7px 8px
     display: flex
@@ -641,7 +652,7 @@ export const devtoolsStyles = sheet.css`
     break(word)
     sticky
     top: 0
-    z: 2
+    z: $zIndex.sticky
     bg: $backgroundDark
     color: $primary
     font-weight: 600
@@ -659,7 +670,7 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-notifications {
     pos(absolute, top: 48px, left: 50%)
-    z: 1000
+    z: $zIndex.notification
     w: min(92%, 440px)
     display: grid
     gap: 7px
@@ -824,7 +835,7 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-detail {
     pos(absolute, inset: 0)
-    z: 30
+    z: $zIndex.dropdown
     display: none
     pt: 40px
     bg: $background
@@ -838,7 +849,7 @@ export const devtoolsStyles = sheet.css`
   .roderuda-detail-tabs {
     sticky
     top: 0
-    z: 4
+    z: $zIndex.sticky
     display: flex
     overflow-x: auto
     bg: $backgroundDark

@@ -48,6 +48,7 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   listBottomPadding: 84,
   filterMinWidth: 150,
   editorMinHeight: 120,
+  logPreviewLines: 6,
 });
 
 const HISTORY_STORAGE_KEY = "roderuda:console-history";
@@ -154,6 +155,12 @@ export class Console extends Tool {
   dir(...args: unknown[]): void { this.capture.record("dir", args); }
   table(...args: unknown[]): void { this.capture.record("table", args); }
   html(htmlText: string): void { this.capture.record("html", [htmlText]); }
+  clear(): void { this.capture.clear(); }
+  setGlobal(name: string, value: unknown): void { this.capture.setGlobal(name, value); }
+  overrideConsole(): this { this.capture.overrideConsole(); return this; }
+  restoreConsole(): this { this.capture.restoreConsole(); return this; }
+  catchGlobalErr(): this { this.capture.enableGlobalErrors(); return this; }
+  ignoreGlobalErr(): this { this.capture.disableGlobalErrors(); return this; }
 
   ingestInitial(entries: readonly unknown[]): void {
     for (const entry of entries) {
@@ -165,13 +172,7 @@ export class Console extends Tool {
       this.capture.record(entry instanceof Error ? "error" : "log", [entry]);
     }
   }
-  clear(): void { this.capture.clear(); }
-  setGlobal(name: string, value: unknown): void { this.capture.setGlobal(name, value); }
-  overrideConsole(): this { this.capture.overrideConsole(); return this; }
-  restoreConsole(): this { this.capture.restoreConsole(); return this; }
-  catchGlobalErr(): this { this.capture.enableGlobalErrors(); return this; }
-  ignoreGlobalErr(): this { this.capture.disableGlobalErrors(); return this; }
-
+  
   filter(filter: ConsoleFilter): void {
     this.state.patch({
       filterValue: typeof filter === "string" && !filter.trim() ? null : filter,
@@ -262,7 +263,7 @@ export class Console extends Tool {
   private readonly onConfigChange = (key: string, value: unknown): void => {
     if (["overrideConsole", "captureWatchdogMs", "captureBridgePageRealm", "capturePatchPrototype", "captureLockConsole"].includes(key)) this.reconfigureCapture();
     if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
-    if (["logRowGap", "logRowPadding", "listBottomPadding", "filterMinWidth", "editorMinHeight"].includes(key)) this.applyTweakVariables();
+    if (["logRowGap", "logRowPadding", "listBottomPadding", "filterMinWidth", "editorMinHeight", "logPreviewLines"].includes(key)) this.applyTweakVariables();
     if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
       if (this.active) {
@@ -314,6 +315,7 @@ export class Console extends Tool {
         { kind: "number", key: "listBottomPadding", label: "Console bottom scroll padding", options: { min: 0, max: 320, step: 4 } },
         { kind: "number", key: "filterMinWidth", label: "Filter minimum width", options: { min: 80, max: 480, step: 10 } },
         { kind: "number", key: "editorMinHeight", label: "Expanded editor minimum height", options: { min: 60, max: 600, step: 10 } },
+        { kind: "number", key: "logPreviewLines", label: "Collapsed log preview lines", options: { min: 1, max: 100, step: 1 } },
       ],
     });
   }
@@ -340,6 +342,7 @@ export class Console extends Tool {
     target.style.setProperty("--rd-console-bottom-padding", `${this.config.get("listBottomPadding")}px`);
     target.style.setProperty("--rd-console-filter-min-width", `${this.config.get("filterMinWidth")}px`);
     target.style.setProperty("--rd-console-editor-min-height", `${this.config.get("editorMinHeight")}px`);
+    target.style.setProperty("--rd-console-preview-lines", String(this.config.get("logPreviewLines")));
   }
 
   private visibleRecords(): readonly ConsoleRecord[] {
@@ -575,6 +578,21 @@ function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLEle
     row.append(stack);
   }
   if (displayExtraInfo) row.append(ConsoleTime({ children: new Date(record.timestamp).toLocaleTimeString() }) as Node);
+  row.dataset.expanded = "false";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-expanded", "false");
+  const toggle = (): void => {
+    const expanded = row.dataset.expanded !== "true";
+    row.dataset.expanded = String(expanded);
+    row.setAttribute("aria-expanded", String(expanded));
+  };
+  row.addEventListener("click", toggle);
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggle();
+  });
   return row;
 }
 
@@ -728,7 +746,6 @@ function collectPropertyNames(value: unknown, prefix: string): string[] {
   }
   return [...names].sort();
 }
-
 
 function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {
   return value !== null && typeof value === "object" && !(value instanceof Error) && ("args" in value || "message" in value || "level" in value);
