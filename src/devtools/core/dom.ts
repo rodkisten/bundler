@@ -1,5 +1,5 @@
 import type { Cleanup } from "../types";
-import { uiElement } from "../components/runtime";
+import { uiElement } from "../core/runtime";
 import { debugLog, debugTrace, debugWarn } from "./debug";
 import {
   describeTarget,
