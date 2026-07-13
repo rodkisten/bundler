@@ -1,4 +1,4 @@
-import { asNode, event, html,  styled } from "../runtime";
+import { asNode, event, html,  styled } from "../core/runtime";
 
 export interface PanelAction {
   readonly label: string;
