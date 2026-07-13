@@ -1,5 +1,5 @@
 import { flushSync, store } from "../../broto";
-import { html, render } from "./runtime";
+import { html, render } from "../core/runtime";
 import { ConfigStore } from "../core/config";
 import { ConsoleCapture } from "../core/console-capture";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
