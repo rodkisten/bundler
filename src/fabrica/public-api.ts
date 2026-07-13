@@ -21,6 +21,7 @@ import { boundary } from "./boundary";
 import { createFabricaContext, provide, useContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
+import { createEventHelper, event as defaultEvent } from "./event-typing";
 import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "./directives";
 import { getHtmlArtifact, html as baseHtml, hydrate as baseHydrate, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "./dom";
 import { onDispose, onError, onMount, onUnmount } from "./lifecycle";
@@ -125,6 +126,7 @@ export type FabricaApi = {
   bind: typeof bind;
   model: typeof model;
   keyed: typeof keyed;
+  event: typeof defaultEvent;
   eventOptions: typeof eventOptions;
   fragment: typeof fragment;
   childrenToArray: typeof childrenToArray;
@@ -255,6 +257,7 @@ export function createFabricaApi(
     strings: TemplateStringsArray,
     ...values: RenderValue[]
   ) => runWithFabricaRuntime(runtime, () => baseJsx.html(strings, ...values));
+  const instanceEvent = createEventHelper();
   const instanceHtml: HtmlApi = Object.assign(instanceHtmlTag, {
     jsx: instanceJsxHtmlTag,
     raw: rawHtml,
@@ -409,6 +412,7 @@ export function createFabricaApi(
     bind,
     model,
     keyed,
+    event: instanceEvent,
     eventOptions,
     fragment,
     childrenToArray,
@@ -475,6 +479,7 @@ function attachDollarApi(api: FabricaApi): void {
     bind,
     model,
     keyed,
+    event: api.event,
     eventOptions,
     fragment,
     childrenToArray,

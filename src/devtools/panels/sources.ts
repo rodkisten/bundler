@@ -18,7 +18,7 @@ import {
 import {
   event,
   html,
-  ref,
+  
   render,
 } from "../core/runtime";
 import { Tool } from "../core/tool";
@@ -503,7 +503,7 @@ const userscriptSource = await readUserscriptSource(
     this.disposeBody = render(this.body, html`
       <RodSourcesEditor>
         <RodSourcesBreadcrumb>${this.sourceTitle(type)}</RodSourcesBreadcrumb>
-        <RodSourcesCodeMirrorHost ref=${ref<HTMLElement>((node) => { editorHost = node; })} />
+        <RodSourcesCodeMirrorHost ref=${(node) => { editorHost = node; }} />
       </RodSourcesEditor>
     `);
 
@@ -549,15 +549,15 @@ const userscriptSource = await readUserscriptSource(
         <img
           src=${src}
           alt=""
-          @load=${event(() => {
+          @load=${event.load(() => {
             if (image && info) info.textContent = `${image.naturalWidth} × ${image.naturalHeight} px`;
           })}
-          @error=${event(() => {
+          @error=${event.error(() => {
             if (info) info.textContent = "Image failed to load";
           })}
-          ref=${ref<HTMLImageElement>((node) => { image = node; })}
+          ref=${(node) => { image = node; }}
         />
-        <p data-image-info ref=${ref<HTMLParagraphElement>((node) => { info = node; })}>Loading image…</p>
+        <p data-image-info ref=${(node) => { info = node; }}>Loading image…</p>
       </RodSourcesImage>
     `);
   }
@@ -637,7 +637,7 @@ const userscriptSource = await readUserscriptSource(
               <li>
                 <RodSourcesTextButton
                   type="button"
-                  @click=${event((click: Event) => {
+                  @click=${event.click((click) => {
                     click.preventDefault();
                     this.openIndexedSource(index);
                   })}

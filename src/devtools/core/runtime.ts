@@ -113,16 +113,8 @@ export const uiState = store<DevtoolsUiState>({
   },
 });
 
-/**
- * Type helper for template event bindings.
- *
- * Fabrica consumes the returned function through the `@event=${...}` binding.
- * The `never` return keeps template interpolation types permissive without
- * leaking event handler functions into normal RenderValue positions.
- */
-export function event<T extends Event = Event>(handler: (event: T) => void): never {
-  return handler as never;
-}
+/** Strongly typed identity helper for every template event name. */
+export const event = devtoolsFabrica.event;
 
 export type UiElementOptions<TElement extends Element = Element> = {
   className?: string;

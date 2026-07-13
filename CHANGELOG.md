@@ -14,6 +14,8 @@
 
 
 ## Unreleased
+- Added hybrid Fábrica refs: direct callbacks, mutable `{ current }` objects, and backwards-compatible `ref()` directives now share one runtime contract.
+- Refactored all DevTools panels and shell components to use direct callback refs without manual `ref<HTMLElement>(...)` wrappers.
 
 ### Added
 

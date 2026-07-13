@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export type InfoModel = {
@@ -78,15 +78,15 @@ component("RodInfoView", function RodInfoView(props) {
   const model = view.model();
 
   return html`
-    <RodSharedPanelRoot ref=${ref<HTMLElement>((node) => {
+    <RodSharedPanelRoot ref=${(node) => {
       view.setRoot(node);
       return () => view.setRoot(null);
-    })}>
+    }}>
       <RodSharedHeader>
         <RodInfoTitle>Page information</RodInfoTitle>
         <RodSharedActions>
-          <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.refresh(); })}>Refresh</RodSharedButton>
-          <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyAll(); })}>Copy all</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click((click) => { click.preventDefault(); view.refresh(); })}>Refresh</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click((click) => { click.preventDefault(); view.copyAll(); })}>Copy all</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
       <RodSharedPanelBody data-info-body>
@@ -94,7 +94,7 @@ component("RodInfoView", function RodInfoView(props) {
           <RodSharedCard>
             <RodSharedHeader>
               <RodInfoTitle>${item.name}</RodInfoTitle>
-              <RodSharedButton type="button" @click=${event((click: Event) => { click.preventDefault(); view.copyItem(index); })}>Copy</RodSharedButton>
+              <RodSharedButton type="button" @click=${event.click((click) => { click.preventDefault(); view.copyItem(index); })}>Copy</RodSharedButton>
             </RodSharedHeader>
             <RodInfoCardContent>${view.renderValue(item.value)}</RodInfoCardContent>
           </RodSharedCard>

@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { SnippetItem } from "../types";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export type SnippetsModel = {
@@ -60,14 +60,14 @@ component("RodSnippetsView", function RodSnippetsView(props) {
       <RodSharedHeader>
         <RodSnippetsTitle>Snippets</RodSnippetsTitle>
         <RodSharedActions>
-          <RodSharedButton type="button" @click=${event(() => view.add())}>Add</RodSharedButton>
-          <RodSharedButton type="button" @click=${event(() => view.reset())}>Reset</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click(() => view.add())}>Add</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click(() => view.reset())}>Reset</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
-      <RodSharedPanelBody data-snippets-body ref=${ref<HTMLElement>((node) => {
+      <RodSharedPanelBody data-snippets-body ref=${(node) => {
         view.setBody(node);
         return () => view.setBody(null);
-      })}>
+      }}>
         ${model.snippets.length ? model.snippets.map((snippet, index) => {
           const active = model.activeNames.has(snippet.name);
           return html`
@@ -75,8 +75,8 @@ component("RodSnippetsView", function RodSnippetsView(props) {
               <RodSnippetName>${active ? "● " : ""}${snippet.name}</RodSnippetName>
               <RodSnippetDescription>${snippet.description}</RodSnippetDescription>
               <RodSharedActions>
-                <RodSharedButton type="button" @click=${event(() => view.run(index))}>${active ? "Stop" : "Run"}</RodSharedButton>
-                <RodSharedButton type="button" @click=${event(() => view.remove(index))}>Remove</RodSharedButton>
+                <RodSharedButton type="button" @click=${event.click(() => view.run(index))}>${active ? "Stop" : "Run"}</RodSharedButton>
+                <RodSharedButton type="button" @click=${event.click(() => view.remove(index))}>Remove</RodSharedButton>
               </RodSharedActions>
             </RodSharedCard>
           `;

@@ -175,14 +175,14 @@ export function applyCompiledProps(
             : null;
 
       if (typeof callback === "function") {
-        const cleanup = (callback as (node: Element) => void | (() => void))(
-          element,
-        );
+        const cleanup = (callback as (node: Element) => void | (() => void))(element);
         if (typeof cleanup === "function") {
           // Compiled templates call refs synchronously during DOM creation. The owned runtime path
           // still manages subtree disposal; this direct path intentionally avoids importing owner
           // internals so compiled build remains small and side-effect free.
         }
+      } else if (rawValue && typeof rawValue === "object" && "current" in rawValue) {
+        (rawValue as { current: Element | null }).current = element;
       }
       continue;
     }

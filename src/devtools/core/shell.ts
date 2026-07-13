@@ -1,7 +1,7 @@
 import { debugLog } from "./debug";
 import { icon } from "./utils";
 import type { CipoCssArtifact } from "../../cipo";
-import { html, ref, renderInto, repeat, signal, styled, uiState } from "./runtime";
+import { html,  renderInto, repeat, signal, styled, uiState } from "./runtime";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "./build-info";
 
 const EMPTY_PANELS = signal<string[]>([]);
@@ -278,20 +278,20 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
       data-inline=${String(inline)}
       data-roderuda-root
       data-roderuda-shell-ref="root"
-      ref=${ref<HTMLElement>((node) => {
+      ref=${(node) => {
         refs.root = node;
         uiState.setPath("shell.mounted", true);
         return () => uiState.setPath("shell.mounted", false);
-      })}
+      }}
     >
       <RodDevtoolsEntryButton
         type="button"
         aria-label="Open developer tools"
         title="RodEruda"
         data-roderuda-shell-ref="entryButton"
-        ref=${ref<HTMLButtonElement>((node) => {
+        ref=${(node) => {
           refs.entryButton = node;
-        })}
+        }}
       >
         ${icon("bug")}
       </RodDevtoolsEntryButton>
@@ -301,26 +301,26 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
         aria-label="Developer tools"
         aria-hidden="true"
         data-roderuda-shell-ref="devtools"
-        ref=${ref<HTMLElement>((node) => {
+        ref=${(node) => {
           refs.devtools = node;
-        })}
+        }}
       >
         <RodDevtoolsResizer
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize developer tools"
           data-roderuda-shell-ref="resizer"
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             refs.resizer = node;
-          })}
+          }}
         />
 
         <RodDevtoolsTabbar
           aria-label="Developer tools panels"
           data-roderuda-shell-ref="tabbar"
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             refs.tabbar = node;
-          })}
+          }}
         >
           ${repeat(EMPTY_PANELS, (name) => name, ({ item }) => html`<span hidden>${item()}</span>`)}
           <RodDevtoolsBuildBadge data-roderuda-build-badge title=${`Build ${DEVTOOLS_BUILD_INFO.sha} · ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
@@ -328,25 +328,25 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
 
         <RodDevtoolsTools
           data-roderuda-shell-ref="tools"
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             refs.tools = node;
-          })}
+          }}
         />
 
         <RodDevtoolsNotifications
           aria-live="polite"
           data-roderuda-shell-ref="notifications"
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             refs.notifications = node;
-          })}
+          }}
         />
 
         <RodDevtoolsModalRoot
           role="presentation"
           data-roderuda-shell-ref="modalRoot"
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             refs.modalRoot = node;
-          })}
+          }}
         />
       </RodDevtoolsDock>
     </RodDevtoolsShellRoot>

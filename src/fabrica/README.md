@@ -721,6 +721,22 @@ useContext(context)
 when(condition, truthy, falsy?)
 repeat(items, key, render)
 virtualRepeat(items, key, render, options)
+### Hybrid refs
+
+Fábrica accepts callback refs directly, mutable object refs, and the legacy `ref()` directive:
+
+```ts
+let button: HTMLElement | null = null;
+const objectRef = { current: null as HTMLElement | null };
+
+html`
+  <button ref=${(node) => { button = node; }}>Callback ref</button>
+  <button ref=${objectRef}>Object ref</button>
+`;
+```
+
+A callback may return cleanup. Object refs are reset to `null` when the mounted subtree is disposed. The `ref()` helper remains available for backwards compatibility and explicit generic narrowing.
+
 ref(callback)
 classMap(record)
 styleMap(record)
@@ -872,6 +888,20 @@ html`<input .value=${bind(name)} />`
 
 ```ts
 html`<button @click=${eventOptions(onClick, { once: true })}>Save</button>`
+
+Named event helpers provide contextual DOM event types without manual callback annotations:
+
+```ts
+const { event } = Fabrica;
+
+html`
+  <button @click=${event.click((click) => click.preventDefault())}>Save</button>
+  <input @input=${event.input((input) => console.log(input.currentTarget.value))} />
+  <div @pointerup=${event.pointerup((pointer) => console.log(pointer.pointerId))}></div>
+`;
+```
+
+Every key from `GlobalEventHandlersEventMap` is available, including `keydown`, `submit`, `change`, `focus`, and the complete pointer-event family. The callable `event(handler)` form remains available for compatibility and custom explicit event types.
 ```
 
 ```ts

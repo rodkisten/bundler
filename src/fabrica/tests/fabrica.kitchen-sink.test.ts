@@ -489,6 +489,32 @@ describe("Fábrica kitchen sink: directives", () => {
     expect(textOf()).toContain("Row 0");
   });
 
+  it("accepts direct callback refs without the ref() wrapper", () => {
+    const host = document.createElement("div");
+    let button: HTMLElement | null = null;
+    const cleanup = vi.fn();
+
+    const dispose = render(host, html`<button ref=${(node) => {
+      button = node;
+      return cleanup;
+    }}>Direct ref</button>`);
+
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    dispose();
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("supports mutable object refs and clears them on dispose", () => {
+    const host = document.createElement("div");
+    const button = { current: null as HTMLElement | null };
+
+    const dispose = render(host, html`<button ref=${button}>Object ref</button>`);
+
+    expect(button.current).toBeInstanceOf(HTMLButtonElement);
+    dispose();
+    expect(button.current).toBeNull();
+  });
+
   it("applies ref() callbacks and cleanup on dispose", () => {
     const cleanup = vi.fn();
     const callback = vi.fn(() => cleanup);

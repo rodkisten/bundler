@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { ShellRefs } from "../core/shell";
-import { asElement, event, html, ref, styled, uiState } from "../core/runtime";
+import { asElement, event, html,  styled, uiState } from "../core/runtime";
 import { ConfigStore } from "./config";
 import { on } from "./dom";
 import { icon } from "./utils";
@@ -362,9 +362,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-tool=${name}
         aria-label=${tool.title ?? name}
         hidden
-        ref=${ref<HTMLElement>((node) => {
+        ref=${(node) => {
           panel = node;
-        })}
+        }}
       />
     `);
 
@@ -380,16 +380,16 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-selected="false"
         aria-selected="false"
         draggable=${name === "settings" ? "false" : "true"}
-        @click=${event((click: Event) => {
+        @click=${event.click((click) => {
           click.preventDefault();
           this.showTool(name);
         })}
-        @dragstart=${event((drag: Event) => this.handleTabDragStart(drag, name, tab))}
-        @dragover=${event((drag: Event) => this.handleTabDragOver(drag))}
-        @drop=${event((drop: Event) => this.handleTabDrop(drop, name))}
-        ref=${ref<HTMLButtonElement>((node) => {
+        @dragstart=${event.dragstart((drag) => this.handleTabDragStart(drag, name, tab))}
+        @dragover=${event.dragover((drag) => this.handleTabDragOver(drag))}
+        @drop=${event.drop((drop) => this.handleTabDrop(drop, name))}
+        ref=${(node) => {
           tab = node;
-        })}
+        }}
       >
         <RodDevtoolsTabIcon>${renderToolIcon(tool.icon, name)}</RodDevtoolsTabIcon>
         <RodDevtoolsTabLabel>${tool.title ?? name}</RodDevtoolsTabLabel>
@@ -596,13 +596,13 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         data-type=${options.type ?? "info"}
         data-active="false"
         data-notification=${++this.notificationSequence}
-        @click=${event((click: Event) => {
+        @click=${event.click((click) => {
           click.preventDefault();
           remove();
         })}
-        ref=${ref<HTMLElement>((node) => {
+        ref=${(node) => {
           item = node;
-        })}
+        }}
       >
         ${message}
       </RodDevtoolsNotificationToast>
@@ -631,26 +631,26 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
       body = asElement<HTMLFormElement>(html`
         <RodDevtoolsModalSurface
-          @submit=${event((submit: Event) => {
+          @submit=${event.submit((submit) => {
             submit.preventDefault();
             finish(input.value);
           })}
-          ref=${ref<HTMLFormElement>((node) => {
+          ref=${(node) => {
             body = node;
-          })}
+          }}
         >
           <RodDevtoolsModalTitle>${message}</RodDevtoolsModalTitle>
           <RodDevtoolsModalBody>
             <RodDevtoolsModalInput
               .value=${initialValue}
               autocomplete="off"
-              ref=${ref<HTMLInputElement>((node) => {
+              ref=${(node) => {
                 input = node;
-              })}
+              }}
             />
           </RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
-            <RodDevtoolsTextButton type="button" @click=${event(() => finish(null))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(null))}>Cancel</RodDevtoolsTextButton>
             <RodDevtoolsTextButton type="submit" data-primary="true">OK</RodDevtoolsTextButton>
           </RodDevtoolsModalActions>
         </RodDevtoolsModalSurface>
@@ -679,21 +679,21 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
       body = asElement<HTMLElement>(html`
         <RodDevtoolsModalBox
-          ref=${ref<HTMLElement>((node) => {
+          ref=${(node) => {
             body = node;
-          })}
+          }}
         >
           <RodDevtoolsModalTitle>Confirm</RodDevtoolsModalTitle>
           <RodDevtoolsModalBody>${message}</RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
-            <RodDevtoolsTextButton type="button" @click=${event(() => finish(false))}>Cancel</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(false))}>Cancel</RodDevtoolsTextButton>
             <RodDevtoolsTextButton
               type="button"
               data-primary="true"
-              @click=${event(() => finish(true))}
-              ref=${ref<HTMLButtonElement>((node) => {
+              @click=${event.click(() => finish(true))}
+              ref=${(node) => {
                 accept = node;
-              })}
+              }}
             >
               Continue
             </RodDevtoolsTextButton>

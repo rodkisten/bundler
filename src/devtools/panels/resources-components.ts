@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, html, ref, styled } from "../core/runtime";
+import { component, html,  styled } from "../core/runtime";
 import "./shared-components";
 
 export interface ResourcesViewModel {
@@ -236,10 +236,10 @@ component("RodResourcesView", function RodResourcesView(props) {
   return html`
     <RodSharedScrollableBody
       data-resources-body
-      ref=${ref((node) => {
+      ref=${(node) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
-      })}
+      }}
     />
   `;
 });

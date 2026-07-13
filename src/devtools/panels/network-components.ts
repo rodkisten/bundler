@@ -2,7 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
-import { component, event, html, ref, styled } from "../core/runtime";
+import { component, event, html,  styled } from "../core/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 
@@ -312,8 +312,8 @@ component("RodNetworkView", function RodNetworkView(props) {
   return html`
     <RodSharedPanelLayout data-network-layout>
       <RodSharedControlBar data-network-control>
-        <RodNetworkIconButton type="button" data-action="record" data-active=${String(recording)} title="Record" @click=${event((click: Event) => view.onAction(click))}>${icon("record")}</RodNetworkIconButton>
-        <RodNetworkIconButton type="button" data-action="clear" title="Clear" @click=${event((click: Event) => view.onAction(click))}>${icon("clear")}</RodNetworkIconButton>
+        <RodNetworkIconButton type="button" data-action="record" data-active=${String(recording)} title="Record" @click=${event.click((click) => view.onAction(click))}>${icon("record")}</RodNetworkIconButton>
+        <RodNetworkIconButton type="button" data-action="clear" title="Clear" @click=${event.click((click) => view.onAction(click))}>${icon("clear")}</RodNetworkIconButton>
         <RodSharedControlSpacer />
         <RodNetworkSearch
           data-network-filter
@@ -321,24 +321,24 @@ component("RodNetworkView", function RodNetworkView(props) {
           placeholder="Filter requests"
           aria-label="Filter network requests"
           .value=${filter}
-          @input=${event((input: Event) => view.onFilterInput(input))}
-          ref=${ref((node) => {
+          @input=${event.input((input) => view.onFilterInput(input))}
+          ref=${(node) => {
             view.setFilterInput(node as HTMLInputElement);
             return () => view.setFilterInput(null);
-          })}
+          }}
         />
-        <RodNetworkIconButton type="button" data-action="copy" title="Copy as cURL" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
+        <RodNetworkIconButton type="button" data-action="copy" title="Copy as cURL" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
       </RodSharedControlBar>
 
-      <RodNetworkList data-network-list ref=${ref((node) => {
+      <RodNetworkList data-network-list ref=${(node) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
-      })} />
+      }} />
 
-      <RodNetworkDetail data-network-detail data-active="false" ref=${ref((node) => {
+      <RodNetworkDetail data-network-detail data-active="false" ref=${(node) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
-      })} />
+      }} />
     </RodSharedPanelLayout>
   `;
 });
@@ -378,7 +378,7 @@ export function networkRowTemplate(record: NetworkRecord, selectedId: string | n
   const status = record.status == null ? (record.state === "pending" ? "…" : "—") : String(record.status);
 
   return html`
-    <RodNetworkRow data-state=${record.state} data-selected=${String(record.id === selectedId)} @click=${event(() => onOpen(record.id))}>
+    <RodNetworkRow data-state=${record.state} data-selected=${String(record.id === selectedId)} @click=${event.click(() => onOpen(record.id))}>
       <td><RodNetworkName title=${record.url}>${truncate(name, 80)}</RodNetworkName></td>
       <td><RodNetworkStatus data-status=${status}>${status}</RodNetworkStatus></td>
       <td><RodNetworkMethod data-method=${record.method}>${record.method}</RodNetworkMethod></td>
@@ -417,9 +417,9 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
 
   return html`
     <RodSharedControlBar>
-      <RodNetworkIconButton type="button" data-action="close-detail" title="Back" @click=${event(options.onAction)}>${icon("back")}</RodNetworkIconButton>
+      <RodNetworkIconButton type="button" data-action="close-detail" title="Back" @click=${event.click(options.onAction)}>${icon("back")}</RodNetworkIconButton>
       <RodSharedDetailTitle title=${record.url}>${record.url}</RodSharedDetailTitle>
-      <RodNetworkIconButton type="button" data-action="copy-curl" title="Copy as cURL" @click=${event(options.onAction)}>${icon("copy")}</RodNetworkIconButton>
+      <RodNetworkIconButton type="button" data-action="copy-curl" title="Copy as cURL" @click=${event.click(options.onAction)}>${icon("copy")}</RodNetworkIconButton>
     </RodSharedControlBar>
 
     <RodSharedScrollableBody>
@@ -469,7 +469,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
 
 function detailTabTemplate(tab: string, label: string, activeTab: string, onTab: (event: Event) => void): RenderValue {
   return html`
-    <RodNetworkTabButton type="button" data-detail-tab=${tab} data-active=${String(tab === activeTab)} @click=${event(onTab)}>${label}</RodNetworkTabButton>
+    <RodNetworkTabButton type="button" data-detail-tab=${tab} data-active=${String(tab === activeTab)} @click=${event.click(onTab)}>${label}</RodNetworkTabButton>
   `;
 }
 
