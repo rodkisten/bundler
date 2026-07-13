@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { ShellRefs } from "../components/shell";
-import { asElement, event, html,  styled, uiState } from "../components/runtime";
+import type { ShellRefs } from "../core/shell";
+import { asElement, event, html,  styled, uiState } from "../core/runtime";
 import { ConfigStore } from "./config";
 import { on } from "./dom";
 import { icon } from "./utils";
