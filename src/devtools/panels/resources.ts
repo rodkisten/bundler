@@ -3,7 +3,7 @@ import { icon, isDevtoolsNode, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { Tool } from "../tool";
 import type { ResourcesConfig, SourcePayload, ToolContext } from "../types";
-import { event, html, ref, render } from "../components/runtime";
+import { event, html, ref, render } from "../core/runtime";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import {
   ResourcesIconButton,
