@@ -82,7 +82,7 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   border-radius: $panel;
   background: black;
   color: white;
-  opacity: .3;
+  opacity: .6;
   z-index: var(--rd-z-entry, 2147483600);
   cursor: grab;
   user-select: none;
