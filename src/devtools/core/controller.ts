@@ -340,6 +340,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     };
 
     this.bind();
+    this.updateViewportMetrics();
     this.applyConfiguration();
   }
 
@@ -776,6 +777,19 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private bind(): void {
+    const updateViewport = () => this.updateViewportMetrics();
+    this.cleanup.push(on(window, "resize", updateViewport));
+    this.cleanup.push(on(window, "orientationchange", updateViewport));
+    const viewport = window.visualViewport;
+    if (viewport) {
+      viewport.addEventListener("resize", updateViewport);
+      viewport.addEventListener("scroll", updateViewport);
+      this.cleanup.push(() => {
+        viewport.removeEventListener("resize", updateViewport);
+        viewport.removeEventListener("scroll", updateViewport);
+      });
+    }
+
     this.cleanup.push(on(this.refs.entryButton, "click", (click: MouseEvent) => {
       click.preventDefault();
       click.stopPropagation();
@@ -830,6 +844,14 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     }
   }
 
+  private updateViewportMetrics(): void {
+    const viewport = window.visualViewport;
+    const top = Math.max(0, viewport?.offsetTop ?? 0);
+    const height = Math.max(240, viewport?.height ?? window.innerHeight);
+    this.refs.root.style.setProperty("--rd-visual-viewport-top", `${top}px`);
+    this.refs.root.style.setProperty("--rd-visual-viewport-height", `${height}px`);
+  }
+
   private applyConfiguration(key?: string): void {
     if (!key || key === "theme") {
       const themeName = String(this.config.get("theme"));
@@ -854,7 +876,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (!key || key === "displaySize") {
       this.refs.devtools.style.height = this.inline
         ? "100%"
-        : `calc(${this.config.get("displaySize")}% - var(--rd-safe-bottom))`;
+        : `min(calc(${this.config.get("displaySize")}% - var(--rd-safe-bottom)), calc(var(--rd-visual-viewport-height) - var(--rd-visual-viewport-top) - var(--rd-safe-top) - var(--rd-safe-bottom) - 12px))`;
     }
 
     const cssVariables: Partial<Record<keyof DevToolsConfig, string>> = {

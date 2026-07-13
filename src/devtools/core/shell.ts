@@ -11,7 +11,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   pointer-events: none;
   position: fixed;
   inset: 0;
-  z-index: 2147483647;
+  z-index: var(--rd-z-container, 2147483510);
   transform: translateZ(1px);
   isolation: isolate;
   contain: layout style paint;
@@ -21,8 +21,10 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   line-height: 1.35;
   direction: ltr;
   text-align: left;
+  --rd-safe-top: env(safe-area-inset-top, 0px);
   --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--rd-safe-area-minimum, 20px));
-  --rd-safe-top: max(env(safe-area-inset-top, 0px), var(--rd-safe-area-top-minimum, 8px));
+  --rd-visual-viewport-top: 0px;
+  --rd-visual-viewport-height: 100dvh;
 
   &[data-inline="true"] {
     position: relative;
@@ -35,9 +37,24 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   *::before,
   *::after {
     box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
     pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: none;
+  }
+
+  input,
+  textarea,
+  pre,
+  code,
+  [contenteditable="true"],
+  .cm-editor,
+  .cm-content {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
   }
 
   button,
@@ -66,7 +83,7 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   background: black;
   color: white;
   opacity: .3;
-  z-index: $$entryZ;
+  z-index: var(--rd-z-entry, 2147483600);
   cursor: grab;
   user-select: none;
   font: 700 23px / 1 $font.ui;
@@ -91,8 +108,12 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   left: 0;
   bottom: calc(var(--rd-safe-bottom) + var(--rd-dock-bottom-gap, 0px));
   width: 100%;
-  height: min(calc(80% - var(--rd-safe-bottom)), calc(100% - var(--rd-safe-top) - var(--rd-safe-bottom) - 8px));
-  z-index: 2147483645;
+  height: min(
+    calc(80% - var(--rd-safe-bottom)),
+    calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px)
+  );
+  max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
+  z-index: var(--rd-z-dock, 2147483520);
   display: none;
   padding-top: var(--rd-tab-height, $$tabHeight);
   opacity: 0;
@@ -121,7 +142,7 @@ const Resizer = styled.div("RodDevtoolsResizer").css`
   height: var(--rd-resizer-height, 30px);
   touch-action: none;
   cursor: row-resize;
-  z-index: 2147483647;
+  z-index: var(--rd-z-resizer, 2147483590);
 
   &::after {
     content: "";
@@ -187,7 +208,7 @@ const Notifications = styled.div("RodDevtoolsNotifications").css`
   position: absolute;
   top: var(--rd-notification-top, 48px);
   left: 50%;
-  z-index: 1000;
+  z-index: var(--rd-z-notification, 2147483560);
   width: min(92%, var(--rd-notification-width, 440px));
   display: grid;
   gap: 7px;
@@ -198,7 +219,7 @@ const Notifications = styled.div("RodDevtoolsNotifications").css`
 const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
   position: absolute;
   inset: 0;
-  z-index: $$overlayZ;
+  z-index: var(--rd-z-modal, 2147483570);
   display: none;
   place-items: center;
   padding: 16px;
