@@ -346,9 +346,11 @@ export const devtoolsStyles = sheet.css`
 
   .roderuda-dev-tools {
     pointer-events: auto
-    pos(absolute, left: 0, bottom: var(--rd-safe-bottom))
+    pos(fixed, left: 0, right: 0, bottom: calc(var(--rd-visual-viewport-bottom, 0px) + max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)))
+    top: auto
     w: 100%
-    h: calc(80% - var(--rd-safe-bottom))
+    h: min(var(--rd-devtools-height, 72dvh), calc(100dvh - max(env(safe-area-inset-top, 0px), 12px) - max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)) - 12px))
+    max-height: calc(100dvh - max(env(safe-area-inset-top, 0px), 12px) - max(var(--rd-safe-bottom), env(safe-area-inset-bottom, 0px)) - 12px)
     z: $zIndex.dock
     display: none
     pt: $$tabHeight
@@ -458,7 +460,32 @@ export const devtoolsStyles = sheet.css`
     relative
     w: 100%
     h: 100%
-    overflow: hidden
+    overflow-x: hidden
+    overflow-y: hidden
+  }
+
+  .roderuda-object,
+  .roderuda-object-body,
+  .roderuda-object-row,
+  .roderuda-console-output {
+    min-width: 0
+    max-width: 100%
+    overflow-wrap: anywhere
+  }
+
+  .roderuda-object summary {
+    cursor: pointer
+    color: $primary
+  }
+
+  .roderuda-object-body {
+    padding-left: 14px
+  }
+
+  .roderuda-object-row {
+    display: grid
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr)
+    gap: 6px
   }
 
   .roderuda-tool {

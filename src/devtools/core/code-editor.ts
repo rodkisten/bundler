@@ -21,6 +21,7 @@ export interface CodeEditorOptions {
   tabSize?: number;
   parent: HTMLElement;
   completions?: (context: CompletionContext) => CompletionResult | null;
+  activateCompletionOnTyping?: boolean;
   onChange?(value: string): void;
   onRun?(): void;
 }
@@ -49,7 +50,10 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
       ...historyKeymap,
     ]),
     languageExtension(options.language ?? "text"),
-    autocompletion({ override: options.completions ? [options.completions as never] : undefined }),
+    autocompletion({
+      override: options.completions ? [options.completions as never] : undefined,
+      activateOnTyping: options.activateCompletionOnTyping !== false,
+    }),
     updateListener,
     ...(options.lineWrapping === false ? [] : [EditorView.lineWrapping]),
     EditorState.tabSize.of(Math.max(1, Math.min(16, options.tabSize ?? 2))),

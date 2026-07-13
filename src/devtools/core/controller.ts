@@ -848,8 +848,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const viewport = window.visualViewport;
     const top = Math.max(0, viewport?.offsetTop ?? 0);
     const height = Math.max(240, viewport?.height ?? window.innerHeight);
+    const bottom = Math.max(0, window.innerHeight - (top + height));
     this.refs.root.style.setProperty("--rd-visual-viewport-top", `${top}px`);
     this.refs.root.style.setProperty("--rd-visual-viewport-height", `${height}px`);
+    this.refs.root.style.setProperty("--rd-visual-viewport-bottom", `${bottom}px`);
   }
 
   private applyConfiguration(key?: string): void {
@@ -876,7 +878,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (!key || key === "displaySize") {
       this.refs.devtools.style.height = this.inline
         ? "100%"
-        : `min(calc(${this.config.get("displaySize")}% - var(--rd-safe-bottom)), calc(var(--rd-visual-viewport-height) - var(--rd-visual-viewport-top) - var(--rd-safe-top) - var(--rd-safe-bottom) - 12px))`;
+        : `min(calc(${this.config.get("displaySize")}dvh - var(--rd-safe-bottom)), calc(var(--rd-visual-viewport-height) - var(--rd-safe-top) - var(--rd-safe-bottom) - 12px))`;
     }
 
     const cssVariables: Partial<Record<keyof DevToolsConfig, string>> = {
