@@ -56,6 +56,7 @@ export type RenderValue =
   | readonly RenderValue[]
   | Signal<unknown>
   | ReactiveExpression<unknown>
+  | RefValue<HTMLElement>
   | Directive
   | RawHtml
   | DomBag
@@ -174,8 +175,14 @@ export type VirtualRepeatOptions = RepeatOptions & {
   height?: number | string;
 };
 
-/** Element ref directive. */
+/** Element ref callback. May return cleanup registered with the owning DOM node. */
 export type RefCallback<T extends Element = Element> = (node: T) => void | Cleanup;
+
+/** Mutable object ref populated on mount and reset to null on disposal. */
+export type RefObject<T extends Element = Element> = { current: T | null };
+
+/** Every ref shape accepted by native and registered component attributes. */
+export type RefValue<T extends Element = Element> = RefCallback<T> | RefObject<T> | RefDirective<T> | null | undefined;
 
 export type RefDirective<T extends Element = Element> = Directive & {
   readonly kind: "ref";

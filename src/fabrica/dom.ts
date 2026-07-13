@@ -1160,14 +1160,23 @@ function bindAttributePart(
     return;
   }
 
-  if (isRefDirective(value)) {
-    const cleanup = value.callback(node);
+  if (rawName === "ref") {
+    const refValue = isRefDirective(value) ? value.callback : value;
 
-    if (typeof cleanup === "function") {
-      registerCleanup(node, cleanup);
+    if (typeof refValue === "function") {
+      const cleanup = refValue(node);
+      if (typeof cleanup === "function") registerCleanup(node, cleanup);
+      return;
     }
 
-    return;
+    if (refValue && typeof refValue === "object" && "current" in refValue) {
+      const objectRef = refValue as { current: Element | null };
+      objectRef.current = node;
+      registerCleanup(node, () => {
+        if (objectRef.current === node) objectRef.current = null;
+      });
+      return;
+    }
   }
 
   if (rawName.startsWith("@")) {

@@ -721,6 +721,22 @@ useContext(context)
 when(condition, truthy, falsy?)
 repeat(items, key, render)
 virtualRepeat(items, key, render, options)
+### Hybrid refs
+
+Fábrica accepts callback refs directly, mutable object refs, and the legacy `ref()` directive:
+
+```ts
+let button: HTMLElement | null = null;
+const objectRef = { current: null as HTMLElement | null };
+
+html`
+  <button ref=${(node) => { button = node; }}>Callback ref</button>
+  <button ref=${objectRef}>Object ref</button>
+`;
+```
+
+A callback may return cleanup. Object refs are reset to `null` when the mounted subtree is disposed. The `ref()` helper remains available for backwards compatibility and explicit generic narrowing.
+
 ref(callback)
 classMap(record)
 styleMap(record)
