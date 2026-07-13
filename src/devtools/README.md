@@ -157,3 +157,11 @@ Each bag accepts raw values, `Error` objects, or structured entries with `level`
 ## Mobile interaction rules
 
 The DevTools surface is non-selectable by default. Inputs, textareas, code blocks, contenteditable regions, and CodeMirror explicitly restore text selection. Panel sections use pointer-based drag handles so reordering works with touch, pen, and mouse instead of relying on desktop HTML drag-and-drop.
+
+## Mobile dock and Console parity
+
+The floating DevTools dock is anchored to the bottom of the current `visualViewport`, including Safari toolbar and virtual-keyboard offsets. Tool content scrolls vertically by default; horizontal scrolling is reserved for explicit code/table surfaces.
+
+Console output preserves live values and renders objects, functions, DOM nodes, errors, maps, sets, promises and long global objects as lazy expandable trees. Standard browser formatting tokens (`%s`, `%d`, `%i`, `%f`, `%o`, `%O`, `%c`, `%%`) are supported. The capture layer handles groups, collapsed groups, tables, traces, counters and timers.
+
+REPL completion is manual on mobile to avoid iOS accepting a partial completion while typing identifiers such as `document`. `Enter` and the Run button execute code; `Shift+Enter` inserts a newline.
