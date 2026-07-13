@@ -167,6 +167,20 @@ export const ConsoleRow = styled.div("RodConsoleRow").css`
   }
 `;
 
+
+export const ConsoleStack = styled.pre("RodConsoleStack").css`
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid alpha($border / 68%);
+  border-radius: $sm;
+  color: $secondary;
+  background: alpha($backgroundDark / 72%);
+  font: 11px / 1.45 $font.mono;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+`;
+
 export const ConsoleRepeat = styled.span("RodConsoleRepeat").css`
   display: inline-grid;
   place-items: center;
@@ -315,6 +329,7 @@ const CONSOLE_STYLED_COMPONENTS = Object.freeze([
   ConsoleFilter,
   ConsoleList,
   ConsoleRow,
+  ConsoleStack,
   ConsoleRepeat,
   ConsoleGroup,
   ConsoleTime,

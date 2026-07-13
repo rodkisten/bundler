@@ -48,8 +48,16 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
       try {
         listener(...args);
       } catch (error) {
-        debugError("emitter", "listener failed", { owner: this.constructor.name, event: String(event), error: error instanceof Error ? error.message : String(error) });
-        queueMicrotask(() => { throw error; });
+        // Never rethrow subscriber failures from an emitter. Re-throwing here is
+        // especially dangerous for the console capture pipeline: the global
+        // error listener records the throw, emits another `record`, and the
+        // same broken subscriber can create an infinite error loop.
+        debugError("emitter", "listener failed", {
+          owner: this.constructor.name,
+          event: String(event),
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
       }
     }
     return this;

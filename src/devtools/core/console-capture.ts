@@ -116,6 +116,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private readonly current = new Map<ConsoleMethod, Fn>();
   private readonly wrappers = new Map<ConsoleMethod, Fn>();
   private readonly descriptors = new Map<ConsoleMethod, PropertyDescriptor | undefined>();
+  private readonly prototypeDescriptors = new Map<ConsoleMethod, PropertyDescriptor | undefined>();
 
   private readonly records: ConsoleRecord[] = [];
   private readonly timers = new Map<string, number>();
@@ -131,6 +132,8 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private originalConsoleDescriptor: PropertyDescriptor | undefined;
   private pageBridgeCleanup: (() => void) | null = null;
   private readonly bridgeEventName = `__roderuda_console_${Math.random().toString(36).slice(2)}`;
+  private lastGlobalErrorFingerprint = "";
+  private lastGlobalErrorAt = 0;
 
   install(options: InstallOptions = {}): void {
     if (options.overrideConsole !== false) {
@@ -183,6 +186,20 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.pageBridgeCleanup = null;
     this.restoreConsoleLock();
 
+    const prototype = Object.getPrototypeOf(console);
+    if (prototype) {
+      for (const method of methods) {
+        if (!this.prototypeDescriptors.has(method)) continue;
+        const descriptor = this.prototypeDescriptors.get(method);
+        try {
+          if (descriptor) Object.defineProperty(prototype, method, descriptor);
+          else delete (prototype as Record<string, unknown>)[method];
+        } catch {
+          // Prototype restoration is best-effort in hostile browser realms.
+        }
+      }
+    }
+
     for (const method of methods) {
       const descriptor = this.descriptors.get(method);
       const original = this.original.get(method);
@@ -212,6 +229,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.current.clear();
     this.wrappers.clear();
     this.descriptors.clear();
+    this.prototypeDescriptors.clear();
     this.installed = false;
   }
 
@@ -405,6 +423,14 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     for (const method of methods) {
       const wrapper = this.wrappers.get(method);
       if (!wrapper) continue;
+
+      if (!this.prototypeDescriptors.has(method)) {
+        try {
+          this.prototypeDescriptors.set(method, Object.getOwnPropertyDescriptor(proto, method));
+        } catch {
+          this.prototypeDescriptors.set(method, undefined);
+        }
+      }
 
       try {
         Object.defineProperty(proto, method, {
@@ -803,7 +829,13 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         ? event.error
         : new Error(event.message || "Unknown error");
 
-    this.record("error", [error], {
+    const location = event.filename
+      ? `${event.filename}:${event.lineno || 0}:${event.colno || 0}`
+      : "";
+    const fingerprint = `error|${error.name}|${error.message}|${location}|${error.stack ?? ""}`;
+    if (this.isDuplicateGlobalError(fingerprint)) return;
+
+    this.record("error", [error, location].filter(Boolean), {
       stack: error.stack,
     });
   };
@@ -814,8 +846,22 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         ? event.reason
         : new Error(String(event.reason));
 
+    const fingerprint = `rejection|${reason.name}|${reason.message}|${reason.stack ?? ""}`;
+    if (this.isDuplicateGlobalError(fingerprint)) return;
+
     this.record("error", ["Unhandled promise rejection", reason], {
       stack: reason.stack,
     });
   };
+
+  private isDuplicateGlobalError(fingerprint: string): boolean {
+    const timestamp = Date.now();
+    const duplicate =
+      fingerprint === this.lastGlobalErrorFingerprint &&
+      timestamp - this.lastGlobalErrorAt < 500;
+
+    this.lastGlobalErrorFingerprint = fingerprint;
+    this.lastGlobalErrorAt = timestamp;
+    return duplicate;
+  }
 }
