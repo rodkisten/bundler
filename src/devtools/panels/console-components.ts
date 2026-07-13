@@ -1,7 +1,7 @@
 import type { Store } from "../../broto";
 import type { CipoCssArtifact } from "../../cipo";
 import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord } from "../types";
-import { component, event, html, ref, styled } from "../components/runtime";
+import { component, event, html, ref, styled } from "./runtime";
 import { icon } from "../utils";
 
 export interface ConsoleState extends Record<string, unknown> {
