@@ -381,7 +381,13 @@ export class Sources extends Tool {
     const url = payload.url
       || (typeof value === "string" && looksLikeUrl(value) ? value : "");
 
-    if (!url || type === "image" || type === "iframe") {
+    const hasInlineText = typeof value === "string"
+      && value.trim().length > 0
+      && !looksLikeUrl(value);
+
+    // A URL may be metadata for an already captured body. Never throw away a
+    // valid body merely because the original resource URL is also present.
+    if (!url || type === "image" || type === "iframe" || hasInlineText) {
       return { type, value, url };
     }
 
