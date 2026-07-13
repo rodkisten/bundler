@@ -42,6 +42,8 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
     drawSelection(),
     highlightActiveLine(),
     keymap.of([
+      { key: "Enter", run: () => { options.onRun?.(); return Boolean(options.onRun); } },
+      { key: "Shift-Enter", run: () => false },
       { key: "Mod-Enter", run: () => { options.onRun?.(); return Boolean(options.onRun); } },
       ...defaultKeymap,
       ...historyKeymap,
