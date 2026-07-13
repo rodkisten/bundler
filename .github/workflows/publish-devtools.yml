@@ -17,7 +17,6 @@ on:
         description: "Run DevTools benchmarks?"
         default: false
       
-
       should_publish_canary:
         type: boolean
         description: "Create devtools.canary.iife.min.js?"
@@ -30,6 +29,12 @@ on:
 
   workflow_call:
     inputs:
+      should_typecheck:
+        type: boolean
+        description: "Run typecheck"
+        required: false 
+        default: true
+        
       should_benchmark:
         type: boolean
         required: false
