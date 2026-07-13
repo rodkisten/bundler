@@ -83,10 +83,10 @@ jobs:
        ${{ 
         (github.event_name == 'workflow_dispatch' 
         || github.event_name == 'workflow_call')
-        && inputs.should_run_tests == "true"
+        && inputs.should_run_tests == true
        }}
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ inputs.should_run_tests != "true" }}
+    continue-on-error: ${{ inputs.should_run_tests != true }}
 
     steps:
       - name: "📥 Checkout private source"
