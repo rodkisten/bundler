@@ -19,7 +19,8 @@ export const ResourcesSection = styled.section("RodResourcesSection").css`
 
 export const ResourcesTableWrap = styled.div("RodResourcesTableWrap").css`
   width: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 `;

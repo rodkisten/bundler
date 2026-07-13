@@ -49,7 +49,8 @@ export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   height: 100%;
   padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
   scroll-padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   background: $background;
@@ -129,9 +130,10 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  padding: 54px var(--rd-panel-padding, 10px) calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
+  padding: 66px var(--rd-panel-padding, 12px) calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
   font: 12px / 1.5 $font.mono;
   user-select: text;
+  overflow-x: hidden;
 `;
 
 export const ConsoleRow = styled.div("RodConsoleRow").css`
@@ -157,6 +159,8 @@ export const ConsoleRow = styled.div("RodConsoleRow").css`
     overflow: visible;
   }
 
+  &[data-level="debug"] { color: $comment; }
+  &[data-level="info"] { color: $link; }
   &[data-level="warn"] {
     color: $warningFg;
     border-color: $warningBorder;
@@ -306,7 +310,8 @@ export const ConsoleEditorButton = styled.button("RodConsoleEditorButton").css`
 
 export const ConsoleTableWrap = styled.div("RodConsoleTableWrap").css`
   width: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
 `;
 
 export const ConsoleTable = styled.table("RodConsoleTable").css`

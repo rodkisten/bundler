@@ -74,7 +74,8 @@ const NetworkList = styled.div("RodNetworkList").css`
   height: 100%;
   padding-top: $$controlHeight;
   padding-bottom: calc(var(--rd-network-bottom-padding, 96px) + var(--rd-safe-bottom));
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 `;
@@ -251,7 +252,8 @@ const NetworkKvTable = styled.table("RodNetworkKvTable").css`
 const NetworkCode = styled.pre("RodNetworkCode").css`
   margin: 0;
   padding: 10px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: $foreground;
   font: 12px / 1.5 $font.mono;
   white-space: pre;

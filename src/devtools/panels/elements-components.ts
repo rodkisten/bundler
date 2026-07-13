@@ -334,7 +334,8 @@ const AttributeInput = styled.input("RodElementsAttributeInput").css`
 
 const TableWrap = styled.div("RodElementsTableWrap").css`
   width: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 
@@ -455,7 +456,8 @@ const ListenerTitle = styled.strong("RodElementsListenerTitle").css`
 const ListenerPre = styled.pre("RodElementsListenerPre").css`
   margin: 0;
   padding: 8px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   font: 11px / 1.4 $font.mono;
   user-select: text;
 `;

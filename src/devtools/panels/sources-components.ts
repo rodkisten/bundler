@@ -56,7 +56,8 @@ export const SourcesBody = styled.div("RodSourcesBody").css`
   width: 100%;
   height: 100%;
   padding-top: $$controlHeight;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 `;
@@ -77,7 +78,8 @@ export const SourcesEmpty = styled.div("RodSourcesEmpty").css`
 export const SourcesPre = styled.pre("RodSourcesPre").css`
   margin: 0;
   padding: 10px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
@@ -93,7 +95,8 @@ export const SourcesEditor = styled.div("RodSourcesEditor").css`
 export const SourcesBreadcrumb = styled.div("RodSourcesBreadcrumb").css`
   min-height: 28px;
   padding: 6px 10px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-bottom: 1px solid $border;
   color: $comment;
   background: $backgroundDark;
@@ -118,7 +121,8 @@ export const SourcesCodeMirrorHost = styled.div("RodSourcesCodeMirrorHost").css`
 export const SourcesObject = styled.div("RodSourcesObject").css`
   margin: 0;
   padding: 10px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
