@@ -1,5 +1,5 @@
 import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } from "../utils";
-import { html, render } from "../components/runtime";
+import { html, render } from "../core/runtime";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
 import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel } from "./snippets-components";
