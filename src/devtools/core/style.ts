@@ -19,7 +19,7 @@ export const devtoolsStyles = sheet.css`
   @cipo {
     prefix: rd;
     layers: false;
-    minify: true;
+    minify: false;
     rem: 16px;
     color-mode: oklch;
     theme-root: :host;
