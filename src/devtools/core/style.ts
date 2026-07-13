@@ -27,6 +27,10 @@ export const devtoolsStyles = sheet.css`
   }
 
   @theme {
+    zIndex<number>: (
+      container: 9999999
+      button: $container + 10 
+    ); 
     colors<color>: (
       background: var(--background),
       backgroundDark: var(--darker-background),
@@ -215,7 +219,7 @@ export const devtoolsStyles = sheet.css`
     minw: 200px
     pointer-events: none
     pos(fixed, inset: 0)
-    z: 2147483647
+    z: $zIndex.container
     isolation: isolate
     contain: layout style paint
     color: $foreground
@@ -224,6 +228,11 @@ export const devtoolsStyles = sheet.css`
     line-height: 1.35
     direction: ltr
     text-align: left
+    
+
+    & *:not(input,pre,code,textarea) {
+      !user-select: none
+    }
 
     &.roderuda-inline {
       pos(relative)
