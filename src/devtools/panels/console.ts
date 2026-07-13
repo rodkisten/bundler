@@ -162,6 +162,17 @@ export class Console extends Tool {
   catchGlobalErr(): this { this.capture.enableGlobalErrors(); return this; }
   ignoreGlobalErr(): this { this.capture.disableGlobalErrors(); return this; }
 
+  ingestInitial(entries: readonly unknown[]): void {
+    for (const entry of entries) {
+      if (isInitialConsoleEntry(entry)) {
+        const args = entry.args ? Array.from(entry.args) : [entry.message];
+        this.capture.record(entry.level ?? "error", args.length ? args : [entry]);
+        continue;
+      }
+      this.capture.record(entry instanceof Error ? "error" : "log", [entry]);
+    }
+  }
+  
   filter(filter: ConsoleFilter): void {
     this.state.patch({
       filterValue: typeof filter === "string" && !filter.trim() ? null : filter,
