@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { styled } from "../components/runtime";
+import { styled } from "../core/runtime";
 
 /* ******************** */
 /* Shared panel layout  */
