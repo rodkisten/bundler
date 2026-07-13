@@ -59,6 +59,31 @@ describe("RodEruda native devtools", () => {
     expect(document.querySelector("#roderuda")?.shadowRoot).not.toBeNull();
   });
 
+  it("starts hidden and can ingest a startup error bag", () => {
+    devtools.init({
+      autoScale: false,
+      tool: ["console"],
+      initialErrors: [new Error("startup boom")],
+    });
+
+    expect(devtools.get()?.isVisible()).toBe(false);
+
+    devtools.show("console");
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    expect(shadow?.textContent).toContain("startup boom");
+  });
+
+  it("opens the Console for startup errors only when displayIfErr is enabled", () => {
+    devtools.init({
+      autoScale: false,
+      tool: ["console"],
+      initialErrors: [{ level: "error", message: "show me" }],
+      config: { panels: { console: { displayIfErr: true } } },
+    });
+
+    expect(devtools.get()?.isVisible()).toBe(true);
+  });
+
   it("shows, hides, selects tools and persists the entry position", () => {
     devtools.init({ autoScale: false });
     devtools.show("elements");
