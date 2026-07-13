@@ -65,7 +65,7 @@ export class ElementHighlighter {
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 2147483000;
+  z-index: 5;
   pointer-events: none !important;
   user-select: none;
   overflow: hidden;
