@@ -12,6 +12,11 @@ on:
         description: "Run typecheck"
         default: true
         
+     should_run_tests:
+        type: boolean
+        description: "Run all test suite"
+        default: true
+        
       should_benchmark:
         type: boolean
         description: "Run DevTools benchmarks?"
@@ -33,6 +38,12 @@ on:
         type: boolean
         description: "Run typecheck"
         required: false 
+        default: true
+
+      should_run_tests:
+        type: boolean
+        description: "Run all test suite"
+        required: false
         default: true
         
       should_benchmark:
@@ -68,9 +79,14 @@ env:
 jobs:
   test:
     name: "🧪 Run all tests"
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' }}
+    if: >- 
+      ${{ 
+        (github.event_name == 'workflow_dispatch' 
+        || github.event_name == 'workflow_call')
+        && inputs.should_run_tests == "true"
+      }}
     runs-on: ubuntu-24.04
-    continue-on-error: true
+    continue-on-error: inputs.should_run_tests != "true"
 
     steps:
       - name: "📥 Checkout private source"
