@@ -2,7 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
-import { component, event, html, ref, styled } from "../components/runtime";
+import { component, event, html, ref, styled } from "../core/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 
