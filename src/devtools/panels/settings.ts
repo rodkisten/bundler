@@ -261,7 +261,7 @@ export class Settings extends Tool {
         return html`
           <SettingsRow>
             <SettingsText>${entry.label ?? ""}</SettingsText>
-            <SettingsButton type="button" @click=${event(() => void entry.handler())}>Run</SettingsButton>
+            <SettingsButton type="button" @click=${event.click(() => void entry.handler())}>Run</SettingsButton>
           </SettingsRow>
         `;
 
@@ -272,7 +272,7 @@ export class Settings extends Tool {
             <SettingsInput
               type="checkbox"
               .checked=${entry.getValue()}
-              @change=${event((change: Event) => {
+              @change=${event.change((change) => {
                 entry.setValue(change.target instanceof HTMLInputElement && change.target.checked);
               })}
             />
@@ -286,7 +286,7 @@ export class Settings extends Tool {
             <SettingsText>${entry.label ?? ""}</SettingsText>
             <SettingsSelect
               .value=${value}
-              @change=${event((change: Event) => {
+              @change=${event.change((change) => {
                 if (change.target instanceof HTMLSelectElement) entry.setValue(change.target.value);
               })}
             >
@@ -309,7 +309,7 @@ export class Settings extends Tool {
               max=${String(entry.range.max ?? "")}
               step=${String(entry.range.step ?? 1)}
               .value=${String(value)}
-              @change=${event((change: Event) => {
+              @change=${event.change((change) => {
                 if (!(change.currentTarget instanceof HTMLInputElement)) return;
                 const next = change.currentTarget.valueAsNumber;
                 if (Number.isFinite(next)) entry.setValue(next);
@@ -330,7 +330,7 @@ export class Settings extends Tool {
               max=${String(entry.range.max ?? 100)}
               step=${String(entry.range.step ?? 1)}
               .value=${String(value)}
-              @input=${event((input: Event) => {
+              @input=${event.input((input) => {
                 if (input.target instanceof HTMLInputElement) entry.setValue(Number(input.target.value));
               })}
             />

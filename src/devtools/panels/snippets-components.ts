@@ -60,8 +60,8 @@ component("RodSnippetsView", function RodSnippetsView(props) {
       <RodSharedHeader>
         <RodSnippetsTitle>Snippets</RodSnippetsTitle>
         <RodSharedActions>
-          <RodSharedButton type="button" @click=${event(() => view.add())}>Add</RodSharedButton>
-          <RodSharedButton type="button" @click=${event(() => view.reset())}>Reset</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click(() => view.add())}>Add</RodSharedButton>
+          <RodSharedButton type="button" @click=${event.click(() => view.reset())}>Reset</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
       <RodSharedPanelBody data-snippets-body ref=${(node) => {
@@ -75,8 +75,8 @@ component("RodSnippetsView", function RodSnippetsView(props) {
               <RodSnippetName>${active ? "● " : ""}${snippet.name}</RodSnippetName>
               <RodSnippetDescription>${snippet.description}</RodSnippetDescription>
               <RodSharedActions>
-                <RodSharedButton type="button" @click=${event(() => view.run(index))}>${active ? "Stop" : "Run"}</RodSharedButton>
-                <RodSharedButton type="button" @click=${event(() => view.remove(index))}>Remove</RodSharedButton>
+                <RodSharedButton type="button" @click=${event.click(() => view.run(index))}>${active ? "Stop" : "Run"}</RodSharedButton>
+                <RodSharedButton type="button" @click=${event.click(() => view.remove(index))}>Remove</RodSharedButton>
               </RodSharedActions>
             </RodSharedCard>
           `;

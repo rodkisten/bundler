@@ -1,5 +1,5 @@
 import type { CipoCssArtifact } from "../../cipo";
-import { component, event, html,  styled } from "../core/runtime";
+import { component, event, html,  styled } from "../components/runtime";
 import { icon } from "../utils";
 import "./shared-components";
 
@@ -209,12 +209,12 @@ component("RodSourcesView", function RodSourcesView(props) {
   return html`
     <RodSourcesRoot>
       <RodSharedControlBar>
-        <RodSourcesIconButton type="button" title="Document source" @click=${event(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
-        <RodSourcesIconButton type="button" title="All sources" @click=${event(() => view.action("source-list"))}>☰</RodSourcesIconButton>
+        <RodSourcesIconButton type="button" title="Document source" @click=${event.click(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
+        <RodSourcesIconButton type="button" title="All sources" @click=${event.click(() => view.action("source-list"))}>☰</RodSourcesIconButton>
         <RodSourcesTitle data-source-title>${title}</RodSourcesTitle>
-        <RodSourcesIconButton type="button" title="Copy" @click=${event(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
-        <RodSourcesIconButton type="button" title="Download" @click=${event(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
-        <RodSourcesIconButton type="button" title="Refresh" @click=${event(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
+        <RodSourcesIconButton type="button" title="Copy" @click=${event.click(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
+        <RodSourcesIconButton type="button" title="Download" @click=${event.click(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
+        <RodSourcesIconButton type="button" title="Refresh" @click=${event.click(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
       </RodSharedControlBar>
       <RodSourcesBody data-sources-body ref=${(node) => {
         view.setBody(node);

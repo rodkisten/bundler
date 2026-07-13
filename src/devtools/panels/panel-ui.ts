@@ -1,4 +1,4 @@
-import { asNode, event, html,  styled } from "../core/runtime";
+import { asNode, event, html,  styled } from "../runtime";
 
 export interface PanelAction {
   readonly label: string;
@@ -143,7 +143,7 @@ function panelActionTemplate(item: PanelAction, options: PanelShellOptions) {
       type="button"
       title=${item.title ?? item.label}
       data-action=${item.action}
-      @click=${event((click: Event) => options.onAction?.(click, item.action))}
+      @click=${event.click((click) => options.onAction?.(click, item.action))}
       ...${attrs(item.attrs) as never}
     >
       ${item.label}

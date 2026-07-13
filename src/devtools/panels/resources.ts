@@ -187,9 +187,9 @@ export class Resources extends Tool {
         <ResourcesSectionTitle>
           <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>${title} (${rows.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
-            <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addStorage(type))}>+</ResourcesIconButton>
-            <ResourcesIconButton type="button" title="Clear" @click=${event(() => this.clearStorage(type))}>${icon("clear")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addStorage(type))}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Clear" @click=${event.click(() => this.clearStorage(type))}>${icon("clear")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
         <ResourcesTableWrap>
@@ -206,20 +206,20 @@ export class Resources extends Tool {
 
   private storageRow(row: { type: StorageType; key: string; value: string; json: boolean }) {
     const jsonButton = row.json ? html`
-      <ResourcesIconButton type="button" title="Edit JSON" @click=${event(() => void this.editJsonStorage(row.type, row.key))}>{ }</ResourcesIconButton>
+      <ResourcesIconButton type="button" title="Edit JSON" @click=${event.click(() => void this.editJsonStorage(row.type, row.key))}>{ }</ResourcesIconButton>
     ` : "";
 
     return html`
       <tr>
         <td>
-          <ResourcesInput .value=${row.key} @change=${event((change: Event) => this.updateStorageKey(change, row.type, row.key))} />
+          <ResourcesInput .value=${row.key} @change=${event.change((change) => this.updateStorageKey(change, row.type, row.key))} />
         </td>
         <td>
-          <ResourcesInput .value=${row.json ? formatJsonValue(row.value) : row.value} @change=${event((change: Event) => this.updateStorageValue(change, row.type, row.key))} />
+          <ResourcesInput .value=${row.json ? formatJsonValue(row.value) : row.value} @change=${event.change((change) => this.updateStorageValue(change, row.type, row.key))} />
         </td>
         <td>
           ${jsonButton}
-          <ResourcesIconButton type="button" title="Remove" @click=${event(() => this.removeStorage(row.type, row.key))}>×</ResourcesIconButton>
+          <ResourcesIconButton type="button" title="Remove" @click=${event.click(() => this.removeStorage(row.type, row.key))}>×</ResourcesIconButton>
         </td>
       </tr>
     `;
@@ -231,8 +231,8 @@ export class Resources extends Tool {
         <ResourcesSectionTitle>
           <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Cookies (${cookies.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Add" @click=${event(() => void this.addCookie())}>+</ResourcesIconButton>
-            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addCookie())}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
@@ -254,7 +254,7 @@ export class Resources extends Tool {
                     <ResourcesIconButton
                       type="button"
                       title="Remove"
-                      @click=${event(() => this.removeCookie(cookie.name))}
+                      @click=${event.click(() => this.removeCookie(cookie.name))}
                     >
                       ×
                     </ResourcesIconButton>
@@ -276,7 +276,7 @@ export class Resources extends Tool {
         <ResourcesSectionTitle>
           <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Storage capabilities</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
@@ -295,14 +295,14 @@ export class Resources extends Tool {
         <ResourcesSectionTitle>
           <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>${title} (${urls.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
         <ResourcesLinkList>
           ${urls.length ? urls.map((url) => html`
             <li>
-              <a href=${url} @click=${event((click: Event) => this.openSource(click, type, url))}>${url}</a>
+              <a href=${url} @click=${event.click((click) => this.openSource(click, type, url))}>${url}</a>
             </li>
           `) : html`<li>None</li>`}
         </ResourcesLinkList>
@@ -316,14 +316,14 @@ export class Resources extends Tool {
         <ResourcesSectionTitle>
           <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span>Images (${urls.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Refresh" @click=${event(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
         <ResourcesSectionContent>
           <ResourcesImageList>
             ${urls.length ? urls.slice(0, 500).map((url) => html`
-              <ResourcesImageCard type="button" @click=${event((click: Event) => this.openSource(click, "image", url))}>
+              <ResourcesImageCard type="button" @click=${event.click((click) => this.openSource(click, "image", url))}>
                 <img src=${url} loading="lazy" alt="" />
                 <span title=${url}>${truncate(url, 100)}</span>
               </ResourcesImageCard>
@@ -484,7 +484,7 @@ export class Resources extends Tool {
         <RodResourcesJsonHeader>
           <span>JSON · ${key}</span>
           <RodResourcesSectionActions>
-            <ResourcesIconButton type="button" title="Format" @click=${event(() => {
+            <ResourcesIconButton type="button" title="Format" @click=${event.click(() => {
               try {
                 const formatted = JSON.stringify(JSON.parse(this.jsonEditor?.getValue() ?? editorValue), null, 2);
                 this.jsonEditor?.setValue(formatted);
@@ -496,8 +496,8 @@ export class Resources extends Tool {
         </RodResourcesJsonHeader>
         <RodResourcesJsonEditorHost ref=${(node) => { host = node; }} />
         <RodResourcesJsonActions>
-          <ResourcesIconButton type="button" @click=${event(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
-          <ResourcesIconButton type="button" @click=${event(() => {
+          <ResourcesIconButton type="button" @click=${event.click(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
+          <ResourcesIconButton type="button" @click=${event.click(() => {
             const next = this.jsonEditor?.getValue() ?? editorValue;
             try {
               JSON.parse(next);

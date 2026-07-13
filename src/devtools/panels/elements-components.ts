@@ -561,16 +561,16 @@ component("RodElementsView", function RodElementsView(props) {
     <RodSharedPanelLayout data-elements-layout>
       <RodElementsTreeSide data-elements-tree-side>
         <RodSharedControlBar data-elements-control>
-          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event((click: Event) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event((click: Event) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event((click: Event) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event.click((click) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event.click((click) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event.click((click) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
           <RodSharedControlSpacer />
-          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event((click: Event) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event((click: Event) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event((click: Event) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event.click((click) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event.click((click) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
         </RodSharedControlBar>
 
-        <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event(() => view.onTreeScroll())}>
+        <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event.scroll(() => view.onTreeScroll())}>
           <RodElementsDomTree data-elements-tree data-wrap=${String(view.wrapLines())} ref=${(node) => {
             view.setTree(node as HTMLElement);
             return () => view.setTree(null);
@@ -602,7 +602,7 @@ export const ElementsDetailSectionView = component<{
       <RodElementsSectionTitle
         type="button"
         data-detail-section=${props.name}
-        @click=${event((click: Event) => props.onToggle?.(click))}
+        @click=${event.click((click) => props.onToggle?.(click))}
       >
         <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span><strong>${props.title}</strong></span>
         <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
@@ -625,19 +625,19 @@ export const ElementsAttributeRowView = component<{
         data-attribute-name
         .value=${props.name}
         placeholder="attribute"
-        @change=${event((change: Event) => props.onChange?.(change))}
+        @change=${event.change((change) => props.onChange?.(change))}
       />
       <RodElementsAttributeInput
         data-attribute-value
         .value=${props.value}
         placeholder="value"
-        @change=${event((change: Event) => props.onChange?.(change))}
+        @change=${event.change((change) => props.onChange?.(change))}
       />
       <RodElementsIconButton
         type="button"
         title=${props.empty ? "Add" : "Remove"}
         data-remove-attribute
-        @click=${event((click: Event) => props.onRemove?.(click))}
+        @click=${event.click((click) => props.onRemove?.(click))}
       >${props.empty ? "+" : "×"}</RodElementsIconButton>
     </RodElementsAttributeRow>
   `;
@@ -734,8 +734,8 @@ export const ElementsStylesView = component<{
           ${rule.declarations.map((declaration) => html`
             <RodElementsStyleDeclaration data-style-declaration=${rule.editable ? "" : null} data-original-property=${rule.editable ? declaration.property : null}>
               ${rule.editable ? html`
-                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" @change=${event((change: Event) => props.onChange?.(change))} />
-                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" @change=${event((change: Event) => props.onChange?.(change))} />
+                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" @change=${event.change((change) => props.onChange?.(change))} />
+                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" @change=${event.change((change) => props.onChange?.(change))} />
               ` : html`
                 <RodElementsStyleDeclarationText data-kind="property">${declaration.property}</RodElementsStyleDeclarationText>
                 <RodElementsStyleDeclarationText>${declaration.value}${declaration.priority ? " !important" : ""}</RodElementsStyleDeclarationText>
@@ -784,14 +784,14 @@ export const ElementsDetailHeaderView = component<{
 }>("RodElementsDetailHeaderView", function RodElementsDetailHeaderView(props) {
   return html`
     <RodSharedControlBar data-elements-detail-control>
-      <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event(props.onAction)}>${icon("back")}</RodElementsIconButton>
+      <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event.click(props.onAction)}>${icon("back")}</RodElementsIconButton>
       <RodSharedDetailTitle>
         <RodElementsDomTag>&lt;${props.element.tagName.toLowerCase()}</RodElementsDomTag>
         ${props.element.id ? html`<RodElementsDomAttrName>#${props.element.id}</RodElementsDomAttrName>` : ""}
         ${Array.from(props.element.classList).slice(0, 6).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
         <RodElementsDomTag>&gt;</RodElementsDomTag>
       </RodSharedDetailTitle>
-      <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
+      <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event.click(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
     </RodSharedControlBar>
   `;
 });
@@ -836,15 +836,15 @@ export const ElementsDomNodeView = component<{
         data-node-id=${props.nodeId}
         data-node-depth=${String(props.depth)}
         data-selected=${String(props.selected)}
-        @click=${event((value: Event) => props.onClick?.(value))}
-        @dblclick=${event((value: Event) => props.onDoubleClick?.(value))}
-        @contextmenu=${event((value: Event) => props.onContextMenu?.(value))}
-        @pointerdown=${event((value: Event) => props.onPointerDown?.(value))}
-        @pointerup=${event((value: Event) => props.onPointerUp?.(value))}
-        @pointercancel=${event((value: Event) => props.onPointerCancel?.(value))}
-        @pointermove=${event((value: Event) => props.onPointerMove?.(value))}
-        @pointerover=${event((value: Event) => props.onPointerOver?.(value))}
-        @pointerout=${event((value: Event) => props.onPointerOut?.(value))}
+        @click=${event.click((value) => props.onClick?.(value))}
+        @dblclick=${event.dblclick((value) => props.onDoubleClick?.(value))}
+        @contextmenu=${event.contextmenu((value) => props.onContextMenu?.(value))}
+        @pointerdown=${event.pointerdown((value) => props.onPointerDown?.(value))}
+        @pointerup=${event.pointerup((value) => props.onPointerUp?.(value))}
+        @pointercancel=${event.pointercancel((value) => props.onPointerCancel?.(value))}
+        @pointermove=${event.pointermove((value) => props.onPointerMove?.(value))}
+        @pointerover=${event.pointerover((value) => props.onPointerOver?.(value))}
+        @pointerout=${event.pointerout((value) => props.onPointerOut?.(value))}
       >
         <RodElementsDomToggle data-toggle-node=${props.expandable ? "" : null}>${props.expandable ? (props.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
         <RodElementsNodeLabelView props=${{ node: props.node }} />
@@ -891,7 +891,7 @@ export const ElementsCrumbsView = component<{
       type="button"
       data-crumb-index=${String(index)}
       data-current=${String(index === props.elements.length - 1)}
-      @click=${event((click: Event) => props.onSelect?.(index, click))}
+      @click=${event.click((click) => props.onSelect?.(index, click))}
     >${crumbLabel(element)}</RodElementsCrumbButton>
   `)}
 `);
@@ -919,7 +919,7 @@ export const ElementsContextMenuView = component<{
           type="button"
           role="menuitem"
           data-elements-menu-action=${action}
-          @click=${event((click: Event) => props.onAction?.(action, click))}
+          @click=${event.click((click) => props.onAction?.(action, click))}
         >${label}</RodElementsMenuButton>
       `)}
     </RodElementsMenu>
