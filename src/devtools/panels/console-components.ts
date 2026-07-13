@@ -354,7 +354,7 @@ component("RodConsoleView", function RodConsoleView(props) {
   const view = props.view as ConsoleViewModel;
   return html`
     <RodConsoleSurface
-      data-js-execution=${() => String(view.state.jsExecution())}
+      data-js-execution=${String(view.state.jsExecution())}
       data-console-body
       data-roderuda-scroll-key="console"
       ref=${ref((node) => {
@@ -390,7 +390,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-    <RodConsoleInputWrap data-js-execution=${() => String(view.state.jsExecution())} data-expanded=${() => String(view.state.editorExpanded())} data-console-input-wrap>
+    <RodConsoleInputWrap data-js-execution=${String(view.state.jsExecution())} data-expanded=${String(view.state.editorExpanded())} data-console-input-wrap>
       <RodConsolePrompt>›</RodConsolePrompt>
       <RodConsoleInput
         data-console-input
@@ -398,7 +398,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         spellcheck="false"
         autocomplete="off"
         aria-label="JavaScript console"
-        .value=${() => view.state.inputValue()}
+        .value=${view.state.inputValue()}
         ref=${ref((node) => {
           view.setInput(node as HTMLTextAreaElement);
           return () => view.setInput(null);
@@ -407,7 +407,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         @keydown=${event<KeyboardEvent>((keyboardEvent) => view.handleInputKey(keyboardEvent))}
         @focus=${event(() => view.handleInputFocus())}
       />
-      <RodConsoleEditorActions data-expanded=${() => String(view.state.editorExpanded())}>
+      <RodConsoleEditorActions data-expanded=${String(view.state.editorExpanded())}>
         <RodConsoleEditorButton type="button" data-action="cancel-editor" @click=${event(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
         <RodConsoleEditorButton type="button" data-action="clear-editor" @click=${event(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
         <RodConsoleEditorButton type="button" data-action="run-editor" @click=${event(() => view.runEditor())}>Run</RodConsoleEditorButton>

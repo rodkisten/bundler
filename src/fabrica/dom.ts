@@ -171,6 +171,27 @@ function extractHtmlResultRoot(fragment: DocumentFragment): Node {
   return fragment.removeChild(root);
 }
 
+
+/** Removes indentation-only text nodes without deleting intentional single-space separators. */
+export function pruneInsignificantWhitespace(root: ParentNode): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const removals: Text[] = [];
+  let current = walker.nextNode();
+  while (current) {
+    const text = current as Text;
+    const parent = text.parentElement;
+    const value = text.data;
+    if (
+      parent
+      && !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parent.tagName)
+      && /^[\t\r\n ]+$/.test(value)
+      && /[\t\r\n]/.test(value)
+    ) removals.push(text);
+    current = walker.nextNode();
+  }
+  for (const text of removals) text.remove();
+}
+
 function createTemplateArtifact(
   strings: TemplateStringsArray,
   values: readonly RenderValue[],
@@ -210,6 +231,8 @@ function materializeHtmlTemplate(
     });
     cleanupNodes = collected.nodes;
   }
+
+  pruneInsignificantWhitespace(fragment);
 
   return createHtmlResult(
     fragment,

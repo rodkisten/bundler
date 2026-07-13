@@ -195,3 +195,8 @@
 - Added same-runner baseline/current comparison with alternating order, median aggregation and per-row cross-round variation.
 - Fabrica performance scoring now normalizes each adapter against its paired manual control and excludes controls from the overall score.
 - Added fixture integrity coverage and semantically closer manual keyed/virtual list controls.
+
+## Unreleased
+
+- Prune indentation-only text nodes containing line breaks from runtime and compiled templates while preserving intentional single-space separators and whitespace-sensitive elements such as `pre`, `textarea`, `script`, and `style`.
+- Keep runtime and compiled template materialization aligned through the same whitespace pruning pass.

@@ -17,6 +17,33 @@ beforeEach(() => {
   document.body.replaceChildren();
   host = document.createElement("div");
   document.body.append(host);
+  it("prunes indentation whitespace in runtime and compiled templates", () => {
+    const runtimeView = html`
+      <section>
+        <span>A</span>
+        <span>B</span>
+      </section>
+    ` as HTMLElement;
+    expect(Array.from(runtimeView.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
+
+    const compiledView = createCompiledTemplate({
+      nodes: [{
+        type: "element",
+        tag: "section",
+        props: [],
+        children: [
+          { type: "text", value: "\n  " },
+          { type: "element", tag: "span", props: [], children: [{ type: "text", value: "A" }] },
+          { type: "text", value: "\n  " },
+          { type: "element", tag: "span", props: [], children: [{ type: "text", value: "B" }] },
+          { type: "text", value: "\n" },
+        ],
+      }],
+    });
+    const section = compiledView as HTMLElement;
+    expect(Array.from(section.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
+  });
+
 });
 
 describe("Fábrica polymorphic html results", () => {
@@ -101,4 +128,31 @@ describe("Fábrica polymorphic html results", () => {
     dispose();
     expect(host.childNodes).toHaveLength(0);
   });
+  it("prunes indentation whitespace in runtime and compiled templates", () => {
+    const runtimeView = html`
+      <section>
+        <span>A</span>
+        <span>B</span>
+      </section>
+    ` as HTMLElement;
+    expect(Array.from(runtimeView.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
+
+    const compiledView = createCompiledTemplate({
+      nodes: [{
+        type: "element",
+        tag: "section",
+        props: [],
+        children: [
+          { type: "text", value: "\n  " },
+          { type: "element", tag: "span", props: [], children: [{ type: "text", value: "A" }] },
+          { type: "text", value: "\n  " },
+          { type: "element", tag: "span", props: [], children: [{ type: "text", value: "B" }] },
+          { type: "text", value: "\n" },
+        ],
+      }],
+    });
+    const section = compiledView as HTMLElement;
+    expect(Array.from(section.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
+  });
+
 });

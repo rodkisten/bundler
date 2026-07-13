@@ -22,6 +22,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   direction: ltr;
   text-align: left;
   --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--rd-safe-area-minimum, 20px));
+  --rd-safe-top: max(env(safe-area-inset-top, 0px), var(--rd-safe-area-top-minimum, 8px));
 
   &[data-inline="true"] {
     position: relative;
@@ -90,7 +91,7 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   left: 0;
   bottom: calc(var(--rd-safe-bottom) + var(--rd-dock-bottom-gap, 0px));
   width: 100%;
-  height: calc(80% - var(--rd-safe-bottom));
+  height: min(calc(80% - var(--rd-safe-bottom)), calc(100% - var(--rd-safe-top) - var(--rd-safe-bottom) - 8px));
   z-index: 2147483645;
   display: none;
   padding-top: var(--rd-tab-height, $$tabHeight);

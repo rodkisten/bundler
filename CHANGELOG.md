@@ -344,3 +344,12 @@
 ## Cipó CSS-first configuration
 
 - Added CSS-first configuration directives and tests for the Cipó package.
+
+## Unreleased
+
+- Keep the DevTools dock hidden after initialization unless inline mode is active or startup errors were supplied while `displayIfErr` is enabled.
+- Added `initialLogs` and `initialErrors` initialization bags for userscripts that capture errors before RodEruda mounts.
+- Fixed Sources so an already available source body is not replaced by a commented "unable to load" fallback merely because URL metadata is present.
+- Added touch-safe pointer reordering for panel sections and made non-editor DevTools UI non-selectable.
+- Console CodeMirror now runs with Enter or Mod+Enter, keeps Shift+Enter for a newline, and retains a visible Run button.
+- Added safe-top-aware dock sizing for mobile browser chrome.

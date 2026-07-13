@@ -1,4 +1,4 @@
-import { appendValue, createHtmlResult, html } from "./dom";
+import { appendValue, createHtmlResult, html, pruneInsignificantWhitespace } from "./dom";
 import { invokeComponentLike } from "./dom-payload";
 import {
   getCurrentFabricaRuntime,
@@ -93,6 +93,8 @@ export function createCompiledTemplate(
           appendCompiledNode(fragment, node, values);
         }
       });
+
+      pruneInsignificantWhitespace(fragment);
 
       return createHtmlResult(
         fragment,

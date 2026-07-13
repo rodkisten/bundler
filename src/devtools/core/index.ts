@@ -205,6 +205,19 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       const first = this.firstMountedTool(normalizedOptions.tools) ?? "settings";
       this.devtools.showTool(first);
 
+      const startupEntries = [
+        ...(normalizedOptions.initialLogs ?? []),
+        ...(normalizedOptions.initialErrors ?? []),
+      ];
+      const consoleTool = this.devtools.get<Console>("console");
+      if (startupEntries.length) consoleTool?.ingestInitial(startupEntries);
+
+      const shouldDisplayStartupErrors = Boolean(
+        startupEntries.length && consoleTool?.config.get("displayIfErr"),
+      );
+      if (!normalizedOptions.inline && !shouldDisplayStartupErrors) this.devtools.hide();
+      if (shouldDisplayStartupErrors) this.devtools.showTool("console");
+
       this.initialized = true;
       this.installHostWatchdog();
       this.forceMountHost();

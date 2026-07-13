@@ -156,6 +156,15 @@ export const devtoolsStyles = sheet.css`
   :host {
     contain: layout style
     color-scheme: dark light
+    user-select: none
+    -webkit-user-select: none
+    -webkit-touch-callout: none
+
+    input, textarea, pre, code, [contenteditable="true"], .cm-editor, .cm-content {
+      user-select: text
+      -webkit-user-select: text
+      -webkit-touch-callout: default
+    }
 
     $$safeBottom: env(safe-area-inset-bottom, 0px)
     --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px)

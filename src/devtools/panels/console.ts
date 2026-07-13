@@ -154,6 +154,17 @@ export class Console extends Tool {
   dir(...args: unknown[]): void { this.capture.record("dir", args); }
   table(...args: unknown[]): void { this.capture.record("table", args); }
   html(htmlText: string): void { this.capture.record("html", [htmlText]); }
+
+  ingestInitial(entries: readonly unknown[]): void {
+    for (const entry of entries) {
+      if (isInitialConsoleEntry(entry)) {
+        const args = entry.args ? Array.from(entry.args) : [entry.message];
+        this.capture.record(entry.level ?? "error", args.length ? args : [entry]);
+        continue;
+      }
+      this.capture.record(entry instanceof Error ? "error" : "log", [entry]);
+    }
+  }
   clear(): void { this.capture.clear(); }
   setGlobal(name: string, value: unknown): void { this.capture.setGlobal(name, value); }
   overrideConsole(): this { this.capture.overrideConsole(); return this; }
@@ -716,4 +727,9 @@ function collectPropertyNames(value: unknown, prefix: string): string[] {
     depth += 1;
   }
   return [...names].sort();
+}
+
+
+function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {
+  return value !== null && typeof value === "object" && !(value instanceof Error) && ("args" in value || "message" in value || "level" in value);
 }

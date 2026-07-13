@@ -133,3 +133,27 @@ The console capture layer now combines direct console wrapping, prototype/watchd
 Every user-visible behavior, timing, size, limit, spacing, capture strategy, editor preference, and performance threshold must be backed by a typed `ConfigStore` field and registered in Settings. New features should use `Settings.registerConfigGroup()` with descriptors beside the owning panel instead of introducing unexplained numeric literals. Panel-private values stay in that panel config; cross-panel visual values belong to `DevToolsConfig`.
 
 The shell shows a compact build badge containing the seven-character commit SHA and the build date/time in GMT-3. The Info panel exposes the full SHA, ISO timestamp, GMT-3 timestamp, version, timezone, and build mode. Vite injects this metadata at build time through `__RODERUDA_BUILD__`.
+
+## Startup visibility and captured startup errors
+
+RodEruda initializes hidden by default. The dock opens during initialization only when the Console setting `displayIfErr` is enabled and `initialLogs` or `initialErrors` contains entries. Inline installations remain visible.
+
+Userscripts can collect failures before initialization and hand them to the Console:
+
+```ts
+DevTools.api.init({
+  initialLogs: capturedLogs,
+  initialErrors: capturedErrors,
+  config: {
+    panels: {
+      console: { displayIfErr: true },
+    },
+  },
+});
+```
+
+Each bag accepts raw values, `Error` objects, or structured entries with `level`, `args`, `message`, `timestamp`, and `stack`.
+
+## Mobile interaction rules
+
+The DevTools surface is non-selectable by default. Inputs, textareas, code blocks, contenteditable regions, and CodeMirror explicitly restore text selection. Panel sections use pointer-based drag handles so reordering works with touch, pen, and mouse instead of relying on desktop HTML drag-and-drop.
