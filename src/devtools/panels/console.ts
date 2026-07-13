@@ -12,6 +12,7 @@ import {
   ConsoleGroup,
   ConsoleRepeat,
   ConsoleRow,
+  ConsoleStack,
   ConsoleTable,
   ConsoleTableCell,
   ConsoleTableHead,
@@ -34,7 +35,7 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   displayUnenumerable: true,
   displayGetterVal: false,
   lazyEvaluation: true,
-  displayIfErr: true,
+  displayIfErr: false,
   maxLogNum: "250",
   captureWatchdogMs: 250,
   captureBridgePageRealm: true,
@@ -51,10 +52,6 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
 
 const HISTORY_STORAGE_KEY = "roderuda:console-history";
 const sharedCapture = new ConsoleCapture();
-
-try {
-  sharedCapture.install({ overrideConsole: true, catchGlobalErrors: true, watchdog: true, watchdogMs: DEFAULT_CONSOLE_CONFIG.captureWatchdogMs, patchPrototype: DEFAULT_CONSOLE_CONFIG.capturePatchPrototype, lockConsole: DEFAULT_CONSOLE_CONFIG.captureLockConsole, bridgePageRealm: DEFAULT_CONSOLE_CONFIG.captureBridgePageRealm });
-} catch {}
 
 export class Console extends Tool {
   readonly name: string;
@@ -84,8 +81,6 @@ export class Console extends Tool {
   private list: HTMLElement | null = null;
   private input: HTMLTextAreaElement | null = null;
   private codeEditor: CodeEditorHandle | null = null;
-  private hiddenErrorCount = 0;
-  private hiddenErrorNoticeTimer = 0;
   private codeEditorHost: HTMLElement | null = null;
   private disposeView: (() => void) | null = null;
   private renderFrame = 0;
@@ -130,13 +125,13 @@ export class Console extends Tool {
 
     try {
       this.capture.install({
-        overrideConsole: true,
-        catchGlobalErrors: true,
-        watchdog: true,
-        watchdogMs: 250,
-        lockConsole: false,
-        patchPrototype: true,
-        bridgePageRealm: true,
+        overrideConsole: this.config.get("overrideConsole"),
+        catchGlobalErrors: this.config.get("catchGlobalErr"),
+        watchdog: this.config.get("overrideConsole"),
+        watchdogMs: this.config.get("captureWatchdogMs"),
+        lockConsole: this.config.get("captureLockConsole"),
+        patchPrototype: this.config.get("capturePatchPrototype"),
+        bridgePageRealm: this.config.get("captureBridgePageRealm"),
       });
     } catch (error) {
       context.notify(`Console capture fallback: ${error instanceof Error ? error.message : String(error)}`, { type: "warning", duration: 5000 });
@@ -194,9 +189,6 @@ export class Console extends Tool {
 
   override destroy(): void {
     this.cancelScheduledRender();
-    if (this.hiddenErrorNoticeTimer) window.clearTimeout(this.hiddenErrorNoticeTimer);
-    this.hiddenErrorNoticeTimer = 0;
-    this.hiddenErrorCount = 0;
     this.capture.off("record", this.onRecord);
     this.capture.off("clear", this.onClear);
     this.config.off("change", this.onConfigChange);
@@ -232,20 +224,9 @@ export class Console extends Tool {
     this.state.records.set(records);
     this.trimRecords();
 
-    if (record.level === "error" && this.config.get("displayIfErr") && !this.active) {
-      this.hiddenErrorCount += 1;
-      if (!this.hiddenErrorNoticeTimer) {
-        this.hiddenErrorNoticeTimer = window.setTimeout(() => {
-          const count = this.hiddenErrorCount;
-          this.hiddenErrorCount = 0;
-          this.hiddenErrorNoticeTimer = 0;
-          this.context?.notify(
-            count === 1 ? "1 new console error" : `${count} new console errors`,
-            { type: "error" },
-          );
-        }, this.config.get("hiddenErrorNoticeDelay"));
-      }
-    }
+    // Console errors belong in the Console panel. Never turn captured errors
+    // into global toasts: rendering a toast can itself fail and previously
+    // created a capture -> toast -> error -> capture feedback loop.
 
     if (!this.active) return;
 
@@ -313,7 +294,7 @@ export class Console extends Tool {
         { kind: "switch", key: "displayUnenumerable", label: "Display non-enumerable properties" },
         { kind: "switch", key: "displayGetterVal", label: "Read getter values" },
         { kind: "switch", key: "lazyEvaluation", label: "Lazy object evaluation" },
-        { kind: "switch", key: "displayIfErr", label: "Notify when hidden errors arrive" },
+        { kind: "switch", key: "displayIfErr", label: "Legacy hidden-error notice (toasts are suppressed for safety)" },
         { kind: "select", key: "maxLogNum", label: "Maximum log count", selections: ["infinite", "1000", "500", "250", "125", "100", "50", "10"] },
         { kind: "number", key: "historyLimit", label: "Command history limit", options: { min: 0, max: 1000, step: 10 } },
         { kind: "number", key: "hiddenErrorNoticeDelay", label: "Hidden error batching delay (ms)", options: { min: 0, max: 5000, step: 50 } },
@@ -577,6 +558,11 @@ function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLEle
   if (record.collapsed != null) row.append(ConsoleGroup({ children: record.collapsed ? "▸" : "▾" }) as Node);
   if (record.level === "table") row.append(renderTable(record.args[0]));
   else row.append(document.createTextNode(record.args.map(plainText).join(" ")));
+  if (record.stack) {
+    const stack = ConsoleStack() as HTMLElement;
+    stack.textContent = record.stack;
+    row.append(stack);
+  }
   if (displayExtraInfo) row.append(ConsoleTime({ children: new Date(record.timestamp).toLocaleTimeString() }) as Node);
   return row;
 }
