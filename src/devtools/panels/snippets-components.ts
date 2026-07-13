@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { SnippetItem } from "../types";
-import { component, event, html, ref, styled } from "../components/runtime";
+import { component, event, html, ref, styled } from "../core/runtime";
 import "./shared-components";
 
 export type SnippetsModel = {
@@ -17,17 +17,10 @@ export interface SnippetsViewModel {
   remove(index: number): void;
 }
 
-
-
 export const SnippetsTitle = styled.span("RodSnippetsTitle").css`
   flex: 1 1 auto;
   min-width: 0;
 `;
-
-
-
-
-
 
 export const SnippetName = styled.div("RodSnippetName").css`
   min-height: 38px;
