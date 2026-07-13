@@ -1,5 +1,5 @@
 import type { RenderValue } from "../../fabrica";
-import { event, html, render } from "../components/runtime";
+import { event, html, render } from "../core/runtime";
 import { icon } from "../utils";
 import type {
   ConfigChangeListener,
