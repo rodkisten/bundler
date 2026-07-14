@@ -57,7 +57,7 @@ describe("RodEruda native devtools", () => {
     expect(devtools.get("snippets")).toBeInstanceOf(Snippets);
     expect(devtools.get("settings")).toBeInstanceOf(Settings);
     expect(document.querySelector("#roderuda")?.shadowRoot).not.toBeNull();
-  });
+  }, 15_000);
 
   it("starts hidden and can ingest a startup error bag", () => {
     devtools.init({

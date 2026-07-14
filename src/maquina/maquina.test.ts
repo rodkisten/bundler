@@ -40,6 +40,7 @@ describe("Maquina", () => {
     let seen = "";
     mountMaquina({ parent, value: "doc", activateCompletionOnTyping: true, completions(context) { seen = context.matchBefore(/[$\\w.]+$/)?.text ?? ""; return { from: 0, options: [{ label: "document" }] }; } });
     const textarea = parent.querySelector("textarea")!;
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
     await Promise.resolve();
     expect(seen).toBe("doc");
