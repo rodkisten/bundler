@@ -115,7 +115,11 @@ export class Console extends Tool {
     };
 
     this.disposeView?.();
-    this.disposeView = render(container, html`<RodConsoleView view=${view as never} />`);
+    this.disposeView = render(container, html`
+      <RodConsoleViewProvider .value=${view}>
+        <RodConsoleView />
+      </RodConsoleViewProvider>
+    `);
     this.body = container.querySelector<HTMLElement>("[data-console-body]");
     this.setList(container.querySelector<HTMLElement>("[data-console-list]"));
     const input = container.querySelector("[data-console-input]");

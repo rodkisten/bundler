@@ -1,3 +1,4 @@
+import { createRequiredContext } from "../../broto";
 import type { CipoCssArtifact } from "../../cipo";
 import { component, html,  styled } from "../core/runtime";
 import "./shared-components";
@@ -5,6 +6,13 @@ import "./shared-components";
 export interface SettingsViewModel {
   setBody(node: HTMLElement | null): void;
 }
+
+export const SettingsViewContext = createRequiredContext<SettingsViewModel>("RodSettingsView");
+
+component("RodSettingsViewProvider", function RodSettingsViewProvider(props, ctx) {
+  ctx.provide(SettingsViewContext, props.value as SettingsViewModel);
+  return props.children ?? null;
+});
 
 export const SettingsSection = styled.section("RodSettingsSection").css`
   margin: 10px;
@@ -107,8 +115,8 @@ export const settingsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodSettingsView", function RodSettingsView(props) {
-  const view = props.view as SettingsViewModel;
+component("RodSettingsView", function RodSettingsView(_props, ctx) {
+  const view = ctx.requireContext(SettingsViewContext);
 
   return html`
     <RodSharedScrollableBody
