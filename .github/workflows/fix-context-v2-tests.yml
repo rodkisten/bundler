@@ -1,0 +1,261 @@
+name: 🧰 One-shot context v2 test repair
+
+on:
+  push:
+    branches:
+      - refactor/broto-fabrica-context-v2
+    paths:
+      - .github/workflows/fix-context-v2-tests.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refactor/broto-fabrica-context-v2
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply owner-safe deferred children and test-environment fixes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected block not found in {path}:\n{old[:240]}")
+              file.write_text(text.replace(old, new, 1))
+
+          dom = Path("src/fabrica/dom.ts")
+          text = dom.read_text()
+
+          replace_once(
+              "src/fabrica/dom.ts",
+              'const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();\n\ntype DynamicComponentPropPart = ComponentPropPart;',
+              '''const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
+
+/**
+ * Defers component child-part binding until the parent component appends them.
+ *
+ * The public value remains a real DocumentFragment, preserving the established
+ * component children contract. Only nested dynamic/component parts are delayed,
+ * so context providers can publish their value before descendant factories run.
+ */
+type DeferredComponentChildren = {
+  readonly parts: readonly TemplatePart[];
+  readonly values: readonly RenderValue[];
+  readonly hasComponents: boolean;
+  readonly runtime: FabricaRuntimeContext;
+};
+
+const deferredComponentChildren = new WeakMap<DocumentFragment, DeferredComponentChildren>();
+
+type DynamicComponentPropPart = ComponentPropPart;''',
+          )
+
+          replace_once(
+              "src/fabrica/dom.ts",
+              '''    const parent = text.parentElement;
+    const value = text.data;
+
+    if (
+      parent
+      && !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parent.tagName)
+      && /^[\\t\\r\\n ]+$/.test(value)
+      && /[\\t\\r\\n]/.test(value)
+    ) {''',
+              '''    const parent = text.parentNode;
+    const parentElement = parent instanceof Element ? parent : null;
+    const value = text.data;
+
+    if (
+      parent
+      && (!parentElement || !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parentElement.tagName))
+      && /^[\\t\\r\\n ]+$/.test(value)
+      && /[\\t\\r\\n]/.test(value)
+    ) {''',
+          )
+
+          replace_once(
+              "src/fabrica/dom.ts",
+              '''  if (isDomNode(resolvedValue)) {
+    parentNode.insertBefore(resolvedValue, beforeNode);
+    return;
+  }''',
+              '''  if (resolvedValue instanceof DocumentFragment) {
+    const deferred = deferredComponentChildren.get(resolvedValue);
+
+    if (deferred) {
+      deferredComponentChildren.delete(resolvedValue);
+      runWithFabricaRuntime(deferred.runtime, () => {
+        applyParts(
+          resolvedValue,
+          deferred.parts,
+          deferred.values,
+          deferred.hasComponents,
+        );
+        pruneInsignificantWhitespace(resolvedValue);
+      });
+    }
+
+    parentNode.insertBefore(resolvedValue, beforeNode);
+    return;
+  }
+
+  if (isDomNode(resolvedValue)) {
+    parentNode.insertBefore(resolvedValue, beforeNode);
+    return;
+  }''',
+          )
+
+          old_children = '''      /**
+       * Component children are materialized lazily under the component owner.
+       *
+       * Eagerly applying nested component parts here makes every child a sibling
+       * of the provider component. Context providers then run too late: nested
+       * consumers have already been constructed and cannot see the value. A lazy
+       * render expression keeps the public `props.children` shape while deferring
+       * nested component creation until the parent component appends its output.
+       */
+      const children = hasMeaningfulChildren
+        ? (() => {
+            const fragment = node.content.cloneNode(true) as DocumentFragment;
+            const childParts = part?.orderedChildParts ?? compileParts(fragment);
+
+            applyParts(
+              fragment,
+              childParts,
+              values,
+              part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
+            );
+            pruneInsignificantWhitespace(fragment);
+            return fragment;
+          })
+        : null;'''
+
+          new_children = '''      /**
+       * Keep the historical DocumentFragment children contract while delaying
+       * nested part binding until this fragment is appended by the component.
+       * At that point materializeComponent() has activated the component owner,
+       * so descendants inherit contexts provided during the parent factory.
+       */
+      let children: DocumentFragment | null = null;
+
+      if (hasMeaningfulChildren) {
+        children = node.content.cloneNode(true) as DocumentFragment;
+        const childParts = part?.orderedChildParts ?? compileParts(children);
+
+        deferredComponentChildren.set(children, {
+          parts: childParts,
+          values,
+          hasComponents: part?.hasChildComponents
+            ?? childParts.some((childPart) => childPart.type === "component"),
+          runtime,
+        });
+      }'''
+
+          replace_once("src/fabrica/dom.ts", old_children, new_children)
+
+          # Every devtools html template must materialize under the shared owner.
+          replace_once(
+              "src/devtools/core/runtime.ts",
+              '''export const html = devtoolsFabrica.html;
+export const jsx = devtoolsFabrica.jsx;''',
+              '''const baseHtml = devtoolsFabrica.html;
+
+/** Materializes templates under the shared DevTools owner, even before render(). */
+export const html: typeof baseHtml = new Proxy(baseHtml, {
+  apply(target, thisArg, argumentsList: Parameters<typeof baseHtml>) {
+    return runInDevtoolsOwner(() =>
+      devtoolsFabrica.run(() => Reflect.apply(target, thisArg, argumentsList)),
+    );
+  },
+});
+
+export const jsx = Object.freeze({
+  ...devtoolsFabrica.jsx,
+  html: new Proxy(devtoolsFabrica.jsx.html, {
+    apply(target, thisArg, argumentsList: Parameters<typeof devtoolsFabrica.jsx.html>) {
+      return runInDevtoolsOwner(() =>
+        devtoolsFabrica.run(() => Reflect.apply(target, thisArg, argumentsList)),
+      );
+    },
+  }),
+});''',
+          )
+
+          # Safari requires a genuine 16px editable control. Inline style also
+          # makes the invariant observable in jsdom without depending on Cipó CSS.
+          replace_once(
+              "src/maquina/editor.ts",
+              '''  const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
+  textarea.style.whiteSpace = whiteSpace;
+  highlight.style.whiteSpace = whiteSpace;''',
+              '''  const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
+  textarea.style.fontSize = "16px";
+  highlight.style.fontSize = "16px";
+  textarea.style.whiteSpace = whiteSpace;
+  highlight.style.whiteSpace = whiteSpace;''',
+          )
+
+          # Align esbuild's TextEncoder output and Uint8Array constructor realms.
+          replace_once(
+              "src/devtools/devtools.bundle-mount.test.ts",
+              '''  Object.defineProperty(globalThis, "TextEncoder", { configurable: true, value: TextEncoder });
+  Object.defineProperty(globalThis, "TextDecoder", { configurable: true, value: TextDecoder });''',
+              '''  Object.defineProperty(globalThis, "TextEncoder", { configurable: true, value: TextEncoder });
+  Object.defineProperty(globalThis, "TextDecoder", { configurable: true, value: TextDecoder });
+  const NativeUint8Array = new TextEncoder().encode("").constructor;
+  Object.defineProperty(globalThis, "Uint8Array", { configurable: true, value: NativeUint8Array });''',
+          )
+
+          # Remove this one-shot workflow from the resulting source commit.
+          Path(".github/workflows/fix-context-v2-tests.yml").unlink()
+          PY
+
+      - name: Commit implementation before validation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: preserve fragment children and owner context [context-v2-tests]"
+          git push origin HEAD:refactor/broto-fabrica-context-v2
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run focused regression suite
+        run: >-
+          pnpm vitest run
+          src/fabrica/tests/fabrica.component-render.test.ts
+          src/fabrica/tests/fabrica.context-architecture.test.ts
+          src/devtools/core/context.test.ts
+          src/devtools/panels/elements.test.ts
+          src/devtools/panels/resources.test.ts
+          src/devtools/panels/sources.test.ts
+          src/devtools/devtools.mount.test.ts
+          src/devtools/devtools.test.ts
+          src/maquina/maquina.test.ts
+
+      - name: Run complete test suite
+        run: pnpm test
