@@ -197,7 +197,7 @@ export function normalizeTable(value: unknown): { columns: string[]; rows: Array
   return { columns: [], rows: [] };
 }
 
-export async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
+/*export async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
   const queryOne = (selector: string, root: ParentNode = document) => root.querySelector(selector);
   const queryAll = (selector: string, root: ParentNode = document) => Array.from(root.querySelectorAll(selector));
   const names = ["$_", "$0", "$", "$$", "devtools", ...context.globals.keys()];
@@ -211,7 +211,137 @@ export async function executeJavaScript(code: string, context: { $_: unknown; $0
     const statements = new AsyncFunction(...names, `"use strict"; ${code}`);
     return await statements(...values);
   }
-}
+}*/
+
+  async function executeJavaScript(code, context = {}) {
+    // Contexto padrão: fornece atalhos úteis
+    const defaultContext = {
+      $_: undefined,
+      $0: undefined,
+      devtools: undefined,
+      globals: new Map(),
+    };
+    const fullContext = { ...defaultContext, ...context };
+    const queryOne = (selector, root = document) => root?.querySelector(selector);
+    const queryAll = (selector, root = document) => Array.from(root?.querySelectorAll(selector) || []);
+    const names = ["$_", "$0", "$", "$$", "devtools", ...fullContext.globals.keys()];
+    const values = [fullContext.$_, fullContext.$0, queryOne, queryAll, fullContext.devtools, ...fullContext.globals.values()];
+
+    // Tenta via AsyncFunction (mais rápido)
+    const tryAsyncFunction = async () => {
+      const AsyncFunction = Object.getPrototypeOf(async function noop() {}).constructor;
+      try {
+        const fn = new AsyncFunction(...names, `"use strict"; return await (${code});`);
+        return await fn(...values);
+      } catch (e) {
+        if (!(e instanceof SyntaxError)) throw e;
+        const fn = new AsyncFunction(...names, `"use strict"; ${code}`);
+        return await fn(...values);
+      }
+    };
+
+    // Injeção via Blob URL
+    const tryBlob = () => new Promise((resolve, reject) => {
+      const callbackId = `__rodDevToolsResult_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+      
+      // Serializa o contexto para o blob
+      let contextScript = '';
+      try {
+        const ctxObj = {};
+        names.forEach((name, i) => { ctxObj[name] = values[i]; });
+        contextScript = `const __ctx = ${JSON.stringify(ctxObj, (k, v) => typeof v === 'function' ? v.toString() : v)};`;
+      } catch {
+        contextScript = names.map((name, i) => {
+          const val = values[i];
+          return typeof val === 'function' 
+            ? `const ${name} = ${val.toString()};` 
+            : `const ${name} = ${JSON.stringify(val)};`;
+        }).join('\n');
+      }
+
+      const blobContent = `
+        (function() {
+          try {
+            ${contextScript}
+            const result = (async () => {
+              "use strict";
+              ${code}
+            })();
+            result.then(val => {
+              window.parent.postMessage({ type: '${callbackId}', result: val }, '*');
+            }).catch(err => {
+              window.parent.postMessage({ type: '${callbackId}', error: err.message || String(err) }, '*');
+            });
+          } catch (err) {
+            window.parent.postMessage({ type: '${callbackId}', error: err.message || String(err) }, '*');
+          }
+        })();
+      `;
+
+      const blob = new Blob([blobContent], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      const script = document.createElement('script');
+      script.src = url;
+      script.onload = () => { script.remove(); URL.revokeObjectURL(url); };
+      script.onerror = () => { script.remove(); URL.revokeObjectURL(url); reject(new Error('Blob script load failed')); };
+
+      const listener = (e) => {
+        if (e.data?.type === callbackId) {
+          window.removeEventListener('message', listener);
+          if (e.data.error) reject(new Error(e.data.error));
+          else resolve(e.data.result);
+        }
+      };
+      window.addEventListener('message', listener);
+      document.documentElement.appendChild(script);
+    });
+
+    // Fallback: eval no contexto da página (se permitido)
+    const tryEval = () => {
+      const evalInPage = (window.eval || eval);
+      return evalInPage(`(async () => { ${code} })()`);
+    };
+
+    // Fallback extremo: document.write (só funciona se a página ainda estiver carregando)
+    const tryDocumentWrite = () => new Promise((resolve, reject) => {
+      const callbackId = `__rodRiriWrite_${Date.now()}`;
+      const scriptContent = `
+        window['${callbackId}'] = (async () => { ${code} })();
+      `;
+      document.write(`<script>${scriptContent}<\/script>`);
+      // Espera a execução
+      let attempts = 0;
+      const check = setInterval(() => {
+        if (window[callbackId] !== undefined) {
+          clearInterval(check);
+          resolve(window[callbackId]);
+          delete window[callbackId];
+        }
+        if (++attempts > 20) { clearInterval(check); reject(new Error('Document.write timeout')); }
+      }, 100);
+    });
+
+    // Executa em cascata
+    try {
+      return await tryAsyncFunction();
+    } catch (err) {
+      if (!(err instanceof EvalError) && !(err.message && (err.message.includes('CSP') || err.message.includes('eval')))) {
+        throw err;
+      }
+    //  log('warn', 'execute.csp.fallback.blob');
+      try {
+        return await tryBlob();
+      } catch {
+     //   log('warn', 'execute.csp.fallback.eval');
+        try {
+          return await tryEval();
+        } catch {
+    //      log('warn', 'execute.csp.fallback.documentWrite');
+          return await tryDocumentWrite();
+        }
+      }
+    }
+  }
 
 export function readHistory(limit: number): string[] {
   try {
