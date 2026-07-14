@@ -99,6 +99,8 @@ export async function main(): Promise<void> {
   );
 
   await copyDocsAssets();
+  await copyLanding("fabrica");
+  await copyLanding("devtools");
 }
 
 function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
@@ -140,6 +142,13 @@ function isBuildableRootEntry(entry: RootEntry): boolean {
 
 function isSupportedScriptEntryFile(fileName: string): boolean {
   return /\.(ts|tsx|js|jsx|mjs)$/.test(fileName) && !fileName.endsWith(".d.ts");
+}
+
+async function copyLanding(project: string): Promise<void> {
+  const source = path.join(SRC_DIR, project, "index.html");
+  const targetDir = path.join(DIST_DIR, project);
+  await fs.mkdir(targetDir, { recursive: true });
+  await copyFileIfExists(source, path.join(targetDir, "index.html"));
 }
 
 
