@@ -24,12 +24,14 @@ import {
   resourcesStyleArtifacts,
   type ResourcesViewModel,
 } from "./resources-components";
+import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, canUseStorage, isJsonValue, formatJsonValue, unique } from "./resources.functions";
+
 
 export { resourcesStyleArtifacts };
 
-type StorageType = "local" | "session";
+export type StorageType = "local" | "session";
 
-type CapabilityModel = {
+export type CapabilityModel = {
   name: string;
   available: boolean;
 };
@@ -534,7 +536,7 @@ export class Resources extends Tool {
   }
 }
 
-const RESOURCE_ELEMENT_SELECTOR = [
+export const RESOURCE_ELEMENT_SELECTOR = [
   "script",
   "style",
   "link[href]",
@@ -545,159 +547,3 @@ const RESOURCE_ELEMENT_SELECTOR = [
   "audio[src]",
   "[style]",
 ].join(",");
-
-function mutationTouchesResources(
-  mutation: MutationRecord,
-  devtoolsHost?: HTMLElement,
-): boolean {
-  if (isDevtoolsNode(mutation.target, devtoolsHost)) return false;
-
-  if (mutation.type === "attributes") {
-    return mutation.target instanceof Element
-      && mutation.target.matches(RESOURCE_ELEMENT_SELECTOR);
-  }
-
-  for (const node of [...mutation.addedNodes, ...mutation.removedNodes]) {
-    if (!(node instanceof Element) || isDevtoolsNode(node, devtoolsHost)) continue;
-    if (node.matches(RESOURCE_ELEMENT_SELECTOR) || node.querySelector(RESOURCE_ELEMENT_SELECTOR)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function collectCssRuleUrls(rules: CSSRuleList, output: string[]): void {
-  for (const rule of Array.from(rules)) {
-    if (rule instanceof CSSStyleRule) {
-      output.push(...extractCssUrls(`${rule.style.backgroundImage} ${rule.style.background}`));
-      continue;
-    }
-
-    if ("cssRules" in rule) {
-      try {
-        collectCssRuleUrls((rule as CSSGroupingRule).cssRules, output);
-      } catch {
-        // Browser-specific grouping rules can be inaccessible.
-      }
-    }
-  }
-}
-
-function extractCssUrls(value: string): string[] {
-  const urls: string[] = [];
-  for (const match of value.matchAll(/url\(["']?(.+?)["']?\)/g)) {
-    if (!match[1]) continue;
-    try {
-      urls.push(new URL(match[1], location.href).href);
-    } catch {
-      // Ignore malformed CSS URLs.
-    }
-  }
-  return urls;
-}
-
-function looksLikeImageUrl(value: string): boolean {
-  return /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(value);
-}
-
-function storageRows(type: StorageType, storage: Storage): Array<{ type: StorageType; key: string; value: string; json: boolean }> {
-  const rows: Array<{ type: StorageType; key: string; value: string; json: boolean }> = [];
-
-  for (let index = 0; index < storage.length; index += 1) {
-    const key = storage.key(index);
-    if (key == null) continue;
-
-    const value = storage.getItem(key) ?? "";
-    rows.push({ type, key, value, json: isJsonValue(value) });
-  }
-
-  return rows;
-}
-
-function capabilityItems(): CapabilityModel[] {
-  return [
-    ["IndexedDB", typeof indexedDB !== "undefined"],
-    ["Cache Storage", typeof caches !== "undefined"],
-    ["WebSQL", typeof (window as unknown as { openDatabase?: unknown }).openDatabase === "function"],
-    ["localStorage", canUseStorage("local")],
-    ["sessionStorage", canUseStorage("session")],
-    ["Cookies", typeof document.cookie === "string"],
-  ].map(([name, available]) => ({ name: String(name), available: Boolean(available) }));
-}
-
-function parseCookies(): Array<{ name: string; value: string }> {
-  if (!document.cookie) return [];
-
-  return document.cookie.split(/;\s*/).filter(Boolean).map((chunk) => {
-    const index = chunk.indexOf("=");
-    const name = index < 0 ? chunk : chunk.slice(0, index);
-    const value = index < 0 ? "" : chunk.slice(index + 1);
-
-    try {
-      return { name: decodeURIComponent(name), value: decodeURIComponent(value) };
-    } catch {
-      return { name, value };
-    }
-  });
-}
-
-function removeCookie(name: string): void {
-  const encoded = encodeURIComponent(name);
-  const paths = ["/", location.pathname, location.pathname.replace(/\/[^/]*$/, "") || "/"];
-
-  for (const path of unique(paths)) document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
-}
-
-function safeStorage(type: StorageType): Storage {
-  try {
-    return type === "local" ? localStorage : sessionStorage;
-  } catch {
-    const memory = new Map<string, string>();
-
-    return {
-      get length() { return memory.size; },
-      clear: () => memory.clear(),
-      getItem: (key) => memory.get(key) ?? null,
-      key: (index) => [...memory.keys()][index] ?? null,
-      removeItem: (key) => { memory.delete(key); },
-      setItem: (key, value) => { memory.set(key, String(value)); },
-    };
-  }
-}
-
-function canUseStorage(type: StorageType): boolean {
-  try {
-    const storage = type === "local" ? localStorage : sessionStorage;
-    const key = "__roderuda_storage_probe__";
-    storage.setItem(key, "1");
-    storage.removeItem(key);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isJsonValue(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed || !/^[{[]/.test(trimmed)) return false;
-
-  try {
-    JSON.parse(trimmed);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function formatJsonValue(value: string): string {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
-  }
-}
-
-function unique<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
-}

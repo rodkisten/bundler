@@ -14,6 +14,8 @@ import {
   type ElementsViewModel,
   type StyleRuleInfo,
 } from "./elements-components";
+import { getMatchedRules, collectRules, clamp, meaningfulText } from "./elements.functions";
+
 
 export { elementsStyleArtifacts };
 
@@ -1373,82 +1375,4 @@ export class Elements extends Tool {
 
     return value as Node;
   }
-}
-
-function getMatchedRules(element: Element): StyleRuleInfo[] {
-  const output: StyleRuleInfo[] = [];
-
-  for (const stylesheet of Array.from(document.styleSheets)) {
-    let rules: CSSRuleList;
-
-    try {
-      rules = stylesheet.cssRules;
-    } catch {
-      // Cross-origin stylesheets expose no cssRules.
-      continue;
-    }
-
-    collectRules(
-      rules,
-      element,
-      output,
-      stylesheet.href || "inline",
-    );
-  }
-
-  return output.reverse();
-}
-
-function collectRules(
-  rules: CSSRuleList,
-  element: Element,
-  output: StyleRuleInfo[],
-  source: string,
-): void {
-  for (const rule of Array.from(rules)) {
-    if (rule instanceof CSSStyleRule) {
-      try {
-        if (!element.matches(rule.selectorText)) {
-          continue;
-        }
-      } catch {
-        // Invalid or browser-specific selectors cannot be matched safely.
-        continue;
-      }
-
-      output.push({
-        selector: rule.selectorText,
-        source,
-        declarations: Array.from(rule.style).map((property) => ({
-          property,
-          value: rule.style.getPropertyValue(property),
-          priority: rule.style.getPropertyPriority(property),
-        })),
-      });
-
-      continue;
-    }
-
-    if ("cssRules" in rule) {
-      try {
-        collectRules(
-          (rule as CSSGroupingRule).cssRules,
-          element,
-          output,
-          source,
-        );
-      } catch {
-        // Some grouping rules are inaccessible depending on browser/CSP.
-      }
-    }
-  }
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  if (maximum < minimum) return minimum;
-  return Math.min(Math.max(value, minimum), maximum);
-}
-
-function meaningfulText(value: string | null | undefined): string {
-  return (value ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").trim();
 }
