@@ -695,23 +695,37 @@ function bindComponentPart(
             ? { ...staticProps }
             : {}
           : staticProps ?? {};
-      let children: DocumentFragment | null = null;
+      const hasMeaningfulChildren = hasCompiledChildren
+        && (part?.hasStaticChildren || hasMeaningfulComponentChildren(node.content));
 
-      if (hasCompiledChildren) {
-        children = node.content.cloneNode(true) as DocumentFragment;
-        const childParts = part?.orderedChildParts ?? compileParts(children);
+      /**
+       * Component children are materialized lazily under the component owner.
+       *
+       * Eagerly applying nested component parts here makes every child a sibling
+       * of the provider component. Context providers then run too late: nested
+       * consumers have already been constructed and cannot see the value. A lazy
+       * render expression keeps the public `props.children` shape while deferring
+       * nested component creation until the parent component appends its output.
+       */
+      const children = hasMeaningfulChildren
+        ? (() => {
+            const fragment = node.content.cloneNode(true) as DocumentFragment;
+            const childParts = part?.orderedChildParts ?? compileParts(fragment);
 
-        applyParts(
-          children,
-          childParts,
-          values,
-          part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
-        );
-      }
+            applyParts(
+              fragment,
+              childParts,
+              values,
+              part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
+            );
+            pruneInsignificantWhitespace(fragment);
+            return fragment;
+          })
+        : null;
 
       const output = callComponentLike(
         componentValue,
-        children && (part?.hasStaticChildren || hasMeaningfulComponentChildren(children)) ? { ...props, children } : props,
+        children ? { ...props, children } : props,
       );
 
       childPart.set(output as RenderValue);
