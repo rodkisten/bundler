@@ -21,6 +21,8 @@ export const SettingsSectionTitle = styled.div("RodSettingsSectionTitle").css`
   color: $primary;
   background: $backgroundDark;
   font-weight: 600;
+
+  position: sticky;
 `;
 
 export const SettingsRow = styled.label("RodSettingsRow").css`
