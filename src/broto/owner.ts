@@ -219,7 +219,11 @@ export function provideToOwner<Value>(owner: Owner, context: ContextToken<Value>
   if (owner.disposed) {
     throw new Error(`[Broto] Cannot provide "${context.description}" to a disposed owner.`);
   }
-  owner.context.set(context as ContextToken<unknown>, value);
+
+  const token = context as ContextToken<unknown>;
+  if (owner.context.get(token) === value && owner.context.has(token)) return value;
+
+  owner.context.set(token, value);
   return value;
 }
 
@@ -247,6 +251,12 @@ export function requireContext<Value>(context: ContextToken<Value>): Value {
   const resolution = resolveContext(context);
   if (resolution.found) return resolution.value;
   throw new Error(`[Broto] Missing provider for required context "${context.description}".`);
+}
+
+
+/** React-style alias for required context reads. */
+export function useRequiredContext<Value>(context: ContextToken<Value>): Value {
+  return requireContext(context);
 }
 
 /** Returns a serializable owner graph snapshot. */
