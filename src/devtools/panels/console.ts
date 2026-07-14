@@ -574,7 +574,7 @@ function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLEle
   const row = html`<ConsoleRow 
     data-level="${record.level}" 
     data-record-id="${String(record.id)}"
-    style=`--rd-console-depth: ${record.groupDepth}`><ConsoleRow/>`;
+    style=${`--rd-console-depth: ${record.groupDepth}`}></ConsoleRow>`;
 
   /*const row = ConsoleRow({
     "data-level": record.level,
