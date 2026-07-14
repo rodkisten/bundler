@@ -374,22 +374,24 @@ component("RodConsoleView", function RodConsoleView(props) {
   const view = props.view as ConsoleViewModel;
   return html`
     <RodConsoleSurface
-      data-js-execution=${() => String(view.state.jsExecution())}
-      data-console-body
-      data-roderuda-scroll-key="console"
+      :data=${{ jsExecution: String(view.state.jsExecution()),
+                consoleBody: true, 
+                roderudaScrollKey: "console"
+             }}
       ref=${(node) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
       }}
     >
       <RodConsoleControl>
-        <RodConsoleIconButton type="button" title="Clear" data-action="clear" @click=${event.click((click) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
-        <RodConsoleLevels role="group" aria-label="Console levels">
+        <RodConsoleIconButton type="button" title="Clear" :action="clear" @click=${event.click((click) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
+        <RodConsoleLevels role="group" :label="Console levels">
           ${visibleLevels.map((level) => html`
             <RodConsoleLevelButton
-              data-active=${() => String(view.state.enabledLevels().includes(level))}
+              :data=${{ active: String(view.state.enabledLevels().includes(level)),
+                        level: level,
+                      }}
               type="button"
-              data-level=${level}
               aria-pressed=${() => String(view.state.enabledLevels().includes(level))}
               @click=${event.click((levelEvent) => { 
                 levelEvent.preventDefault(); 
@@ -400,20 +402,20 @@ component("RodConsoleView", function RodConsoleView(props) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter data-console-filter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${view.state.filterText()} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
-        <RodConsoleIconButton type="button" title="Copy console" data-action="copy" @click=${event.click((copyEvent) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
+        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${view.state.filterText()} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
+        <RodConsoleIconButton type="button" title="Copy console" :action="copy" @click=${event.click((copyEvent) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
-      <RodConsoleList data-console-list ref=${(node) => {
+      <RodConsoleList :consoleList ref=${(node) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
       }}>
         <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-    <RodConsoleInputWrap data-js-execution=${() => String(view.state.jsExecution())} data-expanded=${() => String(view.state.editorExpanded())} data-console-input-wrap>
+    <RodConsoleInputWrap :jsExecution=${() => String(view.state.jsExecution())} :expanded=${() => String(view.state.editorExpanded())} :"console-input-wrap" >
       <RodConsolePrompt>›</RodConsolePrompt>
       <RodConsoleInput
-        data-console-input
+        :consoleInput
         rows="1"
         spellcheck="false"
         autocomplete="off"
