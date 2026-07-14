@@ -93,7 +93,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
         ${record.kind === "websocket" ? detailTabTemplate("messages", "Messages", options.activeTab, options.onTab) : ""}
       </RodNetworkTabs>
 
-      <RodNetworkPane data-detail-pane="headers" data-active=${String(options.activeTab === "headers")}>
+      <RodNetworkPane :"detail-pane"="headers" :"active"=${String(options.activeTab === "headers")}>
         ${sectionTableTemplate("General", [
           ["Request URL", record.url],
           ["Request Method", record.method],
@@ -108,20 +108,20 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
         ${record.error ? sectionPreTemplate("Error", record.error) : ""}
       </RodNetworkPane>
 
-      <RodNetworkPane data-detail-pane="preview" data-active=${String(options.activeTab === "preview")}>
+      <RodNetworkPane :"detail-pane"="preview" :"active"=${String(options.activeTab === "preview")}>
         <RodNetworkCode>${preview}</RodNetworkCode>
       </RodNetworkPane>
 
-      <RodNetworkPane data-detail-pane="response" data-active=${String(options.activeTab === "response")}>
+      <RodNetworkPane :"detail-pane"="response" :"active"=${String(options.activeTab === "response")}>
         <RodSharedPreBlock>${responseCode}</RodSharedPreBlock>
       </RodNetworkPane>
 
-      <RodNetworkPane data-detail-pane="timing" data-active=${String(options.activeTab === "timing")}>
+      <RodNetworkPane :"detail-pane"="timing" :"active"=${String(options.activeTab === "timing")}>
         ${sectionTableTemplate("Timing", Object.entries(timing).map(([key, value]) => [key, formatDuration(value)]))}
       </RodNetworkPane>
 
       ${record.kind === "websocket" ? html`
-        <RodNetworkPane data-detail-pane="messages" data-active=${String(options.activeTab === "messages")}>
+        <RodNetworkPane :"detail-pane"="messages" :"active"=${String(options.activeTab === "messages")}>
           ${messagesTableTemplate(record)}
         </RodNetworkPane>
       ` : ""}
@@ -131,7 +131,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
 
 export function detailTabTemplate(tab: string, label: string, activeTab: string, onTab: (event: Event) => void): RenderValue {
   return html`
-    <RodNetworkTabButton type="button" data-detail-tab=${tab} data-active=${String(tab === activeTab)} @click=${event.click(onTab)}>${label}</RodNetworkTabButton>
+    <RodNetworkTabButton type="button" :"detail-tab"=${tab} :"active"=${String(tab === activeTab)} @click=${event.click(onTab)}>${label}</RodNetworkTabButton>
   `;
 }
 

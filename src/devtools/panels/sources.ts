@@ -560,7 +560,7 @@ const userscriptSource = await readUserscriptSource(
           })}
           ref=${(node) => { image = node; }}
         />
-        <p data-image-info ref=${(node) => { info = node; }}>Loading image…</p>
+        <p :"image-info" ref=${(node) => { info = node; }}>Loading image…</p>
       </RodSourcesImage>
     `);
   }

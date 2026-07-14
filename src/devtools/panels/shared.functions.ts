@@ -49,7 +49,7 @@ export function panelActionTemplate(item: PanelAction, options: PanelShellOption
       class=${item.className ?? ""}
       type="button"
       title=${item.title ?? item.label}
-      data-action=${item.action}
+      :"action"=${item.action}
       @click=${event.click((click: MouseEvent) => options.onAction?.(click, item.action))}
       ...${attrs(item.attrs) as never}
     >

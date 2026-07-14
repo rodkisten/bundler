@@ -404,7 +404,7 @@ component("RodConsoleView", function RodConsoleView(props) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${state.filterText()} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
+        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${state.filterText} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
         <RodConsoleIconButton type="button" title="Copy console" :action="copy" @click=${event.click((copyEvent) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
       <RodConsoleList :consoleList ref=${(node) => {
@@ -414,7 +414,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-    <RodConsoleInputWrap :jsExecution=${() => state.jsExecution()} :expanded=${() => state.editorExpanded()} :"console-input-wrap" >
+    <RodConsoleInputWrap :jsExecution=${state.jsExecution} :expanded=${state.editorExpanded} :"console-input-wrap" >
       <RodConsolePrompt>›</RodConsolePrompt>
       <RodConsoleInput
         :consoleInput
@@ -422,7 +422,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         spellcheck="false"
         autocomplete="off"
         aria-label="JavaScript console"
-        .value=${() => state.inputValue()}
+        .value=${state.inputValue}
         ref=${(node) => {
           view.setInput(node as HTMLTextAreaElement);
           return () => view.setInput(null);
@@ -433,7 +433,7 @@ component("RodConsoleView", function RodConsoleView(props) {
       />
       <RodConsoleEditorButton type="button" :action="run-inline" title="Run code" aria-label="Run code" @click=${event.click(() => view.runEditor())}>▶</RodConsoleEditorButton>
       <RodConsoleEditorActions 
-      :expanded=${() => state.editorExpanded()}>
+      :expanded=${state.editorExpanded}>
         <RodConsoleEditorButton type="button" :action="cancel-editor" @click=${event.click(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
         <RodConsoleEditorButton type="button" :action="clear-editor" @click=${event.click(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
         <RodConsoleEditorButton type="button"  :action="run-editor" @click=${event.click(() => view.runEditor())}>Run</RodConsoleEditorButton>
