@@ -1,6 +1,6 @@
 import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
 import { debugState } from "./debug";
-import { normalizeStaticSpecialAttributes } from "./dom-special-attributes";
+import { encodeLiteralDataAttributeName, normalizeStaticSpecialAttributes } from "./dom-special-attributes";
 import type { CompiledTemplate, ComponentPropPart, RenderValue, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
@@ -185,12 +185,75 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
-  const normalizedSource = normalizeInterpolatedComponentSelfClosingTags(source);
+  const normalizedSource = normalizeQuotedDataAttributeNames(normalizeInterpolatedComponentSelfClosingTags(source));
   return options.jsx ? transformMicroJsxChunk(normalizedSource) : normalizedSource;
 }
 
 function isComponentTagValue(value: unknown): boolean {
   return typeof value === "function";
+}
+
+
+/** Rewrites quoted data names to a parser-safe internal representation. */
+export function normalizeQuotedDataAttributeNames(source: string): string {
+  let output = "";
+  let index = 0;
+  let inTag = false;
+  let quote: '"' | "'" | null = null;
+
+  while (index < source.length) {
+    if (!inTag && source.startsWith("<!--", index)) {
+      const commentEnd = source.indexOf("-->", index + 4);
+      if (commentEnd === -1) return output + source.slice(index);
+      output += source.slice(index, commentEnd + 3);
+      index = commentEnd + 3;
+      continue;
+    }
+
+    const char = source[index]!;
+    if (!inTag) {
+      inTag = char === "<" && /[A-Za-z/]/.test(source[index + 1] ?? "");
+      output += char;
+      index += 1;
+      continue;
+    }
+
+    if (quote) {
+      output += char;
+      if (char === quote && source[index - 1] !== "\\") quote = null;
+      index += 1;
+      continue;
+    }
+
+    if (char === ">") {
+      inTag = false;
+      output += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === "'" || (char === '"' && source[index - 1] !== ":")) {
+      quote = char;
+      output += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === ":" && source[index + 1] === '"') {
+      const nameEnd = source.indexOf('"', index + 2);
+      const next = nameEnd === -1 ? "" : source[nameEnd + 1] ?? "";
+      if (nameEnd !== -1 && nameEnd > index + 2 && /[\s=/>]/.test(next)) {
+        output += encodeLiteralDataAttributeName(source.slice(index + 2, nameEnd));
+        index = nameEnd + 1;
+        continue;
+      }
+    }
+
+    output += char;
+    index += 1;
+  }
+
+  return output;
 }
 
 /**
@@ -320,7 +383,7 @@ export function isAttributePosition(chunk: string): boolean {
  * @returns Original binding name or an empty string.
  */
 export function readAttributeBindingName(chunk: string): string {
-  const match = /([.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
+  const match = /(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*"|'[^']*')?$/.exec(chunk);
   return match?.[1] ?? "";
 }
 

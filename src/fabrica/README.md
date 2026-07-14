@@ -1248,22 +1248,27 @@ const card = fabrica.html`
 `
 ```
 
-Colon-prefixed attributes map to `data-*` attributes. Camel case is converted to kebab case, and `:data` expands an object:
+Colon-prefixed attributes map to `data-*` attributes. Valueless fields create presence attributes, values are unwrapped and string-cast, camel case is converted to kebab case, and `:data` expands an object:
 
 ```ts
 const row = fabrica.html`
   <div
-    :rod
-    :rodCamelCase=${() => currentStatus()}
+    :consoleLog
+    :rodCamelCase=${currentStatus}
+    :"console-input-wrap"=${inputWrapper}
     :data=${{
       objectId: 123,
-      isReady: () => ready(),
+      isReady: ready,
+      ":already-kebab": activePanel,
+      ":queroManterCase": literalValue,
     }}
   ></div>
 `
 ```
 
-The result contains `data-rod="true"`, `data-rod-camel-case`, `data-object-id`, and `data-is-ready`.
+The result contains `data-console-log`, `data-rod-camel-case`, `data-console-input-wrap`, `data-object-id`, and `data-is-ready`. Prefix a quoted attribute name or a `:data` object key with `:` to preserve its literal spelling instead of applying camel-to-kebab normalization. HTML elements still follow the browser's case-insensitive attribute rules, so uppercase letters may appear lowercased in serialized markup.
+
+Data values follow predictable DOM rules: `null` and `undefined` remove the attribute; every other supplied value, including `false`, is written with `String(value)`. A field authored without `=` is written as an empty presence attribute.
 
 Bracket bindings call `style.setProperty()` and remain reactive:
 

@@ -3,6 +3,8 @@ import { compileInlineCss } from "../cipo/src/compiler/inline-compile";
 import { registerCleanup } from "./dom-cleanup";
 import { hasReactiveValue, readValue } from "./value";
 
+const LITERAL_DATA_ATTRIBUTE_PREFIX = "__fabrica_literal_data__";
+
 export type SpecialAttributeState = {
   dataNames: Set<string>;
   styleNames: Set<string>;
@@ -75,14 +77,45 @@ export function normalizeStaticSpecialAttributes(root: ParentNode): void {
 
     for (const attribute of attributes) {
       if (!isSpecialAttributeName(attribute.name) || attribute.value.includes("__fabrica_attr_")) continue;
-      applySpecialAttribute(element, attribute.name, attribute.value || true);
+      applySpecialAttribute(element, attribute.name, attribute.value);
       element.removeAttribute(attribute.name);
     }
   }
 }
 
 export function toDataAttributeName(name: string): string {
-  return `data-${toKebabCase(name.replace(/^data-?/, ""))}`;
+  const decodedName = decodeLiteralDataAttributeName(name);
+  const withoutPrefix = decodedName.value.replace(/^data-?/, "");
+  return `data-${decodedName.literal ? withoutPrefix : toKebabCase(withoutPrefix)}`;
+}
+
+/** Encodes quoted data names into an HTML-parser-safe attribute name. */
+export function encodeLiteralDataAttributeName(name: string): string {
+  return `:${LITERAL_DATA_ATTRIBUTE_PREFIX}${Array.from(name, (char) => char.codePointAt(0)!.toString(16).padStart(6, "0")).join("")}`;
+}
+
+function decodeLiteralDataAttributeName(name: string): { literal: boolean; value: string } {
+  const unquoted = readQuotedDataAttributeName(name);
+  if (unquoted != null) return { literal: true, value: unquoted };
+
+  const encodedPrefix = LITERAL_DATA_ATTRIBUTE_PREFIX;
+  if (!name.startsWith(encodedPrefix)) return { literal: false, value: name };
+
+  const encoded = name.slice(encodedPrefix.length);
+  if (!encoded || encoded.length % 6 !== 0 || /[^0-9a-f]/i.test(encoded)) {
+    return { literal: true, value: encoded };
+  }
+
+  let value = "";
+  for (let index = 0; index < encoded.length; index += 6) {
+    value += String.fromCodePoint(Number.parseInt(encoded.slice(index, index + 6), 16));
+  }
+  return { literal: true, value };
+}
+
+function readQuotedDataAttributeName(name: string): string | null {
+  if (!name.startsWith('"') || !name.endsWith('"')) return null;
+  return name.slice(1, -1);
 }
 
 function applyCipoInlineStyle(element: Element, value: unknown): void {
@@ -116,7 +149,7 @@ function applyDataAttribute(element: Element, rawName: string, value: unknown, s
     if (value && typeof value === "object") {
       const record = resolveObject(value as Record<string, unknown>);
       for (const key in record) {
-        const attributeName = toDataAttributeName(key);
+        const attributeName = toDataAttributeName(key.startsWith(":") ? `"${key.slice(1)}"` : key);
         nextNames.add(attributeName);
         setDataValue(element, attributeName, record[key]);
       }
@@ -131,12 +164,12 @@ function applyDataAttribute(element: Element, rawName: string, value: unknown, s
 
   const attributeName = toDataAttributeName(rawName);
   state.dataNames.add(attributeName);
-  setDataValue(element, attributeName, value === "" ? true : value);
+  setDataValue(element, attributeName, value);
 }
 
 function setDataValue(element: Element, name: string, value: unknown): void {
-  if (value == null || value === false) element.removeAttribute(name);
-  else element.setAttribute(name, value === true ? "true" : String(value));
+  if (value == null) element.removeAttribute(name);
+  else element.setAttribute(name, String(value));
 }
 
 function applyStyleProperty(element: Element, property: string, value: unknown, state: SpecialAttributeState): void {
