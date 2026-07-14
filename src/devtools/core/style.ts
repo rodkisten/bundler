@@ -182,8 +182,8 @@ export const devtoolsStyles = sheet.css`
     --rd-z-dropdown: 2147483550
     --rd-z-notification: 2147483560
     --rd-z-modal: 2147483570
-    --rd-z-inspector: 2147483580
-    --rd-z-resizer: 2147483590
+    --rd-z-inspector: 2147483509
+    --rd-z-resizer: 214748350
     --rd-z-entry: 2147483600
 
     --rd-colors-background: var(--background)
