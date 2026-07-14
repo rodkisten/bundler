@@ -34,6 +34,12 @@ export function applySpecialAttribute(
   value: unknown,
   state: SpecialAttributeState = createSpecialAttributeState(),
 ): boolean {
+  // Never resolve ordinary props here. Event handlers, refs and callbacks are
+  // functions too, and resolving them as reactive expressions invokes them
+  // during render with no Event/Node argument. Only special attributes own the
+  // deep-value semantics implemented by this module.
+  if (!isSpecialAttributeName(name)) return false;
+
   value = readValueDeep(value);
 
   if (name === "$css" || name === "$style") {
