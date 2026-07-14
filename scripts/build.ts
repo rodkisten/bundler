@@ -25,6 +25,12 @@ import { discoverRootEntries } from "./discover-entries";
 
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
+const REQUESTED_BUILD_ENTRIES = new Set(
+  readEnv("BUILD_ENTRIES", "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean),
+);
 
 const DOCS_DIR = path.join(DIST_DIR, "docs");
 const SOURCE_DIR = path.join(DIST_DIR, "source");
@@ -41,7 +47,8 @@ export async function main(): Promise<void> {
   await fs.mkdir(DIST_DIR, { recursive: true });
 
   const discoveredEntries = await discoverRootEntries();
-  const entries = filterBuildableRootEntries(discoveredEntries);
+  const buildableEntries = filterBuildableRootEntries(discoveredEntries);
+  const entries = filterRequestedEntries(buildableEntries);
 
   if (entries.length === 0) {
     throw new Error("No buildable root entrypoints found. Expected src/index.ts, src/name.ts, or src/name/index.ts.");
@@ -92,12 +99,29 @@ export async function main(): Promise<void> {
   );
 
   await copyDocsAssets();
-  await copyLanding("maquina");
-  await copyLanding("devtools");
 }
 
 function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
   return entries.filter(isBuildableRootEntry);
+}
+
+function filterRequestedEntries(entries: RootEntry[]): RootEntry[] {
+  if (REQUESTED_BUILD_ENTRIES.size === 0 || REQUESTED_BUILD_ENTRIES.has("all")) {
+    return entries;
+  }
+
+  const availableNames = new Set(entries.map((entry) => entry.name));
+  const unknownEntries = [...REQUESTED_BUILD_ENTRIES]
+    .filter((entryName) => !availableNames.has(entryName));
+
+  if (unknownEntries.length > 0) {
+    throw new Error(
+      `Unknown BUILD_ENTRIES value(s): ${unknownEntries.join(", ")}. `
+      + `Available entries: ${[...availableNames].sort().join(", ")}.`,
+    );
+  }
+
+  return entries.filter((entry) => REQUESTED_BUILD_ENTRIES.has(entry.name));
 }
 
 function isBuildableRootEntry(entry: RootEntry): boolean {
@@ -232,13 +256,6 @@ async function buildEntry(entry: RootEntry): Promise<string[]> {
   }
 
   return builds.map((item) => path.relative(DIST_DIR, item.file));
-}
-
-async function copyLanding(project: string): Promise<void> {
-  const source = path.join(SRC_DIR, project, "index.html");
-  const targetDir = path.join(DIST_DIR, project);
-  await fs.mkdir(targetDir, { recursive: true });
-  await copyFileIfExists(source, path.join(targetDir, "index.html"));
 }
 
 async function copyDocsAssets(): Promise<void> {
