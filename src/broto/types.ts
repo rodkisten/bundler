@@ -45,6 +45,20 @@ export type ContextDebugSnapshot = {
 /** Lifecycle owner used for effects, resources and UI component boundaries. */
 export type OwnerErrorHandler = (error: unknown, owner: Owner) => void | boolean;
 
+/** Result of resolving a context against an owner chain. */
+export type ContextResolution<Value> = {
+  readonly found: boolean;
+  readonly owner: Owner | null;
+  readonly value: Value;
+};
+
+/** Reusable persistent owner boundary. */
+export type OwnerScope = {
+  readonly owner: Owner;
+  run<Value>(callback: () => Value): Value;
+  dispose(): void;
+};
+
 export type Owner = {
   id: string;
   name?: string;
@@ -189,7 +203,6 @@ export type OwnerGraphSnapshot = {
   descendants: number;
   children: OwnerGraphSnapshot[];
 };
-
 
 /** Serializable signal diagnostics. */
 export type SignalDebugSnapshot = {
