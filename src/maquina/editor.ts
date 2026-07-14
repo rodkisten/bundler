@@ -64,6 +64,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   root.style.width = scale === 1 ? "100%" : `${100 / scale}%`;
   root.style.height = scale === 1 ? "100%" : `${100 / scale}%`;
   const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
+  textarea.style.fontSize = "16px";
+  highlight.style.fontSize = "16px";
   textarea.style.whiteSpace = whiteSpace;
   highlight.style.whiteSpace = whiteSpace;
   textarea.style.overflowWrap = options.lineWrapping === false ? "normal" : "anywhere";

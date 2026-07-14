@@ -17,6 +17,8 @@ const compiledPanelMarkers = [
 function polyfillBrowserApis(): void {
   Object.defineProperty(globalThis, "TextEncoder", { configurable: true, value: TextEncoder });
   Object.defineProperty(globalThis, "TextDecoder", { configurable: true, value: TextDecoder });
+  const NativeUint8Array = new TextEncoder().encode("").constructor;
+  Object.defineProperty(globalThis, "Uint8Array", { configurable: true, value: NativeUint8Array });
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn((query: string) => ({

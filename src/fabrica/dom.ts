@@ -100,6 +100,19 @@ const materializedHtmlResultMetadata = new WeakMap<Node, MaterializedHtmlResultM
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
 
+/**
+ * Defers nested child bindings until a component appends its children.
+ * The public component contract remains a real DocumentFragment.
+ */
+type DeferredComponentChildren = {
+  readonly parts: readonly TemplatePart[];
+  readonly values: readonly RenderValue[];
+  readonly hasComponents: boolean;
+  readonly runtime: FabricaRuntimeContext;
+};
+
+const deferredComponentChildren = new WeakMap<DocumentFragment, DeferredComponentChildren>();
+
 type DynamicComponentPropPart = ComponentPropPart;
 
 function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part is Extract<ComponentPropPart, { spread: true }> {
@@ -188,12 +201,13 @@ export function pruneInsignificantWhitespace(root: ParentNode): void {
 
   while (current) {
     const text = current as Text;
-    const parent = text.parentElement;
+    const parent = text.parentNode;
+    const parentElement = parent instanceof Element ? parent : null;
     const value = text.data;
 
     if (
       parent
-      && !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parent.tagName)
+      && (!parentElement || !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parentElement.tagName))
       && /^[\t\r\n ]+$/.test(value)
       && /[\t\r\n]/.test(value)
     ) {
@@ -535,6 +549,21 @@ export function appendValue(
     return;
   }
 
+  if (resolvedValue instanceof DocumentFragment) {
+    const deferred = deferredComponentChildren.get(resolvedValue);
+
+    if (deferred) {
+      deferredComponentChildren.delete(resolvedValue);
+      runWithFabricaRuntime(deferred.runtime, () => {
+        applyParts(resolvedValue, deferred.parts, deferred.values, deferred.hasComponents);
+        pruneInsignificantWhitespace(resolvedValue);
+      });
+    }
+
+    parentNode.insertBefore(resolvedValue, beforeNode);
+    return;
+  }
+
   if (isDomNode(resolvedValue)) {
     parentNode.insertBefore(resolvedValue, beforeNode);
     return;
@@ -699,29 +728,23 @@ function bindComponentPart(
         && (part?.hasStaticChildren || hasMeaningfulComponentChildren(node.content));
 
       /**
-       * Component children are materialized lazily under the component owner.
-       *
-       * Eagerly applying nested component parts here makes every child a sibling
-       * of the provider component. Context providers then run too late: nested
-       * consumers have already been constructed and cannot see the value. A lazy
-       * render expression keeps the public `props.children` shape while deferring
-       * nested component creation until the parent component appends its output.
+       * Keep the historical DocumentFragment children contract while delaying
+       * nested part binding until the fragment is appended under this owner.
        */
-      const children = hasMeaningfulChildren
-        ? (() => {
-            const fragment = node.content.cloneNode(true) as DocumentFragment;
-            const childParts = part?.orderedChildParts ?? compileParts(fragment);
+      let children: DocumentFragment | null = null;
 
-            applyParts(
-              fragment,
-              childParts,
-              values,
-              part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
-            );
-            pruneInsignificantWhitespace(fragment);
-            return fragment;
-          })
-        : null;
+      if (hasMeaningfulChildren) {
+        children = node.content.cloneNode(true) as DocumentFragment;
+        const childParts = part?.orderedChildParts ?? compileParts(children);
+
+        deferredComponentChildren.set(children, {
+          parts: childParts,
+          values,
+          hasComponents: part?.hasChildComponents
+            ?? childParts.some((childPart) => childPart.type === "component"),
+          runtime,
+        });
+      }
 
       const output = callComponentLike(
         componentValue,
