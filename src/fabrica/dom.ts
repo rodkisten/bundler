@@ -727,9 +727,8 @@ function bindComponentPart(
             ? { ...staticProps }
             : {}
           : staticProps ?? {};
-      // Ordered child parts may be comments only until their dynamic values
-      // are bound, so pre-materialization DOM inspection cannot detect them.
-      const hasMeaningfulChildren = hasCompiledChildren;
+      const hasMeaningfulChildren = hasCompiledChildren
+        && hasPotentialComponentChildren(part, values, node.content);
 
       /**
        * Keep the historical DocumentFragment children contract while delaying
@@ -840,6 +839,37 @@ function hasMeaningfulComponentChildren(fragment: DocumentFragment): boolean {
   }
 
   return false;
+}
+
+/** Detects dynamic children without eagerly materializing nested components. */
+function hasPotentialComponentChildren(
+  part: Extract<TemplatePart, { type: "component" }> | undefined,
+  values: readonly RenderValue[],
+  template: DocumentFragment,
+): boolean {
+  if (part?.hasStaticChildren || hasMeaningfulComponentChildren(template)) return true;
+
+  const childParts = part?.orderedChildParts ?? [];
+  for (let index = 0; index < childParts.length; index += 1) {
+    const childPart = childParts[index];
+    if (!childPart) continue;
+    if (childPart.type === "component") return true;
+    if (childPart.type !== "child") continue;
+    if (hasMeaningfulRenderValue(values[childPart.index])) return true;
+  }
+
+  return false;
+}
+
+function hasMeaningfulRenderValue(value: RenderValue | undefined): boolean {
+  if (isDirective(value) || isSignal(value)) return true;
+
+  const resolved = readValue(value) as RenderValue;
+  if (resolved == null || resolved === false || resolved === true) return false;
+  if (Array.isArray(resolved)) return resolved.some((item) => hasMeaningfulRenderValue(item));
+  if (typeof resolved === "string") return resolved.trim().length > 0;
+  if (resolved instanceof DocumentFragment) return hasMeaningfulComponentChildren(resolved);
+  return true;
 }
 
 function callComponentLike(componentValue: unknown, props: Record<string, unknown>): unknown {

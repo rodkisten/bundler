@@ -53,7 +53,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   `);
 
   const root = options.parent.firstElementChild as HTMLElement | null;
-  if (!root || !textarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
+  const mountedTextarea = options.parent.querySelector<HTMLTextAreaElement>("textarea");
+  if (!root || !mountedTextarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
+  textarea = mountedTextarea;
 
   // Property bindings are intentionally mirrored here so standalone/editor
   // adapters always expose the initial value and cursor synchronously.
