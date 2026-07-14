@@ -13,6 +13,7 @@ import {
   type PackageTheme,
 } from "./create-index-html";
 import { collectExamplesByEntry } from "./example-extractor";
+import { buildDevtoolsLanding } from "./build-devtools-landing";
 import {
   DIST_DIR,
   ROOT_DIR,
@@ -100,7 +101,7 @@ export async function main(): Promise<void> {
 
   await copyDocsAssets();
   await copyLanding("fabrica");
-  await copyLanding("devtools");
+  await buildDevtoolsLanding();
 }
 
 function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
