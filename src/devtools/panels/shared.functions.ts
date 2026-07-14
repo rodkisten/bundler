@@ -4,12 +4,12 @@ import { PanelShellOptions, PanelShellRefs, PanelAction } from "./panel-ui";
 export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
   const bodyRef = { current: null as HTMLElement | null };
 
-  const root = asNode(html`
+  const root = html`
     <RodPanelShell class=${options.className ?? ""}>
       ${options.title != null ? panelHeaderTemplate(options) : ""}
       <RodPanelBody
         class=${options.bodyClassName ?? ""}
-        data-scroll=${String(options.scroll !== false)}
+        :scroll=${String(options.scroll !== false)}
         ref=${(node: HTMLElement | null) => {
           bodyRef.current = node as HTMLElement;
           return () => {
@@ -18,7 +18,7 @@ export function renderPanelShell(target: HTMLElement, options: PanelShellOptions
         }}
       />
     </RodPanelShell>
-  `) as HTMLElement;
+  ` as HTMLElement;
 
   const body = bodyRef.current ?? root.querySelector<HTMLElement>("[data-scroll]");
   if (!body) throw new Error("Panel shell body was not rendered.");
