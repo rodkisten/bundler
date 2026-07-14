@@ -38,7 +38,7 @@ describe("Maquina", () => {
     const parent = document.createElement("div");
     document.body.append(parent);
     let seen = "";
-    mountMaquina({ parent, value: "doc", activateCompletionOnTyping: true, completions(context) { seen = context.matchBefore(/[$\\w.]+$/)?.text ?? ""; return { from: 0, options: [{ label: "document" }] }; } });
+    mountMaquina({ parent, value: "doc", activateCompletionOnTyping: true, completions(context) { seen = context.matchBefore(/[$\w.]+$/)?.text ?? ""; return { from: 0, options: [{ label: "document" }] }; } });
     const textarea = parent.querySelector("textarea")!;
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
