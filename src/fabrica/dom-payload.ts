@@ -1,6 +1,7 @@
 import { registerCleanup } from './dom-cleanup'
 import { setPropertyOrAttribute } from './props'
 import type { ComponentPayload, ElementPayload, RenderValue } from './types'
+import { applySpecialAttribute, createSpecialAttributeState } from "./dom-special-attributes";
 
 /** Callback used by payload materializers to append nested children. */
 export type AppendRenderValue = (parentNode: Node, value: RenderValue, beforeNode?: Node | null) => void
@@ -92,6 +93,10 @@ export function applyPayloadProps(element: Element, props: Record<string, unknow
 
     if (key === 'children') {
       appendValue(element, propValue as RenderValue)
+      continue
+    }
+
+    if (applySpecialAttribute(element, key, propValue, createSpecialAttributeState())) {
       continue
     }
 

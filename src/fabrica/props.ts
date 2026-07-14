@@ -1,5 +1,6 @@
 import { applyClassMap, applyStyleMap } from "./maps";
 import { readValue, stringifyValue } from "./value";
+import { applySpecialAttribute, createSpecialAttributeState } from "./dom-special-attributes";
 
 /** Element event cache used by object props. */
 const elementEvents = new WeakMap<Element, Map<string, EventListener>>();
@@ -18,6 +19,10 @@ const elementEvents = new WeakMap<Element, Map<string, EventListener>>();
 export function applyProps(element: Element, props: Record<string, unknown>): void {
   for (const key in props) {
     const value = props[key];
+
+    if (applySpecialAttribute(element, key, value, createSpecialAttributeState())) {
+      continue;
+    }
 
     if (key === "text") {
       element.textContent = stringifyValue(readValue(value));

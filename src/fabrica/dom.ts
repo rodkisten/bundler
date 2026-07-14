@@ -14,6 +14,7 @@ import {
 import { bindEvent } from "./events";
 import { bindModelPart, createDirectiveController } from "./dom-directives";
 import { bindSpreadPart } from "./dom-spread";
+import { bindSpecialAttribute } from "./dom-special-attributes";
 import {
   isClassMapDirective,
   isComponent,
@@ -1177,6 +1178,10 @@ function bindAttributePart(
       });
       return;
     }
+  }
+
+  if (bindSpecialAttribute(node, rawName, value)) {
+    return;
   }
 
   if (rawName.startsWith("@")) {

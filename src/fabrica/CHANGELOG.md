@@ -204,3 +204,10 @@
 
 - Prune indentation-only text nodes containing line breaks from runtime and compiled templates while preserving intentional single-space separators and whitespace-sensitive elements such as `pre`, `textarea`, `script`, and `style`.
 - Keep runtime and compiled template materialization aligned through the same whitespace pruning pass.
+
+## Unreleased
+
+- Added registered self-closing component syntax through normal `html`, including `<NosUnicos />`.
+- Added `$css` and `$style` element bindings backed by the Cipó inline runtime for string, object, artifact, signal, and reactive-function values.
+- Added `:name`, `:data`, and camelCase-to-kebab-case dataset bindings.
+- Added `[property]` bindings for reactive `style.setProperty()`, including CSS custom properties.

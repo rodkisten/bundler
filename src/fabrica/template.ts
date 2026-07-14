@@ -1,12 +1,13 @@
 import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
 import { debugState } from "./debug";
+import { normalizeStaticSpecialAttributes } from "./dom-special-attributes";
 import type { CompiledTemplate, ComponentPropPart, RenderValue, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const namedComponentSyntaxCache = new WeakMap<TemplateStringsArray, boolean>();
-const JSX_COMPONENT_NAME = "[A-Z][A-Za-z0-9_$.-]*";
+const JSX_COMPONENT_NAME = "[\\p{Lu}][\\p{L}\\p{N}_$.-]*";
 const ATTR_NAME_MARKER_SUFFIX = "__fabrica_attr_name_end__";
 
 /**
@@ -104,6 +105,7 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
 
   const template = document.createElement("template");
   template.innerHTML = buildTemplateSource(strings, values, { jsx });
+  normalizeStaticSpecialAttributes(template.content);
 
   const parts = compileParts(template.content);
   const orderedParts = parts.slice().sort((left, right) => comparePathsReverse(left.path, right.path));
@@ -241,16 +243,16 @@ export function transformMicroJsxChunk(chunk: string): string {
     let output = rewriteExplicitComponentTags(source);
 
     output = output.replace(
-      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "g"),
+      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "gu"),
       (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}></template>`,
     );
 
     output = output.replace(
-      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "g"),
+      new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "gu"),
       (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}>`,
     );
 
-    output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "g"), "</template>");
+    output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "gu"), "</template>");
 
     return output;
   });
@@ -318,7 +320,7 @@ export function isAttributePosition(chunk: string): boolean {
  * @returns Original binding name or an empty string.
  */
 export function readAttributeBindingName(chunk: string): string {
-  const match = /([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
+  const match = /([.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
   return match?.[1] ?? "";
 }
 

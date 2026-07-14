@@ -5,6 +5,7 @@ import { setPropertyOrAttribute } from "./props";
 import { stringifyAttributeValue } from "./dom-payload";
 import { hasReactiveValue, readValue } from "./value";
 import type { RenderValue } from "./types";
+import { applySpecialAttribute, createSpecialAttributeState } from "./dom-special-attributes";
 
 let spreadEventDiffVersion = 0;
 
@@ -133,6 +134,10 @@ export function applySpreadProperty(
   eventVersion = spreadEventDiffVersion,
 ): void {
   if (key === "children") {
+    return;
+  }
+
+  if (applySpecialAttribute(element, key, propValue, createSpecialAttributeState())) {
     return;
   }
 
