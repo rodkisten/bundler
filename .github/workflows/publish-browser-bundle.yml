@@ -347,4 +347,4 @@ jobs:
     steps:
       - name: 🚀 Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
