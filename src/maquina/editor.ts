@@ -53,7 +53,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   `);
 
   const root = options.parent.firstElementChild as HTMLElement | null;
-  if (!root || !textarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
+  const mountedTextarea = options.parent.querySelector<HTMLTextAreaElement>("textarea");
+  if (!root || !mountedTextarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
+  textarea = mountedTextarea;
+
+  // Property bindings are intentionally mirrored here so standalone/editor
+  // adapters always expose the initial value and cursor synchronously.
+  textarea.value = options.value;
+  textarea.setSelectionRange(options.value.length, options.value.length);
 
   applyTheme(root, theme.name);
   root.style.setProperty("--maq-tab-size", String(Math.max(1, Math.min(16, options.tabSize ?? 2))));
@@ -64,6 +71,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   root.style.width = scale === 1 ? "100%" : `${100 / scale}%`;
   root.style.height = scale === 1 ? "100%" : `${100 / scale}%`;
   const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
+  textarea.style.fontSize = "16px";
+  highlight.style.fontSize = "16px";
   textarea.style.whiteSpace = whiteSpace;
   highlight.style.whiteSpace = whiteSpace;
   textarea.style.overflowWrap = options.lineWrapping === false ? "normal" : "anywhere";

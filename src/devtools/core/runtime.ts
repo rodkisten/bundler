@@ -26,8 +26,27 @@ export const devtoolsFabrica = createFabrica({
   setAsDefault: true,
 });
 
-export const html = devtoolsFabrica.html;
-export const jsx = devtoolsFabrica.jsx;
+const baseHtml = devtoolsFabrica.html;
+
+/** Materializes templates under the shared DevTools owner, even before render(). */
+export const html: typeof baseHtml = new Proxy(baseHtml, {
+  apply(target, thisArg, argumentsList: Parameters<typeof baseHtml>) {
+    return runInDevtoolsOwner(() =>
+      devtoolsFabrica.run(() => Reflect.apply(target, thisArg, argumentsList)),
+    );
+  },
+});
+
+export const jsx = Object.freeze({
+  ...devtoolsFabrica.jsx,
+  html: new Proxy(devtoolsFabrica.jsx.html, {
+    apply(target, thisArg, argumentsList: Parameters<typeof devtoolsFabrica.jsx.html>) {
+      return runInDevtoolsOwner(() =>
+        devtoolsFabrica.run(() => Reflect.apply(target, thisArg, argumentsList)),
+      );
+    },
+  }),
+});
 export const component = devtoolsFabrica.component;
 export const signal = devtoolsFabrica.signal;
 export const computed = devtoolsFabrica.computed;

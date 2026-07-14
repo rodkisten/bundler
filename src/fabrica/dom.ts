@@ -100,6 +100,19 @@ const materializedHtmlResultMetadata = new WeakMap<Node, MaterializedHtmlResultM
 const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
 const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
 
+/**
+ * Defers nested child bindings until a component appends its children.
+ * The public component contract remains a real DocumentFragment.
+ */
+type DeferredComponentChildren = {
+  readonly parts: readonly TemplatePart[];
+  readonly values: readonly RenderValue[];
+  readonly hasComponents: boolean;
+  readonly runtime: FabricaRuntimeContext;
+};
+
+const deferredComponentChildren = new WeakMap<DocumentFragment, DeferredComponentChildren>();
+
 type DynamicComponentPropPart = ComponentPropPart;
 
 function isDynamicComponentSpreadPropPart(part: DynamicComponentPropPart): part is Extract<ComponentPropPart, { spread: true }> {
@@ -188,12 +201,13 @@ export function pruneInsignificantWhitespace(root: ParentNode): void {
 
   while (current) {
     const text = current as Text;
-    const parent = text.parentElement;
+    const parent = text.parentNode;
+    const parentElement = parent instanceof Element ? parent : null;
     const value = text.data;
 
     if (
       parent
-      && !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parent.tagName)
+      && (!parentElement || !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parentElement.tagName))
       && /^[\t\r\n ]+$/.test(value)
       && /[\t\r\n]/.test(value)
     ) {
@@ -203,8 +217,11 @@ export function pruneInsignificantWhitespace(root: ParentNode): void {
         previous?.nodeType === Node.COMMENT_NODE
         || next?.nodeType === Node.COMMENT_NODE;
 
-      if (touchesDynamicPart) normalizations.push(text);
-      else removals.push(text);
+      if (touchesDynamicPart && !(parent instanceof DocumentFragment)) {
+        normalizations.push(text);
+      } else {
+        removals.push(text);
+      }
     }
 
     current = walker.nextNode();
@@ -535,6 +552,21 @@ export function appendValue(
     return;
   }
 
+  if (resolvedValue instanceof DocumentFragment) {
+    const deferred = deferredComponentChildren.get(resolvedValue);
+
+    if (deferred) {
+      deferredComponentChildren.delete(resolvedValue);
+      runWithFabricaRuntime(deferred.runtime, () => {
+        applyParts(resolvedValue, deferred.parts, deferred.values, deferred.hasComponents);
+        pruneInsignificantWhitespace(resolvedValue);
+      });
+    }
+
+    parentNode.insertBefore(resolvedValue, beforeNode);
+    return;
+  }
+
   if (isDomNode(resolvedValue)) {
     parentNode.insertBefore(resolvedValue, beforeNode);
     return;
@@ -695,23 +727,31 @@ function bindComponentPart(
             ? { ...staticProps }
             : {}
           : staticProps ?? {};
+      const hasMeaningfulChildren = hasCompiledChildren
+        && hasPotentialComponentChildren(part, values, node.content);
+
+      /**
+       * Keep the historical DocumentFragment children contract while delaying
+       * nested part binding until the fragment is appended under this owner.
+       */
       let children: DocumentFragment | null = null;
 
-      if (hasCompiledChildren) {
+      if (hasMeaningfulChildren) {
         children = node.content.cloneNode(true) as DocumentFragment;
         const childParts = part?.orderedChildParts ?? compileParts(children);
 
-        applyParts(
-          children,
-          childParts,
+        deferredComponentChildren.set(children, {
+          parts: childParts,
           values,
-          part?.hasChildComponents ?? childParts.some((childPart) => childPart.type === "component"),
-        );
+          hasComponents: part?.hasChildComponents
+            ?? childParts.some((childPart) => childPart.type === "component"),
+          runtime,
+        });
       }
 
       const output = callComponentLike(
         componentValue,
-        children && (part?.hasStaticChildren || hasMeaningfulComponentChildren(children)) ? { ...props, children } : props,
+        children ? { ...props, children } : props,
       );
 
       childPart.set(output as RenderValue);
@@ -799,6 +839,37 @@ function hasMeaningfulComponentChildren(fragment: DocumentFragment): boolean {
   }
 
   return false;
+}
+
+/** Detects dynamic children without eagerly materializing nested components. */
+function hasPotentialComponentChildren(
+  part: Extract<TemplatePart, { type: "component" }> | undefined,
+  values: readonly RenderValue[],
+  template: DocumentFragment,
+): boolean {
+  if (part?.hasStaticChildren || hasMeaningfulComponentChildren(template)) return true;
+
+  const childParts = part?.orderedChildParts ?? [];
+  for (let index = 0; index < childParts.length; index += 1) {
+    const childPart = childParts[index];
+    if (!childPart) continue;
+    if (childPart.type === "component") return true;
+    if (childPart.type !== "child") continue;
+    if (hasMeaningfulRenderValue(values[childPart.index])) return true;
+  }
+
+  return false;
+}
+
+function hasMeaningfulRenderValue(value: RenderValue | undefined): boolean {
+  if (isDirective(value) || isSignal(value)) return true;
+
+  const resolved = readValue(value) as RenderValue;
+  if (resolved == null || resolved === false || resolved === true) return false;
+  if (Array.isArray(resolved)) return resolved.some((item) => hasMeaningfulRenderValue(item));
+  if (typeof resolved === "string") return resolved.trim().length > 0;
+  if (resolved instanceof DocumentFragment) return hasMeaningfulComponentChildren(resolved);
+  return true;
 }
 
 function callComponentLike(componentValue: unknown, props: Record<string, unknown>): unknown {

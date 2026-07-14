@@ -19,7 +19,7 @@ import type {
   Signal,
 } from "./types";
 
-/** Creates a Fabrica context backed by Broto's owner tree. */
+/** Creates a Fábrica context backed by Broto's persistent owner tree. */
 export const createFabricaContext = createContext;
 
 /** Creates a context that throws when no ancestor provider exists. */
@@ -34,9 +34,12 @@ export interface ContextProviderProps<Value> {
 }
 
 /**
- * Creates a portable provider component for a context token.
+ * Creates a DOM-less provider component.
  *
- * The provider carries no DOM of its own and preserves the logical owner tree.
+ * Children are intentionally returned as a render value instead of being
+ * materialized by the provider factory. The renderer resolves that value under
+ * the provider component owner, so nested consumers inherit the provided value
+ * even when the template was authored before `render()` was called.
  */
 export function createContextProvider<Value>(
   context: ContextToken<Value>,
@@ -53,8 +56,8 @@ export function createReactiveContextProvider<Value>(
   context: ReactiveContextToken<Value>,
   name = `${context.description}Provider`,
 ): Component<ContextProviderProps<Value | Signal<Value>>> {
-  return defineComponent<ContextProviderProps<Value | Signal<Value>>>(name, (props) => {
-    provideReactiveContext(context, props.value);
+  return defineComponent<ContextProviderProps<Value | Signal<Value>>>(name, (props, componentContext) => {
+    componentContext.provideReactiveContext(context, props.value);
     return props.children ?? null;
   });
 }

@@ -14,18 +14,6 @@ import type { BrotoLeakRecord, BrotoLeakSnapshot, BrotoRuntimeSnapshot, Owner, O
  *
  * @param root - Optional owner root. When omitted, every known root owner is included.
  * @returns Serializable runtime snapshot.
- *
- * @example Inspect every active root
- * ```ts
- * const snapshot = inspectRuntime();
- * console.table(snapshot.signals);
- * ```
- *
- * @example Inspect one component subtree
- * ```ts
- * const snapshot = inspectRuntime(componentOwner);
- * console.log(snapshot.owners[0]?.descendants);
- * ```
  */
 export function inspectRuntime(root?: Owner | null): BrotoRuntimeSnapshot {
   const roots: OwnerGraphSnapshot[] = [];
@@ -50,18 +38,7 @@ export function inspectRuntime(root?: Owner | null): BrotoRuntimeSnapshot {
   };
 }
 
-/**
- * Flattens an owner graph into rows that are easy to render in tables.
- *
- * @param graph - Owner graph snapshot.
- * @returns Flat owner rows with depth information.
- *
- * @example
- * ```ts
- * const rows = flattenOwnerGraph(inspectGraph()!);
- * console.table(rows);
- * ```
- */
+/** Flattens an owner graph into rows that are easy to render in tables. */
 export function flattenOwnerGraph(graph: OwnerGraphSnapshot | null): Array<Omit<OwnerGraphSnapshot, "children"> & { depth: number; parentId: string | null }> {
   const rows: Array<Omit<OwnerGraphSnapshot, "children"> & { depth: number; parentId: string | null }> = [];
   if (!graph) return rows;
@@ -81,6 +58,7 @@ function appendOwnerRows(
     disposed: graph.disposed,
     cleanups: graph.cleanups,
     context: graph.context,
+    contexts: graph.contexts,
     errorHandlers: graph.errorHandlers,
     createdAt: graph.createdAt,
     descendants: graph.descendants,
@@ -93,24 +71,7 @@ function appendOwnerRows(
   }
 }
 
-
-/**
- * Inspects likely lifecycle leaks without mutating the runtime.
- *
- * @remarks
- * This heuristic report is intentionally conservative: it flags disposed owners
- * still retaining children/cleanups, effects whose owners are disposed, and
- * signals with unusually high subscriber counts. It is a devtools aid, not a GC
- * oracle.
- *
- * @returns Leak diagnostics snapshot.
- *
- * @example
- * ```ts
- * const report = inspectLeaks();
- * if (report.leaks.length) console.table(report.leaks);
- * ```
- */
+/** Inspects likely lifecycle leaks without mutating the runtime. */
 export function inspectLeaks(): BrotoLeakSnapshot {
   const runtime = inspectRuntime();
   const leaks: BrotoLeakRecord[] = [];
@@ -124,23 +85,49 @@ export function inspectLeaks(): BrotoLeakSnapshot {
   for (let index = 0; index < runtime.effects.length; index += 1) {
     const effect = runtime.effects[index];
     if (effect.disposed && (effect.deps > 0 || effect.cleanups > 0)) {
-      leaks[leaks.length] = { id: effect.id, name: effect.name, kind: 'effect', reason: 'Disposed effect still retains deps or cleanups.', count: effect.deps + effect.cleanups };
+      leaks[leaks.length] = {
+        id: effect.id,
+        name: effect.name,
+        kind: "effect",
+        reason: "Disposed effect still retains deps or cleanups.",
+        count: effect.deps + effect.cleanups,
+      };
     }
   }
 
   for (let index = 0; index < runtime.signals.length; index += 1) {
     const signal = runtime.signals[index];
     if (signal.subscribers > 1000) {
-      leaks[leaks.length] = { id: signal.id, name: signal.name, kind: 'signal', reason: 'Signal has an unusually high subscriber count.', count: signal.subscribers };
+      leaks[leaks.length] = {
+        id: signal.id,
+        name: signal.name,
+        kind: "signal",
+        reason: "Signal has an unusually high subscriber count.",
+        count: signal.subscribers,
+      };
     }
   }
 
-  return { leaks, owners: ownerCount, effects: runtime.effects.length, signals: runtime.signals.length };
+  return {
+    leaks,
+    owners: ownerCount,
+    effects: runtime.effects.length,
+    signals: runtime.signals.length,
+  };
 }
 
 function collectOwnerLeaks(owner: OwnerGraphSnapshot, leaks: BrotoLeakRecord[]): void {
   if (owner.disposed && (owner.cleanups > 0 || owner.children.length > 0)) {
-    leaks[leaks.length] = { id: owner.id, name: owner.name, kind: 'owner', reason: 'Disposed owner still retains cleanups or children.', count: owner.cleanups + owner.children.length };
+    leaks[leaks.length] = {
+      id: owner.id,
+      name: owner.name,
+      kind: "owner",
+      reason: "Disposed owner still retains cleanups or children.",
+      count: owner.cleanups + owner.children.length,
+    };
   }
-  for (let index = 0; index < owner.children.length; index += 1) collectOwnerLeaks(owner.children[index], leaks);
+
+  for (let index = 0; index < owner.children.length; index += 1) {
+    collectOwnerLeaks(owner.children[index], leaks);
+  }
 }
