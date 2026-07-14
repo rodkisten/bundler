@@ -337,6 +337,7 @@ export type ComponentContext = {
   provide<Value>(context: ContextToken<Value>, value: Value): Value;
   useContext<Value>(context: ContextToken<Value>): Value;
   requireContext<Value>(context: ContextToken<Value>): Value;
+  useRequiredContext<Value>(context: ContextToken<Value>): Value;
   provideReactiveContext<Value>(context: ReactiveContextToken<Value>, value: Value | Signal<Value>): Signal<Value>;
   useReactiveContext<Value>(context: ReactiveContextToken<Value>): Signal<Value>;
   requireReactiveContext<Value>(context: ReactiveContextToken<Value>): Signal<Value>;

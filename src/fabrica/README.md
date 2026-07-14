@@ -1307,3 +1307,43 @@ const Provider = component("DensityProvider", (props, ctx) => {
 ```
 
 Context should describe the component environment. Keep local, explicit data in props and put changing context state inside Broto signals or stores.
+
+## Reference-preserving context providers
+
+Fábrica contexts are thin dependency-injection boundaries backed by Broto owners. A context keeps the exact reference supplied by its nearest provider. Stores, services, signals, computed values and ordinary objects are not cloned, snapshotted or automatically unwrapped.
+
+```ts
+const DevToolsContext = createFabricaContext<DevToolsStore | null>(null, "DevTools");
+
+html`
+  <${DevToolsContext.Provider} .value=${store}>
+    <DevToolsShell />
+  </${DevToolsContext.Provider}>
+`;
+```
+
+Consumers can use the strict helper globally or through the component context:
+
+```ts
+const store = useRequiredContext(DevToolsContext);
+const store = ctx.useRequiredContext(DevToolsContext);
+```
+
+When a store contains Broto signals, only bindings that observe the changed signal update. The context itself does not broadcast store mutations or rerender unrelated consumers:
+
+```ts
+const store = {
+  expanded: signal(false),
+  input: signal(""),
+};
+
+const storeFromContext = ctx.useRequiredContext(DevToolsContext);
+
+return html`
+  <section :expanded=${storeFromContext.expanded}>
+    <input .value=${storeFromContext.input} />
+  </section>
+`;
+```
+
+Changing `store.expanded` updates only `:expanded`; changing `store.input` updates only `.value`.

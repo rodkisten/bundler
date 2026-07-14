@@ -221,3 +221,11 @@
 
 - Added required contexts, reactive signal contexts, portable context provider components and context diagnostics.
 - Added `ctx.requireContext()`, `ctx.provideReactiveContext()`, `ctx.useReactiveContext()` and `ctx.requireReactiveContext()`.
+
+## Unreleased
+
+- Added `Context.Provider` to contexts created by `createFabricaContext()`, `createRequiredFabricaContext()` and `createReactiveFabricaContext()`.
+- Added `useRequiredContext()` globally and as `ctx.useRequiredContext()`.
+- Context providers now explicitly preserve store, service, object and signal identity without cloning, snapshotting or automatic unwrapping.
+- Avoid redundant owner context writes when the provided reference is unchanged.
+- Added coverage proving fine-grained store signal updates do not turn context into a broadcast rerender mechanism.

@@ -1,5 +1,5 @@
 import { batch, computed, effect, memo, signal, untrack } from "../broto/reactivity";
-import { createRoot, getOwner, handleOwnerError, provide, requireContext, runWithOwner, useContext } from "../broto/owner";
+import { createRoot, getOwner, handleOwnerError, provide, requireContext, runWithOwner, useContext, useRequiredContext } from "../broto/owner";
 import { provideReactiveContext, requireReactiveContext, useReactiveContext } from "../broto/context";
 import { resource } from "../broto/resources";
 import { debugState } from "./debug";
@@ -284,6 +284,9 @@ export function materializeComponent<Props extends object>(
       },
       requireContext(contextToken) {
         return runWithOwner(owner, () => requireContext(contextToken));
+      },
+      useRequiredContext(contextToken) {
+        return runWithOwner(owner, () => useRequiredContext(contextToken));
       },
       provideReactiveContext(contextToken, value) {
         return runWithOwner(owner, () => provideReactiveContext(contextToken, value));
