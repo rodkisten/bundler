@@ -85,7 +85,11 @@ export class Settings extends Tool {
     };
 
     this.disposeView?.();
-    this.disposeView = render(container, html`<RodSettingsView view=${view as never} />`);
+    this.disposeView = render(container, html`
+      <RodSettingsViewProvider .value=${view}>
+        <RodSettingsView />
+      </RodSettingsViewProvider>
+    `);
     this.render();
   }
 

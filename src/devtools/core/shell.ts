@@ -1,7 +1,8 @@
 import { debugLog } from "./debug";
 import { icon } from "./utils";
 import type { CipoCssArtifact } from "../../cipo";
-import { html,  renderInto, repeat, signal, styled, uiState } from "./runtime";
+import { component, html, renderInto, repeat, signal, styled, uiState } from "./runtime";
+import { DevtoolsContext } from "./context";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "./build-info";
 
 const EMPTY_PANELS = signal<string[]>([]);
@@ -263,17 +264,15 @@ export interface ShellRefs {
   modalRoot: HTMLElement;
 }
 
-export function renderShell(target: HTMLElement | ShadowRoot, inline = false): ShellRefs {
-  const refs = {} as Partial<ShellRefs>;
+interface ShellViewProps {
+  refs: Partial<ShellRefs>;
+}
 
-  debugLog("shell", "render:start", {
-    inline,
-    target: target instanceof ShadowRoot ? "shadow" : "element",
-  });
+component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, ctx) {
+  const { inline } = ctx.requireContext(DevtoolsContext);
+  const refs = props.refs;
 
-  uiState.setPath("shell.inline", inline);
-
-  renderInto(target, () => html`
+  return html`
     <RodDevtoolsShellRoot
       :inline=${inline}
       :roderudaRoot
@@ -350,7 +349,20 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
         />
       </RodDevtoolsDock>
     </RodDevtoolsShellRoot>
-  `);
+  `;
+});
+
+export function renderShell(target: HTMLElement | ShadowRoot, inline = false): ShellRefs {
+  const refs = {} as Partial<ShellRefs>;
+
+  debugLog("shell", "render:start", {
+    inline,
+    target: target instanceof ShadowRoot ? "shadow" : "element",
+  });
+
+  uiState.setPath("shell.inline", inline);
+
+  renderInto(target, () => html`<RodDevtoolsShell .refs=${refs} />`);
 
   debugLog("shell", "mounted");
   uiState.setPath("shell.mounted", true);
