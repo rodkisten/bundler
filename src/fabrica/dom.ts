@@ -217,8 +217,11 @@ export function pruneInsignificantWhitespace(root: ParentNode): void {
         previous?.nodeType === Node.COMMENT_NODE
         || next?.nodeType === Node.COMMENT_NODE;
 
-      if (touchesDynamicPart) normalizations.push(text);
-      else removals.push(text);
+      if (touchesDynamicPart && !(parent instanceof DocumentFragment)) {
+        normalizations.push(text);
+      } else {
+        removals.push(text);
+      }
     }
 
     current = walker.nextNode();
@@ -724,8 +727,9 @@ function bindComponentPart(
             ? { ...staticProps }
             : {}
           : staticProps ?? {};
-      const hasMeaningfulChildren = hasCompiledChildren
-        && (part?.hasStaticChildren || hasMeaningfulComponentChildren(node.content));
+      // Ordered child parts may be comments only until their dynamic values
+      // are bound, so pre-materialization DOM inspection cannot detect them.
+      const hasMeaningfulChildren = hasCompiledChildren;
 
       /**
        * Keep the historical DocumentFragment children contract while delaying

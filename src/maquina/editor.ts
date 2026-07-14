@@ -55,6 +55,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const root = options.parent.firstElementChild as HTMLElement | null;
   if (!root || !textarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
 
+  // Property bindings are intentionally mirrored here so standalone/editor
+  // adapters always expose the initial value and cursor synchronously.
+  textarea.value = options.value;
+  textarea.setSelectionRange(options.value.length, options.value.length);
+
   applyTheme(root, theme.name);
   root.style.setProperty("--maq-tab-size", String(Math.max(1, Math.min(16, options.tabSize ?? 2))));
   root.style.setProperty("--maq-scale", String(Math.max(0.5, Math.min(2, (options.fontSize ?? 16) / 16))));
