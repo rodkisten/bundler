@@ -272,6 +272,7 @@ export const ConsoleCodeEditorHost = styled.div("RodConsoleCodeEditorHost").css`
   min-width: 0;
   min-height: 100%;
   color: $primary;
+  width: 100%;
 
   .cm-editor {
     height: 100%;
@@ -306,6 +307,9 @@ export const ConsoleEditorButton = styled.button("RodConsoleEditorButton").css`
   border-right: 1px solid $border;
   color: $primary;
   background: transparent;
+
+  align-content: flex-end;
+  justify-content: flex-end;
 `;
 
 export const ConsoleTableWrap = styled.div("RodConsoleTableWrap").css`
