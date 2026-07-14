@@ -5,7 +5,8 @@ import { ConsoleCapture } from "../core/console-capture";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import { copyText, icon, safeStringify } from "../utils";
 import { plainText, renderValue } from "../core/serialize";
-import { renderRecord, appendFormattedConsoleArgs, appendInspectableValue, sanitizeConsoleStyle, stringifyCell, sameRecord, normalizeTable, executeJavaScript, readHistory, writeHistory, appendHistory, consoleCompletions, resolveCompletionRoot, collectPropertyNames, isInitialConsoleEntry, normalizeVisibleLevel } from "./console.functions";
+import { executeJavaScript } from "../core/execute-javascript";
+import { renderRecord, appendFormattedConsoleArgs, appendInspectableValue, sanitizeConsoleStyle, stringifyCell, sameRecord, normalizeTable, readHistory, writeHistory, appendHistory, consoleCompletions, resolveCompletionRoot, collectPropertyNames, isInitialConsoleEntry, normalizeVisibleLevel } from "./console.functions";
 import { Tool } from "../tool";
 import type { ConsoleConfig, ConsoleFilter, ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
 import {
