@@ -938,10 +938,10 @@ function readComponentPropValue(
 ): unknown {
   if (part.raw) {
     const value = values[part.index];
-    // Exact component props preserve objects, nodes and callback functions, but
-    // branded signals must be read inside the component-tag effect so styled
-    // factories receive the current value and remain reactive.
-    return isSignal(value) ? value() : value;
+    // Exact component props preserve identity, including branded signals.
+    // DOM bindings unwrap signals, while component APIs such as Context.Provider
+    // must be able to receive and redistribute the original callable reference.
+    return value;
   }
 
   return composeAttributeValue(part.indices, part.strings, values);
@@ -1015,7 +1015,7 @@ function mergeSpreadProps(target: Record<string, unknown>, value: unknown): void
 
   for (const key in source) {
     const item = source[key];
-    target[normalizeComponentPropName(key)] = isSignal(item) ? item() : item;
+    target[normalizeComponentPropName(key)] = item;
   }
 }
 

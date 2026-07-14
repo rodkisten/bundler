@@ -185,7 +185,9 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
-  const normalizedSource = normalizeQuotedDataAttributeNames(normalizeInterpolatedComponentSelfClosingTags(source));
+  const normalizedSource = normalizeStaticDataAttributeNames(
+    normalizeQuotedDataAttributeNames(normalizeInterpolatedComponentSelfClosingTags(source)),
+  );
   return options.jsx ? transformMicroJsxChunk(normalizedSource) : normalizedSource;
 }
 
@@ -254,6 +256,52 @@ export function normalizeQuotedDataAttributeNames(source: string): string {
   }
 
   return output;
+}
+
+/** Preserves camelCase authoring for static `:dataName` attributes before HTML lowercases them. */
+export function normalizeStaticDataAttributeNames(source: string): string {
+  return transformTagAttributeNames(source, (name) => {
+    if (!name.startsWith(":") || name === ":data" || name.startsWith(":__fabrica_literal_data__")) {
+      return name;
+    }
+
+    const rawName = name.slice(1);
+    if (!/[A-Z]/.test(rawName)) return name;
+    return `:${rawName
+      .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+      .toLowerCase()}`;
+  });
+}
+
+/** Rewrites attribute names only inside opening tags, preserving comments and values. */
+function transformTagAttributeNames(source: string, transform: (name: string) => string): string {
+  return source.replace(/<([A-Za-z][^<>]*?)>/g, (tag) => {
+    let output = "";
+    let index = 0;
+    let quote: string | null = null;
+
+    while (index < tag.length) {
+      const char = tag[index]!;
+      if (quote) {
+        output += char;
+        if (char === quote && tag[index - 1] !== "\\") quote = null;
+        index += 1;
+        continue;
+      }
+      if (char === '"' || char === "'") { quote = char; output += char; index += 1; continue; }
+      if (char === ":" && /[A-Za-z_]/.test(tag[index + 1] ?? "")) {
+        const start = index;
+        index += 1;
+        while (index < tag.length && /[\w:.$-]/.test(tag[index] ?? "")) index += 1;
+        output += transform(tag.slice(start, index));
+        continue;
+      }
+      output += char;
+      index += 1;
+    }
+    return output;
+  });
 }
 
 /**
@@ -383,7 +431,7 @@ export function isAttributePosition(chunk: string): boolean {
  * @returns Original binding name or an empty string.
  */
 export function readAttributeBindingName(chunk: string): string {
-  const match = /(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*"|'[^']*')?$/.exec(chunk);
+  const match = /(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
   return match?.[1] ?? "";
 }
 
