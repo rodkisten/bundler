@@ -41,6 +41,8 @@ permissions:
   pages: write
   id-token: write
   actions: read
+  pull-requests: read
+
 
 jobs:
   publish:
