@@ -22,10 +22,15 @@ export function markSignal<Value>(value: SignalImplementation<Value>): Signal<Va
 
 /** Checks whether a value implements Broto's official signal protocol. */
 export function isSignal<Value = unknown>(value: unknown): value is Signal<Value> {
-  return Boolean(
-    typeof value === "function" &&
-      (value as Partial<Signal<Value>>)[SIGNAL_SYMBOL] === true,
-  );
+  if (typeof value !== "function") return false;
+
+  try {
+    return (value as Partial<Signal<Value>>)[SIGNAL_SYMBOL] === true;
+  } catch {
+    // Proxies are allowed to reject symbol reads. A failed brand lookup means
+    // the callable does not participate in Broto's signal protocol.
+    return false;
+  }
 }
 
 /** Reads a signal or returns a non-signal value unchanged. */
