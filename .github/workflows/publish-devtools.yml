@@ -1,28 +1,40 @@
-name: 📦🐳 Publish DEVTOOLS ONLY
+name: 📦🐳 Publish DevTools
 
 on:
   workflow_dispatch:
     inputs:
+      release_channel:
+        type: choice
+        description: "Publish until"
+        default: canary
+        options:
+          - canary
+          - production
+          - both
+      test_mode:
+        type: choice
+        description: "Tests"
+        default: auto
+        options:
+          - auto
+          - always
+          - never
       should_typecheck:
         type: boolean
         description: "Run typecheck?"
         default: true
-      should_test:
-        type: boolean
-        description: "Run tests?"
-        default: false
       should_benchmark:
         type: boolean
-        description: "Run DevTools benchmarks?"
+        description: "Run benchmarks?"
         default: false
-      should_publish_canary:
-        type: boolean
-        description: "Create devtools.canary.iife.min.js?"
-        default: true
       should_deploy_pages:
         type: boolean
-        description: "Deploy DevTools to GitHub Pages?"
+        description: "Deploy to GitHub Pages?"
         default: true
+      force_clean_deploy:
+        type: boolean
+        description: "Delete previous published files first?"
+        default: false
 
 permissions:
   contents: read
@@ -35,10 +47,11 @@ jobs:
     name: 🐳 Reuse browser publisher
     uses: ./.github/workflows/publish-browser-bundle.yml
     with:
-      build_scope: devtools
+      project: devtools
+      release_channel: ${{ inputs.release_channel }}
+      test_mode: ${{ inputs.test_mode }}
       should_typecheck: ${{ inputs.should_typecheck }}
-      should_test: ${{ inputs.should_test }}
       should_benchmark: ${{ inputs.should_benchmark }}
-      should_publish_canary: ${{ inputs.should_publish_canary }}
       should_deploy_pages: ${{ inputs.should_deploy_pages }}
+      force_clean_deploy: ${{ inputs.force_clean_deploy }}
     secrets: inherit
