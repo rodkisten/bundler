@@ -1,5 +1,6 @@
 import type { CipoCssArtifact } from "../../cipo";
 import type { ShellRefs } from "../core/shell";
+import type { DevtoolsContextValue } from "./context";
 import { asElement, event, html,  styled, uiState } from "../core/runtime";
 import { ConfigStore } from "./config";
 import { on } from "./dom";
@@ -290,6 +291,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     private readonly refs: ShellRefs,
     private readonly inline = false,
     defaults: DevtoolsDefaults = {},
+    private readonly sharedContext?: DevtoolsContextValue,
   ) {
     super();
 
@@ -338,6 +340,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       prompt: (message, initialValue) => this.prompt(message, initialValue),
       confirm: (message) => this.confirm(message),
     };
+
+    this.sharedContext?.toolContext.set(this.context);
+    this.sharedContext?.settings.set(this.settings);
 
     this.bind();
     this.updateViewportMetrics();
@@ -404,7 +409,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     this.tabs.set(name, tab);
     this.panels.set(name, panel);
 
-    if (name === "settings") this.settings = tool as SettingsLike;
+    if (name === "settings") {
+      this.settings = tool as SettingsLike;
+      this.sharedContext?.settings.set(this.settings);
+    }
 
     this.applyPanelPreferences();
     uiState.setPath("panels.names", [...this.tools.keys()]);
@@ -422,7 +430,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       this.tools.delete(name);
       this.tabs.delete(name);
       this.panels.delete(name);
-      if (this.settings === tool) this.settings = null;
+      if (this.settings === tool) {
+      this.settings = null;
+      this.sharedContext?.settings.set(null);
+    }
       throw error;
     }
 
@@ -447,7 +458,10 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     uiState.setPath("panels.names", [...this.tools.keys()]);
 
-    if (this.settings === tool) this.settings = null;
+    if (this.settings === tool) {
+      this.settings = null;
+      this.sharedContext?.settings.set(null);
+    }
 
     if (wasActive) {
       this.currentTool = "";
@@ -519,6 +533,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (panel) panel.hidden = false;
 
     this.currentTool = name;
+    this.sharedContext?.activePanel.set(name);
     uiState.setPath("panels.active", name);
     this.emit("showTool", name, previous);
 
@@ -529,6 +544,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (this.visible) return this;
 
     this.visible = true;
+    this.sharedContext?.visible.set(true);
     this.refs.devtools.style.display = "block";
     this.refs.devtools.setAttribute("aria-hidden", "false");
 
@@ -546,6 +562,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (this.inline || !this.visible) return this;
 
     this.visible = false;
+    this.sharedContext?.visible.set(false);
     this.refs.devtools.style.opacity = "0";
     this.refs.devtools.setAttribute("aria-hidden", "true");
 

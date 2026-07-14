@@ -1,4 +1,4 @@
-import { store } from "../../broto";
+import { runWithOwner, store, type Owner } from "../../broto";
 import { createStyled } from "../../cipo";
 import { createFabrica } from "../../fabrica";
 import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica";
@@ -7,6 +7,18 @@ import { bootstrapDevtoolsCipo } from "./cipo-bootstrap";
 // Theme tokens (`$background`, `$font.ui`, prefix `rd`, …) must exist before
 // any styled component template is evaluated.
 bootstrapDevtoolsCipo();
+
+
+let devtoolsContextOwner: Owner | null = null;
+
+/** Binds every isolated DevTools render root to one shared Broto owner. */
+export function setDevtoolsContextOwner(owner: Owner | null): void {
+  devtoolsContextOwner = owner;
+}
+
+function runInDevtoolsOwner<Value>(callback: () => Value): Value {
+  return runWithOwner(devtoolsContextOwner, callback);
+}
 
 export const devtoolsFabrica = createFabrica({
   name: "roderuda-devtools",
@@ -58,11 +70,11 @@ function resolveRenderInput(value: RenderInput): RenderValue {
  * make styled tags render as inert custom elements instead of real DOM nodes.
  */
 export function render(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): Cleanup {
-  return devtoolsFabrica.run(() => baseRender(container, resolveRenderInput(value)));
+  return runInDevtoolsOwner(() => devtoolsFabrica.run(() => baseRender(container, resolveRenderInput(value))));
 }
 
 export function mount(container: Element | DocumentFragment | ShadowRoot, value: RenderInput): Cleanup {
-  return devtoolsFabrica.run(() => baseMount(container, resolveRenderInput(value)));
+  return runInDevtoolsOwner(() => devtoolsFabrica.run(() => baseMount(container, resolveRenderInput(value))));
 }
 
 export function renderInto(target: Element | ShadowRoot | DocumentFragment, value: RenderInput): Cleanup {

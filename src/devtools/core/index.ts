@@ -1,7 +1,8 @@
 import "./cipo-bootstrap";
 import { renderShell, shellStyleArtifacts, type ShellRefs } from "./shell";
-import { asNode, event, html,  uiState } from "./runtime";
+import { asNode, event, html, setDevtoolsContextOwner, uiState } from "./runtime";
 import { ConfigStore } from "./config";
+import { createDevtoolsContextScope, type DevtoolsContextScope } from "./context";
 import { configureDebug, debugError, debugGroup, debugInfo, debugLog, debugWarn, getDebugConfig } from "./debug";
 import { detectMobile, isDevtoolsNode, viewportScale } from "./utils";
 import { applyImportantStyle, forceAppendToPage } from "./dom";
@@ -106,6 +107,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private ownsHost = false;
   private reattachTimer = 0;
   private readonly mountRetryTimers = new Set<number>();
+  private contextScope: DevtoolsContextScope | null = null;
   private hostObserver: MutationObserver | null = null;
 
   private readonly reattachHost = (): void => {
@@ -158,8 +160,12 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       this.prepareHost(this.host, normalizedOptions.inline);
       this.forceMountHost();
 
+      this.contextScope = createDevtoolsContextScope(this.host, normalizedOptions.inline);
+      setDevtoolsContextOwner(this.contextScope.owner);
+
       this.rootTarget = this.createRenderTarget(this.host, normalizedOptions.useShadowDom);
       this.refs = renderShell(this.rootTarget, normalizedOptions.inline);
+      this.contextScope.value.refs.set(this.refs);
 
       debugLog("runtime", "shell rendered");
       this.assertShellMounted();
@@ -191,7 +197,9 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         this.refs,
         normalizedOptions.inline,
         normalizedOptions.defaults,
+        this.contextScope.value,
       );
+      this.contextScope.value.controller.set(this.devtools);
 
       if (normalizedOptions.config?.devtools) {
         this.devtools.config.patch(normalizedOptions.config.devtools);
@@ -249,6 +257,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.devtools?.destroy();
     this.style?.remove();
     this.chobitsu.destroy();
+    setDevtoolsContextOwner(null);
+    this.contextScope?.dispose();
     this.uninstallHostWatchdog();
     this.clearMountRetry();
 
@@ -263,6 +273,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.devtools = null;
     this.entryBtn = null;
     this.style = null;
+    this.contextScope = null;
     this.currentScale = 1;
     this.ownsHost = false;
 
@@ -603,6 +614,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.entryBtn?.destroy();
     this.devtools?.destroy();
     this.style?.remove();
+    setDevtoolsContextOwner(null);
+    this.contextScope?.dispose();
     this.uninstallHostWatchdog();
     this.clearMountRetry();
 
@@ -617,6 +630,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.devtools = null;
     this.entryBtn = null;
     this.style = null;
+    this.contextScope = null;
     this.currentScale = 1;
     this.ownsHost = false;
   }
@@ -698,6 +712,9 @@ export {
   resolveTheme,
   themes,
 };
+
+export { DevtoolsContext, createDevtoolsContextScope } from "./context";
+export type { DevtoolsContextScope, DevtoolsContextValue } from "./context";
 
 export type * from "../types";
 
