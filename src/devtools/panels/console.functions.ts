@@ -1,5 +1,170 @@
 const HISTORY_STORAGE_KEY = "";
 
+
+function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
+  const row = html`<ConsoleRow 
+    data-level="${record.level}" 
+    data-record-id="${String(record.id)}"
+    style=${`--rd-console-depth: ${record.groupDepth}`}></ConsoleRow>`;
+
+  /*const row = ConsoleRow({
+    "data-level": record.level,
+    "data-record-id": String(record.id),
+    style: `--rd-console-depth: ${record.groupDepth}`,
+  }) as HTMLElement;*/
+
+  if ((record.repeat ?? 1) > 1) row.append(ConsoleRepeat({ children: String(record.repeat ?? 1) }) as Node);
+  if (record.collapsed != null) row.append(ConsoleGroup({ children: record.collapsed ? "▸" : "▾" }) as Node);
+
+  const output = document.createElement("div");
+  output.className = "roderuda-console-output";
+
+  if (record.level === "table") {
+    output.append(renderTable(record.args[0]));
+  } else {
+    appendFormattedConsoleArgs(output, record.args);
+  }
+
+  row.append(output);
+
+  if (record.stack) {
+    const stack = ConsoleStack() as HTMLElement;
+    stack.textContent = record.stack;
+    row.append(stack);
+  }
+
+  if (displayExtraInfo) row.append(ConsoleTime({ children: new Date(record.timestamp).toLocaleTimeString() }) as Node);
+  row.dataset.expanded = "false";
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-expanded", "false");
+
+  const toggle = (): void => {
+    const expanded = row.dataset.expanded !== "true";
+    row.dataset.expanded = String(expanded);
+    row.setAttribute("aria-expanded", String(expanded));
+  };
+
+  row.addEventListener("click", (event) => {
+    if ((event.target as Element | null)?.closest("details,summary,a,button,input,textarea,select")) return;
+    toggle();
+  });
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggle();
+  });
+  return row;
+}
+
+
+function appendFormattedConsoleArgs(container: HTMLElement, args: readonly unknown[]): void {
+  if (!args.length) return;
+  const [first, ...rest] = args;
+
+  if (typeof first !== "string" || !/%[sdifoOc%]/.test(first)) {
+    appendInspectableValue(container, first);
+    for (const value of rest) {
+      container.append(document.createTextNode(" "));
+      appendInspectableValue(container, value);
+    }
+    return;
+  }
+
+  let argIndex = 0;
+  let activeStyle = "";
+  const parts = first.split(/(%[sdifoOc%])/g).filter(Boolean);
+
+  for (const part of parts) {
+    if (!part.startsWith("%") || part === "%%") {
+      const text = part === "%%" ? "%" : part;
+      const span = document.createElement("span");
+      span.textContent = text;
+      if (activeStyle) span.setAttribute("style", activeStyle);
+      container.append(span);
+      continue;
+    }
+
+    const value = rest[argIndex++];
+    if (part === "%c") {
+      activeStyle = typeof value === "string" ? sanitizeConsoleStyle(value) : "";
+      continue;
+    }
+    if (part === "%s") container.append(document.createTextNode(String(value)));
+    else if (part === "%d" || part === "%i") container.append(document.createTextNode(String(Number.parseInt(String(value), 10))));
+    else if (part === "%f") container.append(document.createTextNode(String(Number.parseFloat(String(value)))));
+    else appendInspectableValue(container, value);
+  }
+
+  for (; argIndex < rest.length; argIndex += 1) {
+    container.append(document.createTextNode(" "));
+    appendInspectableValue(container, rest[argIndex]);
+  }
+}
+
+function appendInspectableValue(container: HTMLElement, value: unknown): void {
+  container.append(renderValue(value, {
+    maxDepth: 12,
+    maxEntries: 2_000,
+    onNodeSelect: (node) => {
+      node.dispatchEvent(new CustomEvent("roderuda:inspect-node", { bubbles: true, composed: true, detail: node }));
+    },
+  }));
+}
+
+function sanitizeConsoleStyle(value: string): string {
+  return value
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter((entry) => /^(color|background(?:-color)?|font(?:-weight|-style)?|text-decoration|border(?:-color)?|padding|margin)/i.test(entry))
+    .join(";");
+}
+
+function renderTable(value: unknown): HTMLElement {
+  const wrap = ConsoleTableWrap() as HTMLElement;
+  const data = normalizeTable(value);
+  if (!data.rows.length) {
+    wrap.textContent = plainText(value);
+    return wrap;
+  }
+  const table = ConsoleTable() as HTMLTableElement;
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const column of data.columns) {
+    const th = ConsoleTableHead() as HTMLTableCellElement;
+    th.textContent = column;
+    headRow.append(th);
+  }
+  thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  for (const row of data.rows) {
+    const tr = document.createElement("tr");
+    for (const column of data.columns) {
+      const td = ConsoleTableCell() as HTMLTableCellElement;
+      td.textContent = stringifyCell(row[column]);
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  wrap.append(table);
+  return wrap;
+}
+
+function stringifyCell(value: unknown): string {
+  if (value == null) return String(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
+  return safeStringify(value, 0);
+}
+
+function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
+  if (level === "trace") return "debug";
+  return level === "command" || level === "result" || level === "html" || level === "table" || level === "dir" ? "log" : level;
+}
+
+
+
 function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
   if (left.level !== right.level || left.groupDepth !== right.groupDepth || left.args.length !== right.args.length) return false;
   return left.args.every((value, index) => Object.is(value, right.args[index]));
