@@ -44,7 +44,7 @@ describe("Fabrica special attributes", () => {
       <div :rod :rodCamelCase=${value} :data=${{ objec: 123, laLaLa: () => 1 }}></div>
     ` as HTMLElement;
 
-    expect(root.getAttribute("data-rod")).toBe("true");
+    expect(root.getAttribute("data-rod")).toBe("");
     expect(root.getAttribute("data-rod-camel-case")).toBe("first");
     expect(root.getAttribute("data-objec")).toBe("123");
     expect(root.getAttribute("data-la-la-la")).toBe("1");
@@ -66,4 +66,44 @@ describe("Fabrica special attributes", () => {
     await Promise.resolve();
     expect(root.style.getPropertyValue("--panel-gap")).toBe("20px");
   });
+
+  it("supports valueless, literal, cast and removable data attributes", async () => {
+    const fabrica = createFabrica({ name: "data-attribute-semantics" });
+    const expanded = signal(true);
+    const root = fabrica.html`
+      <div
+        :consoleLog
+        :consoleInputWrap=${123}
+        :"console-input-wrap"=${false}
+        :nullable=${null}
+        :expanded=${expanded}
+        :data=${{
+          activePanel: "sources",
+          ":already-kebab": 42,
+          ":queroManterCase": "literal",
+          disabled: false,
+          missing: undefined,
+        }}
+      ></div>
+    ` as HTMLElement;
+
+    expect(root.getAttribute("data-console-log")).toBe("");
+    expect(root.getAttribute("data-console-input-wrap")).toBe("false");
+    expect(root.hasAttribute("data-nullable")).toBe(false);
+    expect(root.getAttribute("data-expanded")).toBe("true");
+    expect(root.getAttribute("data-active-panel")).toBe("sources");
+    expect(root.getAttribute("data-already-kebab")).toBe("42");
+    expect(root.getAttribute("data-queromantercase")).toBe("literal");
+    expect(root.getAttribute("data-disabled")).toBe("false");
+    expect(root.hasAttribute("data-missing")).toBe(false);
+
+    expanded.set(false);
+    await Promise.resolve();
+    expect(root.getAttribute("data-expanded")).toBe("false");
+
+    expanded.set(undefined as unknown as boolean);
+    await Promise.resolve();
+    expect(root.hasAttribute("data-expanded")).toBe(false);
+  });
+
 });
