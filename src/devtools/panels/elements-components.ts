@@ -561,32 +561,32 @@ component("RodElementsView", function RodElementsView(props) {
   const view = props.view as ElementsViewModel;
 
   return html`
-    <RodSharedPanelLayout data-elements-layout>
-      <RodElementsTreeSide data-elements-tree-side>
-        <RodSharedControlBar data-elements-control>
-          <RodElementsIconButton type="button" data-action="back" title="Back" @click=${event.click((click) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="forward" title="Forward" @click=${event.click((click) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="refresh" title="Refresh" @click=${event.click((click) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
+    <RodSharedPanelLayout :elementsLayout>
+      <RodElementsTreeSide :elementsTreeSide>
+        <RodSharedControlBar :elementsControl>
+          <RodElementsIconButton type="button" :action="back" title="Back" @click=${event.click((click) => view.onAction(click))}>${icon("back")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" :action="forward" title="Forward" @click=${event.click((click) => view.onAction(click))}>${icon("forward")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" :action="refresh" title="Refresh" @click=${event.click((click) => view.onAction(click))}>${icon("refresh")}</RodElementsIconButton>
           <RodSharedControlSpacer />
-          <RodElementsIconButton type="button" data-action="inspect" title="Select an element" @click=${event.click((click) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="copy" title="Copy element" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
-          <RodElementsIconButton type="button" data-action="delete" title="Delete element" @click=${event.click((click) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" :action="inspect" title="Select an element" @click=${event.click((click) => view.onAction(click))}>${icon("inspect")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" :action="copy" title="Copy element" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodElementsIconButton>
+          <RodElementsIconButton type="button" :action="delete" title="Delete element" @click=${event.click((click) => view.onAction(click))}>${icon("delete")}</RodElementsIconButton>
         </RodSharedControlBar>
 
-        <RodElementsTreeWrap data-elements-tree-wrap data-roderuda-scroll-key="elements-tree" @scroll=${event.scroll(() => view.onTreeScroll())}>
-          <RodElementsDomTree data-elements-tree data-wrap=${String(view.wrapLines())} ref=${(node) => {
+        <RodElementsTreeWrap :elementsTreeWrap :roderudaScrollKey="elements-tree" @scroll=${event.scroll(() => view.onTreeScroll())}>
+          <RodElementsDomTree :elementsTree :wrap=${view.wrapLines()} ref=${(node) => {
             view.setTree(node as HTMLElement);
             return () => view.setTree(null);
           }} />
         </RodElementsTreeWrap>
 
-        <RodElementsCrumbs data-elements-crumbs ref=${(node) => {
+        <RodElementsCrumbs :elementsCrumbs ref=${(node) => {
           view.setCrumbs(node as HTMLElement);
           return () => view.setCrumbs(null);
         }} />
       </RodElementsTreeSide>
 
-      <RodElementsDetailPanel data-elements-detail data-active="false" ref=${(node) => {
+      <RodElementsDetailPanel :elementsDetail :active="false" ref=${(node) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       }} />
@@ -601,16 +601,16 @@ export const ElementsDetailSectionView = component<{
   onToggle?: (event: Event) => void;
 }>("RodElementsDetailSectionView", function RodElementsDetailSectionView(props) {
   return html`
-    <RodElementsDetailSection data-section=${props.name} draggable="true">
+    <RodElementsDetailSection :section=${props.name} draggable="true">
       <RodElementsSectionTitle
         type="button"
-        data-detail-section=${props.name}
+        :detailSection=${props.name}
         @click=${event.click((click) => props.onToggle?.(click))}
       >
-        <span data-section-drag-handle aria-label="Drag section">⋮⋮</span><span><strong>${props.title}</strong></span>
-        <RodElementsSectionActions data-section-actions>▾</RodElementsSectionActions>
+        <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span><strong>${props.title}</strong></span>
+        <RodElementsSectionActions :sectionActions>▾</RodElementsSectionActions>
       </RodElementsSectionTitle>
-      <RodElementsSectionContent data-section-content>${props.children}</RodElementsSectionContent>
+      <RodElementsSectionContent :sectionContent>${props.children}</RodElementsSectionContent>
     </RodElementsDetailSection>
   `;
 });
@@ -623,15 +623,15 @@ export const ElementsAttributeRowView = component<{
   onRemove?: (event: Event) => void;
 }>("RodElementsAttributeRowView", function RodElementsAttributeRowView(props) {
   return html`
-    <RodElementsAttributeRow data-attribute-row data-original-name=${props.name}>
+    <RodElementsAttributeRow :attributeRow :originalName=${props.name}>
       <RodElementsAttributeInput
-        data-attribute-name
+        :attributeName
         .value=${props.name}
         placeholder="attribute"
         @change=${event.change((change) => props.onChange?.(change))}
       />
       <RodElementsAttributeInput
-        data-attribute-value
+        :attributeValue
         .value=${props.value}
         placeholder="value"
         @change=${event.change((change) => props.onChange?.(change))}
@@ -639,7 +639,7 @@ export const ElementsAttributeRowView = component<{
       <RodElementsIconButton
         type="button"
         title=${props.empty ? "Add" : "Remove"}
-        data-remove-attribute
+        :removeAttribute
         @click=${event.click((click) => props.onRemove?.(click))}
       >${props.empty ? "+" : "×"}</RodElementsIconButton>
     </RodElementsAttributeRow>
@@ -694,13 +694,13 @@ export const ElementsBoxModelView = component<{
   return html`
     <RodElementsTableWrap>
       <RodElementsBoxModel>
-        <RodElementsBoxLayer data-layer="margin">
+        <RodElementsBoxLayer :layer="margin">
           margin ${values("margin")}
-          <RodElementsBoxLayer data-layer="border">
+          <RodElementsBoxLayer :layer="border">
             border ${values("border", "-width")}
-            <RodElementsBoxLayer data-layer="padding">
+            <RodElementsBoxLayer :layer="padding">
               padding ${values("padding")}
-              <RodElementsBoxLayer data-layer="content">${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}</RodElementsBoxLayer>
+              <RodElementsBoxLayer :layer="content">${contentWidth.toFixed(1)} × ${contentHeight.toFixed(1)}</RodElementsBoxLayer>
             </RodElementsBoxLayer>
           </RodElementsBoxLayer>
         </RodElementsBoxLayer>
@@ -713,7 +713,7 @@ export const ElementsComputedStyleView = component<{
   style: CSSStyleDeclaration;
 }>("RodElementsComputedStyleView", function RodElementsComputedStyleView(props) {
   return html`
-    <RodElementsTableWrap data-compact="computed">
+    <RodElementsTableWrap :compact="computed">
       <RodElementsKvTable>
         <tbody>
           ${Array.from(props.style).sort().map((property) => html`<tr><td>${property}</td><td>${props.style.getPropertyValue(property)}</td></tr>`)}
@@ -735,12 +735,12 @@ export const ElementsStylesView = component<{
             ${rule.selector}${rule.source ? html`<RodElementsStyleSource> ${rule.source}</RodElementsStyleSource>` : ""}
           </RodElementsStyleSelector>
           ${rule.declarations.map((declaration) => html`
-            <RodElementsStyleDeclaration data-style-declaration=${rule.editable ? "" : null} data-original-property=${rule.editable ? declaration.property : null}>
+            <RodElementsStyleDeclaration :styleDeclaration=${rule.editable ? "" : null} :originalProperty=${rule.editable ? declaration.property : null}>
               ${rule.editable ? html`
-                <RodElementsStyleDeclarationInput data-style-property data-kind="property" .value=${declaration.property} placeholder="property" @change=${event.change((change) => props.onChange?.(change))} />
-                <RodElementsStyleDeclarationInput data-style-value .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" @change=${event.change((change) => props.onChange?.(change))} />
+                <RodElementsStyleDeclarationInput :styleProperty :kind="property" .value=${declaration.property} placeholder="property" @change=${event.change((change) => props.onChange?.(change))} />
+                <RodElementsStyleDeclarationInput :styleValue .value=${`${declaration.value}${declaration.priority ? " !important" : ""}`} placeholder="value" @change=${event.change((change) => props.onChange?.(change))} />
               ` : html`
-                <RodElementsStyleDeclarationText data-kind="property">${declaration.property}</RodElementsStyleDeclarationText>
+                <RodElementsStyleDeclarationText :kind="property">${declaration.property}</RodElementsStyleDeclarationText>
                 <RodElementsStyleDeclarationText>${declaration.value}${declaration.priority ? " !important" : ""}</RodElementsStyleDeclarationText>
               `}
             </RodElementsStyleDeclaration>
@@ -786,15 +786,15 @@ export const ElementsDetailHeaderView = component<{
   onAction: (event: Event) => void;
 }>("RodElementsDetailHeaderView", function RodElementsDetailHeaderView(props) {
   return html`
-    <RodSharedControlBar data-elements-detail-control>
-      <RodElementsIconButton type="button" data-action="close-detail" title="Back" @click=${event.click(props.onAction)}>${icon("back")}</RodElementsIconButton>
+    <RodSharedControlBar :elementsDetailControl>
+      <RodElementsIconButton type="button" :action="close-detail" title="Back" @click=${event.click(props.onAction)}>${icon("back")}</RodElementsIconButton>
       <RodSharedDetailTitle>
         <RodElementsDomTag>&lt;${props.element.tagName.toLowerCase()}</RodElementsDomTag>
         ${props.element.id ? html`<RodElementsDomAttrName>#${props.element.id}</RodElementsDomAttrName>` : ""}
         ${Array.from(props.element.classList).slice(0, 6).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
         <RodElementsDomTag>&gt;</RodElementsDomTag>
       </RodSharedDetailTitle>
-      <RodElementsIconButton type="button" data-action="refresh-detail" title="Refresh" @click=${event.click(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
+      <RodElementsIconButton type="button" :action="refresh-detail" title="Refresh" @click=${event.click(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
     </RodSharedControlBar>
   `;
 });
@@ -811,7 +811,7 @@ export const ElementsPreBlockView = component<{ value: string }>(
 
 export const ElementsDomTreeView = component<{ children?: RenderValue }>(
   "RodElementsDomTreeView",
-  (props) => html`<RodElementsDomList data-root="true">${props.children}</RodElementsDomList>`,
+  (props) => html`<RodElementsDomList :root="true">${props.children}</RodElementsDomList>`,
 );
 
 export const ElementsDomNodeView = component<{
@@ -836,9 +836,9 @@ export const ElementsDomNodeView = component<{
   return html`
     <RodElementsDomItem>
       <RodElementsDomRow
-        data-node-id=${props.nodeId}
-        data-node-depth=${String(props.depth)}
-        data-selected=${String(props.selected)}
+        :nodeId=${props.nodeId}
+        :nodeDepth=${props.depth}
+        :selected=${props.selected}
         @click=${event.click((value) => props.onClick?.(value))}
         @dblclick=${event.dblclick((value) => props.onDoubleClick?.(value))}
         @contextmenu=${event.contextmenu((value) => props.onContextMenu?.(value))}
@@ -849,7 +849,7 @@ export const ElementsDomNodeView = component<{
         @pointerover=${event.pointerover((value) => props.onPointerOver?.(value))}
         @pointerout=${event.pointerout((value) => props.onPointerOut?.(value))}
       >
-        <RodElementsDomToggle data-toggle-node=${props.expandable ? "" : null}>${props.expandable ? (props.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
+        <RodElementsDomToggle :toggleNode=${props.expandable ? "" : null}>${props.expandable ? (props.expanded ? "▾" : "▸") : ""}</RodElementsDomToggle>
         <RodElementsNodeLabelView props=${{ node: props.node }} />
       </RodElementsDomRow>
       ${props.expandable && props.expanded ? html`
@@ -868,7 +868,7 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
     const node = props.node;
     if (node.nodeType === Node.TEXT_NODE) {
       const text = (node.textContent ?? "").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/\s+/g, " ").trim();
-      //return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html`<RodElementsDomText data-empty-text>[empty text]</RodElementsDomText>`;
+      //return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : html`<RodElementsDomText :emptyText>[empty text]</RodElementsDomText>`;
       return text ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>` : null;
     }
     if (node.nodeType === Node.COMMENT_NODE) {
@@ -892,8 +892,8 @@ export const ElementsCrumbsView = component<{
   ${props.elements.map((element, index) => html`
     <RodElementsCrumbButton
       type="button"
-      data-crumb-index=${String(index)}
-      data-current=${String(index === props.elements.length - 1)}
+      :crumbIndex=${index}
+      :current=${index === props.elements.length - 1}
       @click=${event.click((click) => props.onSelect?.(index, click))}
     >${crumbLabel(element)}</RodElementsCrumbButton>
   `)}
@@ -916,12 +916,12 @@ export const ElementsContextMenuView = component<{
   ] as const;
 
   return html`
-    <RodElementsMenu role="menu" data-elements-menu data-node-id=${props.elementId}>
+    <RodElementsMenu role="menu" :elementsMenu :nodeId=${props.elementId}>
       ${actions.map(([action, label]) => html`
         <RodElementsMenuButton
           type="button"
           role="menuitem"
-          data-elements-menu-action=${action}
+          :elementsMenuAction=${action}
           @click=${event.click((click) => props.onAction?.(action, click))}
         >${label}</RodElementsMenuButton>
       `)}

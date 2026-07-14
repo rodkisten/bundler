@@ -18,8 +18,8 @@ const HISTORY_STORAGE_KEY = "roderuda:console-history";
 
 export function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
   const row = asElement<HTMLElement>(html`<ConsoleRow 
-    data-level="${record.level}" 
-    data-record-id="${String(record.id)}"
+    :level=${record.level} 
+    :recordId=${record.id}
     style=${`--rd-console-depth: ${record.groupDepth}`}></ConsoleRow>`);
 
   /*const row = ConsoleRow({

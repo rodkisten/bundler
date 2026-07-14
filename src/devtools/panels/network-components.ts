@@ -310,13 +310,13 @@ component("RodNetworkView", function RodNetworkView(props) {
   const recording = props.recording as boolean;
 
   return html`
-    <RodSharedPanelLayout data-network-layout>
-      <RodSharedControlBar data-network-control>
-        <RodNetworkIconButton type="button" data-action="record" data-active=${String(recording)} title="Record" @click=${event.click((click) => view.onAction(click))}>${icon("record")}</RodNetworkIconButton>
-        <RodNetworkIconButton type="button" data-action="clear" title="Clear" @click=${event.click((click) => view.onAction(click))}>${icon("clear")}</RodNetworkIconButton>
+    <RodSharedPanelLayout :networkLayout>
+      <RodSharedControlBar :networkControl>
+        <RodNetworkIconButton type="button" :action="record" :active=${recording} title="Record" @click=${event.click((click) => view.onAction(click))}>${icon("record")}</RodNetworkIconButton>
+        <RodNetworkIconButton type="button" :action="clear" title="Clear" @click=${event.click((click) => view.onAction(click))}>${icon("clear")}</RodNetworkIconButton>
         <RodSharedControlSpacer />
         <RodNetworkSearch
-          data-network-filter
+          :networkFilter
           type="search"
           placeholder="Filter requests"
           aria-label="Filter network requests"
@@ -327,15 +327,15 @@ component("RodNetworkView", function RodNetworkView(props) {
             return () => view.setFilterInput(null);
           }}
         />
-        <RodNetworkIconButton type="button" data-action="copy" title="Copy as cURL" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
+        <RodNetworkIconButton type="button" :action="copy" title="Copy as cURL" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
       </RodSharedControlBar>
 
-      <RodNetworkList data-network-list ref=${(node) => {
+      <RodNetworkList :networkList ref=${(node) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
       }} />
 
-      <RodNetworkDetail data-network-detail data-active="false" ref=${(node) => {
+      <RodNetworkDetail :networkDetail :active="false" ref=${(node) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       }} />
