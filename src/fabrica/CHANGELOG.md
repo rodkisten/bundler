@@ -211,3 +211,6 @@
 - Added `$css` and `$style` element bindings backed by the Cipó inline runtime for string, object, artifact, signal, and reactive-function values.
 - Added `:name`, `:data`, and camelCase-to-kebab-case dataset bindings.
 - Added `[property]` bindings for reactive `style.setProperty()`, including CSS custom properties.
+
+- Added required contexts, reactive signal contexts, portable context provider components and context diagnostics.
+- Added `ctx.requireContext()`, `ctx.provideReactiveContext()`, `ctx.useReactiveContext()` and `ctx.requireReactiveContext()`.

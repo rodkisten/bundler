@@ -36,6 +36,7 @@ export type {
   HtmlTag,
   HtmlTemplateTag,
   RepeatContext,
+  ReactiveContextToken,
   VirtualRepeatOptions,
 } from "./types";
 
@@ -57,7 +58,7 @@ export {
 } from "./component-registry";
 export { boundary } from "./boundary";
 export { onDispose, onError, onMount, onUnmount } from "./lifecycle";
-export { createFabricaContext, provide, useContext } from "./context";
+export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext } from "./context";
 export { debug, setDebug } from "./debug";
 export {
   bind,

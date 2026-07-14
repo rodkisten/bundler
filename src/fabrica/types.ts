@@ -1,5 +1,5 @@
-import type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveExpression, Signal } from "../broto/types";
-export type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveExpression, Signal } from "../broto/types";
+import type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveContextToken, ReactiveExpression, Signal } from "../broto/types";
+export type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveContextToken, ReactiveExpression, Signal } from "../broto/types";
 
 /**
  * Shared public and internal types used by FabricaDOM.
@@ -336,6 +336,10 @@ export type ComponentContext = {
   onDispose(callback: Cleanup): void;
   provide<Value>(context: ContextToken<Value>, value: Value): Value;
   useContext<Value>(context: ContextToken<Value>): Value;
+  requireContext<Value>(context: ContextToken<Value>): Value;
+  provideReactiveContext<Value>(context: ReactiveContextToken<Value>, value: Value | Signal<Value>): Signal<Value>;
+  useReactiveContext<Value>(context: ReactiveContextToken<Value>): Signal<Value>;
+  requireReactiveContext<Value>(context: ReactiveContextToken<Value>): Signal<Value>;
   ref<T extends Element = Element>(callback: RefCallback<T>): RefDirective<T>;
 };
 

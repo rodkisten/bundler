@@ -253,11 +253,41 @@ export function disposeOwner(owner: Owner): void {
  * ```
  */
 export function createContext<Value>(defaultValue?: Value, description = "BrotoContext"): ContextToken<Value> {
-  return {
+  const hasDefault = arguments.length > 0;
+
+  return Object.freeze({
     id: Symbol(description),
     description,
     defaultValue,
-  };
+    required: false,
+    hasDefault,
+    kind: "context" as const,
+  });
+}
+
+/**
+ * Creates a context that must be provided by an ancestor owner.
+ */
+export function createRequiredContext<Value>(description = "RequiredContext"): ContextToken<Value> {
+  return Object.freeze({
+    id: Symbol(description),
+    description,
+    required: true,
+    hasDefault: false,
+    kind: "context" as const,
+  }) as ContextToken<Value>;
+}
+
+/** Returns whether the active owner tree contains a value for the token. */
+export function hasContext<Value>(context: ContextToken<Value>): boolean {
+  let owner = activeOwner;
+
+  while (owner) {
+    if (owner.context.has(context as ContextToken<unknown>)) return true;
+    owner = owner.parent;
+  }
+
+  return false;
 }
 
 /**
@@ -293,7 +323,26 @@ export function useContext<Value>(context: ContextToken<Value>): Value {
     owner = owner.parent;
   }
 
+  if (context.required) {
+    throw new Error(`[Broto] Missing provider for required context "${context.description}".`);
+  }
+
   return context.defaultValue as Value;
+}
+
+/** Reads a context and throws when no provider is available. */
+export function requireContext<Value>(context: ContextToken<Value>): Value {
+  let owner = activeOwner;
+
+  while (owner) {
+    if (owner.context.has(context as ContextToken<unknown>)) {
+      return owner.context.get(context as ContextToken<unknown>) as Value;
+    }
+
+    owner = owner.parent;
+  }
+
+  throw new Error(`[Broto] Missing provider for required context "${context.description}".`);
 }
 
 /**
@@ -326,6 +375,11 @@ export function inspectOwnerGraph(root: Owner | null = activeOwner): OwnerGraphS
     disposed: root.disposed,
     cleanups: root.cleanups.length,
     context: root.context.size,
+    contexts: Array.from(root.context.keys(), (token) => ({
+      description: token.description,
+      required: token.required,
+      kind: token.kind,
+    })),
     errorHandlers: root.errorHandlers.length,
     createdAt: root.createdAt,
     descendants,

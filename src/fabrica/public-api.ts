@@ -18,7 +18,7 @@ import {
 } from "./component-registry";
 import { warnDeprecated } from "./deprecations";
 import { boundary } from "./boundary";
-import { createFabricaContext, provide, useContext } from "./context";
+import { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext } from "./context";
 import { css } from "./css";
 import { debug, setDebug } from "./debug";
 import { createEventHelper, event as defaultEvent } from "./event-typing";
@@ -116,8 +116,17 @@ export type FabricaApi = {
   onDispose: typeof onDispose;
   onError: typeof onError;
   createContext: typeof createFabricaContext;
+  createRequiredContext: typeof createRequiredFabricaContext;
+  createReactiveContext: typeof createReactiveFabricaContext;
+  createContextProvider: typeof createContextProvider;
+  createReactiveContextProvider: typeof createReactiveContextProvider;
   provide: typeof provide;
+  provideReactiveContext: typeof provideReactiveContext;
   useContext: typeof useContext;
+  requireContext: typeof requireContext;
+  useReactiveContext: typeof useReactiveContext;
+  requireReactiveContext: typeof requireReactiveContext;
+  hasContext: typeof hasContext;
   when: typeof when;
   repeat: typeof repeat;
   virtualRepeat: typeof virtualRepeat;
@@ -402,8 +411,17 @@ export function createFabricaApi(
     onDispose,
     onError,
     createContext: createFabricaContext,
+    createRequiredContext: createRequiredFabricaContext,
+    createReactiveContext: createReactiveFabricaContext,
+    createContextProvider,
+    createReactiveContextProvider,
     provide,
+    provideReactiveContext,
     useContext,
+    requireContext,
+    useReactiveContext,
+    requireReactiveContext,
+    hasContext,
     when,
     repeat,
     virtualRepeat,
@@ -469,8 +487,17 @@ function attachDollarApi(api: FabricaApi): void {
     onDispose,
     onError,
     createContext: createFabricaContext,
+    createRequiredContext: createRequiredFabricaContext,
+    createReactiveContext: createReactiveFabricaContext,
+    createContextProvider,
+    createReactiveContextProvider,
     provide,
+    provideReactiveContext,
     useContext,
+    requireContext,
+    useReactiveContext,
+    requireReactiveContext,
+    hasContext,
     when,
     repeat,
     virtualRepeat,

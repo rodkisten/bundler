@@ -1275,3 +1275,30 @@ const panel = fabrica.html`
   ></section>
 `
 ```
+
+## Context architecture
+
+Fábrica contexts now support required dependencies, reactive signal values and portable provider components:
+
+```ts
+const Theme = createRequiredFabricaContext<ThemeService>("Theme");
+const ThemeProvider = createContextProvider(Theme, "ThemeProvider");
+
+const Button = component("ThemeButton", (_props, ctx) => {
+  const theme = ctx.requireContext(Theme);
+  return ctx.html`<button>${theme.name}</button>`;
+});
+```
+
+For changing values, use a reactive context:
+
+```ts
+const Density = createReactiveFabricaContext("comfortable", "Density");
+
+const Provider = component("DensityProvider", (props, ctx) => {
+  ctx.provideReactiveContext(Density, "compact");
+  return props.children;
+});
+```
+
+Context should describe the component environment. Keep local, explicit data in props and put changing context state inside Broto signals or stores.
