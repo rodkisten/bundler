@@ -37,12 +37,13 @@ export function networkRowTemplate(record: NetworkRecord, selectedId: string | n
   const url = safeUrl(record.url);
   const name = url.pathname.split("/").filter(Boolean).at(-1) || url.hostname || record.url;
   const status = record.status == null ? (record.state === "pending" ? "…" : "—") : String(record.status);
-
+  const URL_MAX_LENGTH = 120; // 80
+  
   return html`
-    <RodNetworkRow data-state=${record.state} data-selected=${String(record.id === selectedId)} @click=${event.click(() => onOpen(record.id))}>
-      <td><RodNetworkName title=${record.url}>${truncate(name, 80)}</RodNetworkName></td>
-      <td><RodNetworkStatus data-status=${status}>${status}</RodNetworkStatus></td>
-      <td><RodNetworkMethod data-method=${record.method}>${record.method}</RodNetworkMethod></td>
+    <RodNetworkRow :state=${record.state} :selected=${String(record.id === selectedId)} @click=${event.click(() => onOpen(record.id))}>
+      <td><RodNetworkName title=${record.url}>${truncate(name, URL_MAX_LENGTH)}</RodNetworkName></td>
+      <td><RodNetworkStatus :status=${status}>${status}</RodNetworkStatus></td>
+      <td><RodNetworkMethod :method=${record.method}>${record.method}</RodNetworkMethod></td>
       <td>${record.type || record.kind}</td>
       <td>${formatBytes(record.size)}</td>
       <td>${formatDuration(record.duration)}</td>
@@ -78,9 +79,9 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
 
   return html`
     <RodSharedControlBar>
-      <RodNetworkIconButton type="button" data-action="close-detail" title="Back" @click=${event.click(options.onAction)}>${icon("back")}</RodNetworkIconButton>
+      <RodNetworkIconButton type="button" :action="close-detail" title="Back" @click=${event.click(options.onAction)}>${icon("back")}</RodNetworkIconButton>
       <RodSharedDetailTitle title=${record.url}>${record.url}</RodSharedDetailTitle>
-      <RodNetworkIconButton type="button" data-action="copy-curl" title="Copy as cURL" @click=${event.click(options.onAction)}>${icon("copy")}</RodNetworkIconButton>
+      <RodNetworkIconButton type="button" :action="copy-curl" title="Copy as cURL" @click=${event.click(options.onAction)}>${icon("copy")}</RodNetworkIconButton>
     </RodSharedControlBar>
 
     <RodSharedScrollableBody>
