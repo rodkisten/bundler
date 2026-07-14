@@ -2,8 +2,24 @@
  * @tool Maquina
  * @global Maquina
  * @package maquina
- * @tags code editor codemirror
- * @description A tiny, themeable, Safari-safe editor with syntax color, live suggestions and zero heavyweight editor dependency
+ * @description A dependency-free, Safari-safe code editor powered by Fábrica, Cipó and Broto.
  */
-export * from "./maquina/index";
-export { default } from "./maquina/index";
+import { mountMaquina } from "./maquina/editor";
+export { maquinaThemes, resolveMaquinaTheme } from "./maquina/theme";
+export type { MaquinaTheme } from "./maquina/theme";
+export { tokenizeMaquina } from "./maquina/tokenizer";
+export { maquinaStyleArtifacts } from "./maquina/components";
+export type {
+  MaquinaCompletionContext,
+  MaquinaCompletionItem,
+  MaquinaCompletionMatch,
+  MaquinaCompletionProvider,
+  MaquinaCompletionResult,
+  MaquinaHandle,
+  MaquinaLanguage,
+  MaquinaOptions,
+  MaquinaThemeName,
+  MaquinaToken,
+} from "./maquina/types";
+
+export { mountMaquina }; 
