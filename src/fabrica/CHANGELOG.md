@@ -1,5 +1,12 @@
 # Fábrica Changelog
 
+## Unreleased - Literal and valueless data attributes
+
+- Added valueless `:dataField` presence attributes.
+- Added quoted literal data names such as `:"console-input-wrap"`.
+- Added literal `:data` object keys through the `":name"` convention.
+- Data attribute values now unwrap reactive values, remove only for `null`/`undefined`, and string-cast every other value including `false`.
+
 ## Unreleased
 
 - Added the instance-local `event` helper with strongly typed properties for every DOM event name, including `event.click`, `event.pointerup`, `event.input`, and `event.keydown`.
