@@ -40,7 +40,7 @@ export function networkRowTemplate(record: NetworkRecord, selectedId: string | n
   const URL_MAX_LENGTH = 120; // 80
   
   return html`
-    <RodNetworkRow :state=${record.state} :selected=${String(record.id === selectedId)} @click=${event.click(() => onOpen(record.id))}>
+    <RodNetworkRow :state=${record.state} :selected=${record.id === selectedId} @click=${event.click(() => onOpen(record.id))}>
       <td><RodNetworkName title=${record.url}>${truncate(name, URL_MAX_LENGTH)}</RodNetworkName></td>
       <td><RodNetworkStatus :status=${status}>${status}</RodNetworkStatus></td>
       <td><RodNetworkMethod :method=${record.method}>${record.method}</RodNetworkMethod></td>
@@ -93,7 +93,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
         ${record.kind === "websocket" ? detailTabTemplate("messages", "Messages", options.activeTab, options.onTab) : ""}
       </RodNetworkTabs>
 
-      <RodNetworkPane :"detail-pane"="headers" :"active"=${String(options.activeTab === "headers")}>
+      <RodNetworkPane :detailPane="headers" :active=${options.activeTab === "headers"}>
         ${sectionTableTemplate("General", [
           ["Request URL", record.url],
           ["Request Method", record.method],
@@ -108,20 +108,20 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
         ${record.error ? sectionPreTemplate("Error", record.error) : ""}
       </RodNetworkPane>
 
-      <RodNetworkPane :"detail-pane"="preview" :"active"=${String(options.activeTab === "preview")}>
+      <RodNetworkPane :detailPane="preview" :active=${options.activeTab === "preview"}>
         <RodNetworkCode>${preview}</RodNetworkCode>
       </RodNetworkPane>
 
-      <RodNetworkPane :"detail-pane"="response" :"active"=${String(options.activeTab === "response")}>
+      <RodNetworkPane :detailPane="response" :active=${options.activeTab === "response"}>
         <RodSharedPreBlock>${responseCode}</RodSharedPreBlock>
       </RodNetworkPane>
 
-      <RodNetworkPane :"detail-pane"="timing" :"active"=${String(options.activeTab === "timing")}>
+      <RodNetworkPane :detailPane="timing" :active=${options.activeTab === "timing"}>
         ${sectionTableTemplate("Timing", Object.entries(timing).map(([key, value]) => [key, formatDuration(value)]))}
       </RodNetworkPane>
 
       ${record.kind === "websocket" ? html`
-        <RodNetworkPane :"detail-pane"="messages" :"active"=${String(options.activeTab === "messages")}>
+        <RodNetworkPane :detailPane="messages" :active=${options.activeTab === "messages"}>
           ${messagesTableTemplate(record)}
         </RodNetworkPane>
       ` : ""}
@@ -131,7 +131,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
 
 export function detailTabTemplate(tab: string, label: string, activeTab: string, onTab: (event: Event) => void): RenderValue {
   return html`
-    <RodNetworkTabButton type="button" :"detail-tab"=${tab} :"active"=${String(tab === activeTab)} @click=${event.click(onTab)}>${label}</RodNetworkTabButton>
+    <RodNetworkTabButton type="button" :detailTab=${tab} :active=${tab === activeTab} @click=${event.click(onTab)}>${label}</RodNetworkTabButton>
   `;
 }
 

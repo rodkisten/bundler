@@ -9,7 +9,7 @@ export function renderPanelShell(target: HTMLElement, options: PanelShellOptions
       ${options.title != null ? panelHeaderTemplate(options) : ""}
       <RodPanelBody
         class=${options.bodyClassName ?? ""}
-        :scroll=${String(options.scroll !== false)}
+        :scroll=${options.scroll !== false}
         ref=${(node: HTMLElement | null) => {
           bodyRef.current = node as HTMLElement;
           return () => {
@@ -49,7 +49,7 @@ export function panelActionTemplate(item: PanelAction, options: PanelShellOption
       class=${item.className ?? ""}
       type="button"
       title=${item.title ?? item.label}
-      :"action"=${item.action}
+      :action=${item.action}
       @click=${event.click((click: MouseEvent) => options.onAction?.(click, item.action))}
       ...${attrs(item.attrs) as never}
     >

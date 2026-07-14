@@ -414,7 +414,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-    <RodConsoleInputWrap :jsExecution=${state.jsExecution} :expanded=${state.editorExpanded} :"console-input-wrap" >
+    <RodConsoleInputWrap :jsExecution=${state.jsExecution} :expanded=${state.editorExpanded} :consoleInputWrap >
       <RodConsolePrompt>›</RodConsolePrompt>
       <RodConsoleInput
         :consoleInput

@@ -185,9 +185,9 @@ export class Resources extends Tool {
       : html`<tr><td colspan="3">Empty</td></tr>`;
 
     return html`
-      <ResourcesSection :"section"=${`storage-${type}`} draggable="true">
+      <ResourcesSection :section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span :"section-drag-handle" aria-label="Drag section">⋮⋮</span><span>${title} (${rows.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>${title} (${rows.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
             <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addStorage(type))}>+</ResourcesIconButton>
@@ -229,9 +229,9 @@ export class Resources extends Tool {
 
   private cookieSection(cookies: Array<{ name: string; value: string }>) {
     return html`
-      <ResourcesSection :"section"="cookies" draggable="true">
+      <ResourcesSection :section="cookies" draggable="true">
         <ResourcesSectionTitle>
-          <span :"section-drag-handle" aria-label="Drag section">⋮⋮</span><span>Cookies (${cookies.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Cookies (${cookies.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addCookie())}>+</ResourcesIconButton>
             <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
@@ -274,9 +274,9 @@ export class Resources extends Tool {
     const items = capabilityItems();
 
     return html`
-      <ResourcesSection :"section"="capabilities" draggable="true">
+      <ResourcesSection :section="capabilities" draggable="true">
         <ResourcesSectionTitle>
-          <span :"section-drag-handle" aria-label="Drag section">⋮⋮</span><span>Storage capabilities</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Storage capabilities</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
@@ -293,9 +293,9 @@ export class Resources extends Tool {
 
   private linkSection(title: string, type: string, urls: string[]) {
     return html`
-      <ResourcesSection :"section"=${`storage-${type}`} draggable="true">
+      <ResourcesSection :section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span :"section-drag-handle" aria-label="Drag section">⋮⋮</span><span>${title} (${urls.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>${title} (${urls.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
@@ -314,9 +314,9 @@ export class Resources extends Tool {
 
   private imageSection(urls: string[]) {
     return html`
-      <ResourcesSection :"section"="images" draggable="true">
+      <ResourcesSection :section="images" draggable="true">
         <ResourcesSectionTitle>
-          <span :"section-drag-handle" aria-label="Drag section">⋮⋮</span><span>Images (${urls.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Images (${urls.length})</span>
           <ResourcesSectionActions>
             <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>

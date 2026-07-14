@@ -211,12 +211,12 @@ component("RodSourcesView", function RodSourcesView(props) {
       <RodSharedControlBar>
         <RodSourcesIconButton type="button" title="Document source" @click=${event.click(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="All sources" @click=${event.click(() => view.action("source-list"))}>☰</RodSourcesIconButton>
-        <RodSourcesTitle :"source-title">${title}</RodSourcesTitle>
+        <RodSourcesTitle :sourceTitle>${title}</RodSourcesTitle>
         <RodSourcesIconButton type="button" title="Copy" @click=${event.click(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Download" @click=${event.click(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Refresh" @click=${event.click(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
       </RodSharedControlBar>
-      <RodSourcesBody :"sources-body" ref=${(node) => {
+      <RodSourcesBody :sourcesBody ref=${(node) => {
         view.setBody(node);
         return () => view.setBody(null);
       }} />

@@ -89,7 +89,7 @@ component("RodInfoView", function RodInfoView(props) {
           <RodSharedButton type="button" @click=${event.click((click) => { click.preventDefault(); view.copyAll(); })}>Copy all</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
-      <RodSharedPanelBody :"info-body">
+      <RodSharedPanelBody :infoBody>
         ${model.items.length ? model.items.map((item, index) => html`
           <RodSharedCard>
             <RodSharedHeader>
