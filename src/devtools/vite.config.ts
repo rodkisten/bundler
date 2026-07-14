@@ -1,11 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { build as buildWithEsbuild } from "esbuild";
 import { defineConfig, type Plugin } from "vite";
 import { cipoVite } from "../cipo/src/vite";
 import { devtoolsCipoConfigCss } from "./cipo-config";
+import { buildDevtoolsLanding } from "../../scripts/build-devtools-landing";
 
 const repoRoot = resolve(__dirname, "../..");
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as { version?: string };
@@ -52,37 +51,12 @@ function buildMetadata() {
 }
 
 function devtoolsLandingPlugin(): Plugin {
-  const outputDirectory = resolve(__dirname, "dist");
-  const htmlSource = resolve(__dirname, "index.html");
-  const cssSource = resolve(__dirname, "landing.css");
-  const scriptSource = resolve(__dirname, "landing.ts");
-
   return {
     name: "roderuda-devtools-landing",
     apply: "build",
 
     async closeBundle() {
-      await mkdir(outputDirectory, { recursive: true });
-
-      await buildWithEsbuild({
-        entryPoints: [scriptSource],
-        outfile: resolve(outputDirectory, "devtools.landing.js"),
-        bundle: true,
-        format: "iife",
-        platform: "browser",
-        target: ["es2022", "safari16.4"],
-        minify: true,
-        sourcemap: true,
-        legalComments: "none",
-      });
-
-      await copyFile(cssSource, resolve(outputDirectory, "landing.css"));
-
-      const html = (await readFile(htmlSource, "utf8"))
-        .replace('href="/landing.css"', 'href="./landing.css"')
-        .replace('type="module" src="/landing.ts"', 'defer src="./devtools.landing.js"');
-
-      await writeFile(resolve(outputDirectory, "index.html"), html, "utf8");
+      await buildDevtoolsLanding();
     },
   };
 }
@@ -107,6 +81,8 @@ export default defineConfig({
   },
 
   build: {
+    outDir: resolve(repoRoot, "dist"),
+    emptyOutDir: false,
     lib: {
       entry: resolve(__dirname, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
