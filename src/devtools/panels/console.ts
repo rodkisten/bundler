@@ -571,11 +571,16 @@ export class Console extends Tool {
 }
 
 function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
-  const row = ConsoleRow({
+  const row = html`<ConsoleRow 
+    data-level="${record.level}" 
+    data-record-id="${String(record.id)}"
+    style=`--rd-console-depth: ${record.groupDepth}`><ConsoleRow/>`;
+
+  /*const row = ConsoleRow({
     "data-level": record.level,
     "data-record-id": String(record.id),
     style: `--rd-console-depth: ${record.groupDepth}`,
-  }) as HTMLElement;
+  }) as HTMLElement;*/
 
   if ((record.repeat ?? 1) > 1) row.append(ConsoleRepeat({ children: String(record.repeat ?? 1) }) as Node);
   if (record.collapsed != null) row.append(ConsoleGroup({ children: record.collapsed ? "▸" : "▾" }) as Node);
