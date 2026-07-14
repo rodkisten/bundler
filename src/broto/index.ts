@@ -61,6 +61,7 @@ export type {
 } from "./types";
 
 export { configureDebug, debug, setDebug } from "./debug";
+export { isSignal, SIGNAL_SYMBOL, unwrapSignal } from "./signal";
 export { batch, computed, configureScheduler, effect, effectScope, flushSync, hasReactiveValue, inspectEffects, inspectScheduler, inspectSignals, memo, onCleanup, readReactiveValue, scheduleTask, signal, untrack } from "./reactivity";
 export { captureOwner, cleanupOwner, createContext, createRequiredContext, createOwner, createOwnerScope, createRoot, disposeOwner, getOwner, getOwnerRoots, handleOwnerError, hasContext, inspectGraph, inspectOwnerGraph, onOwnerCleanup, onOwnerError, provide, provideToOwner, requireContext, resolveContext, runWithCapturedOwner, runWithOwner, useContext } from "./owner";
 export { createReactiveContext, provideReactiveContext, requireReactiveContext, useReactiveContext } from "./context";
