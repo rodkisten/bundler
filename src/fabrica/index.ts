@@ -58,7 +58,8 @@ export {
 } from "./component-registry";
 export { boundary } from "./boundary";
 export { onDispose, onError, onMount, onUnmount } from "./lifecycle";
-export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext } from "./context";
+export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "./context";
+export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "./context";
 export { debug, setDebug } from "./debug";
 export {
   bind,
