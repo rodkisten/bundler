@@ -166,6 +166,40 @@ Console output preserves live values and renders objects, functions, DOM nodes, 
 
 REPL completion is manual on mobile to avoid iOS accepting a partial completion while typing identifiers such as `document`. `Enter` and the Run button execute code; `Shift+Enter` inserts a newline.
 
-## Editor integration
+## Browser Laboratory landing page
 
-DevTools uses the repository's `Máquina` editor through `core/code-editor.ts`. The façade keeps panel imports stable while removing CodeMirror from the runtime bundle. Sources, Resources JSON editing and the Console REPL share the same themeable, Safari-safe editor.
+The DevTools build now publishes a standalone maximalist injector at `src/devtools/dist/index.html`. It loads RodEruda from `https://rod.migos.club/bundler/devtools.iife.js` by default and can optionally inject Eruda alongside it.
+
+The landing page provides:
+
+- editable RodEruda and Eruda bundle URLs;
+- cache-busted or reusable script loading;
+- destroy-before-reinitialize behavior;
+- panel selection and initial-tool selection;
+- Shadow DOM, autoscale, inline, startup-error and debug controls;
+- Console, Elements, Network and Sources capture/editor settings;
+- live initialization-code preview;
+- generated userscript, bookmarklet and JSON configuration exports;
+- startup `error` and `unhandledrejection` collection for `initialLogs`;
+- a live Token Lab persisted in `localStorage`.
+
+### Landing design tokens
+
+The page is styled entirely around public `--landing-*` CSS custom properties. The primary customization contract is:
+
+```css
+:root {
+  --landing-color-background: #07060d;
+  --landing-color-surface: #f4efe3;
+  --landing-color-ink: #101019;
+  --landing-color-accent: #c6ff00;
+  --landing-color-hot: #ff2bd6;
+  --landing-color-electric: #5f7cff;
+  --landing-border-width: 3px;
+  --landing-radius: 18px;
+  --landing-shadow-offset: 10px;
+  --landing-noise-opacity: 0.08;
+}
+```
+
+Spacing, typography, gradients, motion, grid size and semantic surfaces are also defined as tokens near the top of `landing.css`. The build plugin bundles `landing.ts`, copies `landing.css`, rewrites the development asset paths and emits the production landing assets beside every DevTools bundle.

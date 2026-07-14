@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { defineConfig } from "vite";
+import { build as buildWithEsbuild } from "esbuild";
+import { defineConfig, type Plugin } from "vite";
 import { cipoVite } from "../cipo/src/vite";
 import { devtoolsCipoConfigCss } from "./cipo-config";
 
@@ -49,6 +51,42 @@ function buildMetadata() {
   };
 }
 
+function devtoolsLandingPlugin(): Plugin {
+  const outputDirectory = resolve(__dirname, "dist");
+  const htmlSource = resolve(__dirname, "index.html");
+  const cssSource = resolve(__dirname, "landing.css");
+  const scriptSource = resolve(__dirname, "landing.ts");
+
+  return {
+    name: "roderuda-devtools-landing",
+    apply: "build",
+
+    async closeBundle() {
+      await mkdir(outputDirectory, { recursive: true });
+
+      await buildWithEsbuild({
+        entryPoints: [scriptSource],
+        outfile: resolve(outputDirectory, "devtools.landing.js"),
+        bundle: true,
+        format: "iife",
+        platform: "browser",
+        target: ["es2022", "safari16.4"],
+        minify: true,
+        sourcemap: true,
+        legalComments: "none",
+      });
+
+      await copyFile(cssSource, resolve(outputDirectory, "landing.css"));
+
+      const html = (await readFile(htmlSource, "utf8"))
+        .replace('href="/landing.css"', 'href="./landing.css"')
+        .replace('type="module" src="/landing.ts"', 'defer src="./devtools.landing.js"');
+
+      await writeFile(resolve(outputDirectory, "index.html"), html, "utf8");
+    },
+  };
+}
+
 const buildInfo = buildMetadata();
 
 export default defineConfig({
@@ -78,6 +116,7 @@ export default defineConfig({
   },
 
   plugins: [
+    devtoolsLandingPlugin(),
     cipoVite({
       root: repoRoot,
       include: /[/\\]src[/\\]devtools[/\\].*\.[cm]?[jt]sx?$/,

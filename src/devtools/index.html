@@ -1,22 +1,213 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Devtools test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07060d" />
+  <meta name="description" content="Configure and inject RodEruda browser DevTools and Eruda into any page from a maximalist browser laboratory." />
+  <title>RodEruda Browser Laboratory</title>
+  <link rel="stylesheet" href="/landing.css" />
 </head>
-
 <body>
-  <div id="app"></div>
-  <script type="module">
-    import devtools from "/index.ts";
+  <main class="landing-shell">
+    <header class="landing-masthead" id="top">
+      <nav class="landing-nav" aria-label="Primary navigation">
+        <a class="landing-brand" href="#top">
+          <span class="landing-brand-mark" aria-hidden="true">⌁</span>
+          <span>RodEruda / Browser Laboratory</span>
+        </a>
+        <div class="landing-nav-links">
+          <a href="#injector">Injector</a>
+          <a href="#tokens">Tokens</a>
+          <a href="#capabilities">Capabilities</a>
+        </div>
+      </nav>
 
-    devtools.init({
-      debug: true,
-    });
-  </script>
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Mobile-first / Shadow DOM / Zero permission theatre</p>
+          <h1 class="hero-title">Hack the <span>browser.</span></h1>
+          <p class="hero-summary">
+            A maximalist control room for injecting RodEruda and Eruda, selecting panels,
+            tuning capture strategies, and generating a ready-to-use userscript without touching the bundle.
+          </p>
+        </div>
+
+        <aside class="hero-aside" aria-label="Quick launch">
+          <div class="hero-sticker">Inspect<br />everything</div>
+          <code class="hero-command">https://rod.migos.club/bundler/devtools.iife.js</code>
+        </aside>
+      </div>
+
+      <div class="hero-actions">
+        <a class="brutal-button" href="#injector">Configure injection</a>
+        <button class="brutal-button" data-variant="hot" id="open-devtools" type="button">Open DevTools</button>
+        <button class="brutal-button" data-variant="electric" id="toggle-eruda" type="button">Toggle Eruda</button>
+      </div>
+    </header>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Console</span><span>Elements</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span>
+        <span>Console</span><span>Elements</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span>
+      </div>
+    </div>
+
+    <section class="landing-section" id="injector">
+      <p class="section-kicker">01 / Injection console</p>
+      <h2 class="section-title">Build your own <em>debug creature.</em></h2>
+
+      <div class="config-layout">
+        <form class="config-form" id="devtools-config">
+          <section class="config-group">
+            <h3 class="config-group-title">Bundle matrix <span>01</span></h3>
+            <div class="control-grid" data-columns="1">
+              <label class="field">
+                <span>RodEruda bundle URL</span>
+                <input class="text-control" name="bundleUrl" type="url" autocomplete="url" spellcheck="false" />
+              </label>
+              <label class="field">
+                <span>Eruda bundle URL</span>
+                <input class="text-control" name="erudaUrl" type="url" autocomplete="url" spellcheck="false" />
+              </label>
+            </div>
+            <div class="check-grid stack-top-4">
+              <label class="check-card"><input name="loadDevtools" type="checkbox" /><span class="check-box"></span><span>Inject RodEruda</span></label>
+              <label class="check-card"><input name="loadEruda" type="checkbox" /><span class="check-box"></span><span>Inject Eruda too</span></label>
+              <label class="check-card"><input name="cacheBust" type="checkbox" /><span class="check-box"></span><span>Fresh cache-busted build</span></label>
+              <label class="check-card"><input name="reinitialize" type="checkbox" /><span class="check-box"></span><span>Destroy before re-init</span></label>
+            </div>
+          </section>
+
+          <section class="config-group">
+            <h3 class="config-group-title">Boot behavior <span>02</span></h3>
+            <div class="check-grid">
+              <label class="check-card"><input name="openAfterInject" type="checkbox" /><span class="check-box"></span><span>Open after inject</span></label>
+              <label class="check-card"><input name="useShadowDom" type="checkbox" /><span class="check-box"></span><span>Use Shadow DOM</span></label>
+              <label class="check-card"><input name="autoScale" type="checkbox" /><span class="check-box"></span><span>Auto scale on mobile</span></label>
+              <label class="check-card"><input name="inline" type="checkbox" /><span class="check-box"></span><span>Inline mode</span></label>
+              <label class="check-card"><input name="debugEnabled" type="checkbox" /><span class="check-box"></span><span>Runtime debug</span></label>
+              <label class="check-card"><input name="captureStartupErrors" type="checkbox" /><span class="check-box"></span><span>Forward startup error bag</span></label>
+              <label class="check-card"><input name="displayIfErr" type="checkbox" /><span class="check-box"></span><span>Display only if error</span></label>
+            </div>
+            <div class="control-grid stack-top-4">
+              <label class="field"><span>Theme</span><select class="select-control" name="theme"><option>AMOLED</option><option>Dark</option><option>Light</option><option>System preference</option></select></label>
+              <label class="field"><span>Initial panel</span><select class="select-control" name="initialTool"><option value="console">Console</option><option value="elements">Elements</option><option value="network">Network</option><option value="resources">Resources</option><option value="sources">Sources</option><option value="info">Info</option><option value="snippets">Snippets</option></select></label>
+              <label class="field"><span>Debug level</span><select class="select-control" name="debugLevel"><option>trace</option><option>debug</option><option>info</option><option>warn</option><option>error</option><option>silent</option></select></label>
+            </div>
+          </section>
+
+          <section class="config-group">
+            <h3 class="config-group-title">Panel cargo <span>03</span></h3>
+            <div class="check-grid">
+              <label class="check-card"><input name="panel-console" type="checkbox" /><span class="check-box"></span><span>Console</span></label>
+              <label class="check-card"><input name="panel-elements" type="checkbox" /><span class="check-box"></span><span>Elements</span></label>
+              <label class="check-card"><input name="panel-network" type="checkbox" /><span class="check-box"></span><span>Network</span></label>
+              <label class="check-card"><input name="panel-resources" type="checkbox" /><span class="check-box"></span><span>Resources</span></label>
+              <label class="check-card"><input name="panel-sources" type="checkbox" /><span class="check-box"></span><span>Sources</span></label>
+              <label class="check-card"><input name="panel-info" type="checkbox" /><span class="check-box"></span><span>Info</span></label>
+              <label class="check-card"><input name="panel-snippets" type="checkbox" /><span class="check-box"></span><span>Snippets</span></label>
+            </div>
+          </section>
+
+          <section class="config-group">
+            <h3 class="config-group-title">Physical controls <span>04</span></h3>
+            <div class="control-grid">
+              <label class="range-field"><span class="range-heading"><span>Dock size</span><output id="display-size-output"></output></span><input name="displaySize" type="range" min="20" max="100" step="1" /></label>
+              <label class="range-field"><span class="range-heading"><span>Transparency</span><output id="transparency-output"></output></span><input name="transparency" type="range" min="0.2" max="1" step="0.01" /></label>
+              <label class="range-field"><span class="range-heading"><span>Backdrop blur</span><output id="blur-output"></output></span><input name="blur" type="range" min="0" max="80" step="1" /></label>
+              <label class="range-field"><span class="range-heading"><span>Log limit</span><output id="max-logs-output"></output></span><input name="maxLogs" type="range" min="10" max="5000" step="10" /></label>
+              <label class="range-field"><span class="range-heading"><span>Editor size</span><output id="font-size-output"></output></span><input name="editorFontSize" type="range" min="8" max="24" step="1" /></label>
+            </div>
+          </section>
+
+          <section class="config-group">
+            <h3 class="config-group-title">Capture doctrine <span>05</span></h3>
+            <div class="check-grid">
+              <label class="check-card"><input name="overrideConsole" type="checkbox" /><span class="check-box"></span><span>Override console</span></label>
+              <label class="check-card"><input name="catchGlobalErr" type="checkbox" /><span class="check-box"></span><span>Catch global errors</span></label>
+              <label class="check-card"><input name="bridgePageRealm" type="checkbox" /><span class="check-box"></span><span>Bridge page realm</span></label>
+              <label class="check-card"><input name="patchConsolePrototype" type="checkbox" /><span class="check-box"></span><span>Patch Console prototype</span></label>
+              <label class="check-card"><input name="showWhitespace" type="checkbox" /><span class="check-box"></span><span>Show DOM whitespace</span></label>
+              <label class="check-card"><input name="wrapDomRows" type="checkbox" /><span class="check-box"></span><span>Wrap DOM rows</span></label>
+              <label class="check-card"><input name="preserveNetworkLog" type="checkbox" /><span class="check-box"></span><span>Preserve network log</span></label>
+              <label class="check-card"><input name="captureResponseBody" type="checkbox" /><span class="check-box"></span><span>Capture response bodies</span></label>
+              <label class="check-card"><input name="sourceLineNumbers" type="checkbox" /><span class="check-box"></span><span>Source line numbers</span></label>
+              <label class="check-card"><input name="sourceFormatting" type="checkbox" /><span class="check-box"></span><span>Format source code</span></label>
+              <label class="check-card"><input name="sourceWrapLines" type="checkbox" /><span class="check-box"></span><span>Wrap source lines</span></label>
+            </div>
+          </section>
+
+          <div class="form-actions">
+            <button class="brutal-button" data-variant="hot" id="inject-devtools" type="submit">Inject now ↗</button>
+            <button class="brutal-button" id="hide-devtools" type="button">Hide</button>
+            <button class="brutal-button" id="destroy-devtools" type="button">Destroy</button>
+            <button class="brutal-button" id="copy-userscript" type="button">Copy userscript</button>
+            <button class="brutal-button" id="copy-bookmarklet" type="button">Copy bookmarklet</button>
+            <button class="brutal-button" id="copy-config" type="button">Copy config</button>
+          </div>
+        </form>
+
+        <aside class="config-aside">
+          <section class="runtime-card" id="runtime-status" data-state="ready">
+            <div class="runtime-status-heading"><span id="runtime-status-label">READY</span></div>
+            <pre class="runtime-log" id="runtime-status-log">Waiting for injection.</pre>
+          </section>
+
+          <section class="preview-card">
+            <div class="preview-heading"><span>Generated initialization</span><span>live</span></div>
+            <pre class="preview-code" id="configuration-preview"></pre>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="landing-section" id="tokens">
+      <p class="section-kicker">02 / Visual operating system</p>
+      <h2 class="section-title">Every pixel is a <em>design token.</em></h2>
+
+      <form class="token-lab" id="token-lab">
+        <div class="token-grid">
+          <label class="color-token"><input name="tokenBackground" type="color" /><span>Background</span></label>
+          <label class="color-token"><input name="tokenSurface" type="color" /><span>Surface</span></label>
+          <label class="color-token"><input name="tokenInk" type="color" /><span>Ink</span></label>
+          <label class="color-token"><input name="tokenAccent" type="color" /><span>Acid accent</span></label>
+          <label class="color-token"><input name="tokenHot" type="color" /><span>Hot magenta</span></label>
+          <label class="color-token"><input name="tokenElectric" type="color" /><span>Electric blue</span></label>
+        </div>
+
+        <div class="control-grid stack-top-5">
+          <label class="range-field"><span class="range-heading"><span>Border width</span><output id="border-width-output"></output></span><input name="tokenBorderWidth" type="range" min="1" max="8" step="1" /></label>
+          <label class="range-field"><span class="range-heading"><span>Corner radius</span><output id="radius-output"></output></span><input name="tokenRadius" type="range" min="0" max="48" step="1" /></label>
+          <label class="range-field"><span class="range-heading"><span>Shadow offset</span><output id="shadow-output"></output></span><input name="tokenShadowOffset" type="range" min="0" max="30" step="1" /></label>
+          <label class="range-field"><span class="range-heading"><span>Noise opacity</span><output id="noise-output"></output></span><input name="tokenNoiseOpacity" type="range" min="0" max="0.3" step="0.01" /></label>
+        </div>
+
+        <div class="form-actions">
+          <button class="brutal-button" data-variant="electric" id="copy-tokens" type="button">Copy CSS tokens</button>
+          <button class="brutal-button" id="reset-landing" type="button">Reset laboratory</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="landing-section" id="capabilities">
+      <p class="section-kicker">03 / Field manual</p>
+      <h2 class="section-title">One launcher. <em>Several realities.</em></h2>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-number">01</span><h3>Direct injection</h3><p>Loads the production IIFE with timeout, cache busting, replacement controls, and resilient API discovery.</p></article>
+        <article class="feature-card"><span class="feature-number">02</span><h3>Userscript factory</h3><p>Exports a complete launcher with your chosen panels, capture strategy, theme, sizing, and startup behavior.</p></article>
+        <article class="feature-card"><span class="feature-number">03</span><h3>Eruda duet</h3><p>Run RodEruda alone or pair it with Eruda for a double-layer diagnostic rig.</p></article>
+        <article class="feature-card"><span class="feature-number">04</span><h3>Mobile first</h3><p>Every input stays at Safari-safe sizing, every action is touchable, and the layout respects viewport-safe interaction zones.</p></article>
+        <article class="feature-card"><span class="feature-number">05</span><h3>Token machine</h3><p>The entire page is controlled by semantic CSS custom properties, including colors, borders, radius, noise, spacing, typography, motion, and shadows.</p></article>
+      </div>
+    </section>
+
+    <footer class="landing-footer">
+      <h2 class="footer-title">Break it.<br />See it.<br />Fix it.</h2>
+      <div class="footer-meta"><span>RodEruda Browser Laboratory</span><span>GMT-3 / Built for the unruly web</span></div>
+    </footer>
+  </main>
+
+  <script type="module" src="/landing.ts"></script>
 </body>
-
 </html>
