@@ -1,0 +1,402 @@
+$ pnpm vitest run src/fabrica/tests/fabrica.component-render.test.ts src/fabrica/tests/fabrica.context-architecture.test.ts src/devtools/core/context.test.ts src/devtools/panels/elements.test.ts src/devtools/panels/resources.test.ts src/devtools/panels/sources.test.ts src/devtools/devtools.mount.test.ts src/devtools/devtools.test.ts src/maquina/maquina.test.ts
+
+Already up to date
+Done in 415ms using pnpm v11.5.1
+Already up to date
+Done in 398ms using pnpm v11.5.1
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.8 [39m[90m/home/runner/work/bundler/bundler[39m
+
+ [31m❯[39m src/devtools/panels/sources.test.ts [2m([22m[2m8 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 393[2mms[22m[39m
+     [32m✓[39m mounts only the Fabrica shell while inactive and defers expensive source work[32m 97[2mms[22m[39m
+     [32m✓[39m highlights plain text through the editor instead of rendering an unstyled pre block[32m 126[2mms[22m[39m
+     [32m✓[39m mounts CodeMirror into a real styled host and forwards editor options[32m 48[2mms[22m[39m
+[31m     [31m×[31m renders object values as expandable DOM instead of object text[39m[32m 36[2mms[22m[39m
+     [32m✓[39m opens captured cross-origin JavaScript from the Network panel without fetching it again[32m 30[2mms[22m[39m
+     [32m✓[39m uses a userscript cross-origin request when browser fetch is blocked by CORS[32m 26[2mms[22m[39m
+     [32m✓[39m keeps the requested syntax highlighting and shows a readable diagnostic when every loader fails[32m 24[2mms[22m[39m
+     [32m✓[39m formats embedded CSS and JavaScript inside HTML before highlighting[32m 1[2mms[22m[39m
+ [31m❯[39m src/devtools/panels/elements.test.ts [2m([22m[2m17 tests[22m[2m | [22m[31m11 failed[39m[2m)[22m[33m 1045[2mms[22m[39m
+     [32m✓[39m mounts the shell lazily without traversing the page while inactive[32m 108[2mms[22m[39m
+[31m     [31m×[31m renders the inspected page DOM without rendering its own DevTools host[39m[32m 100[2mms[22m[39m
+[31m     [31m×[31m selects a DOM node and renders its complete detail inspector[39m[32m 57[2mms[22m[39m
+[31m     [31m×[31m renders breadcrumbs and lets delegated breadcrumb clicks navigate[39m[32m 56[2mms[22m[39m
+[31m     [31m×[31m expands and collapses DOM branches through delegated toggle events[39m[32m 46[2mms[22m[39m
+[31m     [31m×[31m refreshes the tree after external DOM mutations without duplicating roots[39m[32m 97[2mms[22m[39m
+     [32m✓[39m does not rebuild the visible tree for mutations inside collapsed branches[32m 180[2mms[22m[39m
+[31m     [31m×[31m supports whitespace-only text nodes when the setting is enabled[39m[32m 42[2mms[22m[39m
+[31m     [31m×[31m opens a real context menu inside the delegated event boundary[39m[32m 35[2mms[22m[39m
+[31m     [31m×[31m executes context-menu actions through delegated handlers[39m[32m 33[2mms[22m[39m
+[31m     [31m×[31m edits an attribute using delegated change handling[39m[32m 41[2mms[22m[39m
+[31m     [31m×[31m updates inline styles from the Styles editor[39m[32m 20[2mms[22m[39m
+[31m     [31m×[31m highlights nodes on selection and hides the overlay on panel hide[39m[32m 36[2mms[22m[39m
+     [32m✓[39m installs and restores the event-listener registry[32m 64[2mms[22m[39m
+     [32m✓[39m destroys and initializes again without duplicate DOM or hanging listeners[32m 81[2mms[22m[39m
+     [32m✓[39m exports compiled Cipó artifacts without raw theme tokens[32m 1[2mms[22m[39m
+     [32m✓[39m toggles soft wrapping for long DOM rows from panel config[32m 44[2mms[22m[39m
+ [32m✓[39m src/fabrica/tests/fabrica.component-render.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 153[2mms[22m[39m
+ [31m❯[39m src/devtools/panels/resources.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 633[2mms[22m[39m
+     [33m[2m✓[22m[39m defers page-wide resource discovery until the panel becomes active [33m 317[2mms[22m[39m
+     [32m✓[39m ignores unrelated page mutations and refreshes only for resource changes[32m 196[2mms[22m[39m
+[31m     [31m×[31m routes external scripts to Sources with a typed payload[39m[32m 116[2mms[22m[39m
+ [31m❯[39m src/maquina/maquina.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 241[2mms[22m[39m
+     [32m✓[39m mounts, edits and destroys without external editor dependencies[32m 71[2mms[22m[39m
+     [32m✓[39m keeps the actual textarea font at 16px while scaling the editor[32m 139[2mms[22m[39m
+     [32m✓[39m tokenizes supported languages[32m 3[2mms[22m[39m
+[31m     [31m×[31m provides a CodeMirror-compatible completion context shape[39m[32m 26[2mms[22m[39m
+ [31m❯[39m src/fabrica/tests/fabrica.context-architecture.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 69[2mms[22m[39m
+[31m     [31m×[31m supports portable provider components and required consumers[39m[32m 60[2mms[22m[39m
+[31m     [31m×[31m makes reactive context signals available from component context[39m[32m 7[2mms[22m[39m
+ [32m✓[39m src/devtools/core/context.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 60[2mms[22m[39m
+ [31m❯[39m src/devtools/devtools.mount.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 6732[2mms[22m[39m
+     [33m[2m✓[22m[39m mounts the shell, settings and selected panels inside a shadow root [33m 2556[2mms[22m[39m
+[31m     [31m×[31m renders styled/Fabrica panels and injects their Cipó styles[39m[33m 4174[2mms[22m[39m
+[90mstdout[2m | src/devtools/devtools.test.ts[2m > [22m[2mRodEruda native devtools[2m > [22m[2mcaptures console methods emitted on window.console without locking global object helpers
+[22m[39mcaptured window log
+
+ [31m❯[39m src/devtools/devtools.test.ts [2m([22m[2m13 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 23087[2mms[22m[39m
+[31m     [31m×[31m initializes all default panels inside a shadow root[39m[33m 5550[2mms[22m[39m
+     [33m[2m✓[22m[39m starts hidden and can ingest a startup error bag [33m 1679[2mms[22m[39m
+     [33m[2m✓[22m[39m opens the Console for startup errors only when displayIfErr is enabled [33m 1347[2mms[22m[39m
+     [33m[2m✓[22m[39m shows, hides, selects tools and persists the entry position [33m 2805[2mms[22m[39m
+     [33m[2m✓[22m[39m injects shell and styled panel CSS into the shadow root [33m 1378[2mms[22m[39m
+[31m     [31m×[31m renders the Elements panel tree with page DOM nodes[39m[33m 646[2mms[22m[39m
+     [33m[2m✓[22m[39m captures console methods emitted on window.console without locking global object helpers [33m 861[2mms[22m[39m
+     [33m[2m✓[22m[39m renders a real console filter value instead of stringifying reactive functions [33m 1405[2mms[22m[39m
+     [33m[2m✓[22m[39m supports the public plugin API [33m 312[2mms[22m[39m
+     [32m✓[39m implements local protocol DOM and runtime commands[32m 2[2mms[22m[39m
+     [33m[2m✓[22m[39m preserves the synchronous chobitsu domain compatibility API [33m 2638[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the original Info and Snippets method contracts [33m 2700[2mms[22m[39m
+     [33m[2m✓[22m[39m can be destroyed and initialized again [33m 1761[2mms[22m[39m
+
+[2m Test Files [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[31m19 failed[39m[22m[2m | [22m[1m[32m39 passed[39m[22m[90m (58)[39m
+[2m   Start at [22m 19:22:26
+[2m   Duration [22m 26.17s[2m (transform 2.77s, setup 0ms, import 6.37s, tests 32.41s, environment 9.25s)[22m
+
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/devtools.mount.test.ts,title=src/devtools/devtools.mount.test.ts > RodEruda devtools mount > renders styled/Fabrica panels and injects their Cipó styles,line=117,column=65::AssertionError: expected null to be an instance of SVGSVGElement%0A ❯ src/devtools/devtools.mount.test.ts:117:65%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/devtools.test.ts,title=src/devtools/devtools.test.ts > RodEruda native devtools > initializes all default panels inside a shadow root,line=51,column=3::Error: Test timed out in 5000ms.%0AIf this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".%0A ❯ src/devtools/devtools.test.ts:51:3%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/devtools.test.ts,title=src/devtools/devtools.test.ts > RodEruda native devtools > renders the Elements panel tree with page DOM nodes,line=124,column=51::AssertionError: expected null to be an instance of HTMLElement%0A ❯ src/devtools/devtools.test.ts:124:51%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/maquina/maquina.test.ts,title=src/maquina/maquina.test.ts > Maquina > provides a CodeMirror-compatible completion context shape,line=45,column=18::AssertionError: expected '' to be 'doc' // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- doc%0A%0A ❯ src/maquina/maquina.test.ts:45:18%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > renders the inspected page DOM without rendering its own DevTools host,line=332,column=31::AssertionError: expected '  ' to contain '<html'%0A%0AExpected: "<html"%0AReceived: "  "%0A%0A ❯ src/devtools/panels/elements.test.ts:332:31%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > selects a DOM node and renders its complete detail inspector,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:350:17%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > renders breadcrumbs and lets delegated breadcrumb clicks navigate,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:386:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > expands and collapses DOM branches through delegated toggle events,line=213,column=5::AssertionError: Expected to find a DOM tree row matching /<body/: expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ src/devtools/panels/elements.test.ts:423:21%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > refreshes the tree after external DOM mutations without duplicating roots,line=473,column=43::AssertionError: expected '                             ' to contain 'id="mutation-result"'%0A%0AExpected: "id="mutation-result""%0AReceived: "                             "%0A%0A ❯ src/devtools/panels/elements.test.ts:473:43%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > supports whitespace-only text nodes when the setting is enabled,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:515:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > opens a real context menu inside the delegated event boundary,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:541:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > executes context-menu actions through delegated handlers,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:576:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > edits an attribute using delegated change handling,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:607:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > updates inline styles from the Styles editor,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:653:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/elements.test.ts,title=src/devtools/panels/elements.test.ts > Elements panel > highlights nodes on selection and hides the overlay on panel hide,line=213,column=5::AssertionError: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement%0A ❯ findNodeRow src/devtools/panels/elements.test.ts:213:5%0A ❯ findPageTargetRow src/devtools/panels/elements.test.ts:219:19%0A ❯ src/devtools/panels/elements.test.ts:712:23%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/resources.test.ts,title=src/devtools/panels/resources.test.ts > Resources panel > routes external scripts to Sources with a typed payload,line=129,column=18::AssertionError: expected undefined to be an instance of HTMLAnchorElement%0A ❯ src/devtools/panels/resources.test.ts:129:18%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/devtools/panels/sources.test.ts,title=src/devtools/panels/sources.test.ts > Sources panel > renders object values as expandable DOM instead of object text,line=175,column=64::AssertionError: expected null to be an instance of HTMLDetailsElement%0A ❯ src/devtools/panels/sources.test.ts:175:64%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/fabrica/tests/fabrica.context-architecture.test.ts,title=src/fabrica/tests/fabrica.context-architecture.test.ts > Fábrica context architecture > supports portable provider components and required consumers,line=30,column=39::AssertionError: expected '  forest  ' to be 'forest' // Object.is equality%0A%0AExpected: "forest"%0AReceived: "  forest  "%0A%0A ❯ src/fabrica/tests/fabrica.context-architecture.test.ts:30:39%0A%0A
+
+::error file=/home/runner/work/bundler/bundler/src/fabrica/tests/fabrica.context-architecture.test.ts,title=src/fabrica/tests/fabrica.context-architecture.test.ts > Fábrica context architecture > makes reactive context signals available from component context,line=52,column=39::AssertionError: expected ' comfortable ' to be 'comfortable' // Object.is equality%0A%0AExpected: "comfortable"%0AReceived: " comfortable "%0A%0A ❯ src/fabrica/tests/fabrica.context-architecture.test.ts:52:39%0A%0A
+
+[90mstderr[2m | src/devtools/devtools.test.ts[2m > [22m[2mRodEruda native devtools[2m > [22m[2mcaptures console methods emitted on window.console without locking global object helpers
+[22m[39mTrace: captured trace
+    at Console.trace (/home/runner/work/bundler/bundler/src/devtools/core/console-capture.ts:357:11)
+    at /home/runner/work/bundler/bundler/src/devtools/devtools.test.ts:142:13
+    at file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///home/runner/work/bundler/bundler/node_modules/.pnpm/@vitest+runner@4.1.8/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 19 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/devtools/devtools.mount.test.ts[2m > [22mRodEruda devtools mount[2m > [22mrenders styled/Fabrica panels and injects their Cipó styles
+[31m[1mAssertionError[22m: expected null to be an instance of SVGSVGElement[39m
+[36m [2m❯[22m src/devtools/devtools.mount.test.ts:[2m117:65[22m[39m
+    [90m115|[39m
+    [90m116|[39m     const firstTab = root?.querySelector<HTMLElement>("[data-tool-tab]…
+    [90m117|[39m     expect(firstTab?.querySelector("svg.roderuda-lucide-icon")).toBeIn…
+    [90m   |[39m                                                                 [31m^[39m
+    [90m118|[39m     [34mexpect[39m(firstTab[33m?.[39mtextContent)[33m.[39mnot[33m.[39m[34mtoContain[39m([32m"[object Object]"[39m)[33m;[39m
+    [90m119|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/devtools.test.ts[2m > [22mRodEruda native devtools[2m > [22minitializes all default panels inside a shadow root
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m src/devtools/devtools.test.ts:[2m51:3[22m[39m
+    [90m 49|[39m   })[33m;[39m
+    [90m 50|[39m
+    [90m 51|[39m   [34mit[39m([32m"initializes all default panels inside a shadow root"[39m[33m,[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m 52|[39m     devtools[33m.[39m[34minit[39m({ autoScale[33m:[39m [35mfalse[39m })[33m;[39m
+    [90m 53|[39m     [34mexpect[39m(devtools[33m.[39m[34misInitialized[39m())[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/devtools.test.ts[2m > [22mRodEruda native devtools[2m > [22mrenders the Elements panel tree with page DOM nodes
+[31m[1mAssertionError[22m: expected null to be an instance of HTMLElement[39m
+[36m [2m❯[22m src/devtools/devtools.test.ts:[2m124:51[22m[39m
+    [90m122|[39m
+    [90m123|[39m     [34mexpect[39m(tree)[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m124|[39m     expect(tree?.querySelector("[data-node-id]")).toBeInstanceOf(HTMLE…
+    [90m   |[39m                                                   [31m^[39m
+    [90m125|[39m     [34mexpect[39m(tree[33m?.[39mtextContent)[33m.[39m[34mtoContain[39m([32m"main"[39m)[33m;[39m
+    [90m126|[39m     expect(shadow?.querySelector("RodElementsView, rodelementsview")).…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/maquina/maquina.test.ts[2m > [22mMaquina[2m > [22mprovides a CodeMirror-compatible completion context shape
+[31m[1mAssertionError[22m: expected '' to be 'doc' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- doc[39m
+
+[36m [2m❯[22m src/maquina/maquina.test.ts:[2m45:18[22m[39m
+    [90m 43|[39m     textarea[33m.[39m[34mdispatchEvent[39m([35mnew[39m [33mEvent[39m([32m"input"[39m[33m,[39m { bubbles[33m:[39m [35mtrue[39m }))[33m;[39m
+    [90m 44|[39m     [35mawait[39m [33mPromise[39m[33m.[39m[34mresolve[39m()[33m;[39m
+    [90m 45|[39m     [34mexpect[39m(seen)[33m.[39m[34mtoBe[39m([32m"doc"[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m 46|[39m   })[33m;[39m
+    [90m 47|[39m })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mrenders the inspected page DOM without rendering its own DevTools host
+[31m[1mAssertionError[22m: expected '  ' to contain '<html'[39m
+
+Expected: [32m"<html"[39m
+Received: [31m"  "[39m
+
+[36m [2m❯[22m src/devtools/panels/elements.test.ts:[2m332:31[22m[39m
+    [90m330|[39m
+    [90m331|[39m     [34mexpect[39m(tree)[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m332|[39m     [34mexpect[39m(tree[33m?.[39mtextContent)[33m.[39m[34mtoContain[39m([32m"<html"[39m)[33m;[39m
+    [90m   |[39m                               [31m^[39m
+    [90m333|[39m     [34mexpect[39m(tree[33m?.[39mtextContent)[33m.[39m[34mtoContain[39m([32m"<body"[39m)[33m;[39m
+    [90m334|[39m     [34mexpect[39m(tree[33m?.[39mtextContent)[33m.[39m[34mtoContain[39m([32m"<main"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mselects a DOM node and renders its complete detail inspector
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m350:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mrenders breadcrumbs and lets delegated breadcrumb clicks navigate
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m386:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mexpands and collapses DOM branches through delegated toggle events
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching /<body/: expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m423:21[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mrefreshes the tree after external DOM mutations without duplicating roots
+[31m[1mAssertionError[22m: expected '                             ' to contain 'id="mutation-result"'[39m
+
+Expected: [32m"id="mutation-result""[39m
+Received: [31m"                             "[39m
+
+[36m [2m❯[22m src/devtools/panels/elements.test.ts:[2m473:43[22m[39m
+    [90m471|[39m     vi[33m.[39m[34madvanceTimersByTime[39m([34m100[39m)[33m;[39m
+    [90m472|[39m
+    [90m473|[39m     [34mexpect[39m(fixture[33m.[39mcontainer[33m.[39mtextContent)[33m.[39m[34mtoContain[39m(
+    [90m   |[39m                                           [31m^[39m
+    [90m474|[39m       [32m'id="mutation-result"'[39m[33m,[39m
+    [90m475|[39m     )[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22msupports whitespace-only text nodes when the setting is enabled
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m515:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mopens a real context menu inside the delegated event boundary
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m541:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mexecutes context-menu actions through delegated handlers
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m576:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22medits an attribute using delegated change handling
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m607:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mupdates inline styles from the Styles editor
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m653:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/elements.test.ts[2m > [22mElements panel[2m > [22mhighlights nodes on selection and hides the overlay on panel hide
+[31m[1mAssertionError[22m: Expected to find a DOM tree row matching id="page-app": expected undefined to be an instance of HTMLElement[39m
+[36m [2m❯[22m findNodeRow src/devtools/panels/elements.test.ts:[2m213:5[22m[39m
+    [90m211|[39m     row[33m,[39m
+    [90m212|[39m     [32m`Expected to find a DOM tree row matching [39m[36m${[39m[33mString[39m(matcher)[36m}[39m[32m`[39m[33m,[39m
+    [90m213|[39m   )[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLElement[39m)[33m;[39m
+    [90m   |[39m     [31m^[39m
+    [90m214|[39m
+    [90m215|[39m   [35mreturn[39m row[33m![39m[33m;[39m
+[90m [2m❯[22m findPageTargetRow src/devtools/panels/elements.test.ts:[2m219:19[22m[39m
+[90m [2m❯[22m src/devtools/panels/elements.test.ts:[2m712:23[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/resources.test.ts[2m > [22mResources panel[2m > [22mroutes external scripts to Sources with a typed payload
+[31m[1mAssertionError[22m: expected undefined to be an instance of HTMLAnchorElement[39m
+[36m [2m❯[22m src/devtools/panels/resources.test.ts:[2m129:18[22m[39m
+    [90m127|[39m     const link = Array.from(fixture.container.querySelectorAll<HTMLAnc…
+    [90m128|[39m       [33m.[39m[34mfind[39m((candidate) [33m=>[39m candidate[33m.[39mhref [33m===[39m script[33m.[39msrc)[33m;[39m
+    [90m129|[39m     [34mexpect[39m(link)[33m.[39m[34mtoBeInstanceOf[39m([33mHTMLAnchorElement[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m130|[39m
+    [90m131|[39m     link!.dispatchEvent(new MouseEvent("click", { bubbles: true, cance…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/devtools/panels/sources.test.ts[2m > [22mSources panel[2m > [22mrenders object values as expandable DOM instead of object text
+[31m[1mAssertionError[22m: expected null to be an instance of HTMLDetailsElement[39m
+[36m [2m❯[22m src/devtools/panels/sources.test.ts:[2m175:64[22m[39m
+    [90m173|[39m     [35mawait[39m [34mflush[39m()[33m;[39m
+    [90m174|[39m
+    [90m175|[39m     expect(container.querySelector("details.roderuda-object")).toBeIns…
+    [90m   |[39m                                                                [31m^[39m
+    [90m176|[39m     [34mexpect[39m(container[33m.[39mtextContent)[33m.[39mnot[33m.[39m[34mtoContain[39m([32m"[object Object]"[39m)[33m;[39m
+    [90m177|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/fabrica/tests/fabrica.context-architecture.test.ts[2m > [22mFábrica context architecture[2m > [22msupports portable provider components and required consumers
+[31m[1mAssertionError[22m: expected '  forest  ' to be 'forest' // Object.is equality[39m
+
+Expected: [32m"forest"[39m
+Received: [31m"[7m  [27mforest[7m  [27m"[39m
+
+[36m [2m❯[22m src/fabrica/tests/fabrica.context-architecture.test.ts:[2m30:39[22m[39m
+    [90m 28|[39m     `[39m)[33m;[39m
+    [90m 29|[39m
+    [90m 30|[39m     [34mexpect[39m(document[33m.[39mbody[33m.[39mtextContent)[33m.[39m[34mtoBe[39m([32m"forest"[39m)[33m;[39m
+    [90m   |[39m                                       [31m^[39m
+    [90m 31|[39m     [34mdispose[39m()[33m;[39m
+    [90m 32|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/19]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/fabrica/tests/fabrica.context-architecture.test.ts[2m > [22mFábrica context architecture[2m > [22mmakes reactive context signals available from component context
+[31m[1mAssertionError[22m: expected ' comfortable ' to be 'comfortable' // Object.is equality[39m
+
+Expected: [32m"comfortable"[39m
+Received: [31m"[7m [27mcomfortable[7m [27m"[39m
+
+[36m [2m❯[22m src/fabrica/tests/fabrica.context-architecture.test.ts:[2m52:39[22m[39m
+    [90m 50|[39m     `[39m)[33m;[39m
+    [90m 51|[39m
+    [90m 52|[39m     [34mexpect[39m(document[33m.[39mbody[33m.[39mtextContent)[33m.[39m[34mtoBe[39m([32m"comfortable"[39m)[33m;[39m
+    [90m   |[39m                                       [31m^[39m
+    [90m 53|[39m     [34mdispose[39m()[33m;[39m
+    [90m 54|[39m   })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/19]⎯[22m[39m
+
+
+
+exit=1
