@@ -24,6 +24,22 @@ export type ContextToken<Value> = {
   readonly id: symbol;
   readonly description: string;
   readonly defaultValue?: Value;
+  readonly required: boolean;
+  readonly hasDefault: boolean;
+  readonly kind: "context" | "reactive-context";
+};
+
+/** Context token whose value is a writable Broto signal. */
+export type ReactiveContextToken<Value> = ContextToken<Signal<Value>> & {
+  readonly kind: "reactive-context";
+  readonly initialValue: Value;
+};
+
+/** Serializable context metadata exposed by owner diagnostics. */
+export type ContextDebugSnapshot = {
+  description: string;
+  required: boolean;
+  kind: ContextToken<unknown>["kind"];
 };
 
 /** Lifecycle owner used for effects, resources and UI component boundaries. */
@@ -167,6 +183,7 @@ export type OwnerGraphSnapshot = {
   disposed: boolean;
   cleanups: number;
   context: number;
+  contexts: ContextDebugSnapshot[];
   errorHandlers: number;
   createdAt: number;
   descendants: number;

@@ -380,3 +380,30 @@ state.subscribeDevtools((event) => {
 
 Middleware runs after the state mutation and before subscribers/devtools listeners. It can annotate or drop events by deciding whether to call `next(event)`. Devtools listeners receive the final post-middleware event shape, making Alerta or any external panel integration straightforward.
 
+
+## Required and reactive contexts
+
+Use required contexts for dependencies that must be provided by an ancestor:
+
+```ts
+const Session = createRequiredContext<SessionService>("Session");
+
+createRoot(() => {
+  provide(Session, sessionService);
+  requireContext(Session).logout();
+});
+```
+
+Reactive contexts distribute a writable signal instead of a plain snapshot:
+
+```ts
+const Theme = createReactiveContext("light", "Theme");
+
+createRoot(() => {
+  provideReactiveContext(Theme, "dark");
+  const theme = useReactiveContext(Theme);
+  theme.set("light");
+});
+```
+
+`inspectOwnerGraph()` exposes context descriptions and kinds without serializing context values.
