@@ -364,7 +364,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     panel = asElement<HTMLElement>(html`
       <RodDevtoolsToolPanel
         role="tabpanel"
-        :"tool"=${name}
+        :tool=${name}
         aria-label=${tool.title ?? name}
         hidden
         ref=${(node) => {
@@ -381,8 +381,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       <RodDevtoolsTabButton
         type="button"
         role="tab"
-        :"tool-tab"=${name}
-        :"selected"="false"
+        :toolTab=${name}
+        :selected="false"
         aria-selected="false"
         draggable=${name === "settings" ? "false" : "true"}
         @click=${event.click((click) => {
@@ -610,9 +610,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     item = asElement<HTMLElement>(html`
       <RodDevtoolsNotificationToast
         role=${options.type === "error" ? "alert" : "status"}
-        :"type"=${options.type ?? "info"}
-        :"active"="false"
-        :"notification"=${++this.notificationSequence}
+        :type=${options.type ?? "info"}
+        :active="false"
+        :notification=${++this.notificationSequence}
         @click=${event.click((click) => {
           click.preventDefault();
           remove();
@@ -668,7 +668,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           </RodDevtoolsModalBody>
           <RodDevtoolsModalActions>
             <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(null))}>Cancel</RodDevtoolsTextButton>
-            <RodDevtoolsTextButton type="submit" :"primary"="true">OK</RodDevtoolsTextButton>
+            <RodDevtoolsTextButton type="submit" :primary="true">OK</RodDevtoolsTextButton>
           </RodDevtoolsModalActions>
         </RodDevtoolsModalSurface>
       `);
@@ -706,7 +706,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             <RodDevtoolsTextButton type="button" @click=${event.click(() => finish(false))}>Cancel</RodDevtoolsTextButton>
             <RodDevtoolsTextButton
               type="button"
-              :"primary"="true"
+              :primary="true"
               @click=${event.click(() => finish(true))}
               ref=${(node) => {
                 accept = node;
