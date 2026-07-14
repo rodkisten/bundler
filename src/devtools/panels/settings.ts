@@ -21,6 +21,7 @@ import {
   SettingsText,
   settingsStyleArtifacts,
   type SettingsViewModel,
+  SettingsViewContext,
 } from "./settings-components";
 
 export { settingsStyleArtifacts };
@@ -86,9 +87,9 @@ export class Settings extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`
-      <RodSettingsViewProvider .value=${view}>
+      <${SettingsViewContext.Provider} value=${view as never}>
         <RodSettingsView />
-      </RodSettingsViewProvider>
+      </${SettingsViewContext.Provider}>
     `);
     this.render();
   }

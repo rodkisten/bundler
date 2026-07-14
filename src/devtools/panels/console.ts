@@ -24,6 +24,7 @@ import {
   type ConsoleState,
   type ConsoleViewModel,
   visibleLevels,
+  ConsoleViewContext,
 } from "./console-components";
 
 export { consoleStyleArtifacts };
@@ -116,9 +117,9 @@ export class Console extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`
-      <RodConsoleViewProvider .value=${view}>
+      <${ConsoleViewContext.Provider} value=${view as never}>
         <RodConsoleView />
-      </RodConsoleViewProvider>
+      </${ConsoleViewContext.Provider}>
     `);
     this.body = container.querySelector<HTMLElement>("[data-console-body]");
     this.setList(container.querySelector<HTMLElement>("[data-console-list]"));

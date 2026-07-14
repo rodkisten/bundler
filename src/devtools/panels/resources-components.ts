@@ -1,10 +1,13 @@
 import type { CipoCssArtifact } from "../../cipo";
 import { component, html,  styled } from "../core/runtime";
 import "./shared-components";
+import { createRequiredFabricaContext } from "../../fabrica";
 
 export interface ResourcesViewModel {
   setBody(node: HTMLElement | null): void;
 }
+
+export const ResourcesViewContext = createRequiredFabricaContext<ResourcesViewModel>("ResourcesViewContext");
 
 export const ResourcesSection = styled.section("RodResourcesSection").css`
   margin: 10px;
@@ -230,8 +233,8 @@ export const resourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodResourcesView", function RodResourcesView(props) {
-  const view = props.view as ResourcesViewModel;
+component("RodResourcesView", function RodResourcesView(_props, ctx) {
+  const view = ctx.useRequiredContext(ResourcesViewContext);
 
   return html`
     <RodSharedScrollableBody

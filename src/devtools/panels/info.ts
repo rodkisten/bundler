@@ -11,6 +11,7 @@ import {
   infoStyleArtifacts,
   type InfoModel,
   type InfoViewModel,
+  InfoViewContext,
 } from "./info-components";
 import { getConnectionInfo, getMemoryInfo, getNavigationInfo, defaultItems } from "./info.functions";
 
@@ -85,7 +86,11 @@ export class Info extends Tool {
       renderValue: (value) => this.renderValue(value),
     };
     this.disposeView?.();
-    this.disposeView = render(this.container, html`<RodInfoView view=${view as never} />`);
+    this.disposeView = render(this.container, html`
+      <${InfoViewContext.Provider} value=${view as never}>
+        <RodInfoView />
+      </${InfoViewContext.Provider}>
+    `);
   }
 
   private resolve(item: InfoItem): unknown {

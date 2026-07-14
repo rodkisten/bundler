@@ -2,6 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { RenderValue } from "../../fabrica";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
+import { createRequiredFabricaContext } from "../../fabrica";
 
 export type InfoModel = {
   items: Array<{ name: string; value: unknown }>;
@@ -15,6 +16,8 @@ export interface InfoViewModel {
   copyItem(index: number): void;
   renderValue(value: unknown): RenderValue;
 }
+
+export const InfoViewContext = createRequiredFabricaContext<InfoViewModel>("InfoViewContext");
 
 
 
@@ -73,8 +76,8 @@ export const infoStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodInfoView", function RodInfoView(props) {
-  const view = props.view as InfoViewModel;
+component("RodInfoView", function RodInfoView(_props, ctx) {
+  const view = ctx.useRequiredContext(InfoViewContext);
   const model = view.model();
 
   return html`

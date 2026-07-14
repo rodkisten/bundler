@@ -13,6 +13,7 @@ import {
   styleRuleModels,
   type ElementsViewModel,
   type StyleRuleInfo,
+  ElementsViewContext,
 } from "./elements-components";
 import { getMatchedRules, collectRules, clamp, meaningfulText } from "./elements.functions";
 
@@ -131,7 +132,11 @@ export class Elements extends Tool {
     this.disposeView?.();
     this.disposeView = render(
       container,
-      html`<RodElementsView view=${view as never} />`,
+      html`
+        <${ElementsViewContext.Provider} value=${view as never}>
+          <RodElementsView />
+        </${ElementsViewContext.Provider}>
+      `,
     );
 
     // Ref callbacks are the primary path. These selectors are only defensive

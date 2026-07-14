@@ -33,6 +33,7 @@ import type {
 import {
   sourcesStyleArtifacts,
   type SourcesViewModel,
+  SourcesViewContext,
 } from "./sources-components";
 import { isSourcePayload, collectSources, serializeDocumentSource, inferInlineScriptType, inferTextSourceType, readCurrentDocumentSource, readStylesheetSource, readCachedSource, fetchSourceText, readUserscriptSource, sourceFailureText, normalizeSourceUrl, isPromiseLike, sourceErrorMessage, looksLikeUrl, formatJson, sourceLanguage, formatSource, formatHtml, indentBlock, formatCss, formatJavaScript, fileNameFor, defaultExtensionFor } from "./sources.functions";
 export { formatSource } from "./sources.functions";
@@ -258,6 +259,7 @@ export class Sources extends Tool {
     this.body = null;
 
     const view: SourcesViewModel = {
+      title,
       setBody: (node) => {
         this.body = node;
       },
@@ -270,10 +272,9 @@ export class Sources extends Tool {
     this.disposeView = render(
       this.container,
       html`
-        <RodSourcesView
-          view=${view as never}
-          title=${title}
-        />
+        <${SourcesViewContext.Provider} value=${view as never}>
+          <RodSourcesView />
+        </${SourcesViewContext.Provider}>
       `,
     );
 

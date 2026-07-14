@@ -10,6 +10,7 @@ import {
   networkListTemplate,
   networkStyleArtifacts,
   type NetworkViewModel,
+  NetworkViewContext,
 } from "./network-components";
 import { shellQuote, toCurl } from "./network.functions";
 export { toCurl } from "./network.functions";
@@ -48,6 +49,8 @@ export class Network extends Tool {
     super.init(container, context);
 
     const view: NetworkViewModel = {
+      filter: this.config.get("filter"),
+      recording: this.capture.isRecording(),
       setList: (node) => { this.list = node; },
       setDetail: (node) => { this.detail = node; },
       setFilterInput: (node) => { this.filterInput = node; },
@@ -58,11 +61,9 @@ export class Network extends Tool {
 
     this.disposeView?.();
     this.disposeView = render(container, html`
-      <RodNetworkView
-        view=${view as never}
-        filter=${this.config.get("filter")}
-        recording=${this.capture.isRecording()}
-      />
+      <${NetworkViewContext.Provider} value=${view as never}>
+        <RodNetworkView />
+      </${NetworkViewContext.Provider}>
     `);
 
 
