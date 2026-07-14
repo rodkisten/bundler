@@ -1,11 +1,26 @@
-const HISTORY_STORAGE_KEY = "";
+import { asElement, html } from "../core/runtime";
+import { plainText, renderValue } from "../core/serialize";
+import { safeStringify } from "../utils";
+import type { ConsoleLevel, ConsoleRecord } from "../types";
+import {
+  ConsoleGroup,
+  ConsoleRepeat,
+  ConsoleRow,
+  ConsoleStack,
+  ConsoleTable,
+  ConsoleTableCell,
+  ConsoleTableHead,
+  ConsoleTableWrap,
+  ConsoleTime,
+} from "./console-components";
 
+const HISTORY_STORAGE_KEY = "roderuda:console-history";
 
-function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
-  const row = html`<ConsoleRow 
+export function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLElement {
+  const row = asElement<HTMLElement>(html`<ConsoleRow 
     data-level="${record.level}" 
     data-record-id="${String(record.id)}"
-    style=${`--rd-console-depth: ${record.groupDepth}`}></ConsoleRow>`;
+    style=${`--rd-console-depth: ${record.groupDepth}`}></ConsoleRow>`);
 
   /*const row = ConsoleRow({
     "data-level": record.level,
@@ -49,7 +64,7 @@ function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLEle
     if ((event.target as Element | null)?.closest("details,summary,a,button,input,textarea,select")) return;
     toggle();
   });
-  row.addEventListener("keydown", (event) => {
+  row.addEventListener("keydown", (event: KeyboardEvent) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     toggle();
@@ -58,7 +73,7 @@ function renderRecord(record: ConsoleRecord, displayExtraInfo: boolean): HTMLEle
 }
 
 
-function appendFormattedConsoleArgs(container: HTMLElement, args: readonly unknown[]): void {
+export function appendFormattedConsoleArgs(container: HTMLElement, args: readonly unknown[]): void {
   if (!args.length) return;
   const [first, ...rest] = args;
 
@@ -102,7 +117,7 @@ function appendFormattedConsoleArgs(container: HTMLElement, args: readonly unkno
   }
 }
 
-function appendInspectableValue(container: HTMLElement, value: unknown): void {
+export function appendInspectableValue(container: HTMLElement, value: unknown): void {
   container.append(renderValue(value, {
     maxDepth: 12,
     maxEntries: 2_000,
@@ -112,7 +127,7 @@ function appendInspectableValue(container: HTMLElement, value: unknown): void {
   }));
 }
 
-function sanitizeConsoleStyle(value: string): string {
+export function sanitizeConsoleStyle(value: string): string {
   return value
     .split(";")
     .map((entry) => entry.trim())
@@ -120,7 +135,7 @@ function sanitizeConsoleStyle(value: string): string {
     .join(";");
 }
 
-function renderTable(value: unknown): HTMLElement {
+export function renderTable(value: unknown): HTMLElement {
   const wrap = ConsoleTableWrap() as HTMLElement;
   const data = normalizeTable(value);
   if (!data.rows.length) {
@@ -151,26 +166,26 @@ function renderTable(value: unknown): HTMLElement {
   return wrap;
 }
 
-function stringifyCell(value: unknown): string {
+export function stringifyCell(value: unknown): string {
   if (value == null) return String(value);
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
   return safeStringify(value, 0);
 }
 
-function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
+export function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
   if (level === "trace") return "debug";
   return level === "command" || level === "result" || level === "html" || level === "table" || level === "dir" ? "log" : level;
 }
 
 
 
-function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
+export function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
   if (left.level !== right.level || left.groupDepth !== right.groupDepth || left.args.length !== right.args.length) return false;
   return left.args.every((value, index) => Object.is(value, right.args[index]));
 }
 
-function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record<string, unknown>> } {
+export function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record<string, unknown>> } {
   if (Array.isArray(value)) {
     const rows = value.map((item, index) => item && typeof item === "object" ? { "(index)": index, ...(item as Record<string, unknown>) } : { "(index)": index, Value: item });
     return { columns: [...new Set(rows.flatMap((row) => Object.keys(row)))], rows };
@@ -182,7 +197,7 @@ function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record
   return { columns: [], rows: [] };
 }
 
-async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
+export async function executeJavaScript(code: string, context: { $_: unknown; $0: unknown; devtools: unknown; globals: ReadonlyMap<string, unknown> }): Promise<unknown> {
   const queryOne = (selector: string, root: ParentNode = document) => root.querySelector(selector);
   const queryAll = (selector: string, root: ParentNode = document) => Array.from(root.querySelectorAll(selector));
   const names = ["$_", "$0", "$", "$$", "devtools", ...context.globals.keys()];
@@ -198,7 +213,7 @@ async function executeJavaScript(code: string, context: { $_: unknown; $0: unkno
   }
 }
 
-function readHistory(limit: number): string[] {
+export function readHistory(limit: number): string[] {
   try {
     const value = localStorage.getItem(HISTORY_STORAGE_KEY);
     const parsed = value ? JSON.parse(value) : [];
@@ -208,20 +223,20 @@ function readHistory(limit: number): string[] {
   }
 }
 
-function writeHistory(history: readonly string[], limit: number): void {
+export function writeHistory(history: readonly string[], limit: number): void {
   try {
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(limit <= 0 ? [] : history.slice(-limit)));
   } catch {}
 }
 
-function appendHistory(history: readonly string[], code: string, limit: number): string[] {
+export function appendHistory(history: readonly string[], code: string, limit: number): string[] {
   const trimmed = code.trim();
   if (!trimmed) return [...history];
   const next = history.at(-1) === trimmed ? [...history] : [...history, trimmed];
   return limit <= 0 ? [] : next.slice(-limit);
 }
 
-function consoleCompletions(context: { 
+export function consoleCompletions(context: { 
     matchBefore(pattern: RegExp): { from: number; text: string } | null }
     ): { from: number; options: Array<{ label: string; type?: string; detail?: string }> } | null {
   const options = new Map<string, { label: string; type?: string; detail?: string }>();
@@ -250,7 +265,7 @@ function consoleCompletions(context: {
   return { from: word.from, options: [...options.values()].filter((item) => item.label.startsWith(word.text)).slice(0, 100) };
 }
 
-function resolveCompletionRoot(name: string): unknown {
+export function resolveCompletionRoot(name: string): unknown {
   if (name === "window") return window;
   if (name === "document") return document;
   if (name === "console") return console;
@@ -259,7 +274,7 @@ function resolveCompletionRoot(name: string): unknown {
   return undefined;
 }
 
-function collectPropertyNames(value: unknown, prefix: string): string[] {
+export function collectPropertyNames(value: unknown, prefix: string): string[] {
   const names = new Set<string>();
   let current = value;
   let depth = 0;
@@ -273,5 +288,6 @@ function collectPropertyNames(value: unknown, prefix: string): string[] {
   return [...names].sort();
 }
 
-function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {
+export function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {
   return value !== null && typeof value === "object" && !(value instanceof Error) && ("args" in value || "message" in value || "level" in value);
+}

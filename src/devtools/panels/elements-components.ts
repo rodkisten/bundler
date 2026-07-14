@@ -5,6 +5,9 @@ import { plainText } from "../core/serialize";
 import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
+import { styleRuleModels, listenerModels, propertyModels, crumbLabel, listenerText, number } from "./elements.functions";
+export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "./elements.functions";
+
 
 bootstrapDevtoolsCipo();
 
@@ -925,67 +928,3 @@ export const ElementsContextMenuView = component<{
     </RodElementsMenu>
   `;
 });
-
-export function styleRuleModels(element: Element, rules: StyleRuleInfo[]): StyleRuleModel[] {
-  const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({
-    property,
-    value: (element as HTMLElement).style.getPropertyValue(property),
-    priority: (element as HTMLElement).style.getPropertyPriority(property),
-  }));
-
-  return [
-    {
-      selector: "element.style",
-      declarations: [...inline, { property: "", value: "", priority: "" }],
-      editable: true,
-    },
-    ...rules.map((rule) => ({
-      ...rule,
-      editable: false,
-    })),
-  ];
-}
-
-export function listenerModels(
-  listeners: Readonly<Record<string, readonly {
-    listener: EventListenerOrEventListenerObject;
-    options?: boolean | AddEventListenerOptions;
-  }[]>>,
-): ListenerModel[] {
-  return Object.entries(listeners).map(([type, values]) => ({ type, values }));
-}
-
-export function propertyModels(element: Element): PropertyModel[] {
-  const rows: PropertyModel[] = [{ key: "selector", value: nodePath(element) }];
-  const keys = Reflect.ownKeys(element).slice(0, 100);
-
-  for (const key of keys) {
-    let value: unknown;
-
-    try {
-      value = Reflect.get(element, key);
-    } catch (error) {
-      value = error;
-    }
-
-    rows.push({
-      key: String(key),
-      value: truncate(plainText(value), 300),
-    });
-  }
-
-  return rows;
-}
-
-export function crumbLabel(element: Element): string {
-  return `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${Array.from(element.classList).slice(0, 1).map((name) => `.${name}`).join("")}`;
-}
-
-function listenerText(listener: EventListenerOrEventListenerObject): string {
-  if (typeof listener === "function") return listener.toString();
-  return listener.handleEvent?.toString() || String(listener);
-}
-
-function number(value: string): number {
-  return Number.parseFloat(value) || 0;
-}

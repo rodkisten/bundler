@@ -11,6 +11,9 @@ import {
   networkStyleArtifacts,
   type NetworkViewModel,
 } from "./network-components";
+import { shellQuote, toCurl } from "./network.functions";
+export { toCurl } from "./network.functions";
+
 
 export { networkStyleArtifacts };
 
@@ -270,22 +273,4 @@ export class Network extends Tool {
     const id = this.state.snapshot().selectedId;
     return id ? this.capture.get(id) ?? null : null;
   }
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
-export function toCurl(record: NetworkRecord): string {
-  const parts = ["curl", "-X", record.method, shellQuote(record.url)];
-
-  for (const header of record.requestHeaders) {
-    parts.push("-H", shellQuote(`${header.name}: ${header.value}`));
-  }
-
-  if (record.requestBody) {
-    parts.push("--data-raw", shellQuote(record.requestBody));
-  }
-
-  return parts.join(" ");
 }

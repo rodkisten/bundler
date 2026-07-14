@@ -5,7 +5,7 @@ import { ConsoleCapture } from "../core/console-capture";
 import { mountCodeEditor, type CodeEditorHandle } from "../core/code-editor";
 import { copyText, icon, safeStringify } from "../utils";
 import { plainText, renderValue } from "../core/serialize";
-import { renderRecord, appendFormattedConsoleArgs, appendInspectableValue, sanitizeConsoleStyle, stringifyCell, sameRecord, normalizeTable, executeJavaScript, readHistory, writeHistory, appendHistory, consoleCompletions, resolveCompletionRoot, collectPropertyNames, isInitialConsoleEntry } from "./console.functions";
+import { renderRecord, appendFormattedConsoleArgs, appendInspectableValue, sanitizeConsoleStyle, stringifyCell, sameRecord, normalizeTable, executeJavaScript, readHistory, writeHistory, appendHistory, consoleCompletions, resolveCompletionRoot, collectPropertyNames, isInitialConsoleEntry, normalizeVisibleLevel } from "./console.functions";
 import { Tool } from "../tool";
 import type { ConsoleConfig, ConsoleFilter, ConsoleLevel, ConsoleRecord, ToolContext } from "../types";
 import {
@@ -52,7 +52,6 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   logPreviewLines: 6,
 });
 
-const HISTORY_STORAGE_KEY = "roderuda:console-history";
 const sharedCapture = new ConsoleCapture();
 
 export class Console extends Tool {
