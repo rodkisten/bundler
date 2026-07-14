@@ -372,9 +372,11 @@ export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
 
 component("RodConsoleView", function RodConsoleView(props) {
   const view = props.view as ConsoleViewModel;
+  const { state } = view;
+  
   return html`
     <RodConsoleSurface
-      :data=${{ jsExecution: String(view.state.jsExecution()),
+      :data=${{ jsExecution: state.jsExecution(),
                 consoleBody: true, 
                 roderudaScrollKey: "console"
              }}
@@ -388,11 +390,11 @@ component("RodConsoleView", function RodConsoleView(props) {
         <RodConsoleLevels role="group" :label="Console levels">
           ${visibleLevels.map((level) => html`
             <RodConsoleLevelButton
-              :data=${{ active: String(view.state.enabledLevels().includes(level)),
+              :data=${{ active: state.enabledLevels().includes(level),
                         level: level,
                       }}
               type="button"
-              aria-pressed=${() => String(view.state.enabledLevels().includes(level))}
+              aria-pressed=${() => state.enabledLevels().includes(level)}
               @click=${event.click((levelEvent) => { 
                 levelEvent.preventDefault(); 
                 view.toggleLevel(level); })}
@@ -402,7 +404,7 @@ component("RodConsoleView", function RodConsoleView(props) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${view.state.filterText()} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
+        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${state.filterText()} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
         <RodConsoleIconButton type="button" title="Copy console" :action="copy" @click=${event.click((copyEvent) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
       <RodConsoleList :consoleList ref=${(node) => {
@@ -412,7 +414,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         <span class="roderuda-visually-hidden">No console records</span>
       </RodConsoleList>
     </RodConsoleSurface>
-    <RodConsoleInputWrap :jsExecution=${() => String(view.state.jsExecution())} :expanded=${() => String(view.state.editorExpanded())} :"console-input-wrap" >
+    <RodConsoleInputWrap :jsExecution=${() => state.jsExecution()} :expanded=${() => state.editorExpanded()} :"console-input-wrap" >
       <RodConsolePrompt>›</RodConsolePrompt>
       <RodConsoleInput
         :consoleInput
@@ -420,7 +422,7 @@ component("RodConsoleView", function RodConsoleView(props) {
         spellcheck="false"
         autocomplete="off"
         aria-label="JavaScript console"
-        .value=${() => view.state.inputValue()}
+        .value=${() => state.inputValue()}
         ref=${(node) => {
           view.setInput(node as HTMLTextAreaElement);
           return () => view.setInput(null);
@@ -429,11 +431,12 @@ component("RodConsoleView", function RodConsoleView(props) {
         @keydown=${event.keydown((keyboardEvent) => view.handleInputKey(keyboardEvent))}
         @focus=${event.focus(() => view.handleInputFocus())}
       />
-      <RodConsoleEditorButton type="button" data-action="run-inline" title="Run code" aria-label="Run code" @click=${event.click(() => view.runEditor())}>▶</RodConsoleEditorButton>
-      <RodConsoleEditorActions data-expanded=${() => String(view.state.editorExpanded())}>
-        <RodConsoleEditorButton type="button" data-action="cancel-editor" @click=${event.click(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
-        <RodConsoleEditorButton type="button" data-action="clear-editor" @click=${event.click(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
-        <RodConsoleEditorButton type="button" data-action="run-editor" @click=${event.click(() => view.runEditor())}>Run</RodConsoleEditorButton>
+      <RodConsoleEditorButton type="button" :action="run-inline" title="Run code" aria-label="Run code" @click=${event.click(() => view.runEditor())}>▶</RodConsoleEditorButton>
+      <RodConsoleEditorActions 
+      :expanded=${() => state.editorExpanded()}>
+        <RodConsoleEditorButton type="button" :action="cancel-editor" @click=${event.click(() => view.cancelEditor())}>Cancel</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button" :action="clear-editor" @click=${event.click(() => view.clearEditor())}>Clear</RodConsoleEditorButton>
+        <RodConsoleEditorButton type="button"  :action="run-editor" @click=${event.click(() => view.runEditor())}>Run</RodConsoleEditorButton>
       </RodConsoleEditorActions>
     </RodConsoleInputWrap>
   `;
