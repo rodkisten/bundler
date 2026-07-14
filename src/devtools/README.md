@@ -165,3 +165,7 @@ The floating DevTools dock is anchored to the bottom of the current `visualViewp
 Console output preserves live values and renders objects, functions, DOM nodes, errors, maps, sets, promises and long global objects as lazy expandable trees. Standard browser formatting tokens (`%s`, `%d`, `%i`, `%f`, `%o`, `%O`, `%c`, `%%`) are supported. The capture layer handles groups, collapsed groups, tables, traces, counters and timers.
 
 REPL completion is manual on mobile to avoid iOS accepting a partial completion while typing identifiers such as `document`. `Enter` and the Run button execute code; `Shift+Enter` inserts a newline.
+
+## Editor integration
+
+DevTools uses the repository's `Máquina` editor through `core/code-editor.ts`. The façade keeps panel imports stable while removing CodeMirror from the runtime bundle. Sources, Resources JSON editing and the Console REPL share the same themeable, Safari-safe editor.

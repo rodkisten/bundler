@@ -28,7 +28,9 @@
     "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
     "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3",
     "dev:devtools": "vite --config ./src/devtools/vite.config.ts",
-    "build:devtools": "vite --config ./src/devtools/vite.config.ts build"
+    "build:devtools": "vite --config ./src/devtools/vite.config.ts build",
+    "dev:maquina": "vite --config ./src/maquina/vite.config.ts",
+    "build:maquina": "vite --config ./src/maquina/vite.config.ts build"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
@@ -41,15 +43,6 @@
     "vitest": "4.1.8"
   },
   "dependencies": {
-    "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.10.4",
-    "@codemirror/lang-css": "^6.3.1",
-    "@codemirror/lang-html": "^6.4.11",
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/lang-json": "^6.0.2",
-    "@codemirror/state": "^6.7.0",
-    "@codemirror/theme-one-dark": "^6.1.3",
-    "@codemirror/view": "^6.43.4",
     "lit": "^3.3.1",
     "lit-html": "^3.3.1",
     "markdown-it": "^14.1.0",

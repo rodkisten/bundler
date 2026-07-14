@@ -355,3 +355,10 @@
 - Added touch-safe pointer reordering for panel sections and made non-editor DevTools UI non-selectable.
 - Console CodeMirror now runs with Enter or Mod+Enter, keeps Shift+Enter for a newline, and retains a visible Run button.
 - Added safe-top-aware dock sizing for mobile browser chrome.
+
+## Máquina editor
+
+- Added the new flat `src/maquina` package.
+- Replaced CodeMirror in DevTools with Máquina.
+- Added syntax highlighting, themes, completion-on-type, Safari-safe 16px scaling, tests and a deployable landing page.
+- Removed all CodeMirror runtime dependencies.

@@ -553,3 +553,7 @@ This build adds the next layer of the design-system engine:
 - `getDebugOverlayStats()` and `installDebugOverlay()` expose atom reuse, promotion and CSS byte statistics for mobile debug panels.
 - Broto stores now accept middleware and devtools listeners: `store(initial, { middleware, devtools })`, plus runtime `state.use()` and `state.subscribeDevtools()`.
 
+
+## Máquina
+
+`src/maquina` is the repository's lightweight code editor. It uses Fábrica for rendering, Cipó styled components for its UI and Broto for editor state. The full interactive landing page is published at `dist/maquina/index.html` by the root build.
