@@ -64,6 +64,7 @@ export class ElementHighlighter {
   position: fixed;
   inset: 0;
   width: 100%;
+  opacity: 0;
   height: 100%;
   z-index: var(--rd-z-inspector, 2147483580);
   pointer-events: none !important;
