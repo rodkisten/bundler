@@ -1223,3 +1223,55 @@ html`
 - `.property=${value}` always assigns a real DOM or custom-element property. It never falls back to an HTML attribute, so objects, callbacks, nodes and fragments are preserved without becoming `[object Object]`.
 
 Use props bags for groups of component inputs and dot bindings for imperative DOM state such as `value`, `checked`, `currentTime`, custom element configuration, or application-defined element properties.
+
+## Special element attributes
+
+Fábrica accepts registered PascalCase components directly in normal templates:
+
+```ts
+fabrica.component("NosUnicos", (_props, ctx) => ctx.html`<strong>Nós únicos</strong>`)
+
+const view = fabrica.html`<NosUnicos />`
+```
+
+Use `$css` or `$style` to compile inline declarations through the Cipó runtime. Both names are aliases and accept Cipó DSL strings, style objects, inline artifacts, signals, or reactive functions:
+
+```ts
+const card = fabrica.html`
+  <article
+    $css=${{
+      bg: "$surface",
+      px: 4,
+      rounded: "$lg",
+    }}
+  ></article>
+`
+```
+
+Colon-prefixed attributes map to `data-*` attributes. Camel case is converted to kebab case, and `:data` expands an object:
+
+```ts
+const row = fabrica.html`
+  <div
+    :rod
+    :rodCamelCase=${() => currentStatus()}
+    :data=${{
+      objectId: 123,
+      isReady: () => ready(),
+    }}
+  ></div>
+`
+```
+
+The result contains `data-rod="true"`, `data-rod-camel-case`, `data-object-id`, and `data-is-ready`.
+
+Bracket bindings call `style.setProperty()` and remain reactive:
+
+```ts
+const panel = fabrica.html`
+  <section
+    [--panel-gap]=${gap}
+    [backgroundColor]=${() => themeColor()}
+  ></section>
+`
+```
