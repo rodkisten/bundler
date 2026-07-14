@@ -203,3 +203,9 @@ The page is styled entirely around public `--landing-*` CSS custom properties. T
 ```
 
 Spacing, typography, gradients, motion, grid size and semantic surfaces are also defined as tokens near the top of `landing.css`. The build plugin bundles `landing.ts`, copies `landing.css`, rewrites the development asset paths and emits the production landing assets beside every DevTools bundle.
+
+## Shared DevTools context
+
+The DevTools runtime creates one `DevtoolsContext` owner before mounting the shell. Every isolated Fábrica render root, including panels mounted later, runs under that owner. The shared context exposes strongly typed signals for the controller, shell refs, settings, active panel and visibility.
+
+Panel-specific contexts are intentionally deferred to the next migration phase. This keeps the global context focused on cross-panel services and avoids a single oversized store.
