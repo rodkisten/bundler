@@ -2,7 +2,9 @@ import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } 
 import { html, render } from "../core/runtime";
 import { Tool } from "../tool";
 import type { SnippetItem, ToolContext } from "../types";
-import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel } from "./snippets-components";
+import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel,
+  SnippetsViewContext,
+} from "./snippets-components";
 import { openWindow, addBorderOverlay, startMonitor, startTouchVisualizer, featureRows } from "./snippets.functions";
 
 
@@ -154,7 +156,11 @@ export class Snippets extends Tool {
       remove: (index) => this.remove(this.snippets[index]?.name ?? ""),
     };
     this.disposeView?.();
-    this.disposeView = render(this.container, html`<RodSnippetsView view=${view as never} />`);
+    this.disposeView = render(this.container, html`
+      <${SnippetsViewContext.Provider} value=${view as never}>
+        <RodSnippetsView />
+      </${SnippetsViewContext.Provider}>
+    `);
   }
 
   private model(): SnippetsModel {

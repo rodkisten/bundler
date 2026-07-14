@@ -6,6 +6,7 @@ import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 import { styleRuleModels, listenerModels, propertyModels, crumbLabel, listenerText, number } from "./elements.functions";
+import { createRequiredFabricaContext } from "../../fabrica";
 export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "./elements.functions";
 
 
@@ -19,6 +20,8 @@ export interface ElementsViewModel {
   onTreeScroll(): void;
   wrapLines(): boolean;
 }
+
+export const ElementsViewContext = createRequiredFabricaContext<ElementsViewModel>("ElementsViewContext");
 
 export type ElementAttributeModel = {
   name: string;
@@ -557,8 +560,8 @@ export const elementsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodElementsView", function RodElementsView(props) {
-  const view = props.view as ElementsViewModel;
+component("RodElementsView", function RodElementsView(_props, ctx) {
+  const view = ctx.useRequiredContext(ElementsViewContext);
 
   return html`
     <RodSharedPanelLayout :elementsLayout>

@@ -2,6 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { SnippetItem } from "../types";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
+import { createRequiredFabricaContext } from "../../fabrica";
 
 export type SnippetsModel = {
   snippets: SnippetItem[];
@@ -16,6 +17,8 @@ export interface SnippetsViewModel {
   run(index: number): void;
   remove(index: number): void;
 }
+
+export const SnippetsViewContext = createRequiredFabricaContext<SnippetsViewModel>("SnippetsViewContext");
 
 export const SnippetsTitle = styled.span("RodSnippetsTitle").css`
   flex: 1 1 auto;
@@ -51,8 +54,8 @@ export const snippetsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodSnippetsView", function RodSnippetsView(props) {
-  const view = props.view as SnippetsViewModel;
+component("RodSnippetsView", function RodSnippetsView(_props, ctx) {
+  const view = ctx.useRequiredContext(SnippetsViewContext);
   const model = view.model();
 
   return html`

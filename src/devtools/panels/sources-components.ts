@@ -2,11 +2,15 @@ import type { CipoCssArtifact } from "../../cipo";
 import { component, event, html,  styled } from "../core/runtime";
 import { icon } from "../utils";
 import "./shared-components";
+import { createRequiredFabricaContext } from "../../fabrica";
 
 export interface SourcesViewModel {
+  readonly title: string;
   setBody(node: HTMLElement | null): void;
   action(name: string): void;
 }
+
+export const SourcesViewContext = createRequiredFabricaContext<SourcesViewModel>("SourcesViewContext");
 
 export const SourcesRoot = styled.div("RodSourcesRoot").css`
   position: relative;
@@ -202,9 +206,9 @@ export const sourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodSourcesView", function RodSourcesView(props) {
-  const view = props.view as SourcesViewModel;
-  const title = props.title as string;
+component("RodSourcesView", function RodSourcesView(_props, ctx) {
+  const view = ctx.useRequiredContext(SourcesViewContext);
+  const { title } = view;
 
   return html`
     <RodSourcesRoot>

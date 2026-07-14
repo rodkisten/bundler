@@ -23,6 +23,7 @@ import {
   ResourcesJsonActions,
   resourcesStyleArtifacts,
   type ResourcesViewModel,
+  ResourcesViewContext,
 } from "./resources-components";
 import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, canUseStorage, isJsonValue, formatJsonValue, unique } from "./resources.functions";
 
@@ -73,7 +74,11 @@ export class Resources extends Tool {
     };
 
     this.disposeView?.();
-    this.disposeView = render(container, html`<RodResourcesView view=${view as never} />`);
+    this.disposeView = render(container, html`
+      <${ResourcesViewContext.Provider} value=${view as never}>
+        <RodResourcesView />
+      </${ResourcesViewContext.Provider}>
+    `);
 
     this.config.on("change", this.onConfigChange);
     this.applyTweakVariables();

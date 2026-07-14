@@ -209,3 +209,7 @@ Spacing, typography, gradients, motion, grid size and semantic surfaces are also
 The DevTools runtime creates one `DevtoolsContext` owner before mounting the shell. Every isolated Fábrica render root, including panels mounted later, runs under that owner. The shared context exposes strongly typed signals for the controller, shell refs, settings, active panel and visibility.
 
 Panel-specific contexts are intentionally deferred to the next migration phase. This keeps the global context focused on cross-panel services and avoids a single oversized store.
+
+### Panel-local view contexts
+
+Every DevTools panel now mounts its visual root under a required Fábrica context provider. Components resolve their ViewModel with `ctx.useRequiredContext(...)` instead of receiving a `view` prop. The provider preserves the exact ViewModel/store reference, while Broto signals remain responsible for fine-grained DOM updates. This keeps panel instances isolated and removes ViewModel prop drilling across Console, Settings, Elements, Info, Network, Resources, Snippets, and Sources.

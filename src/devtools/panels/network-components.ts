@@ -6,10 +6,13 @@ import { component, event, html,  styled } from "../core/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 import { networkListTemplate, networkRowTemplate, networkDetailTemplate, detailTabTemplate, sectionTableTemplate, headerTableTemplate, sectionPreTemplate, messagesTableTemplate, prettyBody, safeUrl } from "./network.functions";
+import { createRequiredFabricaContext } from "../../fabrica";
 export { networkListTemplate, networkRowTemplate, networkDetailTemplate } from "./network.functions";
 
 
 export interface NetworkViewModel {
+  readonly filter: string;
+  readonly recording: boolean;
   setList(node: HTMLElement | null): void;
   setDetail(node: HTMLElement | null): void;
   setFilterInput(node: HTMLInputElement | null): void;
@@ -17,6 +20,8 @@ export interface NetworkViewModel {
   onFilterInput(event: Event): void;
   openRequest(id: string): void;
 }
+
+export const NetworkViewContext = createRequiredFabricaContext<NetworkViewModel>("NetworkViewContext");
 
 
 const NetworkIconButton = styled.button("RodNetworkIconButton").css`
@@ -304,10 +309,9 @@ export const networkStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
     .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
-component("RodNetworkView", function RodNetworkView(props) {
-  const view = props.view as NetworkViewModel;
-  const filter = props.filter as string;
-  const recording = props.recording as boolean;
+component("RodNetworkView", function RodNetworkView(_props, ctx) {
+  const view = ctx.useRequiredContext(NetworkViewContext);
+  const { filter, recording } = view;
 
   return html`
     <RodSharedPanelLayout :networkLayout>

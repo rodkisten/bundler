@@ -1,8 +1,9 @@
-import { createRequiredContext, type Store } from "../../broto";
+import type { Store } from "../../broto";
 import type { CipoCssArtifact } from "../../cipo";
 import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord } from "../types";
 import { component, event, html,  styled } from "../core/runtime";
 import { icon } from "../utils";
+import { createRequiredFabricaContext } from "../../fabrica";
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];
@@ -38,15 +39,9 @@ export interface ConsoleViewModel {
   runEditor(): void;
 }
 
+export const ConsoleViewContext = createRequiredFabricaContext<ConsoleViewModel>("ConsoleViewContext");
+
 export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "warn", "error"];
-
-export const ConsoleViewContext = createRequiredContext<ConsoleViewModel>("RodConsoleView");
-
-component("RodConsoleViewProvider", function RodConsoleViewProvider(props, ctx) {
-  ctx.provide(ConsoleViewContext, props.value as ConsoleViewModel);
-  return props.children ?? null;
-});
-
 
 /* *************** */
 /* Styled console  */
@@ -379,7 +374,7 @@ export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
 );
 
 component("RodConsoleView", function RodConsoleView(_props, ctx) {
-  const view = ctx.requireContext(ConsoleViewContext);
+  const view = ctx.useRequiredContext(ConsoleViewContext);
   const { state } = view;
   
   return html`
