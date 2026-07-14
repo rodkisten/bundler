@@ -92,6 +92,7 @@ export async function main(): Promise<void> {
   );
 
   await copyDocsAssets();
+  await copyMaquinaLanding();
 }
 
 function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
@@ -230,6 +231,13 @@ async function buildEntry(entry: RootEntry): Promise<string[]> {
   }
 
   return builds.map((item) => path.relative(DIST_DIR, item.file));
+}
+
+async function copyMaquinaLanding(): Promise<void> {
+  const source = path.join(SRC_DIR, "maquina", "index.html");
+  const targetDir = path.join(DIST_DIR, "maquina");
+  await fs.mkdir(targetDir, { recursive: true });
+  await copyFileIfExists(source, path.join(targetDir, "index.html"));
 }
 
 async function copyDocsAssets(): Promise<void> {
