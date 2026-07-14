@@ -1,69 +1,57 @@
-import type { Cleanup, ContextToken, Owner, OwnerErrorHandler, OwnerGraphSnapshot, OwnerOptions } from "./types";
+import type {
+  Cleanup,
+  ContextResolution,
+  ContextToken,
+  Owner,
+  OwnerErrorHandler,
+  OwnerGraphSnapshot,
+  OwnerOptions,
+  OwnerScope,
+} from "./types";
 
 let ownerId = 0;
-let activeOwner: Owner | null = null;
+const ownerStack: Array<Owner | null> = [];
 const ownerRoots = new Set<Owner>();
 
-/**
- * Gets the currently active owner.
- *
- * @remarks
- * Owners are Broto's lifecycle boundaries. Effects, resources and Fabrica
- * components register cleanup, context and error handlers against the active
- * owner, so disposal follows a deterministic tree instead of ad-hoc arrays.
- *
- * @returns The active owner, or null when no owner is running.
- *
- * @example
- * ```ts
- * const owner = getOwner();
- * console.log(owner?.name);
- * ```
- */
+/** Returns the owner at the top of the current execution stack. */
 export function getOwner(): Owner | null {
-  return activeOwner;
+  return ownerStack.length > 0 ? ownerStack[ownerStack.length - 1] ?? null : null;
 }
 
-/**
- * Runs a callback with a temporary active owner.
- *
- * @param owner - Owner to activate.
- * @param callback - Work to run inside the owner.
- * @returns Callback result.
- *
- * @example
- * ```ts
- * runWithOwner(owner, () => {
- *   effect(() => console.log(count()));
- * });
- * ```
- */
+/** Captures the current owner for work that will execute later. */
+export function captureOwner(): Owner | null {
+  return getOwner();
+}
+
+/** Runs a callback with an explicit owner and restores the previous stack safely. */
 export function runWithOwner<Value>(owner: Owner | null, callback: () => Value): Value {
-  const previousOwner = activeOwner;
-  activeOwner = owner;
+  ownerStack.push(owner);
 
   try {
     return callback();
   } finally {
-    activeOwner = previousOwner;
+    const restored = ownerStack.pop();
+    if (restored !== owner) {
+      ownerStack.length = 0;
+      throw new Error("[Broto] Owner execution stack was corrupted.");
+    }
   }
 }
 
-/**
- * Creates an owner under the active owner or an explicit parent.
- *
- * @param options - Owner options.
- * @returns New owner.
- *
- * @example
- * ```ts
- * const owner = createOwner({ name: "Panel" });
- * runWithOwner(owner, () => onOwnerCleanup(() => console.log("disposed")));
- * disposeOwner(owner);
- * ```
- */
+/** Runs deferred work with the owner captured when the callback was created. */
+export function runWithCapturedOwner<Value>(owner: Owner | null, callback: () => Value): Value {
+  if (owner?.disposed) {
+    throw new Error(`[Broto] Cannot enter disposed owner "${owner.name ?? owner.id}".`);
+  }
+
+  return runWithOwner(owner, callback);
+}
+
+/** Creates an owner under the active owner or an explicit parent. */
 export function createOwner(options: OwnerOptions = {}): Owner {
-  const parent = options.parent === undefined ? activeOwner : options.parent;
+  const activeOwner = getOwner();
+  const requestedParent = options.parent === undefined ? activeOwner : options.parent;
+  const parent = requestedParent && !requestedParent.disposed ? requestedParent : null;
   const owner: Owner = {
     id: options.id ?? `broto-${++ownerId}`,
     name: options.name,
@@ -76,143 +64,83 @@ export function createOwner(options: OwnerOptions = {}): Owner {
     createdAt: now(),
   };
 
-  if (parent && !parent.disposed) {
-    parent.children.add(owner);
-  } else {
-    ownerRoots.add(owner);
-  }
+  if (parent) parent.children.add(owner);
+  else ownerRoots.add(owner);
 
   return owner;
 }
 
-/**
- * Creates a root owner, runs setup inside it and returns the setup value plus a disposer.
- *
- * @param callback - Root setup callback.
- * @param options - Optional owner metadata.
- * @returns Callback value and dispose callback.
- *
- * @example Component-like root
- * ```ts
- * const [view, dispose] = createRoot(() => html`<p>Hello</p>`, { name: "View" });
- * dispose();
- * ```
- */
-export function createRoot<Value>(callback: (dispose: Cleanup, owner: Owner) => Value, options: OwnerOptions = {}): [Value, Cleanup] {
-  const owner = createOwner({ ...options, parent: options.parent ?? null });
+/** Creates a persistent owner scope that can be entered repeatedly and disposed once. */
+export function createOwnerScope(options: OwnerOptions = {}): OwnerScope {
+  const owner = createOwner(options);
+
+  return Object.freeze({
+    owner,
+    run<Value>(callback: () => Value): Value {
+      return runWithCapturedOwner(owner, callback);
+    },
+    dispose(): void {
+      disposeOwner(owner);
+    },
+  });
+}
+
+/** Creates a root owner and runs setup inside it. */
+export function createRoot<Value>(
+  callback: (dispose: Cleanup, owner: Owner) => Value,
+  options: OwnerOptions = {},
+): [Value, Cleanup] {
+  const owner = createOwner({
+    ...options,
+    parent: options.parent === undefined ? null : options.parent,
+  });
   const dispose = () => disposeOwner(owner);
   const value = runWithOwner(owner, () => callback(dispose, owner));
   return [value, dispose];
 }
 
-/**
- * Registers cleanup in the active owner.
- *
- * @param cleanup - Cleanup callback.
- * @returns The same cleanup for convenient composition.
- *
- * @example
- * ```ts
- * onOwnerCleanup(() => socket.close());
- * ```
- */
+/** Registers cleanup in the active owner. */
 export function onOwnerCleanup(cleanup: Cleanup): Cleanup {
-  if (typeof cleanup !== "function") {
-    return cleanup;
+  const owner = getOwner();
+  if (typeof cleanup === "function" && owner && !owner.disposed) {
+    owner.cleanups.push(cleanup);
   }
-
-  if (activeOwner && !activeOwner.disposed) {
-    activeOwner.cleanups.push(cleanup);
-  }
-
   return cleanup;
 }
 
-/**
- * Registers an error handler on the active owner.
- *
- * @remarks
- * Error handlers are walked from the throwing owner up to the root. Returning
- * `true` marks the error as handled. This powers Fabrica error boundaries and
- * keeps async resources/events/effects from becoming orphaned browser errors.
- *
- * @param handler - Error handler.
- * @returns Cleanup that removes the handler.
- *
- * @example
- * ```ts
- * const stop = onOwnerError((error) => {
- *   console.error(error);
- *   return true;
- * });
- * stop();
- * ```
- */
+/** Registers an error handler on the active owner. */
 export function onOwnerError(handler: OwnerErrorHandler): Cleanup {
-  if (!activeOwner || activeOwner.disposed) {
-    return () => {};
-  }
+  const owner = getOwner();
+  if (!owner || owner.disposed) return () => {};
 
-  const owner = activeOwner;
   owner.errorHandlers.push(handler);
-
   return () => {
     const index = owner.errorHandlers.indexOf(handler);
-    if (index >= 0) {
-      owner.errorHandlers.splice(index, 1);
-    }
+    if (index >= 0) owner.errorHandlers.splice(index, 1);
   };
 }
 
-/**
- * Propagates an error through the owner tree.
- *
- * @param error - Error value.
- * @param origin - Owner where the error happened. Defaults to active owner.
- * @returns Whether an owner handled the error.
- *
- * @example
- * ```ts
- * if (!handleOwnerError(error)) throw error;
- * ```
- */
-export function handleOwnerError(error: unknown, origin: Owner | null = activeOwner): boolean {
+/** Propagates an error through the owner tree. */
+export function handleOwnerError(error: unknown, origin: Owner | null = getOwner()): boolean {
   let owner = origin;
 
   while (owner) {
     for (let index = owner.errorHandlers.length - 1; index >= 0; index -= 1) {
       try {
-        const handled = owner.errorHandlers[index]?.(error, owner);
-        if (handled === true) {
-          return true;
-        }
+        if (owner.errorHandlers[index]?.(error, owner) === true) return true;
       } catch (handlerError) {
         error = handlerError;
       }
     }
-
     owner = owner.parent;
   }
 
   return false;
 }
 
-/**
- * Runs and clears an owner's child graph and cleanup stack without marking it disposed.
- *
- * @param owner - Owner to clean.
- * @returns void.
- */
+/** Clears an owner's descendants and cleanup stack without disposing the owner itself. */
 export function cleanupOwner(owner: Owner): void {
-  const children: Owner[] = [];
-  for (const child of owner.children) {
-    children[children.length] = child;
-  }
-
-  for (let index = 0; index < children.length; index += 1) {
-    disposeOwner(children[index]);
-  }
-
+  for (const child of Array.from(owner.children)) disposeOwner(child);
   owner.children.clear();
 
   const cleanups = owner.cleanups.splice(0);
@@ -221,40 +149,20 @@ export function cleanupOwner(owner: Owner): void {
   }
 }
 
-/**
- * Disposes an owner and its full subtree.
- *
- * @param owner - Owner to dispose.
- * @returns void.
- */
+/** Disposes an owner and its complete subtree. */
 export function disposeOwner(owner: Owner): void {
-  if (owner.disposed) {
-    return;
-  }
+  if (owner.disposed) return;
 
   cleanupOwner(owner);
+  owner.context.clear();
   owner.disposed = true;
   owner.parent?.children.delete(owner);
-  if (!owner.parent) {
-    ownerRoots.delete(owner);
-  }
+  ownerRoots.delete(owner);
 }
 
-/**
- * Creates a context token.
- *
- * @param defaultValue - Optional fallback value.
- * @param description - Debug-friendly name.
- * @returns Context token.
- *
- * @example
- * ```ts
- * const ThemeContext = createContext("dark", "Theme");
- * ```
- */
+/** Creates an optional context token with a default value when supplied. */
 export function createContext<Value>(defaultValue?: Value, description = "BrotoContext"): ContextToken<Value> {
   const hasDefault = arguments.length > 0;
-
   return Object.freeze({
     id: Symbol(description),
     description,
@@ -265,9 +173,7 @@ export function createContext<Value>(defaultValue?: Value, description = "BrotoC
   });
 }
 
-/**
- * Creates a context that must be provided by an ancestor owner.
- */
+/** Creates a context that must be provided by an ancestor owner. */
 export function createRequiredContext<Value>(description = "RequiredContext"): ContextToken<Value> {
   return Object.freeze({
     id: Symbol(description),
@@ -278,94 +184,82 @@ export function createRequiredContext<Value>(description = "RequiredContext"): C
   }) as ContextToken<Value>;
 }
 
-/** Returns whether the active owner tree contains a value for the token. */
-export function hasContext<Value>(context: ContextToken<Value>): boolean {
-  let owner = activeOwner;
-
-  while (owner) {
-    if (owner.context.has(context as ContextToken<unknown>)) return true;
-    owner = owner.parent;
-  }
-
-  return false;
-}
-
-/**
- * Provides a context value in the active owner.
- *
- * @param context - Context token.
- * @param value - Value to provide.
- * @returns Provided value.
- */
-export function provide<Value>(context: ContextToken<Value>, value: Value): Value {
-  if (!activeOwner) {
-    throw new Error(`[Broto] provide(${context.description}) was called without an active owner.`);
-  }
-
-  activeOwner.context.set(context as ContextToken<unknown>, value);
-  return value;
-}
-
-/**
- * Reads the nearest context value from the owner tree.
- *
- * @param context - Context token.
- * @returns Nearest provided value or token default.
- */
-export function useContext<Value>(context: ContextToken<Value>): Value {
-  let owner = activeOwner;
+/** Resolves a context against an explicit or active owner. */
+export function resolveContext<Value>(
+  context: ContextToken<Value>,
+  startOwner: Owner | null = getOwner(),
+): ContextResolution<Value> {
+  let owner = startOwner;
 
   while (owner) {
     if (owner.context.has(context as ContextToken<unknown>)) {
-      return owner.context.get(context as ContextToken<unknown>) as Value;
+      return {
+        found: true,
+        owner,
+        value: owner.context.get(context as ContextToken<unknown>) as Value,
+      };
     }
-
     owner = owner.parent;
   }
 
+  return {
+    found: false,
+    owner: null,
+    value: context.defaultValue as Value,
+  };
+}
+
+/** Returns whether a value exists in the active owner chain. */
+export function hasContext<Value>(context: ContextToken<Value>): boolean {
+  return resolveContext(context).found;
+}
+
+/** Provides a context value on an explicit owner. */
+export function provideToOwner<Value>(owner: Owner, context: ContextToken<Value>, value: Value): Value {
+  if (owner.disposed) {
+    throw new Error(`[Broto] Cannot provide "${context.description}" to a disposed owner.`);
+  }
+  owner.context.set(context as ContextToken<unknown>, value);
+  return value;
+}
+
+/** Provides a context value in the active owner. */
+export function provide<Value>(context: ContextToken<Value>, value: Value): Value {
+  const owner = getOwner();
+  if (!owner) {
+    throw new Error(`[Broto] provide(${context.description}) was called without an active owner.`);
+  }
+  return provideToOwner(owner, context, value);
+}
+
+/** Reads the nearest context value or its optional default. */
+export function useContext<Value>(context: ContextToken<Value>): Value {
+  const resolution = resolveContext(context);
+  if (resolution.found || context.hasDefault) return resolution.value;
   if (context.required) {
     throw new Error(`[Broto] Missing provider for required context "${context.description}".`);
   }
-
   return context.defaultValue as Value;
 }
 
 /** Reads a context and throws when no provider is available. */
 export function requireContext<Value>(context: ContextToken<Value>): Value {
-  let owner = activeOwner;
-
-  while (owner) {
-    if (owner.context.has(context as ContextToken<unknown>)) {
-      return owner.context.get(context as ContextToken<unknown>) as Value;
-    }
-
-    owner = owner.parent;
-  }
-
+  const resolution = resolveContext(context);
+  if (resolution.found) return resolution.value;
   throw new Error(`[Broto] Missing provider for required context "${context.description}".`);
 }
 
-/**
- * Returns a serializable owner graph snapshot for devtools/debug panels.
- *
- * @param root - Root owner. Defaults to active owner.
- * @returns Owner graph object.
- */
-export function inspectOwnerGraph(root: Owner | null = activeOwner): OwnerGraphSnapshot | null {
-  if (!root) {
-    return null;
-  }
+/** Returns a serializable owner graph snapshot. */
+export function inspectOwnerGraph(root: Owner | null = getOwner()): OwnerGraphSnapshot | null {
+  if (!root) return null;
 
   const children: OwnerGraphSnapshot[] = [];
   let descendants = 0;
 
   for (const child of root.children) {
     const snapshot = inspectOwnerGraph(child);
-    if (!snapshot) {
-      continue;
-    }
-
-    children[children.length] = snapshot;
+    if (!snapshot) continue;
+    children.push(snapshot);
     descendants += 1 + snapshot.descendants;
   }
 
@@ -387,31 +281,21 @@ export function inspectOwnerGraph(root: Owner | null = activeOwner): OwnerGraphS
   };
 }
 
-/**
- * Alias for inspectOwnerGraph with a shorter devtools-friendly name.
- *
- * @param root - Root owner. Defaults to the active owner.
- * @returns Serializable owner graph snapshot.
- *
- * @example
- * ```ts
- * const [_, dispose] = createRoot(() => {
- *   console.table(inspectGraph()?.children ?? []);
- * });
- * dispose();
- * ```
- */
-export function inspectGraph(root: Owner | null = activeOwner): OwnerGraphSnapshot | null {
+/** Alias for inspectOwnerGraph with a devtools-friendly name. */
+export function inspectGraph(root: Owner | null = getOwner()): OwnerGraphSnapshot | null {
   return inspectOwnerGraph(root);
 }
 
+/** Returns currently known root owners for diagnostics. */
+export function getOwnerRoots(): Owner[] {
+  return Array.from(ownerRoots).filter((owner) => !owner.disposed);
+}
+
 function runCleanup(cleanup: Cleanup | undefined, owner: Owner): void {
-  if (!cleanup) {
-    return;
-  }
+  if (!cleanup) return;
 
   try {
-    cleanup();
+    runWithOwner(owner, cleanup);
   } catch (error) {
     if (!handleOwnerError(error, owner)) {
       queueMicrotask(() => {
@@ -421,25 +305,8 @@ function runCleanup(cleanup: Cleanup | undefined, owner: Owner): void {
   }
 }
 
-
-/**
- * Returns currently known root owners for devtools and diagnostics.
- *
- * @returns Snapshot array of root owners.
- *
- * @example
- * ```ts
- * console.table(getOwnerRoots().map((owner) => owner.name));
- * ```
- */
-export function getOwnerRoots(): Owner[] {
-  const roots: Owner[] = [];
-  for (const owner of ownerRoots) {
-    if (!owner.disposed) roots[roots.length] = owner;
-  }
-  return roots;
-}
-
 function now(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 }
