@@ -1,5 +1,6 @@
 import { brotoDebugState } from "./debug";
 import { cleanupOwner, createOwner, createRoot, getOwner, handleOwnerError, onOwnerCleanup, runWithOwner } from "./owner";
+import { isSignal, markSignal } from "./signal";
 import type { Cleanup, CleanupRegistrar, EffectDebugSnapshot, EffectOptions, EffectRunner, SchedulerDebugSnapshot, SchedulerPriority, Signal, SignalDebugSnapshot, SignalOptions, SchedulerMode } from "./types";
 
 /** Queued async effects waiting for the next scheduler flush. */
@@ -164,7 +165,7 @@ export function signal<Value>(initialValue: Value, options: SignalOptions<Value>
     };
   };
 
-  return read as Signal<Value>;
+  return markSignal(read);
 }
 
 /**
@@ -413,7 +414,7 @@ export function computed<Value>(getter: () => Value, options: SignalOptions<Valu
     runWithOwner(parentOwner, () => onOwnerCleanup(dispose));
   }
 
-  return read as Signal<Value>;
+  return markSignal(read);
 }
 
 /**
@@ -533,8 +534,8 @@ export function scheduleTask(task: () => void, priority: SchedulerPriority = "no
  * @returns Resolved value.
  */
 export function readReactiveValue(value: unknown): unknown {
-  if (typeof value === "function" && isSignalLike(value)) {
-    return (value as Signal<unknown>)();
+  if (isSignal(value)) {
+    return value();
   }
 
   if (typeof value === "function") {
@@ -719,24 +720,6 @@ function flushTasks(): void {
     queueTaskFlush();
   }
 }
-
-/**
- * Lightweight local signal check to avoid a circular import from guards.
- *
- * @param value - Candidate function.
- * @returns Whether the value looks like a signal.
- */
-function isSignalLike(value: unknown): boolean {
-  return (
-    typeof value === "function" &&
-    typeof (value as Partial<Signal<unknown>>).set === "function" &&
-    typeof (value as Partial<Signal<unknown>>).update === "function" &&
-    typeof (value as Partial<Signal<unknown>>).peek === "function"
-  );
-}
-
-
-
 
 /** Prunes disposed debug rows when debug retention is disabled. */
 export function pruneDebugEntries(): void {

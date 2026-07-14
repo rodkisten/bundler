@@ -407,3 +407,17 @@ createRoot(() => {
 ```
 
 `inspectOwnerGraph()` exposes context descriptions and kinds without serializing context values.
+
+## Signal introspection
+
+Broto brands every writable and computed signal with a stable, non-enumerable symbol. Consumers such as Fábrica can safely distinguish signals from ordinary callbacks without relying on duck typing.
+
+```ts
+import { isSignal, signal, unwrapSignal } from "./broto";
+
+const expanded = signal(false);
+
+isSignal(expanded); // true
+unwrapSignal(expanded); // false
+unwrapSignal(() => "callback"); // returns the callback unchanged
+```

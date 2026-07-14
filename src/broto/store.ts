@@ -1,6 +1,7 @@
 import { brotoDebugState } from "./debug";
 import { batch, computed } from "./reactivity";
 import { signal } from "./reactivity";
+import { isSignal } from "./signal";
 import type { Signal } from "./types";
 
 /** Primitive values that stay as writable signals inside a Broto store. */
@@ -497,7 +498,7 @@ function replaceStoreKey(
     return;
   }
 
-  if (isSignalLike(current)) {
+  if (isSignal(current)) {
     (current as Signal<unknown>).set(Array.isArray(value) ? value.slice() : value);
     return;
   }
@@ -528,7 +529,7 @@ function applyStoreKey(
     return;
   }
 
-  if (isSignalLike(current)) {
+  if (isSignal(current)) {
     (current as Signal<unknown>).set(Array.isArray(value) ? value.slice() : value);
     return;
   }
@@ -542,7 +543,7 @@ function getStorePath(root: Record<string, unknown>, path: StorePathInput): unkn
   for (let index = 0; index < path.length; index += 1) {
     const key = path[index];
     if (isStoreObject(current)) current = (current as Record<PropertyKey, unknown>)[key];
-    else if (isSignalLike(current)) current = (current as Signal<unknown>).peek();
+    else if (isSignal(current)) current = (current as Signal<unknown>).peek();
     else return undefined;
   }
   return current;
@@ -604,7 +605,7 @@ function readStoreObject(target: Record<string, unknown>, keys: Set<string>): Re
 
 function readStoreValue(value: unknown): unknown {
   if (isStoreObject(value)) return (value as () => unknown)();
-  if (isSignalLike(value)) {
+  if (isSignal(value)) {
     const rawValue = (value as Signal<unknown>)();
     return Array.isArray(rawValue) ? rawValue.slice() : rawValue;
   }
@@ -627,7 +628,7 @@ function snapshotStoreObject(target: Record<string, unknown>, keys: Set<string>)
 
 function snapshotValue(value: unknown): unknown {
   if (isStoreObject(value)) return (value as { snapshot(): unknown }).snapshot();
-  if (isSignalLike(value)) {
+  if (isSignal(value)) {
     const rawValue = (value as Signal<unknown>).peek();
     return Array.isArray(rawValue) ? rawValue.slice() : rawValue;
   }
@@ -744,9 +745,7 @@ function appendPath(path: StorePath, key: PropertyKey): StorePath {
   return next;
 }
 
-function isSignalLike(value: unknown): value is Signal<unknown> {
-  return typeof value === "function" && typeof (value as Signal<unknown>).set === "function" && typeof (value as Signal<unknown>).peek === "function";
-}
+
 
 function isStoreObject(value: unknown): boolean {
   return Boolean(

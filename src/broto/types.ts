@@ -1,3 +1,5 @@
+import { SIGNAL_SYMBOL } from "./signal";
+
 /**
  * Shared types for Broto, the reactive runtime used by Fábrica.
  *
@@ -94,6 +96,8 @@ export type SchedulerPriority = "user-blocking" | "normal" | "background";
 
 /** Writable fine-grained signal. */
 export type Signal<Value> = (() => Value) & {
+  /** Stable non-enumerable runtime brand used by isSignal(). */
+  readonly [SIGNAL_SYMBOL]: true;
   /** Stores a new value and notifies subscribers when it changed. */
   set(nextValue: Value): void;
   /** Updates the value from the current value. */
