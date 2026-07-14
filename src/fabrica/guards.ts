@@ -1,3 +1,4 @@
+import { isSignal as isBrotoSignal } from "../broto/signal";
 import type {
   ClassMapDirective,
   Component,
@@ -26,13 +27,7 @@ import type {
  * ```
  */
 export function isSignal(value: unknown): value is Signal<unknown> {
-  return (
-    typeof value === "function" &&
-    typeof (value as Partial<Signal<unknown>>).set === "function" &&
-    typeof (value as Partial<Signal<unknown>>).update === "function" &&
-    typeof (value as Partial<Signal<unknown>>).peek === "function" &&
-    typeof (value as Partial<Signal<unknown>>).subscribe === "function"
-  );
+  return isBrotoSignal(value);
 }
 
 /**

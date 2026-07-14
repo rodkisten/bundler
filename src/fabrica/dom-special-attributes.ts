@@ -20,8 +20,15 @@ export function bindSpecialAttribute(element: Element, name: string, value: unkn
   if (!isSpecialAttributeName(name)) return false;
 
   const state = createSpecialAttributeState();
-  const update = (): void => applySpecialAttribute(element, name, readValueDeep(value), state);
-  const dispose = hasDeepReactiveValue(value) ? effect(update, { name: `fabrica.specialAttribute.${name}` }) : (update(), null);
+  const update = (): void => {
+    applySpecialAttribute(element, name, readValueDeep(value), state);
+  };
+  let dispose: (() => void) | null = null;
+  if (hasDeepReactiveValue(value)) {
+    dispose = effect(update, { name: `fabrica.specialAttribute.${name}` });
+  } else {
+    update();
+  }
 
   if (dispose) registerCleanup(element, dispose);
   registerCleanup(element, () => clearSpecialAttribute(element, state));
@@ -95,7 +102,7 @@ function readInlineCssText(value: unknown): string {
   if (value && typeof value === "object") {
     const artifact = value as { cssText?: unknown; kind?: unknown };
     if (artifact.kind === "cipo.inline-css" && typeof artifact.cssText === "string") return artifact.cssText;
-    return compileInlineCss(resolveObject(value as Record<string, unknown>), [], false).cssText;
+    return compileInlineCss(resolveObject(value as Record<string, unknown>) as never, [], false).cssText;
   }
 
   const source = String(value ?? "");
