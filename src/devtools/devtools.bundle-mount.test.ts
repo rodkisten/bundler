@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { TextDecoder, TextEncoder } from "node:util";
 import devtools from "./index";
 
 const bundlePath = path.resolve(process.cwd(), "dist/devtools.iife.js");
@@ -14,6 +15,8 @@ const compiledPanelMarkers = [
 ] as const;
 
 function polyfillBrowserApis(): void {
+  Object.defineProperty(globalThis, "TextEncoder", { configurable: true, value: TextEncoder });
+  Object.defineProperty(globalThis, "TextDecoder", { configurable: true, value: TextDecoder });
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn((query: string) => ({
