@@ -316,8 +316,35 @@ function categoryIndex(name: string): number {
   return CATEGORY_DEFINITIONS.findIndex((definition) => definition.names.has(name));
 }
 
+/**
+ * Checks whether a TypeScript AST node is explicitly exported.
+ *
+ * @remarks
+ * `ts.getModifiers` only accepts nodes that implement TypeScript's internal
+ * `HasModifiers` shape. Since this helper intentionally accepts any `ts.Node`,
+ * `ts.canHaveModifiers` must narrow the node before accessing its modifiers.
+ *
+ * This avoids unsafe casts such as `node as ts.HasModifiers` and keeps the
+ * helper compatible with TypeScript's strongly typed Compiler API.
+ */
 function isExported(node: ts.Node): boolean {
-  return Boolean(ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword));
+  if (!ts.canHaveModifiers(node)) {
+    return false;
+  }
+
+  const modifiers = ts.getModifiers(node);
+
+  if (!modifiers) {
+    return false;
+  }
+
+  for (let index = 0; index < modifiers.length; index++) {
+    if (modifiers[index]?.kind === ts.SyntaxKind.ExportKeyword) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function stripTitle(markdown: string): string {
