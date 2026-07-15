@@ -12,6 +12,11 @@ export interface CipoViteCompiledInlineOptions {
   readonly root?: string
   readonly mode?: 'build' | 'inline'
   readonly classPrefix?: string
+  /** Production builds can emit compact hash-only class names instead of display-name labels. */
+  readonly classNameMode?: 'readable' | 'compact'
+  readonly minifyCss?: boolean
+  readonly mergeEquivalentRules?: boolean
+  readonly privateCustomPropertyPattern?: RegExp
   readonly cssFileName?: string
   /** Default keeps compiled CSS inside the JS bundle and injects it through Cipó's runtime style tag. */
   readonly cssDelivery?: 'style-tag' | 'asset'
@@ -93,6 +98,12 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       const cipo = compileCipoSourceBuild(code, {
         filename,
         classPrefix: options.classPrefix,
+        classNameMode: options.classNameMode,
+        minifyCss: options.minifyCss,
+        mergeEquivalentRules: options.mergeEquivalentRules,
+        privateCustomPropertyPattern: options.privateCustomPropertyPattern,
+        coupleStyledCss: options.cssDelivery !== 'asset',
+        styledCssHelperImportPath: createImportPath(filename, joinPath(root, 'src/cipo/src/compiler/compiled-style-runtime.ts')),
         cssImportId: VIRTUAL_CSS_ASSET_ID,
         injectCssImport: options.cssDelivery === 'asset',
         transformCssTag: options.transformCssTag ?? true,
@@ -100,10 +111,10 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       })
 
       let nextCode = cipo.code
-      if (cipo.manifest.length > 0 && options.cssDelivery !== 'asset') {
+      if (cipo.css && options.cssDelivery !== 'asset') {
         nextCode = prependStyleTagInjection(
           nextCode,
-          cipo.manifest.map((entry) => entry.cssText).join('\n'),
+          cipo.css,
           createImportPath(filename, joinPath(root, 'src/cipo/src/injection.ts')),
         )
       }
@@ -112,6 +123,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         fabrica = compileFabricaSource(nextCode, {
           filename,
           importPath: createImportPath(filename, joinPath(root, 'src/fabrica/compiler-runtime.ts')),
+          directComponentReferences: true,
         })
         nextCode = fabrica.code
       }
