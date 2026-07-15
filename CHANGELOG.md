@@ -1,4 +1,5 @@
 ## Unreleased
+- Replaced duplicated Vite/Vitest workspace alias tables with `vite-tsconfig-paths`, kept Cipó/Fábrica imports on `@rodkisten/*` aliases, and load standalone TypeScript Vite configs through `tsx` plus `--configLoader native` so aliases also resolve during config bootstrap.
 - Fixed Cipó production theme bootstrapping to keep the readable CSS-first config as the single source of truth while lowering runtime `configureFromCss()` calls to compact parser-free payloads during Vite builds.
 
 - Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.

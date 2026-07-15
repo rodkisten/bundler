@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Replaced the hand-maintained Vite alias table with `vite-tsconfig-paths` and native TypeScript config loading through `tsx`, keeping `@rodkisten/*` aliases as the single import style.
+
 ## 0.1.0
 
 - Initial production editor runtime.

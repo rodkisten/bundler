@@ -66,3 +66,7 @@ editor.setTheme("forest");
 ## Safari font scaling
 
 The editable control always keeps an actual `16px` font size. `fontSize` controls a scale applied to the whole editor, so a requested `12px` editor remains visually compact without triggering Safari input zoom.
+
+## Vite path aliases
+
+The development and production Vite commands resolve `@rodkisten/*` imports from the root TypeScript path mappings with `vite-tsconfig-paths`. The Vite config is loaded through `tsx` and Vite's native config loader so aliased Cipó imports also work while the config itself is being evaluated.

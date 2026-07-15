@@ -1,4 +1,5 @@
 ## Unreleased
+- Replaced the hand-maintained DevTools `resolve.alias` table with `vite-tsconfig-paths` and switched the standalone Vite CLI to `tsx` plus `--configLoader native`, preserving `@rodkisten/*` aliases while config dependencies are loaded.
 - Replaced the duplicated generated runtime-theme CSS string with production lowering of the canonical `devtoolsCipoConfigCss`; development keeps `configureFromCss()`, while production receives a compact compiled runtime payload.
 
 - Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.

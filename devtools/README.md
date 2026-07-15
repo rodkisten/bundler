@@ -219,3 +219,7 @@ Every DevTools panel now mounts its visual root under a required Fábrica contex
 RodEruda keeps one readable `devtoolsCipoConfigCss` sheet as the source of truth for `@cipo`, `@theme`, and `@breakpoints`. In development and direct runtime execution, `bootstrapDevtoolsCipo()` applies that sheet through `configureFromCss()`, so runtime resets and dynamic mounts keep the normal Cipó semantics.
 
 During a production Vite build, the Cipó plugin lowers that same `configureFromCss(config)` call to a compact `configureCompiledCssConfig()` payload. The payload contains parsed config/theme operations rather than the source DSL, so the final browser bundle keeps runtime theme application while tree shaking the CSS-first parser and the raw `@theme` text. There is no hand-maintained second theme stylesheet.
+
+### Alias-driven Vite configuration
+
+The standalone DevTools Vite build resolves `@rodkisten/*` imports from `tsconfig.base.json` through `vite-tsconfig-paths`; it no longer duplicates those mappings in `resolve.alias`. Because `vite.config.ts` itself imports Cipó through an alias, the CLI is launched with Node's `tsx` loader and `--configLoader native`, allowing the TypeScript runtime to resolve config-time aliases first and then handing the application module graph to Vite plus `vite-tsconfig-paths`.

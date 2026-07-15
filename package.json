@@ -28,10 +28,10 @@
     "bench:fabrica:raw": "vitest bench fabrica/test/fabrica.bench.ts --run",
     "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
     "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3",
-    "dev:devtools": "vite --config ./devtools/vite.config.ts",
-    "build:devtools": "vite --config ./devtools/vite.config.ts build",
-    "dev:maquina": "vite --config ./maquina/vite.config.ts",
-    "build:maquina": "vite --config ./maquina/vite.config.ts build",
+    "dev:devtools": "node --import tsx ./node_modules/vite/bin/vite.js --config ./devtools/vite.config.ts --configLoader native",
+    "build:devtools": "node --import tsx ./node_modules/vite/bin/vite.js build --config ./devtools/vite.config.ts --configLoader native",
+    "dev:maquina": "node --import tsx ./node_modules/vite/bin/vite.js --config ./maquina/vite.config.ts --configLoader native",
+    "build:maquina": "node --import tsx ./node_modules/vite/bin/vite.js build --config ./maquina/vite.config.ts --configLoader native",
     "build:packages": "pnpm -r --filter '@rodkisten/*' run build"
   },
   "devDependencies": {
@@ -43,6 +43,7 @@
     "tsx": "4.22.4",
     "typescript": "7.0.2",
     "vite": "8.1.2",
+    "vite-tsconfig-paths": "6.1.0",
     "vitest": "4.1.8"
   },
   "dependencies": {
