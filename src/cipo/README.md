@@ -1706,4 +1706,4 @@ The DevTools production build enables compact class names and aggressive module 
 
 ### Keeping CSS-first configuration out of production bundles
 
-Compiled applications should treat readable `@cipo` / `@theme` configuration as build input. When all component templates are statically compiled, the browser runtime can inject only the resolved custom-property bridge needed by the emitted CSS instead of importing `configureFromCss()`. This keeps the configuration parser and source DSL tree-shakeable.
+Compiled applications can keep `configureFromCss(configSheet)` as their runtime-facing API without shipping the CSS-first parser in production. When the Vite plugin receives the same `configCss` as build input, it lowers eligible runtime calls to a compact `configureCompiledCssConfig()` operation payload. Development still parses the readable DSL normally; production applies equivalent config/theme operations at runtime from the pre-parsed payload, keeping the raw source DSL and parser tree-shakeable. Sheets that depend on runtime presets or config plugins intentionally remain on the parser path.
