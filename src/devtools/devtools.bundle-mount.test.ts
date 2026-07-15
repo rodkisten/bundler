@@ -93,6 +93,10 @@ function expectCompiledDevtoolsBundle(bundle: string): void {
 
   expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
   expect(bundle).not.toMatch(/styled\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
+  expect(bundle).not.toContain("@theme {");
+  expect(bundle).not.toContain("@breakpoints {");
+  expect(bundle).not.toContain("theme-validation: warn");
+  expect(bundle).not.toContain("configureFromCss");
   // The bundle may legitimately include createStyled for independently
   // shipped packages such as Maquina. Panel-local assertions below verify that
   // RodEruda's own named styled components were compiled.

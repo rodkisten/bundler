@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Removed the build-time Cipó `@cipo` / `@theme` configuration sheet from the browser bundle. RodEruda now ships only a pre-resolved, minified runtime token bridge, so the CSS-first parser and raw configuration DSL can be tree-shaken.
+
+
 - Unified DevTools landing generation under `dist/devtools` for both the root builder and the standalone Vite build.
 - Fixed full and DevTools-only publication scopes so compiled landing HTML, CSS, and JavaScript are included in the Pages artifact.
 - Fixed canary publication filtering so non-bundle landing assets are deployed alongside canary bundles.
