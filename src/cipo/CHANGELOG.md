@@ -1,5 +1,20 @@
 
 
+
+## Unreleased - Compact production CSS output
+
+### Performance
+
+- Added `classNameMode: 'compact'` for deterministic hash-only production class names without repeated component display names.
+- Added conservative compiled CSS minification, leading-zero compaction, safe flat-rule merging, and opt-in private custom-property mangling.
+- Marked statically compiled styled factory expressions as `/*#__PURE__*/` so unused styled components can be removed by bundlers.
+- Updated the Vite build path to inject optimized CSS and couple styled-component CSS to the component expression, allowing unused JavaScript and CSS to tree-shake together.
+- Enabled compact Cipó class names and stronger Rollup/esbuild tree shaking for the DevTools production build.
+
+### Tests
+
+- Added coverage for compact class names, pure annotations, minified CSS, and private-only custom-property mangling.
+
 ## Unreleased
 
 ### Added
