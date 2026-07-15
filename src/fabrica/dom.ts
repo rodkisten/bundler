@@ -14,7 +14,7 @@ import {
 import { bindEvent } from "./events";
 import { bindModelPart, createDirectiveController } from "./dom-directives";
 import { bindSpreadPart } from "./dom-spread";
-import { bindSpecialAttribute } from "./dom-special-attributes";
+import { bindSpecialAttribute, toDataAttributeName } from "./dom-special-attributes";
 import {
   isClassMapDirective,
   isComponent,
@@ -925,6 +925,8 @@ function readDynamicComponentProps(
     const value = readComponentPropValue(prop, values, componentValue, name);
     if (name === "props") {
       mergeSpreadProps(props, readValue(value));
+    } else if (name === ":data") {
+      mergeComponentDataProps(props, readValue(value));
     } else {
       props[name] = value;
     }
@@ -995,6 +997,7 @@ function normalizeStaticComponentPropName(name: string): string {
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";
   if (name === "readonly") return "readOnly";
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   return name;
 }
 
@@ -1002,8 +1005,19 @@ function normalizeComponentPropName(name: string): string {
   if (name.startsWith("@")) return eventAttributeToPropName(name.slice(1));
   if (name.startsWith(".")) return name.slice(1);
   if (name.startsWith("?")) return name.slice(1);
-  if (name.startsWith(":")) return name.slice(1);
+  if (name === ":data") return name;
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   return name;
+}
+
+function mergeComponentDataProps(target: Record<string, unknown>, value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const source = value as Record<string, unknown>;
+  for (const key in source) {
+    const literal = key.startsWith(":");
+    const rawName = literal ? `"${key.slice(1)}"` : key;
+    target[toDataAttributeName(rawName)] = source[key];
+  }
 }
 
 function eventAttributeToPropName(rawName: string): string {

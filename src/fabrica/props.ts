@@ -71,6 +71,12 @@ export function applyProps(element: Element, props: Record<string, unknown>): vo
  * @param value - Value.
  */
 export function setPropertyOrAttribute(element: Element, name: string, value: unknown): void {
+  if (name.startsWith("data-") || name.startsWith("aria-")) {
+    if (value == null) element.removeAttribute(name);
+    else element.setAttribute(name, String(value));
+    return;
+  }
+
   if (value == null || value === false) {
     element.removeAttribute(name);
 

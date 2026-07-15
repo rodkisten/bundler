@@ -10,7 +10,7 @@ import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
 import { isSignal } from "./guards";
-import { bindSpecialAttribute } from "./dom-special-attributes";
+import { bindSpecialAttribute, toDataAttributeName } from "./dom-special-attributes";
 import { collectCleanupNodes } from "./dom-cleanup";
 import type { FabricaRuntimeContext, HtmlArtifact, HtmlResult, RenderValue } from "./types";
 import {
@@ -402,6 +402,8 @@ function readCompiledComponentProps(
       : readCompiledPropValue(prop, values);
     if (name === "props") {
       mergeCompiledComponentSpreadProps(output, value);
+    } else if (name === ":data") {
+      mergeCompiledComponentDataProps(output, value);
     } else {
       output[name] = value;
     }
@@ -419,11 +421,25 @@ function mergeCompiledComponentSpreadProps(target: Record<string, unknown>, valu
   }
 }
 
+
+function mergeCompiledComponentDataProps(target: Record<string, unknown>, value: unknown): void {
+  const resolved = readValue(value);
+  if (!resolved || typeof resolved !== "object") return;
+  const source = resolved as Record<string, unknown>;
+  for (const key in source) {
+    const literal = key.startsWith(":");
+    const rawName = literal ? `"${key.slice(1)}"` : key;
+    const item = source[key];
+    target[toDataAttributeName(rawName)] = isSignal(item) ? item() : item;
+  }
+}
+
 function normalizeCompiledComponentPropName(name: string): string {
   if (name.startsWith("@")) return compiledEventAttributeToPropName(name.slice(1));
   if (name.startsWith(".")) return name.slice(1);
   if (name.startsWith("?")) return name.slice(1);
-  if (name.startsWith(":")) return name.slice(1);
+  if (name === ":data") return name;
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   if (name === "classname") return "className";
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";

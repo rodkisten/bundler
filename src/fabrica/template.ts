@@ -1,6 +1,6 @@
 import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "./constants";
 import { debugState } from "./debug";
-import { encodeLiteralDataAttributeName, normalizeStaticSpecialAttributes } from "./dom-special-attributes";
+import { encodeLiteralDataAttributeName, normalizeStaticSpecialAttributes, toDataAttributeName } from "./dom-special-attributes";
 import type { CompiledTemplate, ComponentPropPart, RenderValue, TemplatePart } from "./types";
 
 /** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
@@ -815,6 +815,7 @@ function normalizeStaticComponentPropName(name: string): string {
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";
   if (name === "readonly") return "readOnly";
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   return name;
 }
 
