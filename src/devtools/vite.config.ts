@@ -91,7 +91,7 @@ export default defineConfig({
       treeshake: {
         moduleSideEffects: false,
         propertyReadSideEffects: false,
-        tryCatchDeoptimization: false,
+        //tryCatchDeoptimization: false,
       },
     },
     lib: {
