@@ -571,3 +571,7 @@ The DevTools build now uses the compact Fábrica + Cipó production pipeline:
 - the DevTools Vite build enables esbuild minification, source maps, module-side-effect pruning and property-read pruning.
 
 Readable component names remain available in development source and compilation manifests while production selectors stay compact.
+
+### TypeScript path aliases in Vite builds
+
+The Vite-based DevTools and Máquina builds use `vite-tsconfig-paths` as the single resolver for the `compilerOptions.paths` mappings declared in `tsconfig.base.json`. Their CLI scripts load `vite.config.ts` through Node with the `tsx` loader and Vite's native config loader, which lets config-time imports such as `@rodkisten/cipo/vite-compiled-inline` remain aliases instead of being rewritten to fragile relative `.js` paths. After the config is loaded, `vite-tsconfig-paths` resolves the same aliases throughout the Vite module graph. Vitest and the programmatic DevTools Vite build use the same plugin, keeping alias behavior centralized in TypeScript configuration rather than duplicated resolver tables.
