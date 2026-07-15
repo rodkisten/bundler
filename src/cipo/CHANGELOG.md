@@ -2,6 +2,7 @@
 
 
 ## Unreleased
+- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
 
 - Documented and validated the build/runtime split for compiled consumers: CSS-first configuration can remain build-only while production runtimes inject only the resolved token bridge they actually need.
  - Compact production CSS output
