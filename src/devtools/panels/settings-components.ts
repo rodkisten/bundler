@@ -116,7 +116,7 @@ component("RodSettingsView", function RodSettingsView(_props, ctx) {
   return html`
     <RodSharedScrollableBody
       :settingsBody
-      ref=${(node) => {
+      ref=${(node: HTMLElement) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
       }}

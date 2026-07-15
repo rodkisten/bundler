@@ -81,7 +81,7 @@ component("RodInfoView", function RodInfoView(_props, ctx) {
   const model = view.model();
 
   return html`
-    <RodSharedPanelRoot ref=${(node) => {
+    <RodSharedPanelRoot ref=${(node: HTMLElement) => {
       view.setRoot(node);
       return () => view.setRoot(null);
     }}>

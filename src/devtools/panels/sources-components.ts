@@ -220,7 +220,7 @@ component("RodSourcesView", function RodSourcesView(_props, ctx) {
         <RodSourcesIconButton type="button" title="Download" @click=${event.click(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="Refresh" @click=${event.click(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
       </RodSharedControlBar>
-      <RodSourcesBody :sourcesBody ref=${(node) => {
+      <RodSourcesBody :sourcesBody ref=${(node: HTMLElement) => {
         view.setBody(node);
         return () => view.setBody(null);
       }} />

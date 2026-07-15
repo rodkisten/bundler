@@ -577,19 +577,19 @@ component("RodElementsView", function RodElementsView(_props, ctx) {
         </RodSharedControlBar>
 
         <RodElementsTreeWrap :elementsTreeWrap :roderudaScrollKey="elements-tree" @scroll=${event.scroll(() => view.onTreeScroll())}>
-          <RodElementsDomTree :elementsTree :wrap=${view.wrapLines()} ref=${(node) => {
+          <RodElementsDomTree :elementsTree :wrap=${view.wrapLines()} ref=${(node: HTMLElement) => {
             view.setTree(node as HTMLElement);
             return () => view.setTree(null);
           }} />
         </RodElementsTreeWrap>
 
-        <RodElementsCrumbs :elementsCrumbs ref=${(node) => {
+        <RodElementsCrumbs :elementsCrumbs ref=${(node: HTMLElement) => {
           view.setCrumbs(node as HTMLElement);
           return () => view.setCrumbs(null);
         }} />
       </RodElementsTreeSide>
 
-      <RodElementsDetailPanel :elementsDetail :active="false" ref=${(node) => {
+      <RodElementsDetailPanel :elementsDetail :active="false" ref=${(node: HTMLElement) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       }} />

@@ -1,4 +1,4 @@
-import { asNode, event, html,  styled } from "../runtime";
+import { asNode, event, html,  styled } from "../core/runtime";
 import { renderPanelShell, panelHeaderTemplate, panelActionTemplate, attrs } from "./shared.functions";
 export { renderPanelShell } from "./shared.functions";
 

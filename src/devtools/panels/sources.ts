@@ -507,7 +507,7 @@ const userscriptSource = await readUserscriptSource(
     this.disposeBody = render(this.body, html`
       <RodSourcesEditor>
         <RodSourcesBreadcrumb>${this.sourceTitle(type)}</RodSourcesBreadcrumb>
-        <RodSourcesCodeMirrorHost ref=${(node) => { editorHost = node; }} />
+        <RodSourcesCodeMirrorHost ref=${(node: HTMLElement) => { editorHost = node; }} />
       </RodSourcesEditor>
     `);
 
@@ -559,9 +559,9 @@ const userscriptSource = await readUserscriptSource(
           @error=${event.error(() => {
             if (info) info.textContent = "Image failed to load";
           })}
-          ref=${(node) => { image = node; }}
+          ref=${(node: HTMLImageElement) => { image = node; }}
         />
-        <p :imageInfo ref=${(node) => { info = node; }}>Loading image…</p>
+        <p :imageInfo ref=${(node: HTMLParagraphElement) => { info = node; }}>Loading image…</p>
       </RodSourcesImage>
     `);
   }

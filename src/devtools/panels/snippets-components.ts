@@ -67,7 +67,7 @@ component("RodSnippetsView", function RodSnippetsView(_props, ctx) {
           <RodSharedButton type="button" @click=${event.click(() => view.reset())}>Reset</RodSharedButton>
         </RodSharedActions>
       </RodSharedHeader>
-      <RodSharedPanelBody :snippetsBody ref=${(node) => {
+      <RodSharedPanelBody :snippetsBody ref=${(node: HTMLElement) => {
         view.setBody(node);
         return () => view.setBody(null);
       }}>
