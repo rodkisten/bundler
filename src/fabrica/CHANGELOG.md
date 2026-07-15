@@ -1,7 +1,10 @@
 # Fábrica Changelog
 
 
-## Unreleased - Production compiler compaction
+## Unreleased
+
+- DevTools compiled builds now keep Cipó configuration parsing out of the browser runtime while preserving Fábrica compiled-template mounting.
+ - Production compiler compaction
 
 ### Performance
 
