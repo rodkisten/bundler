@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { compileCipoSourceBuild, cipoVite, setup } from '../src'
+import { compileCipoSourceBuild, cipoVite, getCssText, reset, setup } from '../src'
 import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '../../fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
@@ -290,6 +290,48 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).toContain('var(--a)')
     expect(result.css).toContain('var(--rd-colors-primary)')
     expect(result.css).not.toContain('--_cipo-private-gap')
+  })
+
+
+  it('lowers runtime configureFromCss calls to parser-free compiled payloads in production', () => {
+    const configCss = `
+      @cipo { prefix: rd; theme-root: :host; minify: true; }
+      @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
+      @breakpoints { md: 680px; }
+    `
+    const plugin = cipoVite({ root: '/project', mode: 'build', configCss })
+    const context = { emitFile: () => 'asset' } as never
+    const transformed = plugin.transform?.call(
+      context,
+      `import { configureFromCss } from '../cipo/src/config-css';
+import { appConfigCss } from './config';
+configureFromCss(appConfigCss);`,
+      '/project/src/devtools/bootstrap.ts',
+    )
+
+    const code = transformed && 'code' in transformed ? transformed.code : ''
+    expect(code).toContain('configureCompiledCssConfig as __cipoConfigureCompiledCss')
+    expect(code).toContain('__cipoConfigureCompiledCss({"operations":')
+    expect(code).not.toContain('var(--rd-colors-primary)')
+    expect(code).not.toContain('@theme')
+  })
+
+  it('keeps runtime theme application semantics after build-time config lowering', async () => {
+    const configCss = `
+      @cipo { prefix: rd; theme-root: :host; minify: true; }
+      @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
+    `
+    const { compileCssConfigPayload, configureCompiledCssConfig } = await import('../src')
+    const payload = compileCssConfigPayload(configCss)
+
+    expect(payload).not.toBeNull()
+    reset()
+    configureCompiledCssConfig(payload!)
+
+    const css = getCssText()
+    expect(css).toContain(':host{')
+    expect(css).toContain('--rd-colors-primary:var(--primary)')
+    expect(css).toContain('--rd-radius-panel:.625rem')
   })
 
 })
