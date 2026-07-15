@@ -214,6 +214,8 @@ Panel-specific contexts are intentionally deferred to the next migration phase. 
 
 Every DevTools panel now mounts its visual root under a required Fábrica context provider. Components resolve their ViewModel with `ctx.useRequiredContext(...)` instead of receiving a `view` prop. The provider preserves the exact ViewModel/store reference, while Broto signals remain responsible for fine-grained DOM updates. This keeps panel instances isolated and removes ViewModel prop drilling across Console, Settings, Elements, Info, Network, Resources, Snippets, and Sources.
 
-### Build-only Cipó configuration
+### Runtime Cipó configuration with production lowering
 
-RodEruda's readable Cipó `@cipo`, `@theme`, and `@breakpoints` configuration is consumed only by the Vite compiler. The browser entry does not call `configureFromCss()` and therefore does not retain the CSS-first configuration parser or the raw configuration sheet. Production ships a minified resolved token bridge plus the CSS coupled to retained styled components.
+RodEruda keeps one readable `devtoolsCipoConfigCss` sheet as the source of truth for `@cipo`, `@theme`, and `@breakpoints`. In development and direct runtime execution, `bootstrapDevtoolsCipo()` applies that sheet through `configureFromCss()`, so runtime resets and dynamic mounts keep the normal Cipó semantics.
+
+During a production Vite build, the Cipó plugin lowers that same `configureFromCss(config)` call to a compact `configureCompiledCssConfig()` payload. The payload contains parsed config/theme operations rather than the source DSL, so the final browser bundle keeps runtime theme application while tree shaking the CSS-first parser and the raw `@theme` text. There is no hand-maintained second theme stylesheet.
