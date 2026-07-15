@@ -19,6 +19,7 @@
     "fabrica/**/*.ts",
     "fabrica-elements/**/*.ts",
     "maquina/**/*.ts",
+    "nascente/**/*.ts",
     "seiva-state/**/*.ts",
     "rod/**/*.ts"
   ]

@@ -14,6 +14,7 @@ import {
 } from "./create-index-html";
 import { collectExamplesByEntry } from "./example-extractor";
 import { buildDevtoolsLanding } from "./build-devtools-landing";
+import { buildNascenteDocs } from "./build-nascente-docs";
 import {
   DIST_DIR,
   ROOT_DIR,
@@ -132,6 +133,7 @@ export async function main(): Promise<void> {
 
   await copyDocsAssets();
   await copyLanding("fabrica");
+  await buildNascenteDocs();
   await buildDevtoolsLanding();
 }
 

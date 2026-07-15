@@ -4,9 +4,9 @@ import { writeFileSync } from "node:fs";
 
 const command = process.argv[2];
 const EMPTY_SHA = "0000000000000000000000000000000000000000";
-const interestingPattern = /^(src|scripts|packages|apps|tests|test|bench|benchmark|benchmarks)\/|(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
+const interestingPattern = /^(broto|cipo|devtools|fabrica|fabrica-elements|maquina|nascente|seiva-state|rod|scripts|packages|apps|tests|test|bench|benchmark|benchmarks)\/|(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
 const globalPattern = /(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
-const benchmarkPattern = /^(src|packages)\/(fabrica|broto|cipo|fabrica-elements)\//;
+const benchmarkPattern = /^(fabrica|broto|cipo|fabrica-elements)\//;
 
 function changedFiles() {
   const eventName = env("EVENT_NAME");
@@ -56,7 +56,8 @@ function detectChanges() {
   } else {
     const dirs = [...new Set(interesting.map((file) => {
       const parts = file.split("/");
-      if (["src", "packages", "apps"].includes(parts[0]) && parts.length >= 3) return `${parts[0]}/${parts[1]}`;
+      if (["broto", "cipo", "devtools", "fabrica", "fabrica-elements", "maquina", "nascente", "seiva-state", "rod"].includes(parts[0])) return parts[0];
+      if (["packages", "apps"].includes(parts[0]) && parts.length >= 3) return `${parts[0]}/${parts[1]}`;
       if (parts[0] === "scripts") return "scripts";
       return dirname(file);
     }))].sort();

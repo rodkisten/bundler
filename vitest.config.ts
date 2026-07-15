@@ -10,6 +10,7 @@ const PACKAGES = [
   "fabrica",
   "fabrica-elements",
   "maquina",
+  "nascente",
   "seiva-state",
   "rod",
 ] as const;

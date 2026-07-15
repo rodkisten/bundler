@@ -12,6 +12,7 @@
   "scripts": {
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsx scripts/build.ts",
+    "build:nascente:docs": "tsx scripts/build-nascente-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/node": "25.9.1",
+    "@typescript/typescript6": "^6.0.2",
     "esbuild": "0.28.0",
     "jsdom": "^29.1.1",
     "tsx": "4.22.4",

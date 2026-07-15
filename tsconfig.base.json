@@ -26,6 +26,8 @@
       "@rodkisten/fabrica-elements/*": ["./fabrica-elements/*"],
       "@rodkisten/maquina": ["./maquina/index.ts"],
       "@rodkisten/maquina/*": ["./maquina/*"],
+      "@rodkisten/nascente": ["./nascente/index.ts"],
+      "@rodkisten/nascente/*": ["./nascente/*"],
       "@rodkisten/seiva-state": ["./seiva-state/index.ts"],
       "@rodkisten/seiva-state/*": ["./seiva-state/*"],
       "@rodkisten/rod": ["./rod/index.ts"],

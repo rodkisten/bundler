@@ -5,6 +5,7 @@ packages:
   - "fabrica"
   - "fabrica-elements"
   - "maquina"
+  - "nascente"
   - "seiva-state"
   - "rod"
 
