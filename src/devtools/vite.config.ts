@@ -45,7 +45,7 @@ function buildMetadata() {
     buildDateShort: date,
     buildTimeShort: time,
     timezone: "GMT-3" as const,
-    mode: process.env.NODE_ENV ?? "production",
+    mode: process.env.NODE_ENV ?? "prod",
     version: packageJson.version ?? "0.0.0",
   };
 }
