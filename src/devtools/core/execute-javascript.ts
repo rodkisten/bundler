@@ -677,7 +677,7 @@ async function executeWithIndirectEval<TResult>(
   );
 
   try {
-    const indirectEval = context.window.eval;
+    const indirectEval = (context.window as Window & { eval(source: string): unknown }).eval;
     const execution = indirectEval(source) as Promise<TResult>;
 
     return await withExecutionGuards(
