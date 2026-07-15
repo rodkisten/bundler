@@ -354,4 +354,24 @@ describe("Cipó next kitchen sink", () => {
     expect(warnings).not.toContain("invalid-declaration");
   });
 
-  
+  it("explains raw css input for diagnostics", () => {
+    const info = explainCss(".card { bg: alpha($brand / 20%) }", "stylesheet");
+
+    expect(info.mode).toBe("stylesheet");
+    expect(info.transformedCss).toContain("color-mix");
+    expect(info.cssText).toContain(".card");
+    expect(info.validation.valid).toBe(true);
+  });
+
+  it("validates generated css for debug diagnostics", () => {
+    const ok = validateCss(".card{color:red!important;}");
+    expect(ok.valid).toBe(true);
+
+    const broken = validateCss(".card{color:red!important!important;");
+    expect(broken.valid).toBe(false);
+
+    const codes = broken.issues.map((issue) => issue.code).join(",");
+    expect(codes).toContain("duplicate-important");
+    expect(codes).toContain("unclosed-block");
+  });
+});

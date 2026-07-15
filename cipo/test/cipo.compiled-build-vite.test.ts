@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
 import { compileCipoSourceBuild, cipoVite, configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
-import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '@rodkisten/cipo/fabrica'
+import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
   it('compiles styled Cipó templates into real scoped CSS classes', () => {
@@ -248,7 +248,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.changed).toBe(true)
     expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
     expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
-    expect(result.code).toMatch(/\/\*#__PURE__\*\/styled\.span\('RodDevtoolsBuildBadge'\)\(\"c[0-9a-z]+\"\)/)
+    expect(result.code).toMatch(/\/\*#__PURE__\*\/\s*styled\.span\('RodDevtoolsBuildBadge'\)\(\s*[\"']c[0-9a-z]+[\"']\s*\)/)
     expect(result.css).toContain('right:.25rem')
     expect(result.css).not.toContain('\n')
   })
@@ -303,7 +303,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     const context = { emitFile: () => 'asset' } as never
     const transformed = plugin.transform?.call(
       context,
-      `import { configureFromCss } from '@rodkisten/cipo-src-config-css';
+      `import { configureFromCss } from '@rodkisten/cipo/config-css';
 import { appConfigCss } from '@rodkisten/cipo/config';
 configureFromCss(appConfigCss);`,
       '/project/src/devtools/bootstrap.ts',

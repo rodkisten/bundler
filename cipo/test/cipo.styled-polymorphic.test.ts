@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import Fabrica, { clearComponents, html, render, resolveComponent } from '@rodkisten/cipo/fabrica'
+import Fabrica, { clearComponents, html, render, resolveComponent } from '@rodkisten/fabrica'
 import { css, getCssText, inline, reset, setup, styled } from '@rodkisten/cipo'
 
 let host: HTMLDivElement
