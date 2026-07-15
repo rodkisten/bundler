@@ -1,12 +1,15 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
 
-const repoRoot = resolve(__dirname, "..");
+const devtoolsDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(devtoolsDir, "..");
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as { version?: string };
 
 function shortCommitSha(): { full: string; short: string } {
@@ -64,27 +67,12 @@ function devtoolsLandingPlugin(): Plugin {
 const buildInfo = buildMetadata();
 
 export default defineConfig({
-  root: __dirname,
+  root: devtoolsDir,
 
   define: {
     __RODERUDA_BUILD__: JSON.stringify(buildInfo),
     __DEV__: "false",
     "process.env.NODE_ENV": JSON.stringify("production"),
-  },
-
-  resolve: {
-    alias: [
-      { find: "@rodkisten/devtools", replacement: resolve(__dirname, "index.ts") },
-      { find: /^@rodkisten\/devtools\/(.*)$/, replacement: resolve(__dirname, "$1.ts") },
-      { find: "@rodkisten/cipo", replacement: resolve(repoRoot, "cipo/index.ts") },
-      { find: /^@rodkisten\/cipo\/(.*)$/, replacement: resolve(repoRoot, "cipo/$1.ts") },
-      { find: "@rodkisten/broto", replacement: resolve(repoRoot, "broto/index.ts") },
-      { find: /^@rodkisten\/broto\/(.*)$/, replacement: resolve(repoRoot, "broto/$1.ts") },
-      { find: "@rodkisten/fabrica", replacement: resolve(repoRoot, "fabrica/index.ts") },
-      { find: /^@rodkisten\/fabrica\/(.*)$/, replacement: resolve(repoRoot, "fabrica/$1.ts") },
-      { find: "@rodkisten/fabrica-elements", replacement: resolve(repoRoot, "fabrica-elements/index.ts") },
-      { find: /^@rodkisten\/fabrica-elements\/(.*)$/, replacement: resolve(repoRoot, "fabrica-elements/$1.ts") },
-    ],
   },
 
   server: {
@@ -103,7 +91,7 @@ export default defineConfig({
       },
     },
     lib: {
-      entry: resolve(__dirname, "./index.ts"),
+      entry: resolve(devtoolsDir, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
       name: "DevTools",
       fileName: (format: string) => `devtools.${format}.js`,
@@ -119,6 +107,8 @@ export default defineConfig({
   },
 
   plugins: [
+    // The native+tsx config loader resolves config-time aliases; this plugin resolves the Vite module graph.
+    tsconfigPaths({ root: repoRoot, projects: ["tsconfig.base.json"] }),
     devtoolsLandingPlugin(),
     cipoVite({
       root: repoRoot,
