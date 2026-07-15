@@ -160,9 +160,11 @@ describe("compiled templates with styled Fabrica components", () => {
 
     expect(result.changed).toBe(true);
     expect(result.code).toContain("createCompiledTemplate");
-    expect(result.code).toContain('"tag":"CompiledField"');
-    expect(result.code).toContain('"name":".value"');
-    expect(result.code).toContain('"name":"@input"');
+    // Production compiler output uses compact tuple opcodes instead of the
+    // verbose object AST. Keep the assertion tied to the stable wire format.
+    expect(result.code).toContain('[0,"CompiledField"');
+    expect(result.code).toContain('[1,".value",0]');
+    expect(result.code).toContain('[1,"@input",1]');
     expect(result.code).not.toContain("html`");
   });
 
