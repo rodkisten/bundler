@@ -1,4 +1,4 @@
-import type { RenderValue } from "../../fabrica";
+import type { RenderValue } from "../../fabrica/runtime";
 import { event, html, render } from "../core/runtime";
 import { icon } from "../utils";
 import type {

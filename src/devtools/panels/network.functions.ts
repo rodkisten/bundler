@@ -1,4 +1,4 @@
-import type { RenderValue } from "../../fabrica";
+import type { RenderValue } from "../../fabrica/runtime";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
 import { event, html } from "../core/runtime";
