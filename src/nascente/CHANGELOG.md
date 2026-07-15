@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 - 2026-07-15
+
+- Separa a implementação monolítica em módulos por categoria: arrays, funções, Map, matemática, objetos, predicados, promises, Set, strings, utilitários, erros e tipos.
+- Mantém a API pública flat por meio de um barrel `index.ts` composto apenas por reexports.
+- Centraliza tipos semânticos compartilhados em `types.ts` e adiciona `Orderable` para ordenação fortemente tipada.
+- Renomeia parâmetros públicos para nomes semanticamente claros, melhorando IntelliSense e documentação gerada.
+- Atualiza o gerador de documentação para extrair TSDoc de todos os módulos de categoria em vez do barrel.
+
 ## 0.2.0 - 2026-07-15
 
 - Substitui a landing estática por documentação gerada automaticamente durante o build.

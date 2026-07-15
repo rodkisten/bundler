@@ -30,8 +30,8 @@ A documentação publicada da Nascente é gerada durante o build a partir de tr�
 
 - `README.md`, renderizado pelo mesmo pipeline Markdown usado pelo restante do repositório.
 - `CHANGELOG.md`, incorporado automaticamente à landing page.
-- TSDoc das exportações públicas de `index.ts`, usado para montar a referência da API e a navegação lateral.
+- TSDoc das exportações públicas dos módulos de categoria (`array.ts`, `object.ts`, `promise.ts` etc.), usado para montar a referência da API e a navegação lateral. O `index.ts` é apenas o barrel flat da API pública.
 
 Execute `pnpm build:nascente:docs` para gerar `dist/nascente/index.html` isoladamente, ou `pnpm build` para gerar a documentação junto com os bundles gerais.
 
-A sidebar da documentação é criada a partir das APIs públicas detectadas no TypeScript. Isso evita manter manualmente uma lista duplicada de funções no HTML.
+A sidebar da documentação é criada a partir das APIs públicas detectadas automaticamente em todos os módulos de categoria TypeScript. O barrel não duplica implementação nem documentação. Isso evita manter manualmente uma lista duplicada de funções no HTML.
