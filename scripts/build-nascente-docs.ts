@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { renderMarkdown } from "./docs/markdown-renderer";
 import { escapeHtml } from "./docs/html-utils";
 import { DIST_DIR, ROOT_DIR } from "./config";
 
-const PACKAGE_DIR = path.join(ROOT_DIR, "src/nascente");
+const PACKAGE_DIR = path.join(ROOT_DIR, "nascente");
 const OUTPUT_DIR = path.join(DIST_DIR, "nascente");
 
 export type NascenteApiItem = {
@@ -402,3 +402,11 @@ const NASCENTE_CLIENT = String.raw`
   });
 })();
 `;
+
+const isDirectRun =
+  process.argv[1] != null &&
+  (process.argv[1].endsWith("build-nascente-docs.ts") || process.argv[1].endsWith("build-nascente-docs.js"));
+
+if (isDirectRun) {
+  await buildNascenteDocs();
+}

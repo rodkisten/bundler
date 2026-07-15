@@ -5,7 +5,14 @@ on:
     branches-ignore:
       - main
     paths:
-      - "src/**"
+      - "broto/**"
+      - "cipo/**"
+      - "devtools/**"
+      - "fabrica/**"
+      - "fabrica-elements/**"
+      - "maquina/**"
+      - "seiva-state/**"
+      - "rod/**"
       - "scripts/**"
       - "package.json"
       - "pnpm-lock.yaml"

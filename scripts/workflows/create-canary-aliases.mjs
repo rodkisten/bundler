@@ -4,9 +4,9 @@ import { env, fileName, walkFiles } from "./utils.mjs";
 
 const scope = env("BUILD_SCOPE", "all");
 const roots = scope === "devtools"
-  ? [env("DEVTOOLS_DIST_DIR", "src/devtools/dist")]
+  ? [env("DEVTOOLS_DIST_DIR", "dist")]
   : scope === "all"
-    ? [env("FULL_DIST_DIR", "dist"), env("DEVTOOLS_DIST_DIR", "src/devtools/dist")]
+    ? [env("FULL_DIST_DIR", "dist"), env("DEVTOOLS_DIST_DIR", "dist")]
     : [env("FULL_DIST_DIR", "dist")];
 let created = 0;
 for (const root of roots.filter(existsSync)) {

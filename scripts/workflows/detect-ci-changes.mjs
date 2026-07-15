@@ -3,9 +3,9 @@ import { dirname } from "node:path";
 import { env, git, writeOutput } from "./utils.mjs";
 
 const EMPTY_SHA = "0000000000000000000000000000000000000000";
-const INTERESTING = /^(src|scripts|packages|apps|tests|test|bench|benchmark|benchmarks)\/|(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
+const INTERESTING = /^(broto|cipo|devtools|fabrica|fabrica-elements|maquina|nascente|seiva-state|rod|scripts|packages|apps|tests|test|bench|benchmark|benchmarks)\/|(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
 const GLOBAL = /(^|\/)(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.(js|cjs|mjs|ts|cts|mts)|vitest\.workspace\.(js|cjs|mjs|ts|cts|mts)|vite\.config\.(js|cjs|mjs|ts|cts|mts))$|^\.github\/workflows\/.*\.ya?ml$/;
-const BENCHMARK = /^src\/(fabrica|broto|cipo|fabrica-elements)\/|^packages\/(fabrica|broto|cipo|fabrica-elements)\//;
+const BENCHMARK = /^(fabrica|broto|cipo|fabrica-elements)\//;
 
 function emit(values) { for (const [key, value] of Object.entries(values)) writeOutput(key, value); }
 const testMode = env("INPUT_TEST_MODE", "smart");
@@ -43,7 +43,8 @@ if (globalFiles.length === 0) {
   const dirs = new Set();
   for (const file of interesting) {
     const parts = file.split("/");
-    if (["src", "packages", "apps"].includes(parts[0]) && parts.length >= 3) dirs.add(`${parts[0]}/${parts[1]}`);
+    if (["broto", "cipo", "devtools", "fabrica", "fabrica-elements", "maquina", "nascente", "seiva-state", "rod"].includes(parts[0])) dirs.add(parts[0]);
+    else if (["packages", "apps"].includes(parts[0]) && parts.length >= 3) dirs.add(`${parts[0]}/${parts[1]}`);
     else if (parts[0] === "scripts") dirs.add("scripts");
     else dirs.add(dirname(file));
   }

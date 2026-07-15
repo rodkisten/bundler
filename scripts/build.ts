@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { build, type BuildOptions } from "esbuild";
+import { build, type BuildOptions, type Plugin } from "esbuild";
 import { createBenchmarkDashboardHtml } from "./benchmark/dashboard";
 import type { BenchmarkReportFile } from "./benchmark/types";
 import {
@@ -19,6 +19,7 @@ import {
   DIST_DIR,
   ROOT_DIR,
   SRC_DIR,
+  WORKSPACE_PACKAGES,
   readBooleanEnv,
   readEnv,
   type RootEntry,
@@ -33,6 +34,36 @@ const REQUESTED_BUILD_ENTRIES = new Set(
     .map((entry) => entry.trim())
     .filter(Boolean),
 );
+
+function workspaceAliasPlugin(): Plugin {
+  return {
+    name: "workspace-alias",
+    setup(buildApi) {
+      buildApi.onResolve({ filter: /^@rodkisten\// }, async (args) => {
+        const rest = args.path.slice("@rodkisten/".length);
+        const slash = rest.indexOf("/");
+        const pkg = slash === -1 ? rest : rest.slice(0, slash);
+        const subpath = slash === -1 ? "index" : rest.slice(slash + 1);
+        if (!(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)) return undefined;
+
+        const candidates = [
+          path.join(ROOT_DIR, pkg, `${subpath}.ts`),
+          path.join(ROOT_DIR, pkg, `${subpath}.tsx`),
+          path.join(ROOT_DIR, pkg, subpath, "index.ts"),
+        ];
+        for (const candidate of candidates) {
+          try {
+            await fs.access(candidate);
+            return { path: candidate };
+          } catch {
+            // try next
+          }
+        }
+        return { path: candidates[0]! };
+      });
+    },
+  };
+}
 
 const DOCS_DIR = path.join(DIST_DIR, "docs");
 const SOURCE_DIR = path.join(DIST_DIR, "source");
@@ -53,7 +84,7 @@ export async function main(): Promise<void> {
   const entries = filterRequestedEntries(buildableEntries);
 
   if (entries.length === 0) {
-    throw new Error("No buildable root entrypoints found. Expected src/index.ts, src/name.ts, or src/name/index.ts.");
+    throw new Error("No buildable root entrypoints found. Expected package browser-entry.ts or index.ts files.");
   }
 
   const outputs: string[] = [];
@@ -131,15 +162,9 @@ function filterRequestedEntries(entries: RootEntry[]): RootEntry[] {
 
 function isBuildableRootEntry(entry: RootEntry): boolean {
   const relativePath = toPosix(entry.relativePath);
-  if (!relativePath.startsWith("src/")) return false;
   if (relativePath.endsWith(".d.ts")) return false;
-
-  const insideSrc = relativePath.slice("src/".length);
-  const segments = insideSrc.split("/").filter(Boolean);
-
-  if (segments.length === 1) return isSupportedScriptEntryFile(segments[0]!);
-  if (segments.length === 2 && /^index\.(ts|tsx|js|jsx|mjs)$/.test(segments[1]!)) return true;
-
+  const segments = relativePath.split("/").filter(Boolean);
+  if (segments.length === 2 && isSupportedScriptEntryFile(segments[1]!)) return true;
   return false;
 }
 
@@ -148,7 +173,7 @@ function isSupportedScriptEntryFile(fileName: string): boolean {
 }
 
 async function copyLanding(project: string): Promise<void> {
-  const source = path.join(SRC_DIR, project, "index.html");
+  const source = path.join(ROOT_DIR, project, "index.html");
   const targetDir = path.join(DIST_DIR, project);
   await fs.mkdir(targetDir, { recursive: true });
   await copyFileIfExists(source, path.join(targetDir, "index.html"));
@@ -158,7 +183,7 @@ async function copyLanding(project: string): Promise<void> {
 async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const [{ build: viteBuild }, { cipoVite }] = await Promise.all([
     import("vite"),
-    import("../src/cipo/src/vite"),
+    import("@rodkisten/cipo/vite-index"),
   ]);
 
   const banner = createBanner(entry);
@@ -168,22 +193,7 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const createBaseConfig = () => ({
     configFile: false as const,
     root: ROOT_DIR,
-    plugins: [cipoVite({ 
-      root: ROOT_DIR, 
-      mode: 'build', 
-      enabled: true, 
-      cssDelivery: 'style-tag', 
-      cssFileName: `${entry.name}.compiled.css`, 
-      compileFabrica: true,
-      transformCssTag: true,
-
-      classNameMode: 'compact', 
-      classPrefix: 'c', 
-      minifyCss: true,
-      mergeEquivalentRules: true,
-      
-      include: [ new RegExp('[/\\\\]src[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] 
-    })],
+    plugins: [cipoVite({ root: ROOT_DIR, mode: 'build', enabled: true, cssDelivery: 'style-tag', classNameMode: 'compact', classPrefix: 'c', minifyCss: true, mergeEquivalentRules: true, cssFileName: `${entry.name}.compiled.css`, compileFabrica: true, transformCssTag: true, include: [new RegExp('[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] })],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
@@ -253,6 +263,7 @@ async function buildEntry(entry: RootEntry): Promise<string[]> {
     logLevel: "info",
     metafile: SHOULD_WRITE_META,
     banner: { js: banner },
+    plugins: [workspaceAliasPlugin()],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
@@ -422,22 +433,28 @@ function shouldRenderMarkdownFile(file: TextFile, allFiles: TextFile[]): boolean
 
   return (
     allFiles.some((candidate) => candidate.relativePath !== file.relativePath && path.dirname(candidate.relativePath) === directory) ||
-    directory.startsWith("src/") ||
+    WORKSPACE_PACKAGES.some((name) => directory === name || directory.startsWith(`${name}/`)) ||
     directory === "bench"
   );
 }
 
 async function collectSourceFiles(): Promise<TextFile[]> {
-  return walkTextFiles(
-    SRC_DIR,
-    (relativePath) => {
-      if (relativePath.endsWith(".d.ts")) return false;
-      if (/\/tests?\//.test(relativePath)) return false;
-      if (!/\.(ts|tsx|js|jsx|mjs|css|json)$/.test(relativePath)) return false;
-      return true;
-    },
-    "src",
-  );
+  const files: TextFile[] = [];
+  for (const pkg of WORKSPACE_PACKAGES) {
+    files.push(
+      ...(await walkTextFiles(
+        path.join(ROOT_DIR, pkg),
+        (relativePath) => {
+          if (relativePath.endsWith(".d.ts")) return false;
+          if (/\/tests?\//.test(relativePath)) return false;
+          if (!/\.(ts|tsx|js|jsx|mjs|css|json)$/.test(relativePath)) return false;
+          return true;
+        },
+        pkg,
+      )),
+    );
+  }
+  return files;
 }
 
 async function collectTestFiles(): Promise<TextFile[]> {
@@ -669,7 +686,7 @@ function packageFromPath(relativePath: string): PackageTheme {
   if (value.includes("broto")) return "broto";
   if (value.startsWith("bench/")) return packageFromBenchmarkPath(value);
   if (value.startsWith(".github/") || value.includes("workflow")) return "pipeline";
-  if (value.endsWith("index.ts") || value === "src/index.ts") return "index";
+  if (value.endsWith("index.ts") || value === "rod/index.ts") return "index";
   if (value.endsWith(".md")) return "docs";
   return "default";
 }

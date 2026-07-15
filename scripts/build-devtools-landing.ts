@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { build as buildWithEsbuild } from "esbuild";
-import { DIST_DIR, ROOT_DIR } from "./config";
+import { build as buildWithEsbuild, type Plugin } from "esbuild";
+import { DIST_DIR, ROOT_DIR, WORKSPACE_PACKAGES } from "./config";
 
 export const DEVTOOLS_LANDING_DIR = path.join(DIST_DIR, "devtools");
 
@@ -26,10 +26,40 @@ export function createBuiltDevtoolsLandingHtml(source: string): string {
     );
 }
 
+function workspaceAliasPlugin(): Plugin {
+  return {
+    name: "workspace-alias",
+    setup(buildApi) {
+      buildApi.onResolve({ filter: /^@rodkisten\// }, async (args) => {
+        const rest = args.path.slice("@rodkisten/".length);
+        const slash = rest.indexOf("/");
+        const pkg = slash === -1 ? rest : rest.slice(0, slash);
+        const subpath = slash === -1 ? "index" : rest.slice(slash + 1);
+        if (!(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)) return undefined;
+
+        const candidates = [
+          path.join(ROOT_DIR, pkg, `${subpath}.ts`),
+          path.join(ROOT_DIR, pkg, `${subpath}.tsx`),
+          path.join(ROOT_DIR, pkg, subpath, "index.ts"),
+        ];
+        for (const candidate of candidates) {
+          try {
+            await fs.access(candidate);
+            return { path: candidate };
+          } catch {
+            // try next
+          }
+        }
+        return { path: candidates[0]! };
+      });
+    },
+  };
+}
+
 export async function buildDevtoolsLanding(
   options: BuildDevtoolsLandingOptions = {},
 ): Promise<string[]> {
-  const sourceDirectory = path.join(ROOT_DIR, "src", "devtools");
+  const sourceDirectory = path.join(ROOT_DIR, "devtools");
   const outputDirectory = options.outputDirectory ?? DEVTOOLS_LANDING_DIR;
   const htmlSource = path.join(sourceDirectory, "index.html");
   const cssSource = path.join(sourceDirectory, "landing.css");
@@ -47,6 +77,7 @@ export async function buildDevtoolsLanding(
     minify: options.minify ?? true,
     sourcemap: options.sourcemap ?? true,
     legalComments: "none",
+    plugins: [workspaceAliasPlugin()],
   });
 
   const html = createBuiltDevtoolsLandingHtml(await fs.readFile(htmlSource, "utf8"));

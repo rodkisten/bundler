@@ -4,13 +4,13 @@ export const BENCHMARK_SUITES: readonly BenchmarkSuiteDefinition[] = Object.free
   {
     id: 'cipo',
     label: 'Cipó CSS runtime',
-    file: 'src/cipo/tests/cipo.bench.ts',
+    file: 'cipo/test/cipo.bench.ts',
     description: 'Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first configuration modes.',
   },
   {
     id: 'fabrica',
     label: 'Fabrica DOM runtime',
-    file: 'src/fabrica/tests/fabrica.bench.ts',
+    file: 'fabrica/test/fabrica.bench.ts',
     description: 'Kitchen-sink DOM rendering and runtime API matrix with paired manual controls.',
   },
 ])

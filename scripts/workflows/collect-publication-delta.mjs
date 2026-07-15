@@ -6,9 +6,9 @@ const channel = env("RELEASE_CHANNEL", "production");
 const runnerTemp = env("RUNNER_TEMP", ".tmp");
 const deltaDir = `${runnerTemp}/publication-delta`;
 const roots = scope === "devtools"
-  ? [env("DEVTOOLS_DIST_DIR", "src/devtools/dist")]
+  ? [env("DEVTOOLS_DIST_DIR", "dist")]
   : scope === "all"
-    ? [env("FULL_DIST_DIR", "dist"), env("DEVTOOLS_DIST_DIR", "src/devtools/dist")]
+    ? [env("FULL_DIST_DIR", "dist"), env("DEVTOOLS_DIST_DIR", "dist")]
     : [env("FULL_DIST_DIR", "dist")];
 
 ensureEmptyDir(deltaDir);

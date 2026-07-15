@@ -1,2 +1,13 @@
+packages:
+  - "broto"
+  - "cipo"
+  - "devtools"
+  - "fabrica"
+  - "fabrica-elements"
+  - "maquina"
+  - "nascente"
+  - "seiva-state"
+  - "rod"
+
 allowBuilds:
   esbuild: true
