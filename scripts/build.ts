@@ -14,6 +14,7 @@ import {
 } from "./create-index-html";
 import { collectExamplesByEntry } from "./example-extractor";
 import { buildDevtoolsLanding } from "./build-devtools-landing";
+import { buildNascenteDocs } from "./build-nascente-docs";
 import {
   DIST_DIR,
   ROOT_DIR,
@@ -101,6 +102,7 @@ export async function main(): Promise<void> {
 
   await copyDocsAssets();
   await copyLanding("fabrica");
+  await buildNascenteDocs();
   await buildDevtoolsLanding();
 }
 
@@ -166,7 +168,22 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const createBaseConfig = () => ({
     configFile: false as const,
     root: ROOT_DIR,
-    plugins: [cipoVite({ root: ROOT_DIR, mode: 'build', enabled: true, cssDelivery: 'style-tag', classNameMode: 'compact', classPrefix: 'c', minifyCss: true, mergeEquivalentRules: true, cssFileName: `${entry.name}.compiled.css`, compileFabrica: true, transformCssTag: true, include: [new RegExp('[/\\\\]src[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] })],
+    plugins: [cipoVite({ 
+      root: ROOT_DIR, 
+      mode: 'build', 
+      enabled: true, 
+      cssDelivery: 'style-tag', 
+      cssFileName: `${entry.name}.compiled.css`, 
+      compileFabrica: true,
+      transformCssTag: true,
+
+      classNameMode: 'compact', 
+      classPrefix: 'c', 
+      minifyCss: true,
+      mergeEquivalentRules: true,
+      
+      include: [ new RegExp('[/\\\\]src[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] 
+    })],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
     },
