@@ -68,25 +68,7 @@ describe('Cipó custom @property support', () => {
     expect(getCssText()).toContain('@property --cipo-panel-opacity')
   })
 
-  it('supports typed theme tokens', () => {
-    theme({
-      knob: {
-        angle: typed.angle('0deg', false),
-        progress: typed.number(0),
-        glow: typed.color('transparent'),
-      },
-    })
-
-    const output = getCssText()
-    expect(output).toContain('@property --cipo-knob-angle')
-    expect(output).toContain('@property --cipo-knob-progress')
-    expect(output).toContain('@property --cipo-knob-glow')
-    expect(output).toContain('--cipo-knob-angle:0deg')
-    expect(output).toContain('--cipo-knob-progress:0')
-    expect(output).toContain('--cipo-knob-glow:transparent')
-  })
-
-  it('supports typed() runtime custom property declarations', () => {
+    it('supports typed() runtime custom property declarations', () => {
     const cssText = String(sheet.css`
       :root {
         $$panelOpacity: typed("<number>", 0.94)

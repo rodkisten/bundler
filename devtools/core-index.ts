@@ -1,4 +1,4 @@
-import "./cipo-bootstrap";
+import "@rodkisten/devtools/core-cipo-bootstrap";
 import { renderShell, shellStyleArtifacts, type ShellRefs } from "@rodkisten/devtools/core-shell";
 import { asNode, event, html, setDevtoolsContextOwner, uiState } from "@rodkisten/devtools/core-runtime";
 import { ConfigStore } from "@rodkisten/devtools/core-config";

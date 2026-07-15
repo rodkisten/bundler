@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { css, getCssText, reset, sheet } from '@rodkisten/cipo/cipo'
+import { css, getCssText, reset, sheet } from '@rodkisten/cipo'
 
 /**
  * Installs the exact CSS-first configuration that exposed the production regressions.

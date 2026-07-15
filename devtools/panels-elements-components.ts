@@ -4,7 +4,7 @@ import { describeNode, icon, nodePath, truncate } from "@rodkisten/devtools/util
 import { plainText } from "@rodkisten/devtools/core-serialize";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { styleRuleModels, listenerModels, propertyModels, crumbLabel, listenerText, number } from "@rodkisten/devtools/panels-elements.functions";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "@rodkisten/devtools/panels-elements.functions";

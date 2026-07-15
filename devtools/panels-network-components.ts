@@ -4,7 +4,7 @@ import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "@rodkis
 import { highlightCode, inferSourceType, withLineNumbers } from "@rodkisten/devtools/core-serialize";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import type { NetworkHeader, NetworkRecord } from "@rodkisten/devtools/types";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { networkListTemplate, networkRowTemplate, networkDetailTemplate, detailTabTemplate, sectionTableTemplate, headerTableTemplate, sectionPreTemplate, messagesTableTemplate, prettyBody, safeUrl } from "@rodkisten/devtools/panels-network.functions";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 export { networkListTemplate, networkRowTemplate, networkDetailTemplate } from "@rodkisten/devtools/panels-network.functions";

@@ -1,7 +1,7 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import { icon } from "@rodkisten/devtools/utils";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 
 export interface SourcesViewModel {

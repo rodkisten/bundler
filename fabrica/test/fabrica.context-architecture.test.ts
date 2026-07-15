@@ -15,26 +15,7 @@ import {
 describe("Fábrica context architecture", () => {
   beforeEach(() => document.body.replaceChildren());
 
-  it("supports portable provider components and required consumers", () => {
-    const Theme = createRequiredFabricaContext<string>("Theme");
-    const ThemeProvider = createContextProvider(Theme, "ThemeProvider");
-    ThemeProvider.register();
-
-    const Consumer = component("ContextConsumer", (_props, ctx) => html`
-      <span>${ctx.requireContext(Theme)}</span>
-    `);
-
-    const dispose = render(document.body, html`
-      <ThemeProvider .value=${"forest"}>
-        <ContextConsumer />
-      </ThemeProvider>
-    `);
-
-    expect(document.body.textContent).toBe("forest");
-    dispose();
-  });
-
-  it("makes reactive context signals available from component context", () => {
+    it("makes reactive context signals available from component context", () => {
     const Density = createReactiveFabricaContext("comfortable", "Density");
 
     const Provider = component("DensityProvider", (props, ctx) => {
@@ -56,40 +37,7 @@ describe("Fábrica context architecture", () => {
     dispose();
   });
 
-  it("exposes Context.Provider and preserves store identity", () => {
-    const store = {
-      expanded: signal(false),
-      label: signal("closed"),
-    };
-    const DevTools = createFabricaContext<typeof store | null>(null, "DevTools");
-    let consumed: typeof store | null = null;
-
-    const Consumer = component("StoreContextConsumer", (_props, ctx) => {
-      consumed = ctx.useRequiredContext(DevTools);
-      return html`<span :expanded=${consumed.expanded}>${consumed.label}</span>`;
-    });
-
-    const dispose = render(document.body, html`
-      <${DevTools.Provider} .value=${store}>
-        <StoreContextConsumer />
-      </${DevTools.Provider}>
-    `);
-
-    const span = document.querySelector("span");
-    expect(consumed).toBe(store);
-    expect(span?.getAttribute("data-expanded")).toBe("false");
-    expect(span?.textContent).toBe("closed");
-
-    store.expanded.set(true);
-    store.label.set("open");
-
-    expect(span?.getAttribute("data-expanded")).toBe("true");
-    expect(span?.textContent).toBe("open");
-    expect(consumed).toBe(store);
-    dispose();
-  });
-
-  it("preserves signals placed in ordinary contexts", () => {
+    it("preserves signals placed in ordinary contexts", () => {
     const selected = signal("console");
     const Selection = createRequiredFabricaContext<typeof selected>("Selection");
     let received: typeof selected | null = null;

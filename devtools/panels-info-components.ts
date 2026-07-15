@@ -1,7 +1,7 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { RenderValue } from "@rodkisten/fabrica/runtime";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 
 export type InfoModel = {

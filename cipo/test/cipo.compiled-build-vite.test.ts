@@ -303,7 +303,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     const context = { emitFile: () => 'asset' } as never
     const transformed = plugin.transform?.call(
       context,
-      `import { configureFromCss } from '@rodkisten/cipo/cipo-src-config-css';
+      `import { configureFromCss } from '@rodkisten/cipo-src-config-css';
 import { appConfigCss } from '@rodkisten/cipo/config';
 configureFromCss(appConfigCss);`,
       '/project/src/devtools/bootstrap.ts',

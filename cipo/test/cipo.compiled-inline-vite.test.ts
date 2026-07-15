@@ -53,7 +53,7 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain("import { compiledInlineCss } from '@rodkisten/cipo/cipo'")
+    expect(result.code).toContain("import { compiledInlineCss } from '@rodkisten/cipo'")
     expect(result.code).toContain("styled.div('Panel')(compiledInlineCss`")
     expect(result.manifest).toHaveLength(1)
     expect(result.manifest[0]?.cssText).toContain('color:red')
@@ -63,7 +63,7 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     const plugin = cipoVite({ root: '/project', mode: 'inline' })
     const result = plugin.transform?.call({} as never, "export const Panel = styled.div('Panel').css`color: red;`", '/project/src/devtools/panel.ts')
 
-    expect(result && 'code' in result ? result.code : '').toContain("from '@rodkisten/cipo/cipo-src-compiler-compiled-inline'")
+    expect(result && 'code' in result ? result.code : '').toContain("from '@rodkisten/cipo-src-compiler-compiled-inline'")
     expect(result && 'meta' in result ? result.meta.cipo.manifest[0]?.receiver.trim() : '').toBe("styled.div('Panel')")
   })
 })

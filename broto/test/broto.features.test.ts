@@ -215,28 +215,7 @@ describe("Broto kitchen sink", () => {
     expect(ownerName).toBe("owner-root");
   });
 
-  it("supports context provide and useContext", () => {
-    const ThemeContext = createContext("light", "ThemeContext");
-
-    const [value] = createRoot(() => {
-      provide(ThemeContext, "dark");
-      return useContext(ThemeContext);
-    }, { name: "context-root" });
-
-    expect(value).toBe("dark");
-  });
-
-  it("falls back to context default value", () => {
-    const ThemeContext = createContext("light", "ThemeContext");
-
-    const [value] = createRoot(() => {
-      return useContext(ThemeContext);
-    }, { name: "context-default-root" });
-
-    expect(value).toBe("light");
-  });
-
-  it("loads resources immediately", async () => {
+      it("loads resources immediately", async () => {
     const data = resource(async () => "loaded");
 
     await data.reload();

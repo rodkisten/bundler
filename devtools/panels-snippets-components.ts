@@ -1,7 +1,7 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { SnippetItem } from "@rodkisten/devtools/types";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 
 export type SnippetsModel = {

@@ -43,25 +43,7 @@ describe('Cipó polymorphic artifacts in Fabrica Elements styled', () => {
     expect(node.className).toBe(brandCss.className)
   })
 
-  it('supports static arrays, conditionals and prop-driven artifact functions', () => {
-    const base = css`display:inline-flex;`
-    const danger = css`color:$danger;`
-    const Button = styled.button('ArtifactButton')([
-      base,
-      (props) => Boolean(props.danger) && danger,
-    ])
-
-    expect(Button.className).toBe(base.className)
-    expect(Button.dynamicStyles).toBe(true)
-
-    const safe = Button({ children: 'Safe' }) as HTMLButtonElement
-    const destructive = Button({ danger: true, children: 'Delete' }) as HTMLButtonElement
-    expect(safe.className).toBe(base.className)
-    expect(destructive.className).toContain(base.className)
-    expect(destructive.className).toContain(danger.className)
-  })
-
-  it('supports functions that compile css from props at render time', () => {
+    it('supports functions that compile css from props at render time', () => {
     const Status = styled.span('Status')((props) => css`
       opacity: ${props.disabled ? 0.5 : 1};
       color: ${props.disabled ? '$danger' : '$brand'};

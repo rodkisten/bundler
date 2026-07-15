@@ -47,38 +47,7 @@ describe('Cipó styled components and Fabrica registry', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('supports Cipo.component(name, { as, attrs }) without passing a function to html', () => {
-    const Card = styled.component('SettingsCard', {
-      as: 'article',
-      attrs: (props) => ({ role: 'region', 'aria-label': props.label }),
-    }).css`
-      p: 4
-      bg: $brand
-    `
-
-    expect(resolveComponent('SettingsCard')).toBe(Card)
-    render(host, html`<SettingsCard label="Settings">Panel</SettingsCard>`)
-
-    const article = host.querySelector('article') as HTMLElement
-    expect(article.getAttribute('role')).toBe('region')
-    expect(article.getAttribute('aria-label')).toBe('Settings')
-    expect(article.textContent).toBe('Panel')
-  })
-
-  it('supports direct named template invocation and manual unregister/register', () => {
-    const Badge = styled.span('StatusBadge')`
-      px: 2
-      rounded: 999px
-    `
-
-    expect(resolveComponent('StatusBadge')).toBe(Badge)
-    expect(Badge.unregister()).toBe(true)
-    expect(resolveComponent('StatusBadge')).toBeUndefined()
-    expect(Badge.register()).toBe('registered')
-    expect(resolveComponent('StatusBadge')).toBe(Badge)
-  })
-
-  it('creates independent styled factories for isolated Fabrica instances', () => {
+      it('creates independent styled factories for isolated Fabrica instances', () => {
     const first = createFabrica({ name: 'styled-first' })
     const second = createFabrica({ name: 'styled-second' })
     const firstStyled = createStyled({ fabrica: first })

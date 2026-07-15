@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, html,  styled } from "@rodkisten/devtools/core-runtime";
-import "./shared-components";
+import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
 
 export interface SettingsViewModel {

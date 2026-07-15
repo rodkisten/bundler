@@ -14,7 +14,7 @@ import {
   SHEET_CASE,
   setupBenchCipo,
   setupReadableClassBenchCipo,
-} from '@rodkisten/cipo/cipo.bench-cases'
+} from '@rodkisten/cipo.bench-cases'
 
 function clearCompileColdPath(): void {
   clearJitCaches()
