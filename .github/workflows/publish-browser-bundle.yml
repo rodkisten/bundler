@@ -28,8 +28,9 @@ on:
           - fabrica-elements
           - seiva-state
           - bundle
-          - all
           - maquina
+          - nascente
+          - all
       release_channel:
         type: choice
         description: "Publish until"
@@ -41,7 +42,7 @@ on:
       test_mode:
         type: choice
         description: "Tests"
-        default: auto
+        default: never
         options:
           - auto
           - always
@@ -76,7 +77,7 @@ on:
       test_mode:
         type: string
         required: false
-        default: auto
+        default: never
       should_typecheck:
         type: boolean
         required: false
