@@ -1,4 +1,5 @@
 import { configure } from './config'
+import { CipoCompiledConfigOpcode, type CipoCompiledCssConfig } from './compiled-config'
 import { insertCss } from './injection'
 import { registerAlias } from './plugins'
 import { property } from './properties'
@@ -158,6 +159,31 @@ export function configureCss(strings: TemplateStringsArray, ...values: readonly 
 
 export const setupFromCss = configureFromCss
 export const configSheet = configureFromCss
+
+/**
+ * Compiles readable CSS-first configuration into a serializable parser-free payload.
+ *
+ * @remarks
+ * Presets and config plugins are intentionally left on the runtime parser path because
+ * their behavior can depend on user-registered functions. Pure config/theme/alias/
+ * property/layer sheets can be safely lowered for production.
+ */
+export function compileCssConfigPayload(input: string): CipoCompiledCssConfig | null {
+  const prepared = getPreparedCssConfig(String(input || ''))
+  const operations = [] as import('./compiled-config').CipoCompiledConfigOperation[]
+
+  for (let index = 0; index < prepared.operations.length; index += 1) {
+    const operation = prepared.operations[index]!
+    if (operation.kind === 'preset' || operation.kind === 'plugin') return null
+    if (operation.kind === 'config') operations.push([CipoCompiledConfigOpcode.Config, operation.patch])
+    else if (operation.kind === 'theme') operations.push([CipoCompiledConfigOpcode.Theme, operation.patch])
+    else if (operation.kind === 'alias') operations.push([CipoCompiledConfigOpcode.Alias, operation.name, operation.cssText])
+    else if (operation.kind === 'property') operations.push([CipoCompiledConfigOpcode.Property, operation.name, operation.definition])
+    else if (operation.kind === 'layer') operations.push([CipoCompiledConfigOpcode.Css, operation.cssText])
+  }
+
+  return { operations }
+}
 
 function getPreparedCssConfig(source: string): PreparedCssConfig {
   const cached = preparedConfigCache.get(source)
