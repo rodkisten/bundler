@@ -1685,3 +1685,21 @@ const Card = styled.div('Card').css`
 DevTools uses this as the playground path: the `devtools` root entry is built
 with Vite and `cipoVite()`, while the rest of the bundle can continue on the
 existing esbuild pipeline. See [`COMPILED_INLINE.md`](./COMPILED_INLINE.md).
+
+## Production CSS compaction
+
+Compiled build mode can emit compact hash-only class names and run a conservative post-compile optimizer. This is intended for production bundles where readable component labels belong in source maps and manifests rather than repeated CSS selectors.
+
+```ts
+cipoVite({
+  mode: 'build',
+  classPrefix: 'c',
+  classNameMode: 'compact',
+  minifyCss: true,
+  mergeEquivalentRules: true,
+})
+```
+
+Compact mode removes component display names from generated classes, marks statically compiled styled factories as `/*#__PURE__*/` for JavaScript tree shaking, minifies safe CSS whitespace/leading zeroes, and can merge flat top-level rules with identical bodies. Private custom-property mangling is opt-in through `privateCustomPropertyPattern`; public theme variables are never renamed unless they explicitly match that pattern.
+
+The DevTools production build enables compact class names and aggressive module tree shaking. In style-tag delivery mode each compiled styled component is coupled to its own CSS insertion through a PURE-annotated helper, so an unused component and its stylesheet can be eliminated together. Fábrica compilation in the same pipeline emits direct component references, so an unused styled component can disappear together with its generated JavaScript instead of being retained only by a string-based component registry lookup.
