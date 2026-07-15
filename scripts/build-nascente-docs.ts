@@ -54,22 +54,46 @@ const CATEGORY_DEFINITIONS: readonly CategoryDefinition[] = [
     "assert", "attempt", "attemptAsync", "invariant",
   ]),
   category("types", "Core types", "Semantic public types shared by the flat API.", [
-    "Iteratee", "Predicate", "Comparator", "Awaitable", "AsyncIteratee", "AsyncPredicate", "KeySelector", "ValueSelector", "SortDirection", "AttemptResult", "JsonValue",
+    "Iteratee", "Predicate", "Comparator", "OrderingComparator", "Orderable", "Awaitable", "AsyncIteratee", "AsyncPredicate", "KeySelector", "ValueSelector", "SortDirection", "AttemptResult", "JsonPrimitive", "JsonValue",
   ]),
 ];
 
 export async function buildNascenteDocs(): Promise<void> {
-  const [source, readme, changelog] = await Promise.all([
-    fs.readFile(path.join(PACKAGE_DIR, "index.ts"), "utf8"),
+  const [sourceModules, readme, changelog] = await Promise.all([
+    readNascenteSourceModules(),
     fs.readFile(path.join(PACKAGE_DIR, "README.md"), "utf8"),
     fs.readFile(path.join(PACKAGE_DIR, "CHANGELOG.md"), "utf8"),
   ]);
 
-  const api = extractNascenteApi(source);
+  const api = extractNascenteApi(sourceModules.join("\n\n"));
   const html = createNascenteDocsHtml({ api, readme, changelog });
 
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
   await fs.writeFile(path.join(OUTPUT_DIR, "index.html"), html);
+}
+
+
+/**
+ * Reads implementation modules instead of the barrel so generated docs follow the real category files.
+ *
+ * @remarks
+ * `index.ts` intentionally contains only re-exports. Sorting file names keeps documentation generation
+ * deterministic across operating systems and CI runners. Test and benchmark files are excluded because
+ * they are not part of the public package API.
+ */
+async function readNascenteSourceModules(): Promise<string[]> {
+  const directoryEntries = await fs.readdir(PACKAGE_DIR, { withFileTypes: true });
+  const sourceFileNames = directoryEntries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((fileName) => fileName.endsWith(".ts"))
+    .filter((fileName) => fileName !== "index.ts")
+    .filter((fileName) => !fileName.endsWith(".test.ts") && !fileName.endsWith(".bench.ts"))
+    .sort((leftFileName, rightFileName) => leftFileName.localeCompare(rightFileName));
+
+  return Promise.all(
+    sourceFileNames.map((fileName) => fs.readFile(path.join(PACKAGE_DIR, fileName), "utf8")),
+  );
 }
 
 export function extractNascenteApi(sourceText: string): NascenteApiItem[] {
@@ -102,7 +126,24 @@ export function extractNascenteApi(sourceText: string): NascenteApiItem[] {
     }
   }
 
-  return items.sort((left, right) => {
+  const uniqueItems = new Map<string, NascenteApiItem>();
+
+  for (const item of items) {
+    const existingItem = uniqueItems.get(item.name);
+    if (!existingItem) {
+      uniqueItems.set(item.name, item);
+      continue;
+    }
+
+    if (!existingItem.signature.includes(item.signature)) {
+      existingItem.signature = `${existingItem.signature}\n${item.signature}`;
+    }
+    if (!existingItem.summary && item.summary) existingItem.summary = item.summary;
+    if (!existingItem.remarks && item.remarks) existingItem.remarks = item.remarks;
+    if (!existingItem.example && item.example) existingItem.example = item.example;
+  }
+
+  return [...uniqueItems.values()].sort((left, right) => {
     const categoryDelta = categoryIndex(left.name) - categoryIndex(right.name);
     return categoryDelta || left.name.localeCompare(right.name);
   });
@@ -316,32 +357,14 @@ function categoryIndex(name: string): number {
   return CATEGORY_DEFINITIONS.findIndex((definition) => definition.names.has(name));
 }
 
-/**
- * Checks whether a TypeScript AST node is explicitly exported.
- *
- * @remarks
- * `ts.getModifiers` only accepts nodes that implement TypeScript's internal
- * `HasModifiers` shape. Since this helper intentionally accepts any `ts.Node`,
- * `ts.canHaveModifiers` must narrow the node before accessing its modifiers.
- *
- * This avoids unsafe casts such as `node as ts.HasModifiers` and keeps the
- * helper compatible with TypeScript's strongly typed Compiler API.
- */
 function isExported(node: ts.Node): boolean {
-  if (!ts.canHaveModifiers(node)) {
-    return false;
-  }
+  if (!ts.canHaveModifiers(node)) return false;
 
   const modifiers = ts.getModifiers(node);
-
-  if (!modifiers) {
-    return false;
-  }
+  if (!modifiers) return false;
 
   for (let index = 0; index < modifiers.length; index++) {
-    if (modifiers[index]?.kind === ts.SyntaxKind.ExportKeyword) {
-      return true;
-    }
+    if (modifiers[index]?.kind === ts.SyntaxKind.ExportKeyword) return true;
   }
 
   return false;
