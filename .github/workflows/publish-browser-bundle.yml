@@ -29,6 +29,7 @@ on:
           - seiva-state
           - bundle
           - all
+          - maquina
       release_channel:
         type: choice
         description: "Publish until"
@@ -348,7 +349,7 @@ jobs:
     needs: scope
     if: ${{ needs.scope.outputs.build_scope != 'none' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 5
 
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
@@ -379,7 +380,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: 🔎 Typecheck
-        if: ${{ inputs.should_typecheck != false }}
+        if: ${{ inputs.should_typecheck != 'false' }}
         run: pnpm typecheck
 
       - name: 🧪 Run tests
