@@ -1,4 +1,5 @@
 ## Unreleased
+- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
 
 - Removed the build-time Cipó `@cipo` / `@theme` configuration sheet from the browser bundle. RodEruda now ships only a pre-resolved, minified runtime token bridge, so the CSS-first parser and raw configuration DSL can be tree-shaken.
 
