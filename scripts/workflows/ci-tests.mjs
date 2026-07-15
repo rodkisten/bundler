@@ -125,7 +125,7 @@ function runBenchmarks() {
 
 function runCipoBenchmarks() {
   // Keep the output deterministic without shell pipelines: Vitest output is captured, ANSI is stripped, then persisted.
-  const result = run("pnpm", ["exec", "vitest", "bench", "src/cipo/tests/cipo.bench.ts", "--run"], { capture: true, allowFailure: true });
+  const result = run("pnpm", ["exec", "vitest", "bench", "cipo/test/cipo.bench.ts", "--run"], { capture: true, allowFailure: true });
   const stripped = result.replace(/\u001b\[[0-9;]*m/g, "");
   ensureDir("artifacts/test");
   writeFileSync("artifacts/test/cipo-benchmark.log", stripped);

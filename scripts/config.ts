@@ -1,10 +1,22 @@
 import path from "node:path";
 
 export const ROOT_DIR = process.cwd();
-export const SRC_DIR = path.join(ROOT_DIR, "src");
+/** @deprecated Prefer PACKAGE_DIRS — kept for gradual migration of collect helpers. */
+export const SRC_DIR = ROOT_DIR;
 export const DIST_DIR = path.join(ROOT_DIR, "dist");
 export const DEFAULT_GLOBAL_NAMESPACE = "Rod";
 export const ENTRY_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs"]);
+
+export const WORKSPACE_PACKAGES = [
+  "broto",
+  "cipo",
+  "devtools",
+  "fabrica",
+  "fabrica-elements",
+  "maquina",
+  "seiva-state",
+  "rod",
+] as const;
 
 export type BuildMode = "development" | "production";
 

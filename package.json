@@ -1,6 +1,6 @@
 {
   "name": "rod-browser-toolbox",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "Root-entry browser bundle publisher that emits one IIFE global per root source file, plus ESM builds, docs, and a generated landing page.",
@@ -23,14 +23,15 @@
     "build:with-bench": "pnpm build && pnpm bench:ci",
     "bench:ci": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
     "bench:fabrica": "tsx scripts/benchmarks.ts --mode=single --suite=fabrica --rounds=1",
-    "bench:cipo:raw": "vitest bench src/cipo/tests/cipo.bench.ts --run",
-    "bench:fabrica:raw": "vitest bench src/fabrica/tests/fabrica.bench.ts --run",
+    "bench:cipo:raw": "vitest bench cipo/test/cipo.bench.ts --run",
+    "bench:fabrica:raw": "vitest bench fabrica/test/fabrica.bench.ts --run",
     "bench:reliable": "tsx scripts/benchmarks.ts --mode=single --rounds=3",
     "bench:compare": "tsx scripts/benchmarks.ts --mode=compare --rounds=3",
-    "dev:devtools": "vite --config ./src/devtools/vite.config.ts",
-    "build:devtools": "vite --config ./src/devtools/vite.config.ts build",
-    "dev:maquina": "vite --config ./src/maquina/vite.config.ts",
-    "build:maquina": "vite --config ./src/maquina/vite.config.ts build"
+    "dev:devtools": "vite --config ./devtools/vite.config.ts",
+    "build:devtools": "vite --config ./devtools/vite.config.ts build",
+    "dev:maquina": "vite --config ./maquina/vite.config.ts",
+    "build:maquina": "vite --config ./maquina/vite.config.ts build",
+    "build:packages": "pnpm -r --filter '@rodkisten/*' run build"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",

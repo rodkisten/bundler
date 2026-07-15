@@ -1,16 +1,16 @@
 import { Session } from 'node:inspector'
 import { performance } from 'node:perf_hooks'
-import { atomic, css, sheet } from '../src/cipo/src/index'
-import { invalidateCssConfigApplications } from '../src/cipo/src/config-css'
-import { clearPolymorphicTemplateCache } from '../src/cipo/src/css'
-import { clearPolymorphicDetectionCache } from '../src/cipo/src/compiler/detect-mode'
-import { clearJitCaches } from '../src/cipo/src/runtime'
+import { atomic, css, sheet } from '@rodkisten/cipo'
+import { invalidateCssConfigApplications } from '@rodkisten/cipo/config-css'
+import { clearPolymorphicTemplateCache } from '@rodkisten/cipo/css'
+import { clearPolymorphicDetectionCache } from '@rodkisten/cipo/compiler-detect-mode'
+import { clearJitCaches } from '@rodkisten/cipo/runtime'
 import {
   ATOMIC_CASE,
   CONFIG_CASE,
   SHEET_CASE,
   setupBenchCipo,
-} from '../src/cipo/tests/cipo.bench-cases'
+} from '../cipo/test/cipo.bench-cases'
 
 type SamplingNode = {
   readonly selfSize: number

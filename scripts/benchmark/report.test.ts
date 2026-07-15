@@ -10,7 +10,7 @@ import type {
 const suite: BenchmarkSuiteDefinition = {
   id: 'fabrica',
   label: 'Fabrica DOM runtime',
-  file: 'src/fabrica/tests/fabrica.bench.ts',
+  file: 'fabrica/test/fabrica.bench.ts',
   description: 'DOM benchmark suite.',
 }
 

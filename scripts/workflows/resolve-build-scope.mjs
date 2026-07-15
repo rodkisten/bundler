@@ -34,14 +34,14 @@ function spawnGitCatFile(sha) {
 }
 
 function projectForPath(file) {
-  if (/^src\/devtools\/|^src\/devtools\.ts$/.test(file)) return "devtools";
-  if (/^src\/fabrica\/|^src\/fabrica\.ts$/.test(file)) return "fabrica";
-  if (/^src\/cipo\/|^src\/cipo\.ts$/.test(file)) return "cipo";
-  if (/^src\/broto\/|^src\/broto\.ts$/.test(file)) return "broto";
-  if (/^src\/fabrica-elements\/|^src\/fabrica-elements\.ts$/.test(file)) return "fabrica-elements";
-  if (/^src\/seiva-state\/|^src\/seiva-state\.ts$/.test(file)) return "seiva-state";
-  if (/^src\/maquina\/|^src\/maquina\.ts$/.test(file)) return "maquina";
-  if (/^src\/(bundle|index)\.ts$/.test(file)) return "bundle";
+  if (/^devtools\//.test(file)) return "devtools";
+  if (/^fabrica\//.test(file)) return "fabrica";
+  if (/^cipo\//.test(file)) return "cipo";
+  if (/^broto\//.test(file)) return "broto";
+  if (/^fabrica-elements\//.test(file)) return "fabrica-elements";
+  if (/^seiva-state\//.test(file)) return "seiva-state";
+  if (/^maquina\//.test(file)) return "maquina";
+  if (/^rod\//.test(file)) return "bundle";
   return null;
 }
 

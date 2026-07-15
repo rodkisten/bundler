@@ -1,0 +1,51 @@
+{
+  "name": "@rodkisten/devtools",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Fork of Eruda using Broto, F\u00e1brica and Cip\u00f3 tools.",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    },
+    "./*": {
+      "types": "./*.d.ts",
+      "import": "./*.js",
+      "default": "./*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "*.js",
+    "*.d.ts",
+    "*.js.map",
+    "*.d.ts.map",
+    "!vitest.config.*",
+    "!vite.config.*",
+    "!tsconfig.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root .. --dir .",
+    "prepublishOnly": "pnpm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@rodkisten/broto": "workspace:*",
+    "@rodkisten/cipo": "workspace:*",
+    "@rodkisten/fabrica": "workspace:*",
+    "lit": "^3.3.1",
+    "lit-html": "^3.3.1",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "stylis": "^4.3.6"
+  }
+}

@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   DEFAULT_GLOBAL_NAMESPACE,
-  ENTRY_EXTENSIONS,
-  SRC_DIR,
+  ROOT_DIR,
+  WORKSPACE_PACKAGES,
   toPascalCase,
   type RootEntry,
   type ToolMetadata,
@@ -12,43 +12,106 @@ import {
 const TOOL_COMMENT_RE = /\/\*\*([\s\S]*?)\*\//;
 const TAG_RE = /@([a-zA-Z][\w-]*)\s+([^@\n\r]*)/g;
 
-const DEFAULT_IGNORED_ROOT_ENTRIES = new Set([
-  "seiva",
-  "index",
-]);
+/** Map published browser globals to workspace package folders. */
+const ENTRY_PACKAGE_ALIASES: Record<string, string> = {
+  bundle: "rod",
+  index: "rod",
+  rod: "rod",
+};
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolvePackageEntry(packageName: string): Promise<{ absolutePath: string; relativePath: string; fileName: string } | null> {
+  const candidates = [
+    `browser-entry.ts`,
+    `index.ts`,
+    `bundle.ts`,
+  ];
+
+  for (const fileName of candidates) {
+    const absolutePath = path.join(ROOT_DIR, packageName, fileName);
+    if (await fileExists(absolutePath)) {
+      return {
+        absolutePath,
+        relativePath: `${packageName}/${fileName}`,
+        fileName,
+      };
+    }
+  }
+
+  return null;
+}
 
 export async function discoverRootEntries(): Promise<RootEntry[]> {
-  const dirents = await fs.readdir(SRC_DIR, { withFileTypes: true });
   const entries: RootEntry[] = [];
+  const seen = new Set<string>();
 
-  for (const dirent of dirents) {
-    if (!dirent.isFile()) continue;
+  // Prefer explicit browser entries from workspace packages.
+  for (const packageName of WORKSPACE_PACKAGES) {
+    const resolved = await resolvePackageEntry(packageName);
+    if (!resolved) continue;
 
-    const extension = path.extname(dirent.name);
-    if (!ENTRY_EXTENSIONS.has(extension)) continue;
-    if (dirent.name.endsWith(".d.ts")) continue;
+    // rod exposes both Rod (index) and Bundle aliases depending on entry file.
+    const names =
+      packageName === "rod"
+        ? resolved.fileName.startsWith("bundle")
+          ? ["bundle"]
+          : ["rod", "index"]
+        : [packageName];
 
-    const name = dirent.name.slice(0, -extension.length);
-    if (DEFAULT_IGNORED_ROOT_ENTRIES.has(name)) continue;
+    for (const name of names) {
+      if (seen.has(name)) continue;
+      seen.add(name);
 
-    const absolutePath = path.join(SRC_DIR, dirent.name);
-    const source = await fs.readFile(absolutePath, "utf8");
-    const fallbackGlobal = name === "index" ? DEFAULT_GLOBAL_NAMESPACE : toPascalCase(name);
+      // For rod/index we want the index entry file; for bundle, bundle.ts.
+      let entryFile = resolved;
+      if (packageName === "rod" && name === "bundle") {
+        const bundlePath = path.join(ROOT_DIR, "rod", "bundle.ts");
+        if (await fileExists(bundlePath)) {
+          entryFile = {
+            absolutePath: bundlePath,
+            relativePath: "rod/bundle.ts",
+            fileName: "bundle.ts",
+          };
+        }
+      } else if (packageName === "rod" && (name === "rod" || name === "index")) {
+        const indexPath = path.join(ROOT_DIR, "rod", "index.ts");
+        if (await fileExists(indexPath)) {
+          entryFile = {
+            absolutePath: indexPath,
+            relativePath: "rod/index.ts",
+            fileName: "index.ts",
+          };
+        }
+      }
 
-    const tool = parseToolMetadata(source, {
-      name,
-      globalName: fallbackGlobal,
-      entry: `src/${dirent.name}`,
-    });
+      const source = await fs.readFile(entryFile.absolutePath, "utf8");
+      const fallbackGlobal = name === "index" || name === "rod" || name === "bundle"
+        ? DEFAULT_GLOBAL_NAMESPACE
+        : toPascalCase(name);
 
-    entries.push({
-      name,
-      fileName: dirent.name,
-      absolutePath,
-      relativePath: `src/${dirent.name}`,
-      globalName: tool.globalName || fallbackGlobal,
-      tool,
-    });
+      const tool = parseToolMetadata(source, {
+        name,
+        globalName: fallbackGlobal,
+        entry: entryFile.relativePath,
+      });
+
+      entries.push({
+        name,
+        fileName: entryFile.fileName,
+        absolutePath: entryFile.absolutePath,
+        relativePath: entryFile.relativePath,
+        globalName: tool.globalName || fallbackGlobal,
+        tool,
+      });
+    }
   }
 
   return entries.sort((left, right) => left.name.localeCompare(right.name));
@@ -85,7 +148,7 @@ export function parseToolMetadata(
     name: tags.get("tool") || tags.get("name") || fallback.name,
     globalName: tags.get("global") || fallback.globalName,
     description,
-    packageName: tags.get("package") || fallback.name,
+    packageName: tags.get("package") || ENTRY_PACKAGE_ALIASES[fallback.name] || fallback.name,
     tags: tagList,
     entry: fallback.entry,
   };

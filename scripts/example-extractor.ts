@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { SRC_DIR, type RootEntry } from "./config";
+import { ROOT_DIR, WORKSPACE_PACKAGES, type RootEntry } from "./config";
 
 export type SourceExample = {
   title: string;
@@ -38,7 +38,10 @@ const REMARKS_TAG_RE = /(?:^|\n)\s*\*?\s*@remarks\b([\s\S]*?)(?=\n\s*\*\s*@[a-zA
  * ```
  */
 export async function collectExamplesByEntry(entries: readonly RootEntry[]): Promise<Record<string, SourceExample[]>> {
-  const files = await collectSourceFiles(SRC_DIR);
+  const files: string[] = [];
+  for (const pkg of WORKSPACE_PACKAGES) {
+    files.push(...(await collectSourceFiles(path.join(ROOT_DIR, pkg))));
+  }
   const output: Record<string, SourceExample[]> = {};
 
   for (const entry of entries) {
@@ -84,10 +87,10 @@ async function collectSourceFiles(directory: string): Promise<string[]> {
 }
 
 function findOwningEntry(file: string, entries: readonly RootEntry[]): RootEntry | null {
-  const relative = path.relative(SRC_DIR, file).replaceAll(path.sep, "/");
+  const relative = path.relative(ROOT_DIR, file).replaceAll(path.sep, "/");
   const topLevelName = relative.split("/")[0]?.replace(/\.[^.]+$/, "") ?? "";
 
-  return entries.find((entry) => entry.name === topLevelName) ?? null;
+  return entries.find((entry) => entry.name === topLevelName || entry.tool.packageName === topLevelName) ?? null;
 }
 
 function extractExamples(source: string, file: string): SourceExample[] {

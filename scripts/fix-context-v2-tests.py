@@ -11,7 +11,7 @@ def replace_once(path: str, old: str, new: str) -> None:
 
 
 replace_once(
-    "src/fabrica/dom.ts",
+    "fabrica/dom.ts",
     '''function hasPotentialComponentChildren(
   part: Extract<TemplatePart, { type: "component" }> | undefined,
   values: readonly RenderValue[],
@@ -70,7 +70,7 @@ function hasMeaningfulRenderValue(value: RenderValue | undefined): boolean {
 )
 
 replace_once(
-    "src/maquina/maquina.test.ts",
+    "maquina/test/maquina.test.ts",
     '''    const textarea = parent.querySelector("textarea")!;
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));''',

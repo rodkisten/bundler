@@ -3,7 +3,7 @@
   "suite": {
     "id": "cipo",
     "label": "Cipó CSS runtime",
-    "file": "src/cipo/tests/cipo.bench.ts",
+    "file": "cipo/test/cipo.bench.ts",
     "description": "Cold and warm compilation paths for atomic, inline, stylesheet and CSS-first configuration modes."
   },
   "generatedAt": "2026-07-02T21:15:39.954Z",

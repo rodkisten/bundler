@@ -1,0 +1,73 @@
+name: 📦 Publish npm packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: latest
+        type: choice
+        options:
+          - latest
+          - next
+          - canary
+      dry_run:
+        description: "Dry run (no publish)"
+        required: true
+        default: false
+        type: boolean
+
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @rodkisten/* packages
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build packages
+        run: pnpm -r --filter "@rodkisten/*" run build
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: |
+          TAG="${{ github.event.inputs.tag || 'latest' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          ARGS=(--filter "@rodkisten/*" publish --access public --no-git-checks --tag "$TAG")
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          pnpm "${ARGS[@]}"

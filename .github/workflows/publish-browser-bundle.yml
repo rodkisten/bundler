@@ -114,7 +114,7 @@ env:
   NODE_VERSION: "24"
   PNPM_VERSION: "11.5.1"
   FULL_DIST_DIR: dist
-  DEVTOOLS_DIST_DIR: src/devtools/dist
+  DEVTOOLS_DIST_DIR: dist
   PAGES_STATE_ARTIFACT: browser-pages-state
   MAIN_FULL_INTERVAL_SECONDS: "300"
 

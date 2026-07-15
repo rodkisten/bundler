@@ -23,14 +23,14 @@ function affectedProjects(files) {
   let shared = false;
   for (const file of files) {
     if (!file || file.startsWith("manual:")) continue;
-    if (/^src\/devtools\/|^src\/devtools\.ts$/.test(file)) affected.add("devtools");
-    else if (/^src\/fabrica\/|^src\/fabrica\.ts$/.test(file)) affected.add("fabrica");
-    else if (/^src\/cipo\/|^src\/cipo\.ts$/.test(file)) affected.add("cipo");
-    else if (/^src\/broto\/|^src\/broto\.ts$/.test(file)) affected.add("broto");
-    else if (/^src\/fabrica-elements\/|^src\/fabrica-elements\.ts$/.test(file)) affected.add("fabrica-elements");
-    else if (/^src\/seiva-state\/|^src\/seiva-state\.ts$/.test(file)) affected.add("seiva-state");
-    else if (/^src\/maquina\/|^src\/maquina\.ts$/.test(file)) affected.add("maquina");
-    else if (/^src\/(bundle|index)\.ts$/.test(file)) affected.add("bundle");
+    if (/^(devtools)\//.test(file)) affected.add("devtools");
+    else if (/^(fabrica)\//.test(file)) affected.add("fabrica");
+    else if (/^(cipo)\//.test(file)) affected.add("cipo");
+    else if (/^(broto)\//.test(file)) affected.add("broto");
+    else if (/^(fabrica-elements)\//.test(file)) affected.add("fabrica-elements");
+    else if (/^(seiva-state)\//.test(file)) affected.add("seiva-state");
+    else if (/^(maquina)\//.test(file)) affected.add("maquina");
+    else if (/^(rod)\//.test(file)) affected.add("bundle");
     else if (/^(package\.json|pnpm-lock\.yaml|package-lock\.json|tsconfig.*\.json|vite\.config\.|scripts\/|\.github\/workflows\/)/.test(file)) shared = true;
   }
   if (shared) ALL_PROJECTS.forEach((project) => affected.add(project));
@@ -120,7 +120,7 @@ ${env("CHANGED_FILES")}
 }
 
 function runTests() {
-  run("pnpm", env("BUILD_SCOPE") === "all" ? ["test"] : ["test", "--", `src/${env("BUILD_SCOPE")}`]);
+  run("pnpm", env("BUILD_SCOPE") === "all" ? ["test"] : ["test", "--", `${env("BUILD_SCOPE")}/`]);
 }
 function runBenchmarks() {
   const scope = env("BUILD_SCOPE");
@@ -138,7 +138,7 @@ function build() {
   else if (scope === "maquina") run("pnpm", ["build:maquina"]);
   else run("pnpm", ["build"], { env: { BUILD_ENTRIES: scope } });
 }
-function sourceDir() { return env("BUILD_SCOPE") === "devtools" ? env("DEVTOOLS_DIST_DIR", "src/devtools/dist") : env("FULL_DIST_DIR", "dist"); }
+function sourceDir() { return env("BUILD_SCOPE") === "devtools" ? env("DEVTOOLS_DIST_DIR", "dist") : env("FULL_DIST_DIR", "dist"); }
 function createCanary() {
   const root = sourceDir();
   const files = walkFiles(root).filter((file) => file.endsWith(".iife.min.js") && !file.endsWith(".canary.iife.min.js"));
