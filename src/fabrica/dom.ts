@@ -14,7 +14,7 @@ import {
 import { bindEvent } from "./events";
 import { bindModelPart, createDirectiveController } from "./dom-directives";
 import { bindSpreadPart } from "./dom-spread";
-import { bindSpecialAttribute } from "./dom-special-attributes";
+import { bindSpecialAttribute, toDataAttributeName } from "./dom-special-attributes";
 import {
   isClassMapDirective,
   isComponent,
@@ -659,7 +659,7 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
             part.set(readValue(value) as RenderValue);
           });
         },
-        { name: "fabrica.childBinding" },
+        { name: "fabrica.childBinding", scheduler: "sync" },
       ),
     );
 
@@ -717,7 +717,7 @@ function bindComponentPart(
     runWithFabricaRuntime(runtime, () => {
       const staticProps = part?.staticProps;
       const dynamicProps = dynamicPropParts.length > 0
-        ? readDynamicComponentProps(dynamicPropParts, values)
+        ? readDynamicComponentProps(dynamicPropParts, values, componentValue)
         : null;
       const hasCompiledChildren = Boolean(part?.hasStaticChildren || (part?.orderedChildParts?.length ?? 0) > 0);
       const props = dynamicProps
@@ -760,7 +760,7 @@ function bindComponentPart(
 
   if (hasReactiveComponentInputs(dynamicPropParts, values)) {
     const dispose = runWithOwner(owner, () =>
-      effect(renderComponent, { name: `fabrica.componentTagBinding:${componentName || "anonymous"}` }),
+      effect(renderComponent, { name: `fabrica.componentTagBinding:${componentName || "anonymous"}`, scheduler: "sync" }),
     );
     registerCleanup(childPart.start, dispose);
     return;
@@ -905,6 +905,7 @@ function createMissingComponentFallback(name: string): HTMLElement {
 function readDynamicComponentProps(
   propParts: readonly DynamicComponentPropPart[],
   values: readonly RenderValue[],
+  componentValue?: unknown,
 ): Record<string, unknown> {
   const props: Record<string, unknown> = {};
 
@@ -921,9 +922,11 @@ function readDynamicComponentProps(
     }
 
     const name = normalizeComponentPropName(prop.name);
-    const value = readComponentPropValue(prop, values);
+    const value = readComponentPropValue(prop, values, componentValue, name);
     if (name === "props") {
       mergeSpreadProps(props, readValue(value));
+    } else if (name === ":data") {
+      mergeComponentDataProps(props, readValue(value));
     } else {
       props[name] = value;
     }
@@ -935,13 +938,18 @@ function readDynamicComponentProps(
 function readComponentPropValue(
   part: Extract<ComponentPropPart, { spread?: false }>,
   values: readonly RenderValue[],
+  componentValue: unknown,
+  propName: string,
 ): unknown {
   if (part.raw) {
     const value = values[part.index];
-    // Exact component props preserve objects, nodes and callback functions, but
-    // branded signals must be read inside the component-tag effect so styled
-    // factories receive the current value and remain reactive.
-    return isSignal(value) ? value() : value;
+    const preservedProps = (componentValue as { preserveSignalProps?: ReadonlySet<string> } | null)?.preserveSignalProps;
+
+    // Component props normally receive the current signal value. Components
+    // that intentionally transport signals, such as Context.Provider, opt in
+    // per prop so callbacks and ordinary object identity remain untouched.
+    if (isSignal(value) && !preservedProps?.has(propName)) return value();
+    return value;
   }
 
   return composeAttributeValue(part.indices, part.strings, values);
@@ -989,6 +997,7 @@ function normalizeStaticComponentPropName(name: string): string {
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";
   if (name === "readonly") return "readOnly";
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   return name;
 }
 
@@ -996,8 +1005,19 @@ function normalizeComponentPropName(name: string): string {
   if (name.startsWith("@")) return eventAttributeToPropName(name.slice(1));
   if (name.startsWith(".")) return name.slice(1);
   if (name.startsWith("?")) return name.slice(1);
-  if (name.startsWith(":")) return name.slice(1);
+  if (name === ":data") return name;
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   return name;
+}
+
+function mergeComponentDataProps(target: Record<string, unknown>, value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const source = value as Record<string, unknown>;
+  for (const key in source) {
+    const literal = key.startsWith(":");
+    const rawName = literal ? `"${key.slice(1)}"` : key;
+    target[toDataAttributeName(rawName)] = source[key];
+  }
 }
 
 function eventAttributeToPropName(rawName: string): string {
@@ -1015,7 +1035,7 @@ function mergeSpreadProps(target: Record<string, unknown>, value: unknown): void
 
   for (const key in source) {
     const item = source[key];
-    target[normalizeComponentPropName(key)] = isSignal(item) ? item() : item;
+    target[normalizeComponentPropName(key)] = item;
   }
 }
 
@@ -1323,7 +1343,7 @@ function bindPlainAttributePart(
     applyPlainAttributeValue(element, name, next);
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1394,7 +1414,7 @@ function bindPropertyPart(
     (element as unknown as Record<string, unknown>)[name] = next;
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1427,7 +1447,7 @@ function bindBooleanAttributePart(
     }
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1454,7 +1474,7 @@ function bindConditionalClassPart(
     element.classList.toggle(className, next);
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 

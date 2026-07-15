@@ -149,6 +149,12 @@ export function applyPayloadProps(element: Element, props: Record<string, unknow
       continue
     }
 
+    if (key.startsWith('data-') || key.startsWith('aria-')) {
+      if (propValue == null) element.removeAttribute(key)
+      else element.setAttribute(key, String(propValue))
+      continue
+    }
+
     if (propValue == null || propValue === false) {
       element.removeAttribute(key)
       continue

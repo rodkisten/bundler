@@ -27,7 +27,7 @@ export function bindSpecialAttribute(element: Element, name: string, value: unkn
   };
   let dispose: (() => void) | null = null;
   if (hasDeepReactiveValue(value)) {
-    dispose = effect(update, { name: `fabrica.specialAttribute.${name}` });
+    dispose = effect(update, { name: `fabrica.specialAttribute.${name}`, scheduler: "sync" });
   } else {
     update();
   }

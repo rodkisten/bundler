@@ -1,7 +1,7 @@
 import { brotoDebugState } from "./debug";
 import { batch, computed } from "./reactivity";
 import { signal } from "./reactivity";
-import { isSignal } from "./signal";
+import { isSignal, SIGNAL_SYMBOL } from "./signal";
 import type { Signal } from "./types";
 
 /** Primitive values that stay as writable signals inside a Broto store. */
@@ -677,6 +677,7 @@ function createStoreViewProxy(
 
   return new Proxy(pathSignal, {
     get(target, property, receiver) {
+      if (property === SIGNAL_SYMBOL) return true;
       if (property === "then") return undefined;
       if (property === Symbol.toPrimitive) return () => stringifyStoreViewValue(target.peek());
       if (property === "toJSON") return () => target.peek();

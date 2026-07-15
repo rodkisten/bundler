@@ -56,7 +56,8 @@ export function applyProps(element: Element, props: ElementsRecord): void {
   for (const key in props) {
     const rawValue = props[key]
     const value = readElementValue(rawValue)
-    if (value === null || value === undefined || value === false) continue
+    const isStringAttribute = key.startsWith('data-') || key.startsWith('aria-')
+    if (value === null || value === undefined || (value === false && !isStringAttribute)) continue
 
     if (key === 'children') {
       appendChildren(element, value)
@@ -167,6 +168,12 @@ function isAtEventProp(key: string): boolean {
  * @param value - Value.
  */
 export function setPropertyOrAttribute(element: Element, name: string, value: unknown): void {
+  if (name.startsWith('data-') || name.startsWith('aria-')) {
+    if (value === null || value === undefined) element.removeAttribute(name)
+    else element.setAttribute(name, String(value))
+    return
+  }
+
   if (value === null || value === undefined || value === false) {
     element.removeAttribute(name)
     if (name in element && typeof (element as unknown as Record<string, unknown>)[name] === 'boolean') {

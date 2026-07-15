@@ -14,6 +14,8 @@ import {
   type ElementsViewModel,
   type StyleRuleInfo,
   ElementsViewContext,
+  ElementsDomTreeView,
+  ElementsDomNodeView,
 } from "./elements-components";
 import { getMatchedRules, collectRules, clamp, meaningfulText } from "./elements.functions";
 
@@ -415,13 +417,19 @@ export class Elements extends Tool {
   }
 
   private renderTree(): void {
-    if (!this.tree || !document.documentElement) return;
+    const tree = this.tree;
+    if (!tree || !document.documentElement) return;
 
-    render(this.tree, html`
-      <RodElementsDomTreeView>
-        ${this.renderNode(document.documentElement, 0)}
-      </RodElementsDomTreeView>
-    `);
+    render(
+      tree,
+      ElementsDomTreeView({
+        children: this.renderNode(document.documentElement, 0),
+      }),
+    );
+
+    // Replacing this element's children must not invalidate the element ref.
+    // Keep the stable shell node even if nested cleanup collection invokes a ref disposer.
+    this.tree = tree;
   }
 
   private renderNode(node: Node, depth: number): import("../../fabrica").RenderValue {
@@ -432,31 +440,27 @@ export class Elements extends Tool {
     const moreCount = children.length - limited.length;
     const nodeId = this.nodeId(node);
 
-    return html`
-      <RodElementsDomNodeView
-        ${{
-          node,
-          nodeId,
-          depth,
-          selected: node === this.selected,
-          expandable,
-          expanded,
-          moreCount,
-          onClick: (click: Event) => this.handleNodeClick(click, click.currentTarget as HTMLElement),
-          onDoubleClick: (doubleClick: Event) => this.handleNodeOpen(doubleClick, doubleClick.currentTarget as HTMLElement),
-          onContextMenu: (menuEvent: Event) => this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement),
-          onPointerDown: (pointerEvent: Event) => this.startLongPress(pointerEvent, pointerEvent.currentTarget as HTMLElement),
-          onPointerUp: () => this.cancelLongPress(),
-          onPointerCancel: () => this.cancelLongPress(),
-          onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
-          onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
-          onPointerOut: () => this.highlighter?.hide(),
-        }}
-      >
-
-        ${expanded ? limited.map((child) => this.renderNode(child, depth + 1)) : null}
-      </RodElementsDomNodeView>
-    `;
+    return ElementsDomNodeView({
+      node,
+      nodeId,
+      depth,
+      selected: node === this.selected,
+      expandable,
+      expanded,
+      moreCount,
+      onClick: (click: Event) => this.handleNodeClick(click, click.currentTarget as HTMLElement),
+      onDoubleClick: (doubleClick: Event) => this.handleNodeOpen(doubleClick, doubleClick.currentTarget as HTMLElement),
+      onContextMenu: (menuEvent: Event) => this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement),
+      onPointerDown: (pointerEvent: Event) => this.startLongPress(pointerEvent, pointerEvent.currentTarget as HTMLElement),
+      onPointerUp: () => this.cancelLongPress(),
+      onPointerCancel: () => this.cancelLongPress(),
+      onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
+      onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
+      onPointerOut: () => this.highlighter?.hide(),
+      children: expanded
+        ? limited.map((child) => this.renderNode(child, depth + 1))
+        : null,
+    });
   }
 
   private visibleChildren(node: Node): Node[] {

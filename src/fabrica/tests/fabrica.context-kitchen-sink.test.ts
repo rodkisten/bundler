@@ -112,7 +112,7 @@ describe("Fábrica context kitchen sink", () => {
     const service = Object.freeze({ name: "shadow-service" });
     const dispose = render(document.body, html`
       <KitchenSinkServiceProvider .value=${service}>
-        ${portal(shadowRoot, html`<KitchenSinkPortalConsumer />`)}
+        ${portal(shadowRoot, Consumer())}
       </KitchenSinkServiceProvider>
     `);
 

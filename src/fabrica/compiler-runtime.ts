@@ -10,6 +10,7 @@ import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
 import { isSignal } from "./guards";
+import { bindSpecialAttribute, toDataAttributeName } from "./dom-special-attributes";
 import { collectCleanupNodes } from "./dom-cleanup";
 import type { FabricaRuntimeContext, HtmlArtifact, HtmlResult, RenderValue } from "./types";
 import {
@@ -206,6 +207,10 @@ export function applyCompiledProps(
       continue;
     }
 
+    // Special attributes own their own null/false/string semantics and must
+    // be bound before the generic attribute path drops falsey values.
+    if (bindSpecialAttribute(element, rawName, rawValue)) continue;
+
     const value = readValue(rawValue);
     if (value == null || value === false) continue;
 
@@ -350,7 +355,7 @@ function appendCompiledNode(
       parent,
       createCompiledElement(
         component,
-        readCompiledComponentProps(node.props, values),
+        readCompiledComponentProps(node.props, values, component),
         ...collectCompiledChildValues(node.children, values),
       ),
     );
@@ -379,6 +384,7 @@ function appendCompiledNode(
 function readCompiledComponentProps(
   props: readonly RuntimeProp[],
   values: readonly RenderValue[],
+  componentValue?: unknown,
 ): Record<string, unknown> {
   const output: Record<string, unknown> = {};
 
@@ -390,11 +396,14 @@ function readCompiledComponentProps(
 
     const name = normalizeCompiledComponentPropName(prop.name);
     const rawValue = prop.type === "value" ? values[prop.index] : undefined;
-    const value = prop.type === "value" && isSignal(rawValue)
+    const preservedProps = (componentValue as { preserveSignalProps?: ReadonlySet<string> } | null)?.preserveSignalProps;
+    const value = prop.type === "value" && isSignal(rawValue) && !preservedProps?.has(name)
       ? rawValue()
       : readCompiledPropValue(prop, values);
     if (name === "props") {
       mergeCompiledComponentSpreadProps(output, value);
+    } else if (name === ":data") {
+      mergeCompiledComponentDataProps(output, value);
     } else {
       output[name] = value;
     }
@@ -412,11 +421,25 @@ function mergeCompiledComponentSpreadProps(target: Record<string, unknown>, valu
   }
 }
 
+
+function mergeCompiledComponentDataProps(target: Record<string, unknown>, value: unknown): void {
+  const resolved = readValue(value);
+  if (!resolved || typeof resolved !== "object") return;
+  const source = resolved as Record<string, unknown>;
+  for (const key in source) {
+    const literal = key.startsWith(":");
+    const rawName = literal ? `"${key.slice(1)}"` : key;
+    const item = source[key];
+    target[toDataAttributeName(rawName)] = isSignal(item) ? item() : item;
+  }
+}
+
 function normalizeCompiledComponentPropName(name: string): string {
   if (name.startsWith("@")) return compiledEventAttributeToPropName(name.slice(1));
   if (name.startsWith(".")) return name.slice(1);
   if (name.startsWith("?")) return name.slice(1);
-  if (name.startsWith(":")) return name.slice(1);
+  if (name === ":data") return name;
+  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
   if (name === "classname") return "className";
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";
@@ -644,7 +667,7 @@ function collectCompiledChildValue(
     output.push(
       createCompiledElement(
         component,
-        readCompiledComponentProps(node.props, values),
+        readCompiledComponentProps(node.props, values, component),
         ...collectCompiledChildValues(node.children, values),
       ),
     );
