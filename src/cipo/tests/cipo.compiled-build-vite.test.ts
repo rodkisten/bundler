@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { compileCipoSourceBuild, cipoVite, getCssText, reset, setup } from '../src'
+import { compileCipoSourceBuild, cipoVite, configureFromCss, getCssText, reset, setup } from '../src'
 import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '../../fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
@@ -248,7 +248,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.changed).toBe(true)
     expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
     expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
-    expect(result.code).toContain('/*#__PURE__*/attachCompiledCss(styled.span')
+    expect(result.code).toMatch(/\/\*#__PURE__\*\/styled\.span\('RodDevtoolsBuildBadge'\)\(\"c[0-9a-z]+\"\)/)
     expect(result.css).toContain('right:.25rem')
     expect(result.css).not.toContain('\n')
   })
@@ -325,13 +325,23 @@ configureFromCss(appConfigCss);`,
     const payload = compileCssConfigPayload(configCss)
 
     expect(payload).not.toBeNull()
-    reset()
-    configureCompiledCssConfig(payload!)
 
-    const css = getCssText()
-    expect(css).toContain(':host{')
-    expect(css).toContain('--rd-colors-primary:var(--primary)')
-    expect(css).toContain('--rd-radius-panel:.625rem')
+    // Compare against the canonical runtime parser instead of assuming reset()
+    // restores global config defaults. reset() intentionally clears generated
+    // artifacts/caches while preserving the active runtime configuration.
+    reset()
+    const runtimeResult = configureFromCss(configCss)
+    const runtimeCss = getCssText()
+
+    reset()
+    const compiledResult = configureCompiledCssConfig(payload!)
+    const compiledCss = getCssText()
+
+    expect(compiledResult.config).toEqual(runtimeResult.config)
+    expect(compiledResult.theme).toEqual(runtimeResult.theme)
+    expect(compiledCss).toBe(runtimeCss)
+    expect(compiledCss).toContain(':host{')
+    expect(compiledCss).toContain('--rd-colors-primary:var(--primary)')
   })
 
 })
