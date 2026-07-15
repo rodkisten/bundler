@@ -1,11 +1,11 @@
 import type { Plugin } from 'vite'
-import { compileCipoSourceBuild, type CipoCompiledBuildResult } from './compiler-compiled-build.js'
-import { compileCipoSourceInline, type CipoCompiledInlineSourceResult } from './compiler-compiled-inline.js'
-import { compileFabricaSource, type FabricaCompileSourceResult } from '../fabrica/compiler.js'
-import { installBuiltInAliases } from './aliases.js'
-import { installBuiltInHelpers } from './helpers.js'
-import { installNativePropertyGuards } from './native-property-guards.js'
-import { compileCssConfigPayload } from './config-css.js'
+import { compileCipoSourceBuild, type CipoCompiledBuildResult } from '@rodkisten/cipo/compiler-compiled-build'
+import { compileCipoSourceInline, type CipoCompiledInlineSourceResult } from '@rodkisten/cipo/compiler-compiled-inline'
+import { compileFabricaSource, type FabricaCompileSourceResult } from '@rodkisten/fabrica/compiler'
+import { installBuiltInAliases } from '@rodkisten/cipo/aliases'
+import { installBuiltInHelpers } from '@rodkisten/cipo/helpers'
+import { installNativePropertyGuards } from '@rodkisten/cipo/native-property-guards'
+import { compileCssConfigPayload } from '@rodkisten/cipo/config-css'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
@@ -249,7 +249,7 @@ function safeCwd(): string {
 
 function compileRuntimeConfigCalls(
   source: string,
-  payload: import('./compiled-config.js').CipoCompiledCssConfig,
+  payload: import('@rodkisten/cipo/compiled-config').CipoCompiledCssConfig,
   compiledConfigImportPath: string,
 ): { readonly code: string; readonly changed: boolean } {
   // A build-level config sheet is the authoritative source for these calls. The
