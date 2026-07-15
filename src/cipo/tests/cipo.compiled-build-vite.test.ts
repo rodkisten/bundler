@@ -248,7 +248,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.changed).toBe(true)
     expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
     expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
-    expect(result.code).toContain('/*#__PURE__*/styled.span')
+    expect(result.code).toContain('/*#__PURE__*/attachCompiledCss(styled.span')
     expect(result.css).toContain('right:.25rem')
     expect(result.css).not.toContain('\n')
   })
