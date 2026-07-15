@@ -383,7 +383,7 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
                 consoleBody: true, 
                 roderudaScrollKey: "console"
              }}
-      ref=${(node) => {
+      ref=${(node: HTMLElement) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
       }}
@@ -407,10 +407,10 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
           `)}
         </RodConsoleLevels>
         <RodConsoleControlSpacer />
-        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${state.filterText} @input=${event.input((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
+        <RodConsoleFilter :consoleFilter type="search" placeholder="Filter logs…" aria-label="Filter console records" .value=${state.filterText} @input=${event.input<HTMLInputElement>((inputEvent) => view.filter(inputEvent.currentTarget.value))} />
         <RodConsoleIconButton type="button" title="Copy console" :action="copy" @click=${event.click((copyEvent) => { copyEvent.preventDefault(); view.copy(); })}>${icon("copy")}</RodConsoleIconButton>
       </RodConsoleControl>
-      <RodConsoleList :consoleList ref=${(node) => {
+      <RodConsoleList :consoleList ref=${(node: HTMLElement) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
       }}>
@@ -426,8 +426,8 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
         autocomplete="off"
         aria-label="JavaScript console"
         .value=${state.inputValue}
-        ref=${(node) => {
-          view.setInput(node as HTMLTextAreaElement);
+        ref=${(node: HTMLTextAreaElement) => {
+          view.setInput(node);
           return () => view.setInput(null);
         }}
         @input=${event.input((inputEvent) => view.handleInput(inputEvent))}

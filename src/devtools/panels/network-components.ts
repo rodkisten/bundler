@@ -326,20 +326,20 @@ component("RodNetworkView", function RodNetworkView(_props, ctx) {
           aria-label="Filter network requests"
           .value=${filter}
           @input=${event.input((input) => view.onFilterInput(input))}
-          ref=${(node) => {
-            view.setFilterInput(node as HTMLInputElement);
+          ref=${(node: HTMLInputElement) => {
+            view.setFilterInput(node);
             return () => view.setFilterInput(null);
           }}
         />
         <RodNetworkIconButton type="button" :action="copy" title="Copy as cURL" @click=${event.click((click) => view.onAction(click))}>${icon("copy")}</RodNetworkIconButton>
       </RodSharedControlBar>
 
-      <RodNetworkList :networkList ref=${(node) => {
+      <RodNetworkList :networkList ref=${(node: HTMLElement) => {
         view.setList(node as HTMLElement);
         return () => view.setList(null);
       }} />
 
-      <RodNetworkDetail :networkDetail :active="false" ref=${(node) => {
+      <RodNetworkDetail :networkDetail :active="false" ref=${(node: HTMLElement) => {
         view.setDetail(node as HTMLElement);
         return () => view.setDetail(null);
       }} />

@@ -59,12 +59,14 @@ import {
   runWithFabricaRuntime,
 } from "./runtime-context";
 import type {
+  Cleanup,
   ComponentPayload,
   ComponentPropPart,
   ComponentRenderRequest,
   Directive,
   ElementPayload,
   DirectiveController,
+  RefCallback,
   RenderValue,
   RepeatDirective,
   RepeatRecord,
@@ -1256,8 +1258,8 @@ function bindAttributePart(
     const refValue = isRefDirective(value) ? value.callback : value;
 
     if (typeof refValue === "function") {
-      const cleanup = refValue(node);
-      if (typeof cleanup === "function") registerCleanup(node, cleanup);
+      const cleanup = (refValue as RefCallback<Element>)(node);
+      if (typeof cleanup === "function") registerCleanup(node, cleanup as Cleanup);
       return;
     }
 

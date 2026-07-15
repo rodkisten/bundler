@@ -239,7 +239,7 @@ component("RodResourcesView", function RodResourcesView(_props, ctx) {
   return html`
     <RodSharedScrollableBody
       :resourcesBody
-      ref=${(node) => {
+      ref=${(node: HTMLElement) => {
         view.setBody(node as HTMLElement);
         return () => view.setBody(null);
       }}

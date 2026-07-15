@@ -59,7 +59,7 @@ export interface StoreOptions<State extends Record<string, unknown>> {
 }
 
 /** Recursively turns plain object leaves into signals while keeping nested objects reactive. */
-export type DeepStoreValue<Value> = Value extends Primitive
+export type DeepStoreValue<Value> = [Value] extends [Primitive]
   ? Signal<Value>
   : Value extends readonly (infer Item)[]
     ? Signal<Value> & { atSignal(index: number): DeepStoreValue<Item> | undefined }
@@ -111,7 +111,7 @@ export type DeepStore<State extends Record<string, unknown>> = (() => State) & {
 export type Store<State extends Record<string, unknown>> = DeepStore<State>;
 
 /** Deep partial helper for patch(). */
-export type DeepPartial<Value> = Value extends Primitive
+export type DeepPartial<Value> = [Value] extends [Primitive]
   ? Value
   : Value extends readonly unknown[]
     ? Value
@@ -132,7 +132,7 @@ export type StorePathSignal<Value = unknown> = Signal<Value> & {
 };
 
 /** Deep proxy whose leaves are computed signals backed by a store path. */
-export type StoreView<Value> = Value extends Primitive
+export type StoreView<Value> = [Value] extends [Primitive]
   ? StorePathSignal<Value>
   : Value extends readonly (infer Item)[]
     ? StorePathSignal<Value> & { readonly [index: number]: StoreView<Item> }

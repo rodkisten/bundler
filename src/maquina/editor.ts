@@ -16,15 +16,15 @@ interface EditorState {
 
 export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const theme = resolveMaquinaTheme(options.theme, options.dark);
-  const state = createDeepStore<EditorState>({
+  const state = createDeepStore({
     value: options.value,
-    language: options.language ?? "text",
-    theme: theme.name,
-    suggestions: [],
+    language: (options.language ?? "text") as MaquinaLanguage,
+    theme: theme.name as MaquinaThemeName,
+    suggestions: [] as MaquinaCompletionItem[],
     suggestionFrom: 0,
     activeSuggestion: 0,
-    open: false,
-  });
+    open: false as boolean,
+  } satisfies EditorState);
 
   let textarea: HTMLTextAreaElement | null = null;
   let highlight: HTMLElement | null = null;
@@ -54,8 +54,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   const root = options.parent.firstElementChild as HTMLElement | null;
   const mountedTextarea = options.parent.querySelector<HTMLTextAreaElement>("textarea");
-  if (!root || !mountedTextarea || !highlight || !suggestions) throw new Error("[Maquina] Editor failed to mount");
+  const mountedHighlight = highlight as HTMLElement | null;
+  const mountedSuggestions = suggestions as HTMLElement | null;
+  if (!root || !mountedTextarea || !mountedHighlight || !mountedSuggestions) {
+    throw new Error("[Maquina] Editor failed to mount");
+  }
   textarea = mountedTextarea;
+  highlight = mountedHighlight;
+  suggestions = mountedSuggestions;
 
   // Property bindings are intentionally mirrored here so standalone/editor
   // adapters always expose the initial value and cursor synchronously.
@@ -96,7 +102,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   };
 
   const closeSuggestions = (): void => {
-    state.patch({ open: false, suggestions: [], activeSuggestion: 0 }, { cause: "maquina:close-completions" });
+    state.patch({ open: false as boolean, suggestions: [] as MaquinaCompletionItem[], activeSuggestion: 0 }, { cause: "maquina:close-completions" });
     if (suggestions) suggestions.hidden = true;
   };
 

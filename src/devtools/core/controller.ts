@@ -367,7 +367,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         :tool=${name}
         aria-label=${tool.title ?? name}
         hidden
-        ref=${(node) => {
+        ref=${(node: HTMLElement) => {
           panel = node;
         }}
       />
@@ -392,7 +392,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         @dragstart=${event.dragstart((drag) => this.handleTabDragStart(drag, name, tab))}
         @dragover=${event.dragover((drag) => this.handleTabDragOver(drag))}
         @drop=${event.drop((drop) => this.handleTabDrop(drop, name))}
-        ref=${(node) => {
+        ref=${(node: HTMLButtonElement) => {
           tab = node;
         }}
       >
@@ -617,7 +617,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
           click.preventDefault();
           remove();
         })}
-        ref=${(node) => {
+        ref=${(node: HTMLElement) => {
           item = node;
         }}
       >
@@ -652,7 +652,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             submit.preventDefault();
             finish(input.value);
           })}
-          ref=${(node) => {
+          ref=${(node: HTMLFormElement) => {
             body = node;
           }}
         >
@@ -661,7 +661,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
             <RodDevtoolsModalInput
               .value=${initialValue}
               autocomplete="off"
-              ref=${(node) => {
+              ref=${(node: HTMLInputElement) => {
                 input = node;
               }}
             />
@@ -696,7 +696,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
       body = asElement<HTMLElement>(html`
         <RodDevtoolsModalBox
-          ref=${(node) => {
+          ref=${(node: HTMLFormElement) => {
             body = node;
           }}
         >
@@ -708,7 +708,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
               type="button"
               :primary="true"
               @click=${event.click(() => finish(true))}
-              ref=${(node) => {
+              ref=${(node: HTMLButtonElement) => {
                 accept = node;
               }}
             >

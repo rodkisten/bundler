@@ -485,7 +485,8 @@ export class Console extends Tool {
     flushSync();
     this.capture.record("command", [code]);
     try {
-      const result = await executeJavaScript(code, { $_: this.state.lastResult.peek(), $0: this.selectedRecord()?.args[0], devtools: this.context?.devtools, globals: this.capture.getGlobals() });
+      const selectedValue = this.selectedRecord()?.args[0];
+      const result = await executeJavaScript(code, { $_: this.state.lastResult.peek(), $0: selectedValue instanceof Element ? selectedValue : null, devtools: this.context?.devtools, globals: this.capture.getGlobals() });
       this.state.lastResult.set(result);
       this.capture.record("result", [result]);
     } catch (error) {

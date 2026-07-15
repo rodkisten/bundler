@@ -277,7 +277,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
       :inline=${inline}
       :roderudaRoot
       :roderudaShellRef="root"
-      ref=${(node) => {
+      ref=${(node: HTMLElement) => {
         refs.root = node;
         uiState.setPath("shell.mounted", true);
         return () => uiState.setPath("shell.mounted", false);
@@ -288,7 +288,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         aria-label="Open developer tools"
         title="RodEruda"
         :roderudaShellRef="entryButton"
-        ref=${(node) => {
+        ref=${(node: HTMLButtonElement) => {
           refs.entryButton = node;
         }}
       >
@@ -300,7 +300,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         aria-label="Developer tools"
         aria-hidden="true"
         :roderudaShellRef="devtools"
-        ref=${(node) => {
+        ref=${(node: HTMLElement) => {
           refs.devtools = node;
         }}
       >
@@ -309,7 +309,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
           aria-orientation="horizontal"
           aria-label="Resize developer tools"
           :roderudaShellRef="resizer"
-          ref=${(node) => {
+          ref=${(node: HTMLElement) => {
             refs.resizer = node;
           }}
         />
@@ -317,7 +317,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         <RodDevtoolsTabbar
           aria-label="Developer tools panels"
           :roderudaShellRef="tabbar"
-          ref=${(node) => {
+          ref=${(node: HTMLElement) => {
             refs.tabbar = node;
           }}
         >
@@ -327,7 +327,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
 
         <RodDevtoolsTools
           :roderudaShellRef="tools"
-          ref=${(node) => {
+          ref=${(node: HTMLElement) => {
             refs.tools = node;
           }}
         />
@@ -335,7 +335,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         <RodDevtoolsNotifications
           aria-live="polite"
           :roderudaShellRef="notifications"
-          ref=${(node) => {
+          ref=${(node: HTMLElement) => {
             refs.notifications = node;
           }}
         />
@@ -343,7 +343,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         <RodDevtoolsModalRoot
           role="presentation"
           :roderudaShellRef="modalRoot"
-          ref=${(node) => {
+          ref=${(node: HTMLElement) => {
             refs.modalRoot = node;
           }}
         />

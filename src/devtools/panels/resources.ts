@@ -501,7 +501,7 @@ export class Resources extends Tool {
             })}>⌘</ResourcesIconButton>
           </RodResourcesSectionActions>
         </RodResourcesJsonHeader>
-        <RodResourcesJsonEditorHost ref=${(node) => { host = node; }} />
+        <RodResourcesJsonEditorHost ref=${(node: HTMLElement) => { host = node; }} />
         <RodResourcesJsonActions>
           <ResourcesIconButton type="button" @click=${event.click(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
           <ResourcesIconButton type="button" @click=${event.click(() => {

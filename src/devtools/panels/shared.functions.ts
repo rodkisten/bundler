@@ -1,10 +1,10 @@
-import { asNode, event, html,  styled } from "../core/runtime";
+import { asElement, event, html, styled } from "../core/runtime";
 import { PanelShellOptions, PanelShellRefs, PanelAction } from "./panel-ui";
 
 export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
   const bodyRef = { current: null as HTMLElement | null };
 
-  const root = html`
+  const root = asElement<HTMLElement>(html`
     <RodPanelShell class=${options.className ?? ""}>
       ${options.title != null ? panelHeaderTemplate(options) : ""}
       <RodPanelBody
@@ -18,7 +18,7 @@ export function renderPanelShell(target: HTMLElement, options: PanelShellOptions
         }}
       />
     </RodPanelShell>
-  ` as HTMLElement;
+  `);
 
   const body = bodyRef.current ?? root.querySelector<HTMLElement>("[data-scroll]");
   if (!body) throw new Error("Panel shell body was not rendered.");
