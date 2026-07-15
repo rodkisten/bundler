@@ -1,4 +1,5 @@
 ## Unreleased
+- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
 
 
 ## Unreleased - DevTools bundle compaction
