@@ -1,8 +1,8 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { RenderValue } from "../../fabrica";
+import type { RenderValue } from "../../fabrica/runtime";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 
 export type InfoModel = {
   items: Array<{ name: string; value: unknown }>;

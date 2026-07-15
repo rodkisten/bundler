@@ -1361,3 +1361,7 @@ compileFabricaSource(source, {
 ```
 
 A dynamic element that previously emitted verbose object keys is now represented approximately as `[0, Component, props, children]`, with text/value nodes using numeric opcodes. Static single-root templates continue to compile directly to `createCompiledElement(...)`.
+
+### Compiled CSS runtime boundary
+
+When Fábrica templates and Cipó styled components are compiled together, CSS-first theme/configuration parsing can stay entirely on the build side. The browser runtime only needs compiled templates, retained component styles, and any resolved custom-property bridge required by those styles.

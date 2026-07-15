@@ -5,6 +5,7 @@ import { compileFabricaSource, type FabricaCompileSourceResult } from '../../../
 import { installBuiltInAliases } from '../aliases'
 import { installBuiltInHelpers } from '../helpers'
 import { installNativePropertyGuards } from '../native-property-guards'
+import { compileCssConfigPayload } from '../config-css'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
@@ -57,6 +58,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
   const mode = options.mode ?? 'build'
   const cssChunks: string[] = []
   const manifests: unknown[] = []
+  const compiledConfigPayload = options.configCss ? compileCssConfigPayload(options.configCss) : null
 
   return {
     name: mode === 'build' ? 'cipo:compiled-build' : 'cipo:compiled-inline',
@@ -95,7 +97,15 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         return { code: result.code, map: null, meta: { cipo: result } } satisfies CipoViteTransformResult
       }
 
-      const cipo = compileCipoSourceBuild(code, {
+      const runtimeConfig = compiledConfigPayload
+        ? compileRuntimeConfigCalls(
+            code,
+            compiledConfigPayload,
+            createImportPath(filename, joinPath(root, 'src/cipo/src/compiled-config.ts')),
+          )
+        : { code, changed: false }
+
+      const cipo = compileCipoSourceBuild(runtimeConfig.code, {
         filename,
         classPrefix: options.classPrefix,
         classNameMode: options.classNameMode,
@@ -132,7 +142,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       if (cipo.changed) manifests.push(...cipo.manifest)
       if (fabrica?.changed) manifests.push(...fabrica.manifest)
 
-      if (!cipo.changed && !fabrica?.changed) return null
+      if (!runtimeConfig.changed && !cipo.changed && !fabrica?.changed) return null
       return { code: nextCode, map: null, meta: { cipo, ...(fabrica ? { fabrica } : {}) } } satisfies CipoViteTransformResult
     },
 
@@ -234,4 +244,22 @@ function normalizePath(value: string): string {
 
 function safeCwd(): string {
   try { return (globalThis as unknown as { process?: { cwd?: () => string } }).process?.cwd?.() ?? '.' } catch { return '.' }
+}
+
+
+function compileRuntimeConfigCalls(
+  source: string,
+  payload: import('../compiled-config').CipoCompiledCssConfig,
+  compiledConfigImportPath: string,
+): { readonly code: string; readonly changed: boolean } {
+  // A build-level config sheet is the authoritative source for these calls. The
+  // identifier argument intentionally stays generic so consumers can name their
+  // imported config constant freely without duplicating the CSS string in options.
+  const callPattern = /\bconfigureFromCss\s*\(\s*[A-Za-z_$][\w$]*\s*\)/g
+  if (!callPattern.test(source)) return { code: source, changed: false }
+
+  const helper = '__cipoConfigureCompiledCss'
+  const replaced = source.replace(callPattern, `${helper}(${JSON.stringify(payload)})`)
+  const code = `import { configureCompiledCssConfig as ${helper} } from ${JSON.stringify(compiledConfigImportPath)};\n${replaced}`
+  return { code, changed: true }
 }

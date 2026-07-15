@@ -1,7 +1,7 @@
 import type { CipoCssArtifact } from "../../cipo";
 import { component, html,  styled } from "../core/runtime";
 import "./shared-components";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 
 export interface SettingsViewModel {
   setBody(node: HTMLElement | null): void;

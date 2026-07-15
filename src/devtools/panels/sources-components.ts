@@ -2,7 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import { component, event, html,  styled } from "../core/runtime";
 import { icon } from "../utils";
 import "./shared-components";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 
 export interface SourcesViewModel {
   readonly title: string;

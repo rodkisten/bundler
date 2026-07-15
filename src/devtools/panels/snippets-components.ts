@@ -2,7 +2,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { SnippetItem } from "../types";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 
 export type SnippetsModel = {
   snippets: SnippetItem[];

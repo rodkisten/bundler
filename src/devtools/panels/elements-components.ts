@@ -1,12 +1,12 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { RenderValue } from "../../fabrica";
+import type { RenderValue } from "../../fabrica/runtime";
 import { describeNode, icon, nodePath, truncate } from "../utils";
 import { plainText } from "../core/serialize";
 import { bootstrapDevtoolsCipo } from "../core/cipo-bootstrap";
 import { component, event, html,  styled } from "../core/runtime";
 import "./shared-components";
 import { styleRuleModels, listenerModels, propertyModels, crumbLabel, listenerText, number } from "./elements.functions";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "./elements.functions";
 
 

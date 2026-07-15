@@ -791,7 +791,10 @@ describe("Elements panel", () => {
       })
       .join("\n");
 
-    expect(cssText).toMatch(/\.rd-(?:s-|position-|display-|width-)/);
+    // Class-name strategy is intentionally an implementation detail: native
+    // tests use readable runtime classes while production Vite builds use
+    // compact hashes. Assert that real compiled rules exist instead.
+    expect(cssText).toMatch(/\.[A-Za-z_-][\w-]*\s*\{/);
     expect(cssText).not.toContain("$background");
     expect(cssText).not.toContain("$border");
     expect(cssText).not.toContain("$primary");

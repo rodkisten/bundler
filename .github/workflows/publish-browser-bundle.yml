@@ -142,9 +142,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: 🧭 Resolve files, projects and policy
         id: resolve
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -159,190 +163,22 @@ jobs:
           WORKFLOW_FILE: publish-browser-bundle.yml
           CURRENT_RUN_ID: ${{ github.run_id }}
           DEFAULT_BRANCH: main
-        run: |
-          set -euo pipefail
-
-          empty_sha="0000000000000000000000000000000000000000"
-          requested_project="${REQUESTED_PROJECT:-auto}"
-          requested_channel="${REQUESTED_CHANNEL:-canary}"
-          test_mode="${TEST_MODE:-auto}"
-          full_reason=""
-          seconds_since_previous_run="0"
-
-          case "$EVENT_NAME" in
-            pull_request)
-              changed_files="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
-              ;;
-            push)
-              if [[ -z "${BEFORE_SHA:-}" || "$BEFORE_SHA" == "$empty_sha" ]] \
-                || ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
-                changed_files="$(git diff-tree --root --no-commit-id --name-only -r "$HEAD_SHA")"
-              else
-                changed_files="$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")"
-              fi
-              ;;
-            *)
-              changed_files="manual:${requested_project}"
-              ;;
-          esac
-
-          changed_file_count="$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')"
-          tests_changed=false
-          if printf '%s\n' "$changed_files" | grep -Eq '(^|/)(tests?|__tests__)/|\.(test|spec)\.[cm]?[jt]sx?$|^vitest\.config\.|^scripts/.*benchmark'; then
-            tests_changed=true
-          fi
-
-          declare -A affected=()
-          shared_change=false
-
-          while IFS= read -r file; do
-            [[ -z "$file" || "$file" == manual:* ]] && continue
-
-            case "$file" in
-              src/devtools/*|src/devtools.ts) affected[devtools]=1 ;;
-              src/fabrica/*|src/fabrica.ts) affected[fabrica]=1 ;;
-              src/cipo/*|src/cipo.ts) affected[cipo]=1 ;;
-              src/broto/*|src/broto.ts) affected[broto]=1 ;;
-              src/fabrica-elements/*|src/fabrica-elements.ts) affected[fabrica-elements]=1 ;;
-              src/seiva-state/*|src/seiva-state.ts) affected[seiva-state]=1 ;;
-              src/bundle.ts|src/index.ts) affected[bundle]=1 ;;
-              package.json|pnpm-lock.yaml|package-lock.json|tsconfig*.json|vite.config.*|scripts/*|.github/workflows/*)
-                shared_change=true
-                ;;
-            esac
-          done <<< "$changed_files"
-
-          all_projects=(broto cipo fabrica fabrica-elements seiva-state bundle devtools)
-
-          if [[ "$shared_change" == true ]]; then
-            for project in "${all_projects[@]}"; do affected["$project"]=1; done
-          fi
-
-          affected_projects="$({ printf '%s\n' "${!affected[@]}" || true; } | sort | paste -sd, -)"
-          affected_count="${#affected[@]}"
-
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            previous_created_at="$({
-              gh api \
-                -H 'Accept: application/vnd.github+json' \
-                "/repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/runs?branch=${DEFAULT_BRANCH}&event=push&per_page=20" \
-                --jq ".workflow_runs | map(select(.id != ${CURRENT_RUN_ID})) | sort_by(.created_at) | reverse | .[0].created_at // empty"
-            } 2>/dev/null || true)"
-
-            if [[ -n "$previous_created_at" ]]; then
-              previous_epoch="$(date -u -d "$previous_created_at" +%s)"
-              now_epoch="$(date -u +%s)"
-              seconds_since_previous_run="$((now_epoch - previous_epoch))"
-            else
-              seconds_since_previous_run="999999"
-            fi
-          fi
-
-          if [[ "$requested_project" != "auto" ]]; then
-            if [[ "$requested_project" == "all" ]]; then
-              build_scope=all
-              affected_projects="$(IFS=,; echo "${all_projects[*]}")"
-              affected_count="${#all_projects[@]}"
-              full_reason="manual all"
-            else
-              build_scope="$requested_project"
-              affected_projects="$requested_project"
-              affected_count=1
-            fi
-          elif [[ "$EVENT_NAME" == "push" ]] \
-            && { (( changed_file_count > 1 )) || (( seconds_since_previous_run >= MAIN_FULL_INTERVAL_SECONDS )); }; then
-            build_scope=all
-            affected_projects="$(IFS=,; echo "${all_projects[*]}")"
-            affected_count="${#all_projects[@]}"
-            if (( changed_file_count > 1 )); then
-              full_reason="main push changed more than one file"
-            else
-              full_reason="main push is at least five minutes after the previous run"
-            fi
-          elif [[ "$EVENT_NAME" == "pull_request" && "$affected_count" -gt 1 ]]; then
-            build_scope=all
-            affected_projects="$(IFS=,; echo "${all_projects[*]}")"
-            affected_count="${#all_projects[@]}"
-            full_reason="pull request affects more than one project"
-          elif [[ "$affected_count" -eq 1 ]]; then
-            build_scope="${affected_projects}"
-          elif [[ "$affected_count" -gt 1 ]]; then
-            build_scope=all
-            affected_projects="$(IFS=,; echo "${all_projects[*]}")"
-            affected_count="${#all_projects[@]}"
-            full_reason="more than one project affected"
-          else
-            build_scope=none
-          fi
-
-          case "$EVENT_NAME" in
-            pull_request) release_channel=canary ;;
-            push) release_channel=production ;;
-            *) release_channel="$requested_channel" ;;
-          esac
-
-          case "$test_mode" in
-            always) should_test=true ;;
-            never) should_test=false ;;
-            auto)
-              if [[ "$build_scope" == "all" || "$tests_changed" == true || "$affected_count" -gt 1 ]]; then
-                should_test=true
-              else
-                should_test=false
-              fi
-              ;;
-            *)
-              echo "::error::Unknown test mode: $test_mode"
-              exit 1
-              ;;
-          esac
-
-          should_deploy=false
-          if [[ "$EVENT_NAME" != "pull_request" && "$REQUESTED_DEPLOY" == "true" && "$build_scope" != "none" ]]; then
-            should_deploy=true
-          fi
-
-          {
-            echo "build_scope=$build_scope"
-            echo "affected_projects=$affected_projects"
-            echo "affected_count=$affected_count"
-            echo "changed_file_count=$changed_file_count"
-            echo "tests_changed=$tests_changed"
-            echo "should_test=$should_test"
-            echo "release_channel=$release_channel"
-            echo "should_deploy=$should_deploy"
-            echo "full_reason=$full_reason"
-            echo "seconds_since_previous_run=$seconds_since_previous_run"
-            echo "changed_files<<EOF"
-            printf '%s\n' "$changed_files"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+        run: node scripts/workflows/publish-browser-bundle.mjs resolve-scope
 
       - name: 📝 Write scope summary
-        shell: bash
-        run: |
-          {
-            echo "## 🧭 Build policy"
-            echo
-            echo "| Field | Value |"
-            echo "| --- | --- |"
-            echo '| Scope | `${{ steps.resolve.outputs.build_scope }}` |'
-            echo '| Affected projects | `${{ steps.resolve.outputs.affected_projects }}` |'
-            echo '| Affected count | `${{ steps.resolve.outputs.affected_count }}` |'
-            echo '| Changed files | `${{ steps.resolve.outputs.changed_file_count }}` |'
-            echo '| Tests changed | `${{ steps.resolve.outputs.tests_changed }}` |'
-            echo '| Run tests | `${{ steps.resolve.outputs.should_test }}` |'
-            echo '| Release channel | `${{ steps.resolve.outputs.release_channel }}` |'
-            echo '| Deploy Pages | `${{ steps.resolve.outputs.should_deploy }}` |'
-            echo '| Seconds since previous main run | `${{ steps.resolve.outputs.seconds_since_previous_run }}` |'
-            echo '| Full-build reason | `${{ steps.resolve.outputs.full_reason }}` |'
-            echo
-            echo "### Changed files"
-            echo
-            echo '```text'
-            printf '%s\n' '${{ steps.resolve.outputs.changed_files }}'
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          BUILD_SCOPE: ${{ steps.resolve.outputs.build_scope }}
+          AFFECTED_PROJECTS: ${{ steps.resolve.outputs.affected_projects }}
+          AFFECTED_COUNT: ${{ steps.resolve.outputs.affected_count }}
+          CHANGED_FILE_COUNT: ${{ steps.resolve.outputs.changed_file_count }}
+          TESTS_CHANGED: ${{ steps.resolve.outputs.tests_changed }}
+          SHOULD_TEST: ${{ steps.resolve.outputs.should_test }}
+          RELEASE_CHANNEL: ${{ steps.resolve.outputs.release_channel }}
+          SHOULD_DEPLOY: ${{ steps.resolve.outputs.should_deploy }}
+          SECONDS_SINCE_PREVIOUS_RUN: ${{ steps.resolve.outputs.seconds_since_previous_run }}
+          FULL_REASON: ${{ steps.resolve.outputs.full_reason }}
+          CHANGED_FILES: ${{ steps.resolve.outputs.changed_files }}
+        run: node scripts/workflows/publish-browser-bundle.mjs write-scope-summary
 
   build:
     name: 👷 Build ${{ needs.scope.outputs.build_scope }}
@@ -385,129 +221,23 @@ jobs:
 
       - name: 🧪 Run tests
         if: ${{ needs.scope.outputs.should_test == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "$BUILD_SCOPE" == "all" ]]; then
-            pnpm test
-          else
-            pnpm test -- "src/${BUILD_SCOPE}"
-          fi
+        run: node scripts/workflows/publish-browser-bundle.mjs run-tests
 
       - name: ⚡ Run optional benchmarks
         if: ${{ inputs.should_benchmark == true }}
         continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          case "$BUILD_SCOPE" in
-            devtools)
-              if pnpm run | grep -q 'bench:devtools'; then pnpm bench:devtools; else pnpm bench:ci; fi
-              ;;
-            cipo) pnpm bench:cipo ;;
-            fabrica) pnpm bench:fabrica ;;
-            *) pnpm bench:ci ;;
-          esac
+        run: node scripts/workflows/publish-browser-bundle.mjs run-benchmarks
 
       - name: 🏗️ Build selected project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ "$BUILD_SCOPE" == "all" ]]; then
-            pnpm build && pnpm build:devtools
-          elif [[ "$BUILD_SCOPE" == "devtools" ]]; then
-            pnpm build:devtools
-          else
-            BUILD_ENTRIES="$BUILD_SCOPE" pnpm build
-          fi
+        run: node scripts/workflows/publish-browser-bundle.mjs build
 
       - name: 🐤 Create canary aliases
         if: ${{ env.RELEASE_CHANNEL == 'canary' || env.RELEASE_CHANNEL == 'both' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          source_dir="$FULL_DIST_DIR"
-          if [[ "$BUILD_SCOPE" == "devtools" ]]; then
-            source_dir="$DEVTOOLS_DIST_DIR"
-          fi
-
-          created=0
-          while IFS= read -r source_file; do
-            filename="$(basename "$source_file")"
-            [[ "$filename" == *.canary.iife.min.js ]] && continue
-
-            canary_name="${filename/.iife.min.js/.canary.iife.min.js}"
-            cp "$source_file" "$(dirname "$source_file")/$canary_name"
-            created=$((created + 1))
-          done < <(find "$source_dir" -type f -name '*.iife.min.js' | sort)
-
-          if (( created == 0 )); then
-            echo "::error::No minified IIFE bundle was available for canary aliases in $source_dir"
-            find "$source_dir" -type f | sort || true
-            exit 0 # era 1
-          fi
+        run: node scripts/workflows/publish-browser-bundle.mjs create-canary
 
       - name: 📁 Collect changed publication files
         id: delta
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          delta_dir="$RUNNER_TEMP/publication-delta"
-          rm -rf "$delta_dir"
-          mkdir -p "$delta_dir"
-
-          source_dir="$FULL_DIST_DIR"
-          if [[ "$BUILD_SCOPE" == "devtools" ]]; then
-            source_dir="$DEVTOOLS_DIST_DIR"
-          fi
-
-          copy_file() {
-            local source_file="$1"
-            local relative="${source_file#${source_dir}/}"
-            mkdir -p "$delta_dir/$(dirname "$relative")"
-            cp "$source_file" "$delta_dir/$relative"
-          }
-
-          while IFS= read -r source_file; do
-            filename="$(basename "$source_file")"
-
-            case "$RELEASE_CHANNEL" in
-              canary)
-                [[ "$filename" == *.canary.iife.min.js ]] || continue
-                ;;
-              production)
-                [[ "$filename" == *.canary.iife.min.js ]] && continue
-                ;;
-              both)
-                ;;
-              *)
-                echo "::error::Unknown release channel: $RELEASE_CHANNEL"
-                exit 1
-                ;;
-            esac
-
-            copy_file "$source_file"
-          done < <(find "$source_dir" -type f | sort)
-
-          if ! find "$delta_dir" -type f -print -quit | grep -q .; then
-            echo "::error::No files were selected for publication"
-            exit 1
-          fi
-
-          echo "path=$delta_dir" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "## 📦 Publication delta"
-            echo
-            echo '```text'
-            find "$delta_dir" -type f | sed "s#^$delta_dir/##" | sort
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: node scripts/workflows/publish-browser-bundle.mjs collect-publication
 
       - name: 📤 Upload affected build files
         uses: actions/upload-artifact@v7
@@ -519,64 +249,17 @@ jobs:
 
       - name: ♻️ Restore previous Pages state
         if: ${{ needs.scope.outputs.should_deploy == 'true' && inputs.force_clean_deploy != true }}
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          state_dir="$RUNNER_TEMP/pages-state"
-          rm -rf "$state_dir"
-          mkdir -p "$state_dir"
-
-          artifact_id="$({
-            gh api \
-              -H 'Accept: application/vnd.github+json' \
-              "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${PAGES_STATE_ARTIFACT}&per_page=100" \
-              --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[0].id // empty'
-          } 2>/dev/null || true)"
-
-          if [[ -z "$artifact_id" ]]; then
-            echo "No previous Pages state found. Starting with an empty publication tree."
-            exit 0
-          fi
-
-          gh api \
-            -H 'Accept: application/vnd.github+json' \
-            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" \
-            > "$RUNNER_TEMP/pages-state.zip"
-
-          unzip -q "$RUNNER_TEMP/pages-state.zip" -d "$state_dir"
+        run: node scripts/workflows/publish-browser-bundle.mjs restore-pages-state
 
       - name: 🧬 Merge publication without deleting previous files
+        env:
+          FORCE_CLEAN_DEPLOY: ${{ inputs.force_clean_deploy }}
+          DELTA_PATH: ${{ steps.delta.outputs.path }}
         if: ${{ needs.scope.outputs.should_deploy == 'true' }}
         id: publication
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          publication_dir="$RUNNER_TEMP/pages-publication"
-          state_dir="$RUNNER_TEMP/pages-state"
-          rm -rf "$publication_dir"
-          mkdir -p "$publication_dir"
-
-          if [[ '${{ inputs.force_clean_deploy }}' != 'true' && -d "$state_dir" ]]; then
-            cp -R "$state_dir"/. "$publication_dir"/ 2>/dev/null || true
-          fi
-
-          cp -R '${{ steps.delta.outputs.path }}'/. "$publication_dir"/
-
-          echo "path=$publication_dir" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "## 🌐 Complete Pages state"
-            echo
-            echo '| Clean deploy | `${{ inputs.force_clean_deploy }}` |'
-            echo
-            echo '```text'
-            find "$publication_dir" -type f | sed "s#^$publication_dir/##" | sort
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: node scripts/workflows/publish-browser-bundle.mjs merge-publication
 
       - name: 💾 Persist merged Pages state
         if: ${{ needs.scope.outputs.should_deploy == 'true' }}
@@ -614,19 +297,8 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: 🔔 Notify Pushcut
-        if: ${{ success() }}
-        env:
-          WORKFLOW_ID: ${{ github.workflow_ref }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          curl \
-            --fail \
-            --show-error \
-            --silent \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "{\"input\":\"$WORKFLOW_ID\",\"text\":\"Open browser bundle pipeline\",\"title\":\"Build finished\"}" \
-            'https://api.pushcut.io/l-nh53UuliQPN7-1JMPbg/notifications/Bundler%20Build%20Published'
+      #- name: 🔔 Notify Pushcut
+      #  if: ${{ success() }}
+      #  env:
+      #    WORKFLOW_ID: ${{ github.workflow_ref }}
+      #  run: node scripts/workflows/publish-browser-bundle.mjs notify-pushcut

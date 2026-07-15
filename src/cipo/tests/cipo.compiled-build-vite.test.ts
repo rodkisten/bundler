@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { compileCipoSourceBuild, cipoVite, setup } from '../src'
+import { compileCipoSourceBuild, cipoVite, configureFromCss, getCssText, reset, setup } from '../src'
 import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '../../fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
@@ -246,11 +246,15 @@ describe('Cipó + Fábrica compiled build mode', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
-    expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
-    expect(result.code).toContain('/*#__PURE__*/styled.span')
-    expect(result.css).toContain('right:.25rem')
-    expect(result.css).not.toContain('\n')
+    const className = result.manifest[0]?.className
+    expect(className).toMatch(/^c[0-9a-z]+$/)
+    expect(className).not.toContain('RodDevtoolsBuildBadge')
+    expect(result.code).toContain(JSON.stringify(className))
+    expect(result.code).not.toContain('.css`')
+    expect(result.css).toContain(`.${className}{`)
+    expect(result.css).toContain('position:sticky')
+    expect(result.css).toMatch(/right:0?\.25rem/)
+    expect(result.css).not.toMatch(/\s/)
   })
 
   it('couples styled CSS to the component expression for per-component tree shaking', () => {
@@ -290,6 +294,58 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).toContain('var(--a)')
     expect(result.css).toContain('var(--rd-colors-primary)')
     expect(result.css).not.toContain('--_cipo-private-gap')
+  })
+
+
+  it('lowers runtime configureFromCss calls to parser-free compiled payloads in production', () => {
+    const configCss = `
+      @cipo { prefix: rd; theme-root: :host; minify: true; }
+      @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
+      @breakpoints { md: 680px; }
+    `
+    const plugin = cipoVite({ root: '/project', mode: 'build', configCss })
+    const context = { emitFile: () => 'asset' } as never
+    const transformed = plugin.transform?.call(
+      context,
+      `import { configureFromCss } from '../cipo/src/config-css';
+import { appConfigCss } from './config';
+configureFromCss(appConfigCss);`,
+      '/project/src/devtools/bootstrap.ts',
+    )
+
+    const code = transformed && 'code' in transformed ? transformed.code : ''
+    expect(code).toContain('configureCompiledCssConfig as __cipoConfigureCompiledCss')
+    expect(code).toContain('__cipoConfigureCompiledCss({"operations":')
+    expect(code).not.toContain('var(--rd-colors-primary)')
+    expect(code).not.toContain('@theme')
+  })
+
+  it('keeps runtime theme application semantics after build-time config lowering', async () => {
+    const configCss = `
+      @cipo { prefix: rd; theme-root: :host; minify: true; }
+      @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
+    `
+    const { compileCssConfigPayload, configureCompiledCssConfig } = await import('../src')
+    const payload = compileCssConfigPayload(configCss)
+
+    expect(payload).not.toBeNull()
+
+    // Compare against the canonical runtime parser instead of assuming reset()
+    // restores global config defaults. reset() intentionally clears generated
+    // artifacts/caches while preserving the active runtime configuration.
+    reset()
+    const runtimeResult = configureFromCss(configCss)
+    const runtimeCss = getCssText()
+
+    reset()
+    const compiledResult = configureCompiledCssConfig(payload!)
+    const compiledCss = getCssText()
+
+    expect(compiledResult.config).toEqual(runtimeResult.config)
+    expect(compiledResult.theme).toEqual(runtimeResult.theme)
+    expect(compiledCss).toBe(runtimeCss)
+    expect(compiledCss).toContain(':host{')
+    expect(compiledCss).toContain('--rd-colors-primary:var(--primary)')
   })
 
 })

@@ -1,12 +1,12 @@
 import type { CipoCssArtifact } from "../../cipo";
-import type { RenderValue } from "../../fabrica";
+import type { RenderValue } from "../../fabrica/runtime";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "../utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "../core/serialize";
 import { component, event, html,  styled } from "../core/runtime";
 import type { NetworkHeader, NetworkRecord } from "../types";
 import "./shared-components";
 import { networkListTemplate, networkRowTemplate, networkDetailTemplate, detailTabTemplate, sectionTableTemplate, headerTableTemplate, sectionPreTemplate, messagesTableTemplate, prettyBody, safeUrl } from "./network.functions";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 export { networkListTemplate, networkRowTemplate, networkDetailTemplate } from "./network.functions";
 
 

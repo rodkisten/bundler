@@ -3,7 +3,7 @@ import type { CipoCssArtifact } from "../../cipo";
 import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord } from "../types";
 import { component, event, html,  styled } from "../core/runtime";
 import { icon } from "../utils";
-import { createRequiredFabricaContext } from "../../fabrica";
+import { createRequiredFabricaContext } from "../../fabrica/runtime";
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];

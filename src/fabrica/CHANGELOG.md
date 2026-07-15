@@ -1,7 +1,11 @@
 # Fábrica Changelog
 
 
-## Unreleased - Production compiler compaction
+## Unreleased
+- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
+
+- DevTools compiled builds now keep Cipó configuration parsing out of the browser runtime while preserving Fábrica compiled-template mounting.
+ - Production compiler compaction
 
 ### Performance
 

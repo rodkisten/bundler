@@ -1,23 +1,21 @@
-import { configureFromCss } from "../../cipo";
+import { configureFromCss } from "../../cipo/src/config-css";
 import { setRuntimeStyleTarget } from "../../cipo/src/injection";
 import { devtoolsCipoConfigCss } from "../cipo-config";
 
-let bootstrapped = false;
-
 /**
- * Applies the Devtools Cipó theme/config before any `styled` / `css` / `sheet`
- * evaluation. Styled components compile tokens at definition time, so this must
- * run before `createStyled()` factories and before any panel/shell modules.
+ * Installs the DevTools Cipó configuration in the active runtime.
  *
- * The runtime style sink stays disabled (`null`) until `installDevtoolsStyles`
- * retargets it into the shadow root (or light-DOM host). That keeps compiled
- * CSS out of `document.head` while modules load, then moves the accumulated
- * runtime CSS into the isolated mount target.
+ * @remarks
+ * The readable CSS-first sheet remains the single source of truth. Development
+ * and direct runtime usage parse it with `configureFromCss()`. During production
+ * builds the Cipó Vite plugin rewrites this call to `configureCompiledCssConfig()`
+ * with a compact payload generated from the exact same sheet, preserving runtime
+ * theme/config behavior without shipping the raw DSL or parser graph.
+ *
+ * The style sink stays disabled until `installDevtoolsStyles()` retargets Cipó's
+ * buffered CSS into the DevTools shadow root.
  */
 export function bootstrapDevtoolsCipo(): void {
-  if (bootstrapped) return;
-  bootstrapped = true;
-
   setRuntimeStyleTarget(null);
   configureFromCss(devtoolsCipoConfigCss);
 }

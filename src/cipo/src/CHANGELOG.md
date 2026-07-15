@@ -1,6 +1,8 @@
 
 
 
+- Added `compileCssConfigPayload()` and `configureCompiledCssConfig()` for parser-free production configuration with runtime-equivalent theme/config application.
+
 ## Unreleased - Compact production CSS output
 
 ### Performance

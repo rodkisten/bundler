@@ -1,7 +1,13 @@
 
 
 
-## Unreleased - Compact production CSS output
+- Added compiled runtime configuration payloads: Vite build mode can lower eligible `configureFromCss(config)` calls to `configureCompiledCssConfig()` without shipping raw `@theme` DSL or the parser graph. Runtime presets/plugins safely stay on the parser path.
+
+## Unreleased
+- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
+
+- Documented and validated the build/runtime split for compiled consumers: CSS-first configuration can remain build-only while production runtimes inject only the resolved token bridge they actually need.
+ - Compact production CSS output
 
 ### Performance
 
