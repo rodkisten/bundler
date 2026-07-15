@@ -42,6 +42,17 @@ export type HtmlTag = HtmlTemplateTag & {
   isResult(value: unknown): value is HtmlResult;
 };
 
+
+/** Bivariant event callback accepted by `@event` template attribute interpolations. */
+export type TemplateEventHandler = {
+  bivarianceHack(event: Event): unknown;
+}["bivarianceHack"];
+
+/** Bivariant element ref callback accepted by `ref=` template attribute interpolations. */
+export type TemplateRefHandler = {
+  bivarianceHack(node: Element): void | Cleanup;
+}["bivarianceHack"];
+
 /** Values accepted by the DOM renderer use Broto reactive primitives when needed. */
 /** Values accepted by the DOM renderer. */
 export type RenderValue =
@@ -64,7 +75,9 @@ export type RenderValue =
   | ComponentPayload
   | Component
   | ComponentRenderRequest
-  | PropsBag;
+  | PropsBag
+  | TemplateEventHandler
+  | TemplateRefHandler;
 
 /** Plain object accepted by standalone template spreads and component `props=${...}` bags. */
 export type PropsBag = Record<string, unknown>;
