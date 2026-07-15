@@ -1,5 +1,13 @@
 ## Unreleased
 
+
+## Unreleased - DevTools bundle compaction
+
+- Fábrica compiled dynamic templates now use compact tuple bytecode and direct component references in the Vite production pipeline.
+- DevTools imports the new runtime-only Fábrica entry to keep compiler/source scanning code outside the browser graph.
+- Cipó production classes now use compact hash-only names, optimized CSS injection, and component-coupled PURE helpers so unused styled JavaScript and CSS can tree-shake together.
+- DevTools Vite builds now enable esbuild minification, source maps, module-side-effect pruning, property-read pruning, and safe debug/trace removal.
+
 - Fixed an infinite DevTools error feedback loop where an emitter subscriber failure was rethrown, captured as a global console error, and emitted back through the same failing subscriber.
 - Console-captured errors no longer create global snackbar notifications. Full error messages, locations, and stacks remain available inside the Console panel.
 - Restored patched `Console.prototype` descriptors when console capture is disabled or rebuilt.

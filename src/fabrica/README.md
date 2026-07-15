@@ -1347,3 +1347,17 @@ return html`
 ```
 
 Changing `store.expanded` updates only `:expanded`; changing `store.input` updates only `.value`.
+
+## Production bundle compaction
+
+The build compiler now has a compact production path for dynamic templates. Instead of serializing verbose object ASTs such as `{ type, tag, props, children }` into browser bundles, compiled templates use numeric tuple instructions. When `directComponentReferences` is enabled by the Vite integration, uppercase component tags are emitted as lexical component references instead of display-name strings. This lets Rollup/esbuild tree-shake unused components and mangle local identifiers safely.
+
+Browser-facing code can import `./runtime` to avoid the compiler/source-scanner graph entirely. Compiler APIs remain available from `./compiler`, and the legacy `./index` entry stays compatible. The compact runtime still accepts the previous object instruction shape, so existing compiled fixtures and manually-authored definitions continue to work.
+
+```ts
+compileFabricaSource(source, {
+  directComponentReferences: true,
+})
+```
+
+A dynamic element that previously emitted verbose object keys is now represented approximately as `[0, Component, props, children]`, with text/value nodes using numeric opcodes. Static single-root templates continue to compile directly to `createCompiledElement(...)`.

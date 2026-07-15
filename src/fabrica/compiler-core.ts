@@ -20,6 +20,8 @@ export interface FabricaCompileSourceOptions {
   readonly importPath?: string;
   readonly htmlTags?: readonly string[];
   readonly jsxHtmlTags?: readonly string[];
+  /** Emits uppercase component tags as direct lexical references for smaller, tree-shakeable bundles. */
+  readonly directComponentReferences?: boolean;
 }
 
 export interface FabricaCompileSourceResult {
@@ -89,6 +91,7 @@ export function compileFabricaSource(
         : compileDynamicTemplateToExpression(
             templateParts.strings,
             templateParts.expressions,
+            options.directComponentReferences ?? false,
           );
       const expression =
         compiled?.expression ??
@@ -184,12 +187,13 @@ function compileStaticTemplateToExpression(
 function compileDynamicTemplateToExpression(
   strings: readonly string[],
   expressions: readonly string[],
+  directComponentReferences: boolean,
 ): string | null {
   if (containsUnsupportedTemplateShape(strings)) return null;
   const source = buildCompiledRuntimeSource(strings);
   const nodes = parseBuildNodes(source);
   if (!nodes) return null;
-  return `createCompiledTemplate(${serializeDefinition({ nodes })}${expressions.length ? `, ${expressions.join(", ")}` : ""})`;
+  return `createCompiledTemplate(${serializeDefinition({ nodes }, directComponentReferences)}${expressions.length ? `, ${expressions.join(", ")}` : ""})`;
 }
 
 function parseSingleRoot(source: string): ParsedNode | null {
@@ -451,9 +455,30 @@ function splitCompoundValue(
 
 function serializeDefinition(definition: {
   readonly nodes: readonly BuildNode[];
-}): string {
-  // JSON is deliberate here: build output contains runtime instructions, not browser-HTML strings.
-  return JSON.stringify(definition);
+}, directComponentReferences: boolean): string {
+  // Production templates use compact tuples instead of verbose object AST keys.
+  // Component tags are emitted as direct identifier references so bundlers can
+  // tree-shake and mangle component symbols instead of preserving display-name strings.
+  return `[${definition.nodes.map((node) => serializeCompactNode(node, directComponentReferences)).join(",")}]`;
+}
+
+function serializeCompactNode(node: BuildNode, directComponentReferences: boolean): string {
+  if (node.type === "text") return `[1,${JSON.stringify(node.value)}]`;
+  if (node.type === "value") return `[2,${node.index}]`;
+
+  const tag = directComponentReferences && /^[A-Z_$][\w$]*$/.test(node.tag)
+    ? node.tag
+    : JSON.stringify(node.tag);
+  return `[0,${tag},[${node.props.map(serializeCompactProp).join(",")}],[${node.children.map((child) => serializeCompactNode(child, directComponentReferences)).join(",")}]]`;
+}
+
+function serializeCompactProp(prop: BuildProp): string {
+  if (prop.type === "spread") return `[3,${prop.index}]`;
+  if (prop.type === "value") return `[1,${JSON.stringify(prop.name)},${prop.index}]`;
+  if (prop.type === "compound") {
+    return `[2,${JSON.stringify(prop.name)},${JSON.stringify(prop.strings)},${JSON.stringify(prop.indices)}]`;
+  }
+  return `[0,${JSON.stringify(prop.name)},${JSON.stringify(prop.value)}]`;
 }
 
 function emitCompiledTemplateFallbackExpression(

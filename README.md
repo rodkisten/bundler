@@ -557,3 +557,17 @@ This build adds the next layer of the design-system engine:
 ## Máquina
 
 `src/maquina` is the repository's lightweight code editor. It uses Fábrica for rendering, Cipó styled components for its UI and Broto for editor state. The full interactive landing page is published at `dist/maquina/index.html` by the root build.
+
+## DevTools production bundle optimization
+
+The DevTools build now uses the compact Fábrica + Cipó production pipeline:
+
+- dynamic Fábrica templates compile to numeric tuple instructions instead of verbose object AST payloads;
+- uppercase component tags become direct lexical references in compiled DevTools templates, enabling identifier mangling and stronger tree shaking;
+- DevTools imports the runtime-only Fábrica entry so compiler/source scanners stay out of the browser graph;
+- Cipó emits compact hash-only production classes and minified compiled CSS;
+- styled-component CSS is coupled to a PURE-annotated component expression in style-tag builds, allowing unused JavaScript and its CSS to be eliminated together;
+- private CSS custom-property mangling is available as an explicit opt-in without renaming public theme tokens;
+- the DevTools Vite build enables esbuild minification, source maps, module-side-effect pruning and property-read pruning.
+
+Readable component names remain available in development source and compilation manifests while production selectors stay compact.

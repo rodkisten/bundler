@@ -1,5 +1,19 @@
 # Fábrica Changelog
 
+
+## Unreleased - Production compiler compaction
+
+### Performance
+
+- Replaced verbose dynamic-template object AST payloads with compact numeric tuple instructions in compiled output.
+- Added direct lexical component references for Vite production compilation, allowing component identifiers to be mangled and unused styled components to be tree-shaken instead of retained by display-name strings.
+- Added a runtime-only `fabrica/runtime` entry used by DevTools so browser bundles do not traverse Fábrica compiler/source-scanner exports.
+- Preserved backward compatibility with the previous object-shaped compiled template definitions.
+
+### Tests
+
+- Added compact tuple materialization coverage and updated compiled-build assertions for direct component references.
+
 ## Unreleased - Literal and valueless data attributes
 
 - Added valueless `:dataField` presence attributes.

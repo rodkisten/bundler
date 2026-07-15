@@ -45,7 +45,7 @@ function buildMetadata() {
     buildDateShort: date,
     buildTimeShort: time,
     timezone: "GMT-3" as const,
-    mode: process.env.NODE_ENV ?? "production",
+    mode: process.env.NODE_ENV ?? "prod",
     version: packageJson.version ?? "0.0.0",
   };
 }
@@ -68,6 +68,8 @@ export default defineConfig({
 
   define: {
     __RODERUDA_BUILD__: JSON.stringify(buildInfo),
+    __DEV__: "false",
+    "process.env.NODE_ENV": JSON.stringify("production"),
   },
 
   resolve: {
@@ -81,14 +83,31 @@ export default defineConfig({
   },
 
   build: {
+    minify: "esbuild",
+    sourcemap: true,
     outDir: resolve(repoRoot, "dist"),
     emptyOutDir: false,
+    rollupOptions: {
+      treeshake: {
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+        //tryCatchDeoptimization: false,
+      },
+    },
     lib: {
       entry: resolve(__dirname, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
       name: "DevTools",
       fileName: (format: string) => `devtools.${format}.js`,
     },
+  },
+
+  esbuild: {
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    drop: ["debugger"],
+    pure: ["console.debug", "console.trace"],
   },
 
   plugins: [
@@ -101,7 +120,10 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      classPrefix: "rd",
+      classPrefix: "c",
+      classNameMode: "compact",
+      minifyCss: true,
+      mergeEquivalentRules: true,
       configCss: devtoolsCipoConfigCss,
     }),
   ],

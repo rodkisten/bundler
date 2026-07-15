@@ -70,7 +70,7 @@ export function createCompiledFragment(
  * existing Fábrica feature instead of maintaining a second implementation.
  */
 export function createCompiledTemplate(
-  input: RuntimeCompiledTemplate | TemplateStringsArray | readonly string[],
+  input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
   ...values: readonly RenderValue[]
 ): HtmlResult {
   return runWithCurrentFabricaRuntime(() => {
@@ -80,7 +80,7 @@ export function createCompiledTemplate(
       ? null
       : normalizeTemplateStrings(input);
     const compiled = runtimeDefinition
-      ? input
+      ? normalizeRuntimeCompiledTemplate(input)
       : getCachedCompiledRuntimeTemplate(normalizedStrings!);
 
     if (!compiled) {
@@ -122,7 +122,7 @@ export function createCompiledTemplate(
 }
 
 function createCompiledHtmlArtifact(
-  input: RuntimeCompiledTemplate | TemplateStringsArray,
+  input: RuntimeCompiledTemplateInput | TemplateStringsArray,
   values: readonly RenderValue[],
   runtime: FabricaRuntimeContext,
 ): HtmlArtifact {
@@ -145,12 +145,35 @@ function createCompiledHtmlArtifact(
 
 function isRuntimeCompiledTemplate(
   value: unknown,
-): value is RuntimeCompiledTemplate {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    Array.isArray((value as { nodes?: unknown }).nodes),
-  );
+): value is RuntimeCompiledTemplateInput {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray((value as { nodes?: unknown }).nodes)) return true;
+  if (!Array.isArray(value)) return false;
+  // Compact definitions are arrays of tuple nodes. Template string arrays contain strings.
+  return value.length === 0 || Array.isArray(value[0]);
+}
+
+function normalizeRuntimeCompiledTemplate(input: RuntimeCompiledTemplateInput): RuntimeCompiledTemplate {
+  if (!Array.isArray(input)) return input as RuntimeCompiledTemplate;
+  return { nodes: input.map(normalizeCompactNode) };
+}
+
+function normalizeCompactNode(node: CompactRuntimeNode): RuntimeNode {
+  if (node[0] === 1) return { type: "text", value: node[1] };
+  if (node[0] === 2) return { type: "value", index: node[1] };
+  return {
+    type: "element",
+    tag: node[1],
+    props: node[2].map(normalizeCompactProp),
+    children: node[3].map(normalizeCompactNode),
+  };
+}
+
+function normalizeCompactProp(prop: CompactRuntimeProp): RuntimeProp {
+  if (prop[0] === 3) return { type: "spread", index: prop[1] };
+  if (prop[0] === 1) return { type: "value", name: prop[1], index: prop[2] };
+  if (prop[0] === 2) return { type: "compound", name: prop[1], strings: prop[2], indices: prop[3] };
+  return { type: "static", name: prop[1], value: prop[2] };
 }
 
 /** Applies compiled props and event listeners to an element using runtime semantics. */
@@ -243,9 +266,23 @@ function setCompiledProperty(element: Element, name: string, value: unknown): vo
 export interface RuntimeCompiledTemplate {
   readonly nodes: readonly RuntimeNode[];
 }
+
+export type RuntimeComponent = (props: FabricaCompiledElementProps) => RenderValue;
+export type CompactRuntimeCompiledTemplate = readonly CompactRuntimeNode[];
+export type RuntimeCompiledTemplateInput = RuntimeCompiledTemplate | CompactRuntimeCompiledTemplate;
+export type CompactRuntimeNode =
+  | readonly [0, string | RuntimeComponent, readonly CompactRuntimeProp[], readonly CompactRuntimeNode[]]
+  | readonly [1, string]
+  | readonly [2, number];
+export type CompactRuntimeProp =
+  | readonly [0, string, string | true]
+  | readonly [1, string, number]
+  | readonly [2, string, readonly string[], readonly number[]]
+  | readonly [3, number];
+
 export interface RuntimeElementNode {
   readonly type: "element";
-  readonly tag: string;
+  readonly tag: string | RuntimeComponent;
   readonly props: readonly RuntimeProp[];
   readonly children: RuntimeNode[];
 }
@@ -362,7 +399,7 @@ function appendCompiledNode(
     return;
   }
 
-  const element = createElementForTag(node.tag);
+  const element = createElementForTag(node.tag as string);
   const props: Record<string, unknown> = {};
 
   for (const prop of node.props) {
@@ -515,7 +552,7 @@ function parseRuntimeNodes(source: string): RuntimeNode[] | null {
     if (token.startsWith("/")) {
       const closing = token.slice(1).trim().toLowerCase();
       const node = stack.pop();
-      if (!node || node === root || node.tag.toLowerCase() !== closing)
+      if (!node || node === root || (node.tag as string).toLowerCase() !== closing)
         return null;
     } else {
       const selfClosing = token.endsWith("/");
@@ -523,7 +560,7 @@ function parseRuntimeNodes(source: string): RuntimeNode[] | null {
       const parsed = parseRuntimeOpenTag(open);
       if (!parsed) return null;
       stack[stack.length - 1]!.children.push(parsed);
-      if (!selfClosing && !isVoidTag(parsed.tag)) stack.push(parsed);
+      if (!selfClosing && !isVoidTag(parsed.tag as string)) stack.push(parsed);
     }
     index = gt + 1;
   }
@@ -625,8 +662,9 @@ function eventNameFromProp(name: string): string {
 }
 
 function resolveCompiledComponentTag(
-  tag: string,
-): string | ((props: FabricaCompiledElementProps) => RenderValue) | null {
+  tag: string | RuntimeComponent,
+): RuntimeComponent | null {
+  if (typeof tag === "function") return tag;
   if (!/^[A-Z]/.test(tag)) return null;
   try {
     const component = resolveRuntimeComponent(tag);
@@ -674,7 +712,7 @@ function collectCompiledChildValue(
     return;
   }
 
-  const element = createElementForTag(node.tag);
+  const element = createElementForTag(node.tag as string);
   const props: Record<string, unknown> = {};
   for (const prop of node.props) {
     if (prop.type === "spread")

@@ -129,4 +129,17 @@ describe("Fábrica polymorphic html results", () => {
     expect(Array.from(section.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE)).toHaveLength(0);
   });
 
+
+  it("materializes compact tuple instructions emitted by the production compiler", () => {
+    const compactView = createCompiledTemplate([
+      [0, "button", [[0, "type", "button"], [1, "class", 0]], [[1, "Compact"]]],
+    ] as const, "primary");
+
+    const button = compactView as HTMLButtonElement;
+    expect(button.tagName).toBe("BUTTON");
+    expect(button.type).toBe("button");
+    expect(button.className).toBe("primary");
+    expect(button.textContent).toBe("Compact");
+  });
+
 });
