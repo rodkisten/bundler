@@ -659,7 +659,7 @@ function bindChildPart(marker: Node, value: RenderValue | undefined): void {
             part.set(readValue(value) as RenderValue);
           });
         },
-        { name: "fabrica.childBinding" },
+        { name: "fabrica.childBinding", scheduler: "sync" },
       ),
     );
 
@@ -717,7 +717,7 @@ function bindComponentPart(
     runWithFabricaRuntime(runtime, () => {
       const staticProps = part?.staticProps;
       const dynamicProps = dynamicPropParts.length > 0
-        ? readDynamicComponentProps(dynamicPropParts, values)
+        ? readDynamicComponentProps(dynamicPropParts, values, componentValue)
         : null;
       const hasCompiledChildren = Boolean(part?.hasStaticChildren || (part?.orderedChildParts?.length ?? 0) > 0);
       const props = dynamicProps
@@ -760,7 +760,7 @@ function bindComponentPart(
 
   if (hasReactiveComponentInputs(dynamicPropParts, values)) {
     const dispose = runWithOwner(owner, () =>
-      effect(renderComponent, { name: `fabrica.componentTagBinding:${componentName || "anonymous"}` }),
+      effect(renderComponent, { name: `fabrica.componentTagBinding:${componentName || "anonymous"}`, scheduler: "sync" }),
     );
     registerCleanup(childPart.start, dispose);
     return;
@@ -905,6 +905,7 @@ function createMissingComponentFallback(name: string): HTMLElement {
 function readDynamicComponentProps(
   propParts: readonly DynamicComponentPropPart[],
   values: readonly RenderValue[],
+  componentValue?: unknown,
 ): Record<string, unknown> {
   const props: Record<string, unknown> = {};
 
@@ -921,7 +922,7 @@ function readDynamicComponentProps(
     }
 
     const name = normalizeComponentPropName(prop.name);
-    const value = readComponentPropValue(prop, values);
+    const value = readComponentPropValue(prop, values, componentValue, name);
     if (name === "props") {
       mergeSpreadProps(props, readValue(value));
     } else {
@@ -935,12 +936,17 @@ function readDynamicComponentProps(
 function readComponentPropValue(
   part: Extract<ComponentPropPart, { spread?: false }>,
   values: readonly RenderValue[],
+  componentValue: unknown,
+  propName: string,
 ): unknown {
   if (part.raw) {
     const value = values[part.index];
-    // Exact component props preserve identity, including branded signals.
-    // DOM bindings unwrap signals, while component APIs such as Context.Provider
-    // must be able to receive and redistribute the original callable reference.
+    const preservedProps = (componentValue as { preserveSignalProps?: ReadonlySet<string> } | null)?.preserveSignalProps;
+
+    // Component props normally receive the current signal value. Components
+    // that intentionally transport signals, such as Context.Provider, opt in
+    // per prop so callbacks and ordinary object identity remain untouched.
+    if (isSignal(value) && !preservedProps?.has(propName)) return value();
     return value;
   }
 
@@ -1323,7 +1329,7 @@ function bindPlainAttributePart(
     applyPlainAttributeValue(element, name, next);
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1394,7 +1400,7 @@ function bindPropertyPart(
     (element as unknown as Record<string, unknown>)[name] = next;
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1427,7 +1433,7 @@ function bindBooleanAttributePart(
     }
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 
@@ -1454,7 +1460,7 @@ function bindConditionalClassPart(
     element.classList.toggle(className, next);
   };
 
-  const dispose = effect(update);
+  const dispose = effect(update, { scheduler: "sync" });
   registerCleanup(element, dispose);
 }
 

@@ -75,10 +75,18 @@ export function createContextProvider<Value>(
   context: ContextToken<Value>,
   name = `${context.description}Provider`,
 ): Component<ContextProviderProps<Value>> {
-  return defineComponent<ContextProviderProps<Value>>(name, (props, componentContext) => {
+  const Provider = defineComponent<ContextProviderProps<Value>>(name, (props, componentContext) => {
     componentContext.provide(context, props.value);
     return props.children ?? null;
   });
+
+  Object.defineProperty(Provider, "preserveSignalProps", {
+    configurable: false,
+    enumerable: false,
+    value: new Set(["value"]),
+  });
+
+  return Provider;
 }
 
 /** Creates a provider component specialized for reactive signal contexts. */
@@ -86,10 +94,18 @@ export function createReactiveContextProvider<Value>(
   context: ReactiveContextToken<Value>,
   name = `${context.description}Provider`,
 ): Component<ContextProviderProps<Value | Signal<Value>>> {
-  return defineComponent<ContextProviderProps<Value | Signal<Value>>>(name, (props, componentContext) => {
+  const Provider = defineComponent<ContextProviderProps<Value | Signal<Value>>>(name, (props, componentContext) => {
     componentContext.provideReactiveContext(context, props.value);
     return props.children ?? null;
   });
+
+  Object.defineProperty(Provider, "preserveSignalProps", {
+    configurable: false,
+    enumerable: false,
+    value: new Set(["value"]),
+  });
+
+  return Provider;
 }
 
 function attachProvider<Value, Token extends ContextToken<Value>>(

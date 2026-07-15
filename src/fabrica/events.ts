@@ -57,7 +57,7 @@ export function bindEvent(element: Element, rawName: string, value: RenderValue)
     element.addEventListener(eventConfig.name, previousHandler, eventConfig.options);
   };
 
-  const dispose = isSignal(value) ? effect(update) : (update(), null);
+  const dispose = isSignal(value) ? effect(update, { scheduler: "sync" }) : (update(), null);
 
   if (dispose) {
     registerCleanup(element, dispose);
@@ -195,7 +195,7 @@ function bindDelegatedEvent(element: Element, eventConfig: EventBindingConfig, v
     ensureDelegatedEvent(getDelegationRoot(element), eventConfig.name);
   };
 
-  const dispose = isSignal(value) ? effect(update) : (update(), null);
+  const dispose = isSignal(value) ? effect(update, { scheduler: "sync" }) : (update(), null);
 
   if (dispose) {
     registerCleanup(element, dispose);

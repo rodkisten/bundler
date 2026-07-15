@@ -10,6 +10,7 @@ import { bindEvent } from "./events";
 import { applyProps, setPropertyOrAttribute } from "./props";
 import { readValue } from "./value";
 import { isSignal } from "./guards";
+import { bindSpecialAttribute } from "./dom-special-attributes";
 import { collectCleanupNodes } from "./dom-cleanup";
 import type { FabricaRuntimeContext, HtmlArtifact, HtmlResult, RenderValue } from "./types";
 import {
@@ -206,6 +207,10 @@ export function applyCompiledProps(
       continue;
     }
 
+    // Special attributes own their own null/false/string semantics and must
+    // be bound before the generic attribute path drops falsey values.
+    if (bindSpecialAttribute(element, rawName, rawValue)) continue;
+
     const value = readValue(rawValue);
     if (value == null || value === false) continue;
 
@@ -350,7 +355,7 @@ function appendCompiledNode(
       parent,
       createCompiledElement(
         component,
-        readCompiledComponentProps(node.props, values),
+        readCompiledComponentProps(node.props, values, component),
         ...collectCompiledChildValues(node.children, values),
       ),
     );
@@ -379,6 +384,7 @@ function appendCompiledNode(
 function readCompiledComponentProps(
   props: readonly RuntimeProp[],
   values: readonly RenderValue[],
+  componentValue?: unknown,
 ): Record<string, unknown> {
   const output: Record<string, unknown> = {};
 
@@ -390,7 +396,8 @@ function readCompiledComponentProps(
 
     const name = normalizeCompiledComponentPropName(prop.name);
     const rawValue = prop.type === "value" ? values[prop.index] : undefined;
-    const value = prop.type === "value" && isSignal(rawValue)
+    const preservedProps = (componentValue as { preserveSignalProps?: ReadonlySet<string> } | null)?.preserveSignalProps;
+    const value = prop.type === "value" && isSignal(rawValue) && !preservedProps?.has(name)
       ? rawValue()
       : readCompiledPropValue(prop, values);
     if (name === "props") {
@@ -644,7 +651,7 @@ function collectCompiledChildValue(
     output.push(
       createCompiledElement(
         component,
-        readCompiledComponentProps(node.props, values),
+        readCompiledComponentProps(node.props, values, component),
         ...collectCompiledChildValues(node.children, values),
       ),
     );
