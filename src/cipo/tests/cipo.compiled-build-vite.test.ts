@@ -128,13 +128,13 @@ describe('Cipó + Fábrica compiled build mode', () => {
     )
 
     const code = transformed && 'code' in transformed ? transformed.code : ''
-    expect(code).toContain('insertCss as __cipoInsertCompiledCss')
+    expect(code).toContain('attachCompiledCss')
     expect(code).not.toContain('.css`')
     expect(code).toContain('color:red')
     expect(code).toContain('createCompiledElement("section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
-    expect(runtimeModule).toContain('color:red')
+    expect(runtimeModule).not.toContain('color:red')
   })
   it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
     const source = `
@@ -146,12 +146,13 @@ describe('Cipó + Fábrica compiled build mode', () => {
     const result = compileFabricaSource(source, {
       filename: '/project/src/devtools/console.ts',
       importPath: '../fabrica/compiler',
+      directComponentReferences: true,
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('createCompiledTemplate({"nodes"')
-    expect(result.code).toContain('"tag":"RodProbe"')
-    expect(result.code).toContain('"type":"compound"')
+    expect(result.code).toContain('createCompiledTemplate([[0,RodProbe')
+    expect(result.code).not.toContain('\"RodProbe\"')
+    expect(result.code).toContain('[2,\"class\"')
     expect(result.code).not.toContain('html`')
     expect(result.code).not.toContain('<RodProbe')
     expect(result.code).not.toContain('@click=')
@@ -228,6 +229,67 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).toContain('border-radius:var(--rd-radius-control)')
     expect(result.css).toContain('color:var(--rd-colors-primary)')
     expect(result.css).not.toMatch(/\$(?:background|border|primary|control)\b/)
+  })
+
+  it('emits compact production class names and minified CSS', () => {
+    const result = compileCipoSourceBuild(`
+      const BuildBadge = styled.span('RodDevtoolsBuildBadge').css\`
+        position: sticky;
+        right: 0.25rem;
+      \`
+    `, {
+      filename: '/project/src/devtools/shell.ts',
+      classPrefix: 'c',
+      classNameMode: 'compact',
+      minifyCss: true,
+      injectCssImport: false,
+    })
+
+    expect(result.changed).toBe(true)
+    expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
+    expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
+    expect(result.code).toContain('/*#__PURE__*/styled.span')
+    expect(result.css).toContain('right:.25rem')
+    expect(result.css).not.toContain('\n')
+  })
+
+  it('couples styled CSS to the component expression for per-component tree shaking', () => {
+    const result = compileCipoSourceBuild(`
+      export const Used = styled.div('Used').css\`color: red;\`
+      export const Unused = styled.div('Unused').css\`color: blue;\`
+    `, {
+      filename: '/project/src/components.ts',
+      classNameMode: 'compact',
+      coupleStyledCss: true,
+      styledCssHelperImportPath: '../compiler/compiled-style-runtime',
+      injectCssImport: false,
+    })
+
+    expect(result.code).toContain("import { attachCompiledCss }")
+    expect(result.code.match(/\/\*#__PURE__\*\/attachCompiledCss/g)).toHaveLength(2)
+    expect(result.code).toContain('color:red')
+    expect(result.code).toContain('color:blue')
+    expect(result.css).toBe('')
+  })
+
+  it('mangles only explicitly private custom properties in compact CSS', () => {
+    const result = compileCipoSourceBuild(`
+      const Box = styled.div('Box').css\`
+        --_cipo-private-gap: 8px;
+        gap: var(--_cipo-private-gap);
+        color: var(--rd-colors-primary);
+      \`
+    `, {
+      filename: '/project/src/box.ts',
+      classNameMode: 'compact',
+      privateCustomPropertyPattern: /^--_cipo-/,
+      injectCssImport: false,
+    })
+
+    expect(result.css).toContain('--a:')
+    expect(result.css).toContain('var(--a)')
+    expect(result.css).toContain('var(--rd-colors-primary)')
+    expect(result.css).not.toContain('--_cipo-private-gap')
   })
 
 })
