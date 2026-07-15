@@ -1,8 +1,6 @@
 import { insertCss, setRuntimeStyleTarget } from "../../cipo/src/injection";
 import { devtoolsCipoRuntimeThemeCss } from "../cipo-runtime-theme";
 
-let bootstrapped = false;
-
 /**
  * Installs only the runtime CSS required by the statically compiled DevTools.
  *
@@ -19,9 +17,10 @@ let bootstrapped = false;
  * `document.head` during module evaluation.
  */
 export function bootstrapDevtoolsCipo(): void {
-  if (bootstrapped) return;
-  bootstrapped = true;
-
+  // Reapply the bridge on every bootstrap attempt. `insertCss()` already
+  // deduplicates live rules, while Cipó's public `reset()` intentionally clears
+  // that dedupe state and generated CSS buffer. A module-level boolean would
+  // therefore make subsequent DevTools mounts lose the runtime token bridge.
   setRuntimeStyleTarget(null);
   insertCss(devtoolsCipoRuntimeThemeCss);
 }
