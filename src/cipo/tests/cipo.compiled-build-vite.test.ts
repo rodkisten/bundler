@@ -246,11 +246,15 @@ describe('Cipó + Fábrica compiled build mode', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.manifest[0]?.className).toMatch(/^c[0-9a-z]+$/)
-    expect(result.manifest[0]?.className).not.toContain('RodDevtoolsBuildBadge')
-    expect(result.code).toMatch(/\/\*#__PURE__\*\/styled\.span\('RodDevtoolsBuildBadge'\)\(\"c[0-9a-z]+\"\)/)
-    expect(result.css).toContain('right:.25rem')
-    expect(result.css).not.toContain('\n')
+    const className = result.manifest[0]?.className
+    expect(className).toMatch(/^c[0-9a-z]+$/)
+    expect(className).not.toContain('RodDevtoolsBuildBadge')
+    expect(result.code).toContain(JSON.stringify(className))
+    expect(result.code).not.toContain('.css`')
+    expect(result.css).toContain(`.${className}{`)
+    expect(result.css).toContain('position:sticky')
+    expect(result.css).toMatch(/right:0?\.25rem/)
+    expect(result.css).not.toMatch(/\s/)
   })
 
   it('couples styled CSS to the component expression for per-component tree shaking', () => {
