@@ -417,14 +417,19 @@ export class Elements extends Tool {
   }
 
   private renderTree(): void {
-    if (!this.tree || !document.documentElement) return;
+    const tree = this.tree;
+    if (!tree || !document.documentElement) return;
 
     render(
-      this.tree,
+      tree,
       ElementsDomTreeView({
         children: this.renderNode(document.documentElement, 0),
       }),
     );
+
+    // Replacing this element's children must not invalidate the element ref.
+    // Keep the stable shell node even if nested cleanup collection invokes a ref disposer.
+    this.tree = tree;
   }
 
   private renderNode(node: Node, depth: number): import("../../fabrica").RenderValue {
