@@ -1,7 +1,10 @@
 
 
 
-## Unreleased - Compact production CSS output
+## Unreleased
+
+- Documented and validated the build/runtime split for compiled consumers: CSS-first configuration can remain build-only while production runtimes inject only the resolved token bridge they actually need.
+ - Compact production CSS output
 
 ### Performance
 

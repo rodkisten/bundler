@@ -1703,3 +1703,7 @@ cipoVite({
 Compact mode removes component display names from generated classes, marks statically compiled styled factories as `/*#__PURE__*/` for JavaScript tree shaking, minifies safe CSS whitespace/leading zeroes, and can merge flat top-level rules with identical bodies. Private custom-property mangling is opt-in through `privateCustomPropertyPattern`; public theme variables are never renamed unless they explicitly match that pattern.
 
 The DevTools production build enables compact class names and aggressive module tree shaking. In style-tag delivery mode each compiled styled component is coupled to its own CSS insertion through a PURE-annotated helper, so an unused component and its stylesheet can be eliminated together. Fábrica compilation in the same pipeline emits direct component references, so an unused styled component can disappear together with its generated JavaScript instead of being retained only by a string-based component registry lookup.
+
+### Keeping CSS-first configuration out of production bundles
+
+Compiled applications should treat readable `@cipo` / `@theme` configuration as build input. When all component templates are statically compiled, the browser runtime can inject only the resolved custom-property bridge needed by the emitted CSS instead of importing `configureFromCss()`. This keeps the configuration parser and source DSL tree-shakeable.
