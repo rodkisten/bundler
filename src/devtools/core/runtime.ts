@@ -1,7 +1,7 @@
 import { runWithOwner, store, type Owner } from "../../broto";
 import { createStyled } from "../../cipo";
-import { createFabrica } from "../../fabrica";
-import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica";
+import { createFabrica } from "../../fabrica/runtime";
+import type { Cleanup, Component, RefDirective, RenderValue } from "../../fabrica/runtime";
 import { bootstrapDevtoolsCipo } from "./cipo-bootstrap";
 
 // Theme tokens (`$background`, `$font.ui`, prefix `rd`, …) must exist before
