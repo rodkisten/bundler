@@ -23,3 +23,15 @@ const snapshot = cloneDeep(state);
 ```
 
 A API cobre arrays, funções, Map, Set, objetos, predicados, promises, strings, matemática e erros. Consulte a landing page gerada em `src/nascente/index.html` para o catálogo e as notas de performance.
+
+## Documentação automática
+
+A documentação publicada da Nascente é gerada durante o build a partir de três fontes de verdade:
+
+- `README.md`, renderizado pelo mesmo pipeline Markdown usado pelo restante do repositório.
+- `CHANGELOG.md`, incorporado automaticamente à landing page.
+- TSDoc das exportações públicas de `index.ts`, usado para montar a referência da API e a navegação lateral.
+
+Execute `pnpm build:nascente:docs` para gerar `dist/nascente/index.html` isoladamente, ou `pnpm build` para gerar a documentação junto com os bundles gerais.
+
+A sidebar da documentação é criada a partir das APIs públicas detectadas no TypeScript. Isso evita manter manualmente uma lista duplicada de funções no HTML.
