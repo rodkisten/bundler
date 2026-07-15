@@ -1,34 +1,27 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 
-const repoRoot = resolve(__dirname, "..");
+const maquinaDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(maquinaDir, "..");
 
 export default defineConfig({
-  root: __dirname,
-  resolve: {
-    alias: [
-      { find: "@rodkisten/maquina", replacement: resolve(__dirname, "index.ts") },
-      { find: /^@rodkisten\/maquina\/(.*)$/, replacement: resolve(__dirname, "$1.ts") },
-      { find: "@rodkisten/cipo", replacement: resolve(repoRoot, "cipo/index.ts") },
-      { find: /^@rodkisten\/cipo\/(.*)$/, replacement: resolve(repoRoot, "cipo/$1.ts") },
-      { find: "@rodkisten/broto", replacement: resolve(repoRoot, "broto/index.ts") },
-      { find: /^@rodkisten\/broto\/(.*)$/, replacement: resolve(repoRoot, "broto/$1.ts") },
-      { find: "@rodkisten/fabrica", replacement: resolve(repoRoot, "fabrica/index.ts") },
-      { find: /^@rodkisten\/fabrica\/(.*)$/, replacement: resolve(repoRoot, "fabrica/$1.ts") },
-    ],
-  },
+  root: maquinaDir,
   server: { open: "/index.html" },
   build: {
     outDir: "dist",
     lib: {
-      entry: resolve(__dirname, "index.ts"),
+      entry: resolve(maquinaDir, "index.ts"),
       name: "Maquina",
       formats: ["es", "iife"],
       fileName: (format) => `maquina.${format}.js`,
     },
   },
   plugins: [
+    // The native+tsx config loader resolves config-time aliases; this plugin resolves the Vite module graph.
+    tsconfigPaths({ root: repoRoot, projects: ["tsconfig.base.json"] }),
     cipoVite({
       root: repoRoot,
       include: /[/\\]maquina[/\\].*\.[cm]?[jt]sx?$/,
