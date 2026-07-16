@@ -11,19 +11,27 @@ let runtimeStyleTarget: CipoRuntimeStyleTarget | undefined
 let staticCssText = ''
 let atomicCssText = ''
 const atomicArtifacts = new Set<CipoCssArtifact>()
+const suppressedInsertions = new Map<string, number>()
 
 /**
  * Injects non-atomic CSS into the single runtime stylesheet sink.
  *
- * @remarks
- * Component artifacts do not call this path when thresholded atomization is
- * enabled. They are registered through `registerAtomicArtifact()` so Cipó can
- * rebuild only the atomic portion of the same stylesheet when a declaration
- * reaches its promotion threshold.
+ * Thresholded component artifacts still expose a local `compiledCss` fallback
+ * for diagnostics/backwards compatibility. Registration marks that exact next
+ * insertion as suppressed, so legacy callers that still call insertCss() do not
+ * duplicate the component CSS outside the shared atomic program.
  */
 export function insertCss(cssText: string): void {
   if (!cssText || !cssText.trim()) return
   ensureSharedStateFresh()
+
+  const wholeKey = normalizeCss(cssText)
+  const suppressed = suppressedInsertions.get(wholeKey) ?? 0
+  if (suppressed > 0) {
+    if (suppressed === 1) suppressedInsertions.delete(wholeKey)
+    else suppressedInsertions.set(wholeKey, suppressed - 1)
+    return
+  }
 
   const style = hasDocument() && runtimeStyleTarget !== null ? ensureStyleElement() : null
   if (runtime.config.layers) runtime.layerHeaderInserted = true
@@ -58,6 +66,12 @@ export function registerAtomicArtifact(artifact: CipoCssArtifact): void {
   const size = atomicArtifacts.size
   atomicArtifacts.add(artifact)
   if (atomicArtifacts.size === size) return
+
+  if (artifact.compiledCss) {
+    const key = normalizeCss(artifact.compiledCss)
+    suppressedInsertions.set(key, (suppressedInsertions.get(key) ?? 0) + 1)
+  }
+
   syncAtomicStylesheet()
 }
 
@@ -99,18 +113,14 @@ export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined
 /**
  * Injects style artifacts into one target using one stylesheet element.
  *
- * Atomic artifacts are finalized together before insertion. This is the same
- * aggregation used by the runtime registry, which means passing
- * `styled.registry.cssArtifacts` produces a single shared atomic stylesheet
+ * Atomic artifacts are finalized together before insertion. Passing
+ * `styled.registry.cssArtifacts` therefore produces one shared atomic stylesheet
  * instead of concatenating one component stylesheet per `styled` declaration.
  */
 export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoInjectableStyleArtifact | readonly CipoInjectableStyleArtifact[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
   const list = Array.isArray(styles) ? styles : [styles]
 
-  // When callers inject into the active runtime target (the DevTools shadow root
-  // is the main example), fold everything into the existing runtime sink instead
-  // of creating a second <style> element. Atomic artifacts are already globally
-  // registered in most cases; Set identity makes re-registration a cheap no-op.
+  // Fold injections targeting the active runtime sink into the same style tag.
   if (target === runtimeStyleTarget) {
     return injectIntoRuntimeTarget(target, list, options)
   }
@@ -234,6 +244,7 @@ function ensureSharedStateFresh(): void {
   staticCssText = ''
   atomicCssText = ''
   atomicArtifacts.clear()
+  suppressedInsertions.clear()
 }
 
 function getRuntimeStyleParent(): HTMLElement | ShadowRoot | null {
