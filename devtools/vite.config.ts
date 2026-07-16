@@ -118,10 +118,7 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      classPrefix: "c",
-      classNameMode: "compact",
-      minifyCss: true,
-      mergeEquivalentRules: true,
+      // Class naming, minification and atomic promotion all come from this CSS-first sheet.
       configCss: devtoolsCipoConfigCss,
     }),
   ],
