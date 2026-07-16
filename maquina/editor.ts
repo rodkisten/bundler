@@ -1,5 +1,5 @@
 import { createDeepStore } from "@rodkisten/broto";
-import { maquinaFabrica, html, ref, event } from "@rodkisten/maquina/components";
+import { maquinaFabrica, html, ref, MaquinaSuggestion } from "@rodkisten/maquina/components";
 import { resolveMaquinaTheme } from "@rodkisten/maquina/theme";
 import { tokenizeMaquina } from "@rodkisten/maquina/tokenizer";
 import type { MaquinaCompletionContext, MaquinaCompletionItem, MaquinaCompletionMatch, MaquinaHandle, MaquinaLanguage, MaquinaOptions, MaquinaThemeName } from "@rodkisten/maquina/types";
@@ -45,13 +45,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           autocapitalize="off"
           autocomplete="off"
           autocorrect="off"
-          
           inputmode="none"
           :gramm="false"
           :gramm_editor="false"
           :enable-grammarly="false"
           :ms-editor="false"
-          
           ?readonly=${options.readOnly === true}
         />
         <MaquinaSuggestions hidden ref=${ref<HTMLElement>((node) => { suggestions = node; })}></MaquinaSuggestions>
@@ -81,13 +79,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   root.style.setProperty("--maq-tab-size", String(Math.max(1, Math.min(16, options.tabSize ?? 2))));
   root.style.setProperty("--maq-scale", String(Math.max(0.5, Math.min(2, (options.fontSize ?? 16) / 16))));
- 
+
   const scale = Math.max(0.5, Math.min(2, (options.fontSize ?? 16) / 16));
   root.style.transformOrigin = "top left";
   root.style.transform = scale === 1 ? "" : `scale(${scale})`;
   root.style.width = scale === 1 ? "100%" : `${100 / scale}%`;
   root.style.height = scale === 1 ? "100%" : `${100 / scale}%`;
- 
+
   const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
   textarea.style.fontSize = "16px";
   highlight.style.fontSize = "16px";
@@ -98,94 +96,86 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   const renderHighlight = (): void => {
     if (!highlight) return;
-   
-    highlight.replaceChildren(...tokenizeMaquina(state.value.peek(), state.language.peek()).map((token) => {
-      const span = html`
-        <span :token=${token.kind}>${token.value}</span>
-      `;
-      
-      const _span = document.createElement("span");
+
+    // Token rows are ephemeral hot-path DOM, not reusable styled components.
+    // Creating nodes directly avoids allocating nested Fábrica template results
+    // on every keystroke while Maquina's reusable shell stays Fábrica/Cipó based.
+    const nodes = tokenizeMaquina(state.value.peek(), state.language.peek()).map((token) => {
+      const span = document.createElement("span");
       span.textContent = token.value;
       span.dataset.token = token.kind;
-      
       if (token.kind !== "plain") span.style.color = `var(--maq-${token.kind})`;
-      
       return span;
-    }));
-   
+    });
+
+    highlight.replaceChildren(...nodes);
     if (state.value.peek().endsWith("\n")) highlight.append(document.createTextNode("\n"));
   };
 
   const syncScroll = (): void => {
     if (!textarea || !highlight) return;
-  
     highlight.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
   };
 
   const closeSuggestions = (): void => {
     state.patch({ open: false as boolean, suggestions: [] as MaquinaCompletionItem[], activeSuggestion: 0 }, { cause: "maquina:close-completions" });
-   
     if (suggestions) suggestions.hidden = true;
   };
 
   const renderSuggestions = (): void => {
     if (!suggestions || !textarea) return;
-   
+
     const items = state.suggestions.peek();
-   
     if (!state.open.peek() || !items.length) {
       suggestions.hidden = true;
       return;
     }
+
     suggestions.hidden = false;
     suggestions.replaceChildren(...items.map((item, index) => {
-   
-    const button = html`
-     <button 
-       :active=${index === state.activeSuggestion.peek()}
-       @pointerdown=${event.pointerdown((event) => {
-        event.preventDefault();
-        applySuggestion(index);
-      }))}>
-       <span>${item.labe}</span>
-       <small>${item.detail || item.type || ""}</small>
-     </button>`;
-      
-      const _button = document.createElement("button");
+      // Reuse the Cipó/Fábrica Elements component's globally finalized classes
+      // without creating a per-item stylesheet or a nested template artifact.
+      const button = document.createElement("button");
       button.type = "button";
+      button.className = MaquinaSuggestion.className;
       button.dataset.active = String(index === state.activeSuggestion.peek());
-      button.innerHTML = `<span></span><small></small>`;
-      button.firstElementChild!.textContent = item.label;
-      button.lastElementChild!.textContent = item.detail || item.type || "";
-      button.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
+
+      const label = document.createElement("span");
+      label.textContent = item.label;
+      const detail = document.createElement("small");
+      detail.textContent = item.detail || item.type || "";
+      button.append(label, detail);
+
+      button.addEventListener("pointerdown", (pointerEvent) => {
+        pointerEvent.preventDefault();
         applySuggestion(index);
       });
       return button;
     }));
-    
+
     const lineHeight = 24.8;
     const before = textarea.value.slice(0, textarea.selectionStart);
     const lines = before.split("\n");
     const line = lines.length - 1;
     const column = lines.at(-1)?.length ?? 0;
-   
+
     suggestions.style.left = `${Math.min(root.clientWidth - 230, 16 + column * 8.5)}px`;
     suggestions.style.top = `${Math.min(root.clientHeight - 180, 18 + line * lineHeight)}px`;
   };
 
   const requestCompletions = async (): Promise<void> => {
     if (!options.completions || !textarea || options.readOnly) return;
-   
+
     const version = ++completionVersion;
     const cursor = textarea.selectionStart;
     const context = createCompletionContext(textarea.value, cursor);
     const result = await options.completions(context);
-  
+
     if (destroyed || version !== completionVersion || !result?.options.length) {
       closeSuggestions();
       return;
     }
+
     state.patch({ suggestions: result.options.slice(0, 100), suggestionFrom: result.from, activeSuggestion: 0, open: true }, { cause: "maquina:completions" });
     renderSuggestions();
   };
@@ -194,18 +184,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (!textarea) return;
     const item = state.suggestions.peek()[index];
     if (!item) return;
-  
+
     const from = state.suggestionFrom.peek();
     const to = textarea.selectionStart;
     const insert = item.apply ?? item.label;
-  
+
     textarea.setRangeText(insert, from, to, "end");
     state.value.set(textarea.value);
     options.onChange?.(textarea.value);
-  
+
     renderHighlight();
     closeSuggestions();
-    
     textarea.focus();
   };
 
@@ -213,45 +202,44 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (!textarea) return;
     state.value.set(textarea.value);
     options.onChange?.(textarea.value);
-   
+
     renderHighlight();
-    
     if (options.activateCompletionOnTyping !== false) void requestCompletions();
   };
 
-  const onKeyDown = (event: KeyboardEvent): void => {
+  const onKeyDown = (keyboardEvent: KeyboardEvent): void => {
     if (state.open.peek()) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const delta = event.key === "ArrowDown" ? 1 : -1;
+      if (keyboardEvent.key === "ArrowDown" || keyboardEvent.key === "ArrowUp") {
+        keyboardEvent.preventDefault();
+        const delta = keyboardEvent.key === "ArrowDown" ? 1 : -1;
         const length = state.suggestions.peek().length;
         state.activeSuggestion.set((state.activeSuggestion.peek() + delta + length) % length);
         renderSuggestions();
         return;
       }
-      if (event.key === "Tab" || event.key === "Enter") {
-        event.preventDefault();
+      if (keyboardEvent.key === "Tab" || keyboardEvent.key === "Enter") {
+        keyboardEvent.preventDefault();
         applySuggestion(state.activeSuggestion.peek());
         return;
       }
-      if (event.key === "Escape") {
-        event.preventDefault();
+      if (keyboardEvent.key === "Escape") {
+        keyboardEvent.preventDefault();
         closeSuggestions();
         return;
       }
     }
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      event.preventDefault();
+    if ((keyboardEvent.metaKey || keyboardEvent.ctrlKey) && keyboardEvent.key === "Enter") {
+      keyboardEvent.preventDefault();
       options.onRun?.();
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey && options.onRun) {
-      event.preventDefault();
+    if (keyboardEvent.key === "Enter" && !keyboardEvent.shiftKey && options.onRun) {
+      keyboardEvent.preventDefault();
       options.onRun();
       return;
     }
-    if (event.key === "Tab") {
-      event.preventDefault();
+    if (keyboardEvent.key === "Tab") {
+      keyboardEvent.preventDefault();
       const indent = " ".repeat(Math.max(1, options.tabSize ?? 2));
       textarea?.setRangeText(indent, textarea.selectionStart, textarea.selectionEnd, "end");
       onInput();
