@@ -1,4 +1,5 @@
 import type { DebugLevel, DevtoolsDebugOptions } from "@rodkisten/devtools/types";
+import { joinArray, mapIterable, mapJoinArray, objectKeys, sortArray, splitAsciiWhitespace, toArray } from "@rodkisten/nascente";
 
 export type DebugOptions = DevtoolsDebugOptions;
 
@@ -180,9 +181,7 @@ export function flushDebugLogs(): void {
 
   if (bufferedLogs.size === 0) return;
 
-  const logs = [...bufferedLogs.values()].sort(
-    (left, right) => left.firstTimestamp - right.firstTimestamp,
-  );
+  const logs = sortArray(toArray(bufferedLogs.values()), (left, right) => left.firstTimestamp - right.firstTimestamp);
 
   bufferedLogs.clear();
 
@@ -304,7 +303,7 @@ function printLog(log: BufferedLog): void {
 
   const countLabel = count > 1 ? ` ×${formatCount(count)}` : "";
 
-  const prefix = [
+  const prefix = joinArray([
     `%c${label}`,
     "%c",
     `%c ${scope} `,
@@ -312,7 +311,7 @@ function printLog(log: BufferedLog): void {
     `%c ${message} `,
     `%c${countLabel}`,
     `%c #${id} ${timeLabel}`,
-  ].join("");
+  ], "");
 
   const styles = [
     `background:${color};color:#0b1020;font-weight:800;border-radius:4px 0 0 4px`,
@@ -328,7 +327,7 @@ function printLog(log: BufferedLog): void {
 
   const method = level === "trace" ? "debug" : level;
 
-  if (meta && Object.keys(meta).length > 0) {
+  if (meta && objectKeys(meta).length > 0) {
     originalConsole[method](prefix, ...styles, meta);
     return;
   }
@@ -342,12 +341,12 @@ function createLogSignature(
   message: string,
   meta?: DebugMeta,
 ): string {
-  return [
+  return joinArray([
     level,
     scope,
     message,
     stableSerialize(meta),
-  ].join("\u001f");
+  ], "\u001f");
 }
 
 /**
@@ -419,34 +418,28 @@ function stableSerialize(value: unknown): string {
     }
 
     if (current instanceof Error) {
-      return [
+      return joinArray([
         "error",
         current.name,
         current.message,
         current.stack ?? "",
-      ].join(":");
+      ], ":");
     }
 
     if (current instanceof Map) {
-      const entries = [...current.entries()]
-        .map(([key, item]) => [serialize(key), serialize(item)] as const)
-        .sort(([left], [right]) => left.localeCompare(right));
+      const entries = sortArray(mapIterable(current.entries(), ([key, item]) => [serialize(key), serialize(item)] as const), ([left], [right]) => left.localeCompare(right));
 
-      return `map:{${entries
-        .map(([key, item]) => `${key}:${item}`)
-        .join(",")}}`;
+      return `map:{${mapJoinArray(entries, ([key, item]) => `${key}:${item}`, ",")}}`;
     }
 
     if (current instanceof Set) {
-      const items = [...current.values()]
-        .map(serialize)
-        .sort((left, right) => left.localeCompare(right));
+      const items = sortArray(mapIterable(current.values(), serialize), (left, right) => left.localeCompare(right));
 
-      return `set:[${items.join(",")}]`;
+      return `set:[${joinArray(items, ",")}]`;
     }
 
     if (Array.isArray(current)) {
-      return `array:[${current.map(serialize).join(",")}]`;
+      return `array:[${mapJoinArray(current, serialize, ",")}]`;
     }
 
     if (isDomNode(current)) {
@@ -454,13 +447,10 @@ function stableSerialize(value: unknown): string {
     }
 
     const record = current as Record<string, unknown>;
-    const keys = Object.keys(record).sort((left, right) =>
-      left.localeCompare(right),
-    );
+    const keys = sortArray(objectKeys(record), (left, right) =>
+      left.localeCompare(right));
 
-    return `object:{${keys
-      .map((key) => `${JSON.stringify(key)}:${serialize(record[key])}`)
-      .join(",")}}`;
+    return `object:{${mapJoinArray(keys, (key) => `${JSON.stringify(key)}:${serialize(record[key])}`, ",")}}`;
   }
 
   return serialize(value);
@@ -473,13 +463,7 @@ function serializeDomNode(value: Node): string {
 
     const className =
       typeof value.className === "string"
-        ? value.className
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean)
-            .sort()
-            .map((name) => `.${name}`)
-            .join("")
+        ? mapJoinArray(sortArray(splitAsciiWhitespace(value.className)), (name) => `.${name}`, "")
         : "";
 
     return `element:${tagName}${id}${className}`;

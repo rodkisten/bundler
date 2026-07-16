@@ -3,6 +3,7 @@ import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "@rodkis
 import { highlightCode, inferSourceType, withLineNumbers } from "@rodkisten/devtools/core-serialize";
 import { event, html } from "@rodkisten/devtools/core-runtime";
 import type { NetworkHeader, NetworkRecord } from "@rodkisten/devtools/types";
+import { at, joinArray, mapArray, mapObject, splitNonEmpty } from "@rodkisten/nascente";
 
 export function networkListTemplate(records: NetworkRecord[], selectedId: string | null, onOpen: (id: string) => void): RenderValue {
   if (!records.length) {
@@ -27,7 +28,7 @@ export function networkListTemplate(records: NetworkRecord[], selectedId: string
         </tr>
       </thead>
       <tbody>
-        ${records.map((record) => networkRowTemplate(record, selectedId, onOpen))}
+        ${mapArray(records, (record) => networkRowTemplate(record, selectedId, onOpen))}
       </tbody>
     </RodNetworkTable>
   `;
@@ -35,7 +36,7 @@ export function networkListTemplate(records: NetworkRecord[], selectedId: string
 
 export function networkRowTemplate(record: NetworkRecord, selectedId: string | null, onOpen: (id: string) => void): RenderValue {
   const url = safeUrl(record.url);
-  const name = url.pathname.split("/").filter(Boolean).at(-1) || url.hostname || record.url;
+  const name = at(splitNonEmpty(url.pathname, "/"), -1) || url.hostname || record.url;
   const status = record.status == null ? (record.state === "pending" ? "…" : "—") : String(record.status);
   const URL_MAX_LENGTH = 120; // 80
   
@@ -117,7 +118,7 @@ export function networkDetailTemplate(record: NetworkRecord, options: {
       </RodNetworkPane>
 
       <RodNetworkPane :detailPane="timing" :active=${options.activeTab === "timing"}>
-        ${sectionTableTemplate("Timing", Object.entries(timing).map(([key, value]) => [key, formatDuration(value)]))}
+        ${sectionTableTemplate("Timing", mapObject(timing, (value, key) => [key, formatDuration(value)]))}
       </RodNetworkPane>
 
       ${record.kind === "websocket" ? html`
@@ -142,7 +143,7 @@ export function sectionTableTemplate(title: string, rows: Array<readonly [string
       <RodSharedTableWrap>
         <RodNetworkKvTable>
           <tbody>
-            ${rows.map(([key, value]) => html`
+            ${mapArray(rows, ([key, value]) => html`
               <tr>
                 <td>${key}</td>
                 <td>${String(value)}</td>
@@ -158,7 +159,7 @@ export function sectionTableTemplate(title: string, rows: Array<readonly [string
 export function headerTableTemplate(title: string, headers: NetworkHeader[]): RenderValue {
   return sectionTableTemplate(
     title,
-    headers.length ? headers.map((header) => [header.name, header.value] as const) : [["—", "No headers"]],
+    headers.length ? mapArray(headers, (header) => [header.name, header.value] as const) : [["—", "No headers"]],
   );
 }
 
@@ -185,7 +186,7 @@ export function messagesTableTemplate(record: NetworkRecord): RenderValue {
           </tr>
         </thead>
         <tbody>
-          ${messages.map((message) => html`
+          ${mapArray(messages, (message) => html`
             <tr>
               <td>${message.direction === "sent" ? "↑ Sent" : "↓ Received"}</td>
               <td>${new Date(message.timestamp).toLocaleTimeString()}</td>
@@ -233,5 +234,5 @@ export function toCurl(record: NetworkRecord): string {
     parts.push("--data-raw", shellQuote(record.requestBody));
   }
 
-  return parts.join(" ");
+  return joinArray(parts, " ");
 }

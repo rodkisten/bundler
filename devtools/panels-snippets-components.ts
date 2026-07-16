@@ -2,6 +2,7 @@ import type { SnippetItem } from "@rodkisten/devtools/types";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
+import { mapArray } from "@rodkisten/nascente";
 
 export type SnippetsModel = {
   snippets: SnippetItem[];
@@ -60,7 +61,7 @@ component("RodSnippetsView", function RodSnippetsView(_props, ctx) {
         view.setBody(node);
         return () => view.setBody(null);
       }}>
-        ${model.snippets.length ? model.snippets.map((snippet, index) => {
+        ${model.snippets.length ? mapArray(model.snippets, (snippet, index) => {
           const active = model.activeNames.has(snippet.name);
           return html`
             <RodSharedCard>

@@ -8,6 +8,7 @@ import {
   type UserscriptRequest,
   type UserscriptResponse,
 } from "@rodkisten/devtools/panels/sources";
+import { at, clone, compactMapArray, concatArrays, forEachArray, includesArray, joinArray, mapArray, mapFilterArray, mapJoinArray, splitLines, splitNonEmpty, splitTrimmedNonEmpty, toArray } from "@rodkisten/nascente";
 
 export function isSourcePayload(
   value: SourcePayload | SourceType | string,
@@ -30,7 +31,8 @@ export function collectSources(): SourcePayload[] {
   ];
   const seenUrls = new Set<string>();
 
-  for (const [index, script] of Array.from(document.scripts).entries()) {
+  for (let index = 0; index < document.scripts.length; index++) {
+    const script = document.scripts[index]!;
     if (isDevtoolsNode(script)) continue;
 
     if (script.src) {
@@ -52,7 +54,9 @@ export function collectSources(): SourcePayload[] {
     }
   }
 
-  for (const [index, style] of Array.from(document.querySelectorAll("style")).entries()) {
+  const inlineStyles = document.querySelectorAll("style");
+  for (let index = 0; index < inlineStyles.length; index++) {
+    const style = inlineStyles[index]!;
     if (isDevtoolsNode(style) || !style.textContent?.trim()) continue;
     sources.push({
       type: "css",
@@ -61,10 +65,10 @@ export function collectSources(): SourcePayload[] {
     });
   }
 
-  const stylesheetUrls = [
-    ...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map((link) => link.href),
-    ...Array.from(document.styleSheets).map((sheet) => sheet.href).filter((href): href is string => Boolean(href)),
-  ];
+  const stylesheetUrls = concatArrays(
+    mapArray(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'), (link) => link.href),
+    mapFilterArray(document.styleSheets, (sheet) => sheet.href, (href): href is string => Boolean(href)),
+  );
 
   for (const url of stylesheetUrls) {
     const normalized = normalizeSourceUrl(url);
@@ -92,9 +96,9 @@ export function serializeDocumentSource(): string {
   }
 
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(
+  forEachArray(clone.querySelectorAll(
     "#roderuda,.__roderuda-host__,.__roderuda-overlay__,[data-roderuda-root],[data-roderuda-internal]",
-  ).forEach((node) => node.remove());
+  ), (node) => node.remove());
   return `<!doctype html>\n${clone.outerHTML}`;
 }
 
@@ -107,12 +111,12 @@ export function inferTextSourceType(
   sourceHint: string,
   value?: string,
 ): CodeEditorLanguage {
-  if (["html", "css", "javascript", "json"].includes(requestedType)) {
+  if (includesArray(["html", "css", "javascript", "json"], requestedType)) {
     return requestedType as CodeEditorLanguage;
   }
 
   const inferred = inferSourceType(value ?? "", sourceHint);
-  if (["html", "css", "javascript", "json"].includes(inferred)) {
+  if (includesArray(["html", "css", "javascript", "json"], inferred)) {
     return inferred as CodeEditorLanguage;
   }
 
@@ -129,13 +133,11 @@ export function readCurrentDocumentSource(url: string, type: string): string | n
 export function readStylesheetSource(url: string): string | null {
   const normalized = normalizeSourceUrl(url);
 
-  for (const stylesheet of Array.from(document.styleSheets)) {
+  for (const stylesheet of toArray(document.styleSheets)) {
     if (!stylesheet.href || normalizeSourceUrl(stylesheet.href) !== normalized) continue;
 
     try {
-      return Array.from(stylesheet.cssRules)
-        .map((rule) => rule.cssText)
-        .join("\n");
+      return mapJoinArray(stylesheet.cssRules, (rule) => rule.cssText, "\n");
     } catch {
       return null;
     }
@@ -268,13 +270,13 @@ export async function readUserscriptSource(
 }
 
 export function sourceFailureText(type: string, url: string, failures: readonly string[]): string {
-  const detail = failures.length ? failures.join("\n") : "No readable response body was available.";
-  const message = [
+  const detail = failures.length ? joinArray(failures, "\n") : "No readable response body was available.";
+  const message = joinArray([
     "RodEruda could not read this resource from the page context.",
     `URL: ${url || "unknown"}`,
     "Tried: current DOM/CSSOM, captured Network responses, Cache Storage, fetch and userscript cross-origin request.",
     detail,
-  ].join("\n");
+  ], "\n");
 
   if (type === "html") return `<!--\n${message}\n-->`;
   if (type === "json") {
@@ -409,14 +411,13 @@ export function formatHtml(
     },
   );
 
-  const tokens = protectedSource
-    .replace(/>\s*</g, "><")
-    .split(/(?=<)|(?<=>)/)
-    .filter((token) => token.trim().length > 0);
+  const tokens = splitTrimmedNonEmpty(
+    protectedSource.replace(/>\s*</g, "><"),
+    /(?=<)|(?<=>)/,
+  );
 
   let depth = 0;
-  const output = tokens.map((token) => {
-    const trimmed = token.trim();
+  const output = mapArray(tokens, (trimmed) => {
     const embeddedMatch = /^<roderuda-embedded data-index="(\d+)"\/>$/.exec(trimmed);
     if (embeddedMatch) {
       const block = embedded[Number(embeddedMatch[1])] ?? "";
@@ -433,12 +434,12 @@ export function formatHtml(
     return line;
   });
 
-  return output.join("\n");
+  return joinArray(output, "\n");
 }
 
 export function indentBlock(value: string, spaces: number): string {
   const prefix = " ".repeat(Math.max(0, spaces));
-  return value.split(/\r?\n/).map((line) => `${prefix}${line}`).join("\n");
+  return mapJoinArray(splitLines(value), (line) => `${prefix}${line}`, "\n");
 }
 
 export function formatCss(
@@ -447,10 +448,8 @@ export function formatCss(
 ): string {
   let depth = 0;
 
-  return source
-    .replace(/\s*([{};])\s*/g, "$1\n")
-    .split("\n")
-    .map((line) => {
+  return joinArray(compactMapArray(splitLines(source
+    .replace(/\s*([{};])\s*/g, "$1\n")), (line) => {
       const trimmed = line.trim();
 
       if (!trimmed) return "";
@@ -467,9 +466,7 @@ export function formatCss(
       }
 
       return output;
-    })
-    .filter(Boolean)
-    .join("\n");
+    }), "\n");
 }
 
 export function formatJavaScript(
@@ -552,10 +549,7 @@ export function fileNameFor(
       location.href,
     ).pathname;
 
-    return pathname
-      .split("/")
-      .filter(Boolean)
-      .at(-1)
+    return at(splitNonEmpty(pathname, "/"), -1)
       || defaultExtensionFor(payload.type);
   } catch {
     return defaultExtensionFor(payload.type);

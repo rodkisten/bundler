@@ -3,6 +3,9 @@ import { component, event, html } from "@rodkisten/devtools/core/runtime";
 import { plainText, renderValue } from "@rodkisten/devtools/core/serialize";
 import { safeStringify } from "@rodkisten/devtools/utils";
 import type { ConsoleLevel, ConsoleRecord } from "@rodkisten/devtools/types";
+import { appendArray, at, everyArray, filterArray, filterJoinArray, filterTakeIterable, flatMap, mapArray, mapObject, objectKeys, sortArray, splitNonEmpty, splitTrimmedNonEmpty, takeRight, toArray, uniq } from "@rodkisten/nascente";
+
+const SAFE_CONSOLE_STYLE_DECLARATION = /^(color|background(?:-color)?|font(?:-weight|-style)?|text-decoration|border(?:-color)?|padding|margin)/i;
 
 const HISTORY_STORAGE_KEY = "roderuda:console-history";
 
@@ -69,7 +72,7 @@ function formattedConsoleArgs(args: readonly unknown[]): RenderValue {
   const values: RenderValue[] = [];
   let argIndex = 0;
   let activeStyle = "";
-  const parts = first.split(/(%[sdifoOc%])/g).filter(Boolean);
+  const parts = splitNonEmpty(first, /(%[sdifoOc%])/g);
 
   for (const part of parts) {
     if (!part.startsWith("%") || part === "%%") {
@@ -112,11 +115,11 @@ function inspectableValue(value: unknown): Node {
 }
 
 export function sanitizeConsoleStyle(value: string): string {
-  return value
-    .split(";")
-    .map((entry) => entry.trim())
-    .filter((entry) => /^(color|background(?:-color)?|font(?:-weight|-style)?|text-decoration|border(?:-color)?|padding|margin)/i.test(entry))
-    .join(";");
+  return filterJoinArray(
+    splitTrimmedNonEmpty(value, ";"),
+    (entry) => SAFE_CONSOLE_STYLE_DECLARATION.test(entry),
+    ";",
+  );
 }
 
 function tableView(value: unknown): RenderValue {
@@ -130,13 +133,13 @@ function tableView(value: unknown): RenderValue {
       <RodConsoleTable>
         <thead>
           <tr>
-            ${data.columns.map((column) => html`<RodConsoleTableHead>${column}</RodConsoleTableHead>`)}
+            ${mapArray(data.columns, (column) => html`<RodConsoleTableHead>${column}</RodConsoleTableHead>`)}
           </tr>
         </thead>
         <tbody>
-          ${data.rows.map((row) => html`
+          ${mapArray(data.rows, (row) => html`
             <tr>
-              ${data.columns.map((column) => html`<RodConsoleTableCell>${stringifyCell(row[column])}</RodConsoleTableCell>`)}
+              ${mapArray(data.columns, (column) => html`<RodConsoleTableCell>${stringifyCell(row[column])}</RodConsoleTableCell>`)}
             </tr>
           `)}
         </tbody>
@@ -160,17 +163,17 @@ export function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
 
 export function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
   if (left.level !== right.level || left.groupDepth !== right.groupDepth || left.args.length !== right.args.length) return false;
-  return left.args.every((value, index) => Object.is(value, right.args[index]));
+  return everyArray(left.args, (value, index) => Object.is(value, right.args[index]));
 }
 
 export function normalizeTable(value: unknown): { columns: string[]; rows: Array<Record<string, unknown>> } {
   if (Array.isArray(value)) {
-    const rows = value.map((item, index) => item && typeof item === "object" ? { "(index)": index, ...(item as Record<string, unknown>) } : { "(index)": index, Value: item });
-    return { columns: [...new Set(rows.flatMap((row) => Object.keys(row)))], rows };
+    const rows = mapArray(value, (item, index) => item && typeof item === "object" ? { "(index)": index, ...(item as Record<string, unknown>) } : { "(index)": index, Value: item });
+    return { columns: uniq(flatMap(rows, (row) => objectKeys(row))), rows };
   }
   if (value && typeof value === "object") {
-    const rows = Object.entries(value).map(([key, item]) => item && typeof item === "object" ? { "(index)": key, ...(item as Record<string, unknown>) } : { "(index)": key, Value: item });
-    return { columns: [...new Set(rows.flatMap((row) => Object.keys(row)))], rows };
+    const rows = mapObject(value, (item, key) => item && typeof item === "object" ? { "(index)": key, ...(item as Record<string, unknown>) } : { "(index)": key, Value: item });
+    return { columns: uniq(flatMap(rows, (row) => objectKeys(row))), rows };
   }
   return { columns: [], rows: [] };
 }
@@ -180,7 +183,7 @@ export function readHistory(limit: number): string[] {
   try {
     const value = localStorage.getItem(HISTORY_STORAGE_KEY);
     const parsed = value ? JSON.parse(value) : [];
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string").slice(-Math.max(0, limit)) : [];
+    return Array.isArray(parsed) ? takeRight(filterArray(parsed, (item): item is string => typeof item === "string"), Math.max(0, limit)) : [];
   } catch {
     return [];
   }
@@ -188,15 +191,15 @@ export function readHistory(limit: number): string[] {
 
 export function writeHistory(history: readonly string[], limit: number): void {
   try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(limit <= 0 ? [] : history.slice(-limit)));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(limit <= 0 ? [] : takeRight(history, limit)));
   } catch {}
 }
 
 export function appendHistory(history: readonly string[], code: string, limit: number): string[] {
   const trimmed = code.trim();
-  if (!trimmed) return [...history];
-  const next = history.at(-1) === trimmed ? [...history] : [...history, trimmed];
-  return limit <= 0 ? [] : next.slice(-limit);
+  if (!trimmed) return toArray(history);
+  const next = at(history, -1) === trimmed ? toArray(history) : appendArray(history, trimmed);
+  return limit <= 0 ? [] : takeRight(next, limit);
 }
 
 export function consoleCompletions(context: { 
@@ -221,11 +224,11 @@ export function consoleCompletions(context: {
    
     if (root) {
       for (const key of collectPropertyNames(root, prefix)) add(key, "property", rootName);
-      return { from: word.from + dot + 1, options: [...options.values()].filter((item) => item.label.startsWith(prefix)).slice(0, 100) };
+      return { from: word.from + dot + 1, options: filterTakeIterable(options.values(), (item) => item.label.startsWith(prefix), 100) };
     }
   }
 
-  return { from: word.from, options: [...options.values()].filter((item) => item.label.startsWith(word.text)).slice(0, 100) };
+  return { from: word.from, options: filterTakeIterable(options.values(), (item) => item.label.startsWith(word.text), 100) };
 }
 
 export function resolveCompletionRoot(name: string): unknown {
@@ -248,7 +251,7 @@ export function collectPropertyNames(value: unknown, prefix: string): string[] {
     current = Object.getPrototypeOf(current);
     depth += 1;
   }
-  return [...names].sort();
+  return sortArray(toArray(names));
 }
 
 export function isInitialConsoleEntry(value: unknown): value is { level?: ConsoleLevel; args?: readonly unknown[]; message?: unknown; timestamp?: number; stack?: string } {

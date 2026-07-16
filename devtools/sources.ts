@@ -31,6 +31,7 @@ import {
   SourcesContext,
 } from "@rodkisten/devtools/panels/sources-components";
 import { isSourcePayload, collectSources, inferTextSourceType, readCurrentDocumentSource, readStylesheetSource, readCachedSource, fetchSourceText, readUserscriptSource, sourceFailureText, normalizeSourceUrl, sourceErrorMessage, looksLikeUrl, formatJson, sourceLanguage, formatSource, fileNameFor } from "@rodkisten/devtools/panels/sources.functions";
+import { findArray, mapArray, mapJoinArray, reverseArray, toArray } from "@rodkisten/nascente";
 export { formatSource } from "@rodkisten/devtools/panels/sources.functions";
 
 
@@ -429,7 +430,7 @@ const userscriptSource = await readUserscriptSource(
     if (!network || typeof network.requests !== "function") return null;
 
     const normalized = normalizeSourceUrl(url);
-    const record = [...network.requests()].reverse().find((candidate) => (
+    const record = findArray(reverseArray(toArray(network.requests())), (candidate) => (
       normalizeSourceUrl(candidate.url) === normalized
       && typeof candidate.responseBody === "string"
       && candidate.responseBody.length > 0
@@ -560,16 +561,13 @@ const userscriptSource = await readUserscriptSource(
     const sources = collectSources();
     this.indexedSources = sources;
 
-    this.renderedText = sources
-      .map((source) => `${source.type}\t${source.title}`)
-      .join("\n");
+    this.renderedText = mapJoinArray(sources, (source) => `${source.type}\t${source.title}`, "\n");
 
     this.content.set(html`
       <RodSourcesBreadcrumb>All sources</RodSourcesBreadcrumb>
 
       <RodSourcesLinkList>
-        ${sources.map(
-          (source, index) => html`
+        ${mapArray(sources, (source, index) => html`
             <li>
               <RodSourcesTextButton
                 type="button"
@@ -581,8 +579,7 @@ const userscriptSource = await readUserscriptSource(
                 ${source.type} · ${source.title}
               </RodSourcesTextButton>
             </li>
-          `,
-        )}
+          `)}
       </RodSourcesLinkList>
     `);
   }

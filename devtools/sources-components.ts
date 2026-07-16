@@ -4,6 +4,7 @@ import { component, event, html,  styled } from "@rodkisten/devtools/core/runtim
 import { icon } from "@rodkisten/devtools/utils";
 import "@rodkisten/devtools/panels/shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
+import { filterArray, flatMap } from "@rodkisten/nascente";
 
 export const SourcesContext = createRequiredFabricaContext<SourcesContextValue>("SourcesContext");
 
@@ -197,8 +198,7 @@ const SOURCES_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const sourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SOURCES_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(SOURCES_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 component("RodSourcesView", function RodSourcesView(_props, ctx) {

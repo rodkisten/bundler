@@ -22,6 +22,7 @@ import {
   type SettingsViewModel,
   SettingsViewContext,
 } from "@rodkisten/devtools/panels-settings-components";
+import { findIndexArray, mapArray, range, removeAtArray } from "@rodkisten/nascente";
 
 
 type BaseSettingEntry = {
@@ -195,10 +196,10 @@ export class Settings extends Tool {
   }
 
   removeSetting(id: string): void {
-    const index = this.entries.findIndex((entry) => entry.id === id);
+    const index = findIndexArray(this.entries, (entry) => entry.id === id);
     if (index < 0) return;
 
-    const [entry] = this.entries.splice(index, 1);
+    const entry = removeAtArray(this.entries, index);
     entry?.dispose?.();
     this.render();
   }
@@ -242,7 +243,7 @@ export class Settings extends Tool {
       <SettingsSection>
         <SettingsSectionTitle>Settings</SettingsSectionTitle>
         ${this.entries.length
-          ? this.entries.map((entry) => this.renderEntry(entry))
+          ? mapArray(this.entries, (entry) => this.renderEntry(entry))
           : html`
               <SettingsRow>
                 <SettingsText>No settings registered.</SettingsText>
@@ -293,7 +294,7 @@ export class Settings extends Tool {
                 if (change.target instanceof HTMLSelectElement) entry.setValue(change.target.value);
               })}
             >
-              ${entry.selections.map((selection) => html`
+              ${mapArray(entry.selections, (selection) => html`
                 <option value=${selection} .selected=${selection === value}>${selection}</option>
               `)}
             </SettingsSelect>

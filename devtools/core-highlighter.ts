@@ -1,5 +1,6 @@
 import { setStyles } from "@rodkisten/devtools/core-dom";
 import { isDevtoolsNode, describeNode } from "@rodkisten/devtools/utils"
+import { mapArray } from "@rodkisten/nascente";
 
 const HIGHLIGHT_DURATION = 850;
 const OVERLAY_CLASS = "__roderuda-overlay__";
@@ -82,7 +83,7 @@ host.inert = true;
       "rgb(147 196 125 / .36)",
       "rgb(111 168 220 / .38)",
     ];
-    this.boxes = colors.map((color) => {
+    this.boxes = mapArray(colors, (color) => {
       const box = document.createElement("div");
       box.style.cssText = `
         position:absolute;
@@ -174,16 +175,7 @@ host.inert = true;
     if (!this.label) return;
     this.label.hidden = !showLabel;
     if (!showLabel) return;
-   /* const id = element.id ? `#${element.id}` : "";
-    const classes = Array.from(element.classList).slice(0, 4).map((name) => `.${name}`).join("");
-    const datasets = Array.from(element.dataSet).slice(0, 4).map((data) => `: ${name}`).join("")
-    // Aqui vive a criacao de <rod#test>
-    if(!!id && classes) {
-      this.label.textContent = `${element.tagName.toLowerCase()}${id}${classes}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    } else {      
-      this.label.textContent = `${element.tagName.toLowerCase()}${datasets}  ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
-    }
-    */
+
 
     this.label.textContent = describeNode(element);
     

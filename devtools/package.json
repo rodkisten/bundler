@@ -2,7 +2,7 @@
   "name": "@rodkisten/devtools",
   "version": "0.0.1",
   "type": "module",
-  "description": "Fork of Eruda using Broto, F\u00e1brica and Cip\u00f3 tools.",
+  "description": "Fork of Eruda using Broto, Fábrica and Cipó tools.",
   "main": "./index.js",
   "types": "./index.d.ts",
   "exports": {
@@ -40,6 +40,7 @@
     "@rodkisten/broto": "workspace:*",
     "@rodkisten/cipo": "workspace:*",
     "@rodkisten/fabrica": "workspace:*",
+    "@rodkisten/nascente": "workspace:*",
     "lit": "^3.3.1",
     "lit-html": "^3.3.1",
     "markdown-it": "^14.1.0",

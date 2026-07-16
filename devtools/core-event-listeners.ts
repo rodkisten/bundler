@@ -1,4 +1,5 @@
 import type { EventListenerRecord } from "@rodkisten/devtools/types";
+import { findArray, indexOfArray, mapArray, removeAtArray } from "@rodkisten/nascente";
 
 type EventListenerOptionsLike =
   | boolean
@@ -66,7 +67,7 @@ export function getEventListeners(
   for (const [type, listeners] of targetMap) {
     if (listeners.length === 0) continue;
 
-    output[type] = listeners.map(toPublicRecord);
+    output[type] = mapArray(listeners, toPublicRecord);
   }
 
   return output;
@@ -260,11 +261,11 @@ function removeRecord(
 
   if (!listeners) return;
 
-  const index = listeners.indexOf(record);
+  const index = indexOfArray(listeners, record);
 
   if (index < 0) return;
 
-  listeners.splice(index, 1);
+  removeAtArray(listeners, index);
 
   record.abortCleanup?.();
   record.abortCleanup = undefined;
@@ -288,11 +289,9 @@ function findListenerRecord(
 
   if (!listeners) return undefined;
 
-  return listeners.find(
-    (entry) =>
+  return findArray(listeners, (entry) =>
       entry.listener === listener &&
-      entry.capture === capture,
-  );
+      entry.capture === capture);
 }
 
 function toPublicRecord(

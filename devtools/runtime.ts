@@ -2,6 +2,7 @@ import { createStyled } from "@rodkisten/cipo";
 import { createFabrica } from "@rodkisten/fabrica";
 import type { Cleanup, Component, RefDirective, RenderValue } from "@rodkisten/fabrica";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core/cipo-bootstrap";
+import { filterArray, forEachObject, toArray } from "@rodkisten/nascente";
 
 // Theme tokens (`$background`, `$font.ui`, prefix `rd`, …) must exist before
 // any styled component template is evaluated.
@@ -73,7 +74,7 @@ export function asNode(value: RenderInput): Node {
   const fragment = document.createDocumentFragment();
   render(fragment, value);
 
-  const meaningful = Array.from(fragment.childNodes).filter((node) => {
+  const meaningful = filterArray(fragment.childNodes, (node) => {
     if (node.nodeType === Node.COMMENT_NODE) return false;
     if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim());
     return true;
@@ -87,7 +88,7 @@ export function asElement<T extends Element = HTMLElement>(value: RenderInput): 
   const node = asNode(value);
   if (node instanceof Element) return node as T;
   if (node instanceof DocumentFragment) {
-    const elements = Array.from(node.children);
+    const elements = toArray(node.children);
     if (elements.length === 1) return elements[0] as T;
   }
   throw new Error(`[RodEruda] Expected one rendered element, received ${node.nodeName}`);
@@ -146,10 +147,10 @@ function normalizeAttrs(attrs?: UiElementOptions["attrs"]): Record<string, strin
 
   if (!attrs) return output;
 
-  for (const [name, value] of Object.entries(attrs)) {
-    if (value == null || value === false) continue;
+  forEachObject(attrs, (value, name) => {
+    if (value == null || value === false) return;
     output[name] = value === true ? "" : value;
-  }
+  });
 
   return output;
 }

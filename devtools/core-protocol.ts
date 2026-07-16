@@ -3,6 +3,7 @@ import { ElementHighlighter } from "@rodkisten/devtools/core-highlighter";
 import { isDevtoolsNode, nodePath, safeStringify } from "@rodkisten/devtools/utils";
 import { NetworkCapture } from "@rodkisten/devtools/core-network-capture";
 import type { NetworkRecord } from "@rodkisten/devtools/types";
+import { compactMapArray, drainArray, flatMap, mapArray, mapObject, objectFromEntries, splitNonEmpty, splitOnce, toArray } from "@rodkisten/nascente";
 
 interface ProtocolEvents {
   event: [method: string, params: unknown];
@@ -115,7 +116,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
   }
 
   dispatchSync(method: string, params: Record<string, unknown> = {}): unknown {
-    const [domain, command] = method.split(".");
+    const [domain, command] = splitOnce(method, ".");
     if (command === "enable") {
       this.enabledDomains.add(domain);
       if (domain === "Network") this.bindNetwork();
@@ -212,12 +213,12 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
         const node = this.resolveNode(params);
         if (!(node instanceof Element)) throw new Error("Element not found");
         const style = getComputedStyle(node);
-        return { computedStyle: Array.from(style, (name) => ({ name, value: style.getPropertyValue(name) })) };
+        return { computedStyle: toArray(style, (name) => ({ name, value: style.getPropertyValue(name) })) };
       }
       case "CSS.getInlineStylesForNode": {
         const node = this.resolveNode(params);
         if (!(node instanceof HTMLElement || node instanceof SVGElement)) throw new Error("Element not found");
-        return { inlineStyle: { cssProperties: Array.from(node.style, (name) => ({ name, value: node.style.getPropertyValue(name), important: node.style.getPropertyPriority(name) === "important" })), cssText: node.getAttribute("style") ?? "" } };
+        return { inlineStyle: { cssProperties: toArray(node.style, (name) => ({ name, value: node.style.getPropertyValue(name), important: node.style.getPropertyPriority(name) === "important" })), cssText: node.getAttribute("style") ?? "" } };
       }
       case "Runtime.evaluate": {
         const value = (0, eval)(String(params.expression ?? ""));
@@ -228,7 +229,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
         if (value == null) return { result: [] };
         const descriptors = Object.getOwnPropertyDescriptors(Object(value));
         return {
-          result: Object.entries(descriptors).map(([name, descriptor]) => ({
+          result: mapObject(descriptors, (descriptor, name) => ({
             name,
             value: "value" in descriptor ? this.remoteObject(descriptor.value, false) : undefined,
             get: descriptor.get ? this.remoteObject(descriptor.get, false) : undefined,
@@ -273,7 +274,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
   }
 
   emitProtocol(method: string, params: unknown): void {
-    if (!this.enabledDomains.has(method.split(".")[0] ?? "")) return;
+    if (!this.enabledDomains.has(splitOnce(method, ".")[0])) return;
     this.emit("event", method, params);
     this.emit(method, params);
   }
@@ -339,13 +340,13 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
     }
     if (depth !== 0 && node.childNodes.length) {
       const nextDepth = depth < 0 ? -1 : depth - 1;
-      description.children = Array.from(node.childNodes, (child) => this.describe(child, nextDepth));
+      description.children = toArray(node.childNodes, (child) => this.describe(child, nextDepth));
     }
     return description;
   }
 
   private attributes(element: Element): string[] {
-    return Array.from(element.attributes).flatMap(({ name, value }) => [name, value]);
+    return flatMap(toArray(element.attributes), ({ name, value }) => [name, value]);
   }
 
   private remoteObject(value: unknown, returnByValue = false): Record<string, unknown> {
@@ -385,7 +386,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
   }
 
   private stopInspectMode(): void {
-    for (const cleanup of this.inspectCleanup.splice(0)) cleanup();
+    for (const cleanup of drainArray(this.inspectCleanup)) cleanup();
     this.highlighter.hide();
   }
 
@@ -413,7 +414,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
       timestamp: record.startTime / 1000,
       wallTime: Date.now() / 1000,
       type: record.type ?? record.kind,
-      request: { url: record.url, method: record.method, headers: Object.fromEntries(record.requestHeaders.map((header) => [header.name, header.value])), postData: record.requestBody },
+      request: { url: record.url, method: record.method, headers: objectFromEntries(mapArray(record.requestHeaders, (header) => [header.name, header.value])), postData: record.requestBody },
     });
   };
 
@@ -429,7 +430,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
           url: record.url,
           status: record.status,
           statusText: record.statusText ?? "",
-          headers: Object.fromEntries(record.responseHeaders.map((header) => [header.name, header.value])),
+          headers: objectFromEntries(mapArray(record.responseHeaders, (header) => [header.name, header.value])),
           mimeType: record.mimeType ?? "",
           encodedDataLength: record.size ?? 0,
         },
@@ -450,11 +451,11 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
   private readonly onNetworkClear = (): void => this.networkStages.clear();
 
   private cookies(): Array<{ name: string; value: string; domain: string; path: string; expires: number; size: number; httpOnly: boolean; secure: boolean; session: boolean; sameSite: string }> {
-    return document.cookie.split(";").map((part) => part.trim()).filter(Boolean).map((part) => {
-      const [name, ...value] = part.split("=");
+    return mapArray(compactMapArray(splitNonEmpty(document.cookie, ";"), (part) => part.trim()), (part) => {
+      const [name, value] = splitOnce(part, "=");
       return {
         name,
-        value: value.join("="),
+        value,
         domain: location.hostname,
         path: "/",
         expires: -1,

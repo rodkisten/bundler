@@ -1,4 +1,5 @@
 import { debugError, debugTrace } from "@rodkisten/devtools/core-debug";
+import { toArray } from "@rodkisten/nascente";
 
 export type Listener<Args extends unknown[] = unknown[]> = (...args: Args) => void;
 
@@ -44,7 +45,7 @@ export class Emitter<Events extends { [K in keyof Events]: unknown[] } = Record<
     const bucket = this.listeners.get(event);
     debugTrace("emitter", "emit", { owner: this.constructor.name, event: String(event), listeners: bucket?.size ?? 0, args: args.length });
     if (!bucket) return this;
-    for (const listener of [...bucket]) {
+    for (const listener of toArray(bucket)) {
       try {
         listener(...args);
       } catch (error) {

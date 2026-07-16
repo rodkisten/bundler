@@ -18,6 +18,7 @@ import type {
   ToolContext,
   ToolLike,
 } from "@rodkisten/devtools/types";
+import { appendArray, concatArrays, drainArray, drop, filterArray, filterIterable, findArray, forEachObject, includesArray, indexOfArray, joinArray, mapArray, moveArrayItem, objectKeys, splitTrimmedNonEmpty, take, toArray } from "@rodkisten/nascente";
 
 interface ControllerEvents {
   show: [];
@@ -196,7 +197,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   removeAll(): this {
-    for (const name of [...this.tools.keys()]) this.remove(name);
+    for (const name of toArray(this.tools.keys())) this.remove(name);
     return this;
   }
 
@@ -281,9 +282,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const type = options.type ?? "info";
     const notifications = this.sharedContext.notifications;
 
-    const duplicate = notifications.peek().find(
-      (entry) => entry.message === message && entry.type === type,
-    );
+    const duplicate = findArray(notifications.peek(), (entry) => entry.message === message && entry.type === type);
 
     if (duplicate) {
       duplicate.active.set(true);
@@ -307,11 +306,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const current = notifications.peek();
     const overflow = Math.max(0, current.length - maxVisible + 1);
 
-    for (const stale of current.slice(0, overflow)) {
+    for (const stale of take(current, overflow)) {
       this.clearNotificationTimer(stale.id);
     }
 
-    notifications.set([...current.slice(overflow), entry]);
+    notifications.set(appendArray(drop(current, overflow), entry));
 
     requestAnimationFrame(() => entry.active.set(true));
     this.scheduleNotificationDismiss(
@@ -403,14 +402,17 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     settings.registerConfigGroup({
       title: "DevTools appearance and layout",
       config: this.config,
-      settings: [
-        { kind: "select", key: "theme", label: "Theme", selections: ["System preference", ...Object.keys(themes)] },
-        ...(!this.inline ? [
+      settings: concatArrays(
+        [
+          { kind: "select", key: "theme", label: "Theme", selections: concatArrays(["System preference"], objectKeys(themes)) },
+        ],
+        !this.inline ? [
           { kind: "range" as const, key: "transparency" as const, label: "Transparency", options: { min: 0.2, max: 1, step: 0.01 } },
           { kind: "range" as const, key: "blur" as const, label: "Background blur", options: { min: 0, max: 24, step: 0.25 } },
           { kind: "range" as const, key: "displaySize" as const, label: "Display size (%)", options: { min: 30, max: 100, step: 1 } },
-        ] : []),
-        { kind: "number", key: "uiFontSize", label: "UI font size", options: { min: 9, max: 24, step: 1 } },
+        ] : [],
+        [
+          { kind: "number", key: "uiFontSize", label: "UI font size", options: { min: 9, max: 24, step: 1 } },
         { kind: "number", key: "tabHeight", label: "Tab bar height", options: { min: 30, max: 72, step: 1 } },
         { kind: "number", key: "tabMinWidth", label: "Desktop tab minimum width", options: { min: 42, max: 160, step: 1 } },
         { kind: "number", key: "compactTabMinWidth", label: "Compact tab minimum width", options: { min: 36, max: 120, step: 1 } },
@@ -429,8 +431,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
         { kind: "number", key: "notificationTop", label: "Notification top offset", options: { min: 0, max: 240, step: 1 } },
         { kind: "number", key: "modalMaxWidth", label: "Modal maximum width", options: { min: 280, max: 1200, step: 10 } },
         { kind: "number", key: "modalMaxHeight", label: "Modal maximum height", options: { min: 240, max: 1200, step: 10 } },
-        { kind: "number", key: "animationDuration", label: "Animation duration (ms)", options: { min: 0, max: 2000, step: 25 } },
-      ],
+          { kind: "number", key: "animationDuration", label: "Animation duration (ms)", options: { min: 0, max: 2000, step: 25 } },
+        ],
+      ),
     });
 
     settings.registerButton("Choose active panels", () => this.configureActivePanels());
@@ -441,7 +444,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     settings.registerButton("Restore defaults and reload", () => {
       this.config.reset();
 
-      for (const key of Object.keys(localStorage)) {
+      for (const key of objectKeys(localStorage)) {
         if (key.startsWith("roderuda:")) localStorage.removeItem(key);
       }
 
@@ -495,7 +498,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   destroy(): void {
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
+    for (const cleanup of drainArray(this.cleanup)) cleanup();
     for (const id of this.notificationTimers.keys()) this.clearNotificationTimer(id);
     this.sharedContext.notifications.set([]);
     this.closeModal();
@@ -591,10 +594,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       panelGap: "--rd-panel-gap",
     };
 
-    for (const [configKey, variable] of Object.entries(cssVariables) as Array<[keyof DevToolsConfig, string]>) {
-      if (key && key !== configKey) continue;
-      this.refs.root.style.setProperty(variable, `${this.config.snapshot()[configKey]}px`);
-    }
+    const configSnapshot = this.config.snapshot();
+    forEachObject(cssVariables, (variable, configKey) => {
+      if (variable === undefined || (key && key !== configKey)) return;
+      this.refs.root.style.setProperty(variable, `${configSnapshot[configKey]}px`);
+    });
 
     if (!key || key === "animationDuration") {
       this.refs.root.style.setProperty("--rd-animation-duration", `${this.config.get("animationDuration")}ms`);
@@ -611,20 +615,17 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private async configureActivePanels(): Promise<void> {
-    const names = [...this.tools.keys()].filter((name) => name !== "settings");
-    const active = names.filter((name) => !this.isPanelDisabled(name));
-    const value = await this.prompt("Active panels, comma-separated", active.join(", "));
+    const names = filterIterable(this.tools.keys(), (name) => name !== "settings");
+    const active = filterArray(names, (name) => !this.isPanelDisabled(name));
+    const value = await this.prompt("Active panels, comma-separated", joinArray(active, ", "));
 
     if (value == null) return;
 
     const requested = new Set(
-      value
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean),
+      mapArray(splitTrimmedNonEmpty(value, ","), (item) => item.toLowerCase()),
     );
 
-    const disabled = names.filter((name) => !requested.has(name.toLowerCase()));
+    const disabled = filterArray(names, (name) => !requested.has(name.toLowerCase()));
     this.config.set("disabledPanels", disabled);
     this.applyPanelPreferences();
 
@@ -662,13 +663,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   private movePanel(source: string, target: string): void {
     const ordered = this.panelOrder();
-    const from = ordered.indexOf(source);
-    const to = ordered.indexOf(target);
+    const from = indexOfArray(ordered, source);
+    const to = indexOfArray(ordered, target);
 
     if (from < 0 || to < 0) return;
 
-    ordered.splice(from, 1);
-    ordered.splice(to, 0, source);
+    moveArrayItem(ordered, from, to);
 
     this.config.set("panelOrder", ordered);
     this.applyPanelPreferences();
@@ -689,13 +689,13 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
   private panelOrder(): string[] {
     const configured = this.config.get("panelOrder");
-    const known = [...this.tools.keys()].filter((name) => name !== "settings");
+    const known = filterIterable(this.tools.keys(), (name) => name !== "settings");
     const ordered = Array.isArray(configured)
-      ? configured.filter((name) => name !== "settings" && this.tools.has(name))
+      ? filterArray(configured, (name) => name !== "settings" && this.tools.has(name))
       : [];
 
     for (const name of known) {
-      if (!ordered.includes(name)) ordered.push(name);
+      if (!includesArray(ordered, name)) ordered.push(name);
     }
 
     if (this.tools.has("settings")) ordered.push("settings");
@@ -707,11 +707,11 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     const disabled = this.config.get("disabledPanels");
 
-    return Array.isArray(disabled) && disabled.includes(name);
+    return Array.isArray(disabled) && includesArray(disabled, name);
   }
 
   private firstEnabledTool(): string | undefined {
-    return this.panelOrder().find((name) => !this.isPanelDisabled(name) && this.tools.has(name));
+    return findArray(this.panelOrder(), (name) => !this.isPanelDisabled(name) && this.tools.has(name));
   }
 
   private scheduleNotificationDismiss(
@@ -729,7 +729,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   private dismissNotification(id: number): void {
     const notifications = this.sharedContext.notifications;
 
-    const entry = notifications.peek().find((candidate) => candidate.id === id);
+    const entry = findArray(notifications.peek(), (candidate) => candidate.id === id);
     if (!entry) return;
 
     this.clearNotificationTimer(id);
@@ -737,7 +737,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
 
     const timer = window.setTimeout(() => {
       this.notificationTimers.delete(id);
-      notifications.update((current) => current.filter((candidate) => candidate.id !== id));
+      notifications.update((current) => filterArray(current, (candidate) => candidate.id !== id));
     }, Math.max(80, Math.round(this.config.get("animationDuration") * 0.6)));
 
     this.notificationTimers.set(id, timer);

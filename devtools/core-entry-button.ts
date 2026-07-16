@@ -2,6 +2,7 @@ import type { Position, SettingsLike } from "@rodkisten/devtools/types";
 import { ConfigStore } from "@rodkisten/devtools/core-config";
 import { eventPoint, on } from "@rodkisten/devtools/core-dom";
 import { detectMobile } from "@rodkisten/devtools/core-utils";
+import { drainArray } from "@rodkisten/nascente";
 
 interface EntryButtonConfig {
   rememberPos: boolean;
@@ -63,7 +64,7 @@ export class EntryBtn {
   }
 
   destroy(): void {
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
+    for (const cleanup of drainArray(this.cleanup)) cleanup();
     this.clickListener = null;
     this.element.remove();
   }

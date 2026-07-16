@@ -13,6 +13,7 @@ import {
   InfoViewContext,
 } from "@rodkisten/devtools/panels-info-components";
 import { getConnectionInfo, getMemoryInfo, getNavigationInfo, defaultItems } from "@rodkisten/devtools/panels-info.functions";
+import { filterArray, findArray, mapArray, mapObject, objectFromEntries } from "@rodkisten/nascente";
 
 
 
@@ -30,7 +31,7 @@ export class Info extends Tool {
   }
 
   add(name: string, value: InfoItem["value"]): this {
-    const existing = this.items.find((item) => item.name === name);
+    const existing = findArray(this.items, (item) => item.name === name);
     if (existing) existing.value = value;
     else this.items.push({ name, value });
     this.render();
@@ -40,12 +41,12 @@ export class Info extends Tool {
   get(): InfoItem[];
   get(name: string): InfoItem["value"] | undefined;
   get(name?: string): InfoItem[] | InfoItem["value"] | undefined {
-    if (name == null) return this.items.map((item) => ({ ...item }));
-    return this.items.find((item) => item.name === name)?.value;
+    if (name == null) return mapArray(this.items, (item) => ({ ...item }));
+    return findArray(this.items, (item) => item.name === name)?.value;
   }
 
   remove(name: string): this {
-    this.items = this.items.filter((item) => item.name !== name);
+    this.items = filterArray(this.items, (item) => item.name !== name);
     this.render();
     return this;
   }
@@ -70,7 +71,7 @@ export class Info extends Tool {
   }
 
   private model(): InfoModel {
-    return { items: this.items.map((item) => ({ name: item.name, value: this.resolve(item) })) };
+    return { items: mapArray(this.items, (item) => ({ name: item.name, value: this.resolve(item) })) };
   }
 
   private render(): void {
@@ -101,9 +102,9 @@ export class Info extends Tool {
 
   private renderValue(value: unknown): RenderValue {
     if (value && typeof value === "object") {
-      const entries = Object.entries(value as Record<string, unknown>);
+      const entries = mapObject(value as Record<string, unknown>, (item, key) => html`<InfoKey>${key}</InfoKey><InfoValue>${typeof item === "string" ? item : safeStringify(item, 0)}</InfoValue>`);
       if (!entries.length) return safeStringify(value);
-      return html`<InfoKv>${entries.map(([key, item]) => html`<InfoKey>${key}</InfoKey><InfoValue>${typeof item === "string" ? item : safeStringify(item, 0)}</InfoValue>`)}</InfoKv>`;
+      return html`<InfoKv>${entries}</InfoKv>`;
     }
     return String(value ?? "null");
   }
@@ -116,7 +117,7 @@ export class Info extends Tool {
   }
 
   private async copyAll(): Promise<void> {
-    const value = Object.fromEntries(this.items.map((item) => [item.name, this.resolve(item)]));
+    const value = objectFromEntries(mapArray(this.items, (item) => [item.name, this.resolve(item)]));
     const copied = await copyText(safeStringify(value));
     this.context?.notify(copied ? "All information copied" : "Unable to copy", { type: copied ? "success" : "error" });
   }

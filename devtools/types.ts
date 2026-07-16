@@ -1,3 +1,4 @@
+
 /** Shared contracts used by more than one DevTools module. Panel-private models stay beside their implementation. */
 
 export type Cleanup = () => void;

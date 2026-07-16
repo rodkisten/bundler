@@ -24,6 +24,7 @@ import {
   visibleLevels,
   ConsoleContext,
 } from "@rodkisten/devtools/panels/console-components";
+import { appendArray, at, filterArray, findArray, includesArray, includesIgnoreCase, last, mapJoinArray, takeRight, toArray } from "@rodkisten/nascente";
 
 export { consoleStyleArtifacts };
 
@@ -68,7 +69,7 @@ export class Console extends Tool {
     history: [],
     historyIndex: 0,
     selectedRecordId: null,
-    enabledLevels: [...visibleLevels],
+    enabledLevels: toArray(visibleLevels),
     editorExpanded: false,
     inputValue: "",
     jsExecution: DEFAULT_CONSOLE_CONFIG.jsExecution,
@@ -163,7 +164,7 @@ export class Console extends Tool {
   ingestInitial(entries: readonly unknown[]): void {
     for (const entry of entries) {
       if (isInitialConsoleEntry(entry)) {
-        const args = entry.args ? Array.from(entry.args) : [entry.message];
+        const args = entry.args ? toArray(entry.args) : [entry.message];
         this.capture.record(entry.level ?? "error", args.length ? args : [entry]);
         continue;
       }
@@ -211,7 +212,7 @@ export class Console extends Tool {
   private hydrateCapturedRecords(): void {
     const records = this.capture.getRecords();
     if (!records.length || this.state.records.peek().length) return;
-    this.state.records.set([...records]);
+    this.state.records.set(toArray(records));
   }
 
   private hydrateHistory(): void {
@@ -220,8 +221,8 @@ export class Console extends Tool {
   }
 
   private readonly onRecord = (record: ConsoleRecord): void => {
-    const records = [...this.state.records.peek()];
-    const last = records.at(-1);
+    const records = toArray(this.state.records.peek());
+    const last = at(records, -1);
     if (last && sameRecord(last, record)) {
       records[records.length - 1] = { ...last, repeat: (last.repeat ?? 1) + 1, timestamp: record.timestamp };
     } else {
@@ -251,9 +252,9 @@ export class Console extends Tool {
   };
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
-    if (["overrideConsole", "captureWatchdogMs", "captureBridgePageRealm", "capturePatchPrototype", "captureLockConsole"].includes(key)) this.reconfigureCapture();
+    if (includesArray(["overrideConsole", "captureWatchdogMs", "captureBridgePageRealm", "capturePatchPrototype", "captureLockConsole"], key)) this.reconfigureCapture();
     if (key === "catchGlobalErr") value ? this.capture.enableGlobalErrors() : this.capture.disableGlobalErrors();
-    if (["logRowGap", "logRowPadding", "listBottomPadding", "filterMinWidth", "editorMinHeight", "logPreviewLines"].includes(key)) this.applyTweakVariables();
+    if (includesArray(["logRowGap", "logRowPadding", "listBottomPadding", "filterMinWidth", "editorMinHeight", "logPreviewLines"], key)) this.applyTweakVariables();
     if (key === "jsExecution" || key === "displayExtraInfo" || key === "displayUnenumerable" || key === "lazyEvaluation") {
       this.syncConfigState();
     }
@@ -329,34 +330,34 @@ export class Console extends Tool {
 
   private visibleRecords(tracked = false): readonly ConsoleRecord[] {
     const records = tracked ? this.state.records() : this.state.records.peek();
-    return records.filter((record) => this.matches(record, tracked));
+    return filterArray(records, (record) => this.matches(record, tracked));
   }
 
   private matches(record: ConsoleRecord, tracked = false): boolean {
     const level = normalizeVisibleLevel(record.level);
     const enabledLevels = tracked ? this.state.enabledLevels() : this.state.enabledLevels.peek();
-    if (!enabledLevels.includes(level)) return false;
+    if (!includesArray(enabledLevels, level)) return false;
     const filterValue = tracked ? this.state.filterValue() : this.state.filterValue.peek();
     if (!filterValue) return true;
     if (typeof filterValue === "function") return filterValue(record);
-    const text = record.args.map(plainText).join(" ");
+    const text = mapJoinArray(record.args, plainText, " ");
     if (filterValue instanceof RegExp) {
       filterValue.lastIndex = 0;
       return filterValue.test(text);
     }
-    return text.toLowerCase().includes(filterValue.toLowerCase());
+    return includesIgnoreCase(text, filterValue);
   }
 
   private trimRecords(): void {
     const value = this.config.get("maxLogNum");
     const max = value === "infinite" ? 0 : Number(value);
     const records = this.state.records.peek();
-    if (max > 0 && records.length > max) this.state.records.set(records.slice(records.length - max));
+    if (max > 0 && records.length > max) this.state.records.set(takeRight(records, max));
   }
 
   private toggleLevel(level: ConsoleLevel): void {
     const enabled = this.state.enabledLevels.peek();
-    const next = enabled.includes(level) ? enabled.filter((candidate) => candidate !== level) : [...enabled, level];
+    const next = includesArray(enabled, level) ? filterArray(enabled, (candidate) => candidate !== level) : appendArray(enabled, level);
     this.state.enabledLevels.set(next);
   }
 
@@ -468,11 +469,11 @@ export class Console extends Tool {
 
   private selectedRecord(): ConsoleRecord | null {
     const id = this.state.selectedRecordId.peek();
-    return id == null ? null : this.state.records.peek().find((record) => record.id === id) ?? null;
+    return id == null ? null : findArray(this.state.records.peek(), (record) => record.id === id) ?? null;
   }
 
   private async copyVisibleRecords(): Promise<void> {
-    await copyText(this.visibleRecords().map((record) => record.args.map(plainText).join(" ")).join("\n"));
+    await copyText(mapJoinArray(this.visibleRecords(), (record) => mapJoinArray(record.args, plainText, " "), "\n"));
     this.context?.notify("Console copied", { type: "success" });
   }
 

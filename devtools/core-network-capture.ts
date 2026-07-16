@@ -1,5 +1,6 @@
 import { Emitter } from "@rodkisten/devtools/core-emitter";
 import type { NetworkHeader, NetworkRecord } from "@rodkisten/devtools/types";
+import { filterMapArray, mapArray, mapIterable, mapJoinIterable, someIterable, splitLines, toArray } from "@rodkisten/nascente";
 
 interface NetworkEvents {
   request: [record: NetworkRecord];
@@ -61,7 +62,7 @@ export class NetworkCapture extends Emitter<NetworkEvents> {
   }
 
   requests(): NetworkRecord[] {
-    return [...this.records.values()];
+    return toArray(this.records.values());
   }
 
   get(id: string): NetworkRecord | undefined {
@@ -161,7 +162,7 @@ export class NetworkCapture extends Emitter<NetworkEvents> {
       const meta = capture.xhrMeta.get(this);
       if (meta) {
         const { record } = meta;
-        record.requestHeaders = [...meta.headers];
+        record.requestHeaders = toArray(meta.headers);
         record.requestBody = bodyToText(body);
         capture.add(record);
 
@@ -175,7 +176,7 @@ export class NetworkCapture extends Emitter<NetworkEvents> {
           record.state = state;
           record.error = error;
           record.responseBody = xhrResponseText(this);
-          record.size = numberHeader(new Headers(record.responseHeaders.map((item): [string, string] => [item.name, item.value])), "content-length")
+          record.size = numberHeader(new Headers(mapArray(record.responseHeaders, (item): [string, string] => [item.name, item.value])), "content-length")
             ?? (record.responseBody ? new Blob([record.responseBody]).size : undefined);
           capture.update(record);
         };
@@ -248,7 +249,7 @@ export class NetworkCapture extends Emitter<NetworkEvents> {
       this.performanceObserver = new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           if (!(entry instanceof PerformanceResourceTiming)) continue;
-          const duplicate = [...this.records.values()].some((record) => record.url === entry.name && Math.abs(record.startTime - entry.startTime) < 5);
+          const duplicate = someIterable(this.records.values(), (record) => record.url === entry.name && Math.abs(record.startTime - entry.startTime) < 5);
           if (duplicate || !this.recording) continue;
           const record = this.createRecord("resource", "GET", entry.name);
           record.startTime = entry.startTime;
@@ -277,11 +278,11 @@ export class NetworkCapture extends Emitter<NetworkEvents> {
 }
 
 function headersToArray(headers: Headers): NetworkHeader[] {
-  return [...headers.entries()].map(([name, value]) => ({ name, value }));
+  return mapIterable(headers.entries(), ([name, value]) => ({ name, value }));
 }
 
 function parseRawHeaders(raw: string): NetworkHeader[] {
-  return raw.split(/\r?\n/).filter(Boolean).map((line) => {
+  return filterMapArray(splitLines(raw), Boolean, (line) => {
     const index = line.indexOf(":");
     return index < 0 ? { name: line, value: "" } : { name: line.slice(0, index).trim(), value: line.slice(index + 1).trim() };
   });
@@ -338,7 +339,7 @@ function bodyToText(body: unknown): string | undefined {
   if (typeof body === "string") return body;
   if (body instanceof URLSearchParams) return body.toString();
   if (body instanceof FormData) {
-    return [...body.entries()].map(([key, value]) => `${key}=${value instanceof File ? `[File ${value.name}]` : value}`).join("&");
+    return mapJoinIterable(body.entries(), ([key, value]) => `${key}=${value instanceof File ? `[File ${value.name}]` : value}`, "&");
   }
   if (body instanceof Blob) return `[Blob ${body.size} bytes, ${body.type || "unknown"}]`;
   if (body instanceof ArrayBuffer) return `[ArrayBuffer ${body.byteLength} bytes]`;

@@ -5,6 +5,7 @@ import { component, event, html, renderInto, repeat, styled } from "@rodkisten/d
 import { DevtoolsContext } from "@rodkisten/devtools/core/context";
 import type { DevtoolsContextValue, DevtoolsShellRefs } from "@rodkisten/devtools/types";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "@rodkisten/devtools/core/build-info";
+import { filterArray, flatMap, joinArray, objectKeys } from "@rodkisten/nascente";
 
 
 const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
@@ -478,9 +479,7 @@ const SHELL_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const shellStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SHELL_STYLED_COMPONENTS
-    .flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(SHELL_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 export type ShellRefs = DevtoolsShellRefs;
@@ -656,7 +655,7 @@ export function renderShell(
   const shellRefs = assertShellRefs(refs, target);
   shared.refs.set(shellRefs);
 
-  debugLog("shell", "render:end", { refs: Object.keys(shellRefs) });
+  debugLog("shell", "render:end", { refs: objectKeys(shellRefs) });
 
   return { refs: shellRefs, dispose };
 }
@@ -688,9 +687,9 @@ function assertShellRefs(refs: Partial<ShellRefs>, target: HTMLElement | ShadowR
     if (node) assignShellRef(refs, key, node);
   }
 
-  const missing = keys.filter((key) => !refs[key]);
+  const missing = filterArray(keys, (key) => !refs[key]);
   if (missing.length) {
-    throw new Error(`[RodEruda] Shell did not mount: ${missing.join(", ")}`);
+    throw new Error(`[RodEruda] Shell did not mount: ${joinArray(missing, ", ")}`);
   }
 
   return refs as ShellRefs;

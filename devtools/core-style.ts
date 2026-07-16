@@ -8,6 +8,7 @@ import type {
   CipoStylesheetArtifact,
 } from "@rodkisten/cipo/types";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
+import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
 
 /* *************** */
 /* Design system   */
@@ -1026,7 +1027,7 @@ export function installDevtoolsStyles(
   setRuntimeStyleTarget(target);
 
   const parent = target instanceof Document ? target.head : target;
-  parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]').forEach((node) => node.remove());
+  forEachArray(parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]'), (node) => node.remove());
 
   const runtimeCssText = getCssText().trim();
   const artifacts: CipoInjectableStyleArtifact[] = [];
@@ -1039,7 +1040,8 @@ export function installDevtoolsStyles(
     artifacts.push({ kind: "cipo.stylesheet", cssText: runtimeCssText });
   }
 
-  artifacts.push(devtoolsStyles, ...additionalStyles);
+  artifacts.push(devtoolsStyles);
+  appendArrayValues(artifacts, additionalStyles);
 
   const style = injectStyle(target, artifacts, { dedupe: false, position: "prepend" });
   style.dataset.roderudaDevtoolsStyle = "true";
