@@ -9,6 +9,12 @@ import type { RuntimeState } from '@rodkisten/cipo/types'
  * invalidation explicit: config/theme updates bump versions and generated atoms
  * can include those versions in their keys when needed.
  *
+ * Atomic promotion is enabled by default with a two-use threshold. A declaration
+ * therefore stays inside its component scope on first use and becomes a shared
+ * atomic class only when another component reuses the exact declaration/context
+ * pair. This avoids polluting the shared sheet with one-off atoms while making
+ * reuse the default behavior for every Cipó/Fábrica Elements styled component.
+ *
  * @example
  * ```ts
  * import { runtime } from '@rodkisten/cipo/runtime'
@@ -54,7 +60,7 @@ export const runtime: RuntimeState = {
       debug: false,
     },
     atomic: {
-      minUses: 1,
+      minUses: 2,
     },
     scope: {
       strategy: 'none',
