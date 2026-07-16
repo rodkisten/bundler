@@ -538,10 +538,10 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
           aria-orientation="horizontal"
           aria-label="Resize developer tools"
           :roderudaShellRef="resizer"
-          @pointerdown=${event.pointerdown((pointer) => shared.controller.peek()?.beginResize(pointer))}
-          @pointermove=${event.pointermove((pointer) => shared.controller.peek()?.updateResize(pointer))}
-          @pointerup=${event.pointerup((pointer) => shared.controller.peek()?.endResize(pointer))}
-          @pointercancel=${event.pointercancel((pointer) => shared.controller.peek()?.endResize(pointer))}
+          @pointerdown=${event.pointerdown((pointer) => shared.controller.peek()?.beginResize?.(pointer))}
+          @pointermove=${event.pointermove((pointer) => shared.controller.peek()?.updateResize?.(pointer))}
+          @pointerup=${event.pointerup((pointer) => shared.controller.peek()?.endResize?.(pointer))}
+          @pointercancel=${event.pointercancel((pointer) => shared.controller.peek()?.endResize?.(pointer))}
           ref=${(node: HTMLElement) => {
             refs.resizer = node;
           }}

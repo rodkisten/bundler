@@ -438,7 +438,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   }
 
   private firstMountedTool(selected: string[]): string | undefined {
-    return findArray(selected, (name) => this.devtools?.get(name));
+    return findArray(selected, (name) => Boolean(this.devtools?.get(name)));
   }
 
   private prepareHost(host: HTMLElement, inline: boolean): void {

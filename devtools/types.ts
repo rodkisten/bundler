@@ -1,3 +1,6 @@
+import type { Signal, Store } from "@rodkisten/broto";
+import type { RenderValue } from "@rodkisten/fabrica";
+
 
 /** Shared contracts used by more than one DevTools module. Panel-private models stay beside their implementation. */
 
@@ -242,6 +245,7 @@ export interface ToolLike {
   show(): void;
   hide(): void;
   destroy(): void;
+  renderView?(): RenderValue;
 }
 
 export interface DevtoolsControllerLike {
@@ -255,6 +259,9 @@ export interface DevtoolsControllerLike {
   notify(message: string, options?: NotificationOptions): void;
   getRoot(): HTMLElement;
   isVisible(): boolean;
+  beginResize?(event: PointerEvent): void;
+  updateResize?(event: PointerEvent): void;
+  endResize?(event: PointerEvent): void;
 }
 
 export interface RangeOptions {
@@ -392,3 +399,167 @@ export interface EventListenerRecord {
   options?: boolean | AddEventListenerOptions;
   addedAt: number;
 }
+
+/***************************************************************************************************
+ * Reactive view contracts
+ **************************************************************************************************/
+
+export interface ConsoleState extends Record<string, unknown> {
+  records: ConsoleRecord[];
+  filterValue: ConsoleFilter;
+  filterText: string;
+  history: string[];
+  historyIndex: number;
+  selectedRecordId: number | null;
+  enabledLevels: ConsoleLevel[];
+  editorExpanded: boolean;
+  inputValue: string;
+  jsExecution: boolean;
+  displayExtraInfo: boolean;
+  displayUnenumerable: boolean;
+  lazyEvaluation: boolean;
+  lastResult: unknown;
+}
+
+export interface ConsoleContextValue {
+  readonly state: Store<ConsoleState>;
+  setScrollContainer(node: HTMLElement | null): void;
+  setInput(node: HTMLTextAreaElement | null): void;
+  visibleRecords(): readonly ConsoleRecord[];
+  renderRecord(record: ConsoleRecord): RenderValue;
+  syncEditorValue(value: string): void;
+  clear(): void;
+  copy(): void;
+  toggleLevel(level: ConsoleLevel): void;
+  filter(value: string): void;
+  handleInput(event: Event): void;
+  handleInputKey(event: KeyboardEvent): void;
+  handleInputFocus(): void;
+  cancelEditor(): void;
+  clearEditor(): void;
+  runEditor(): void;
+}
+
+export interface ElementsContextValue {
+  readonly treeRevision: Signal<number>;
+  readonly crumbsRevision: Signal<number>;
+  readonly detailRevision: Signal<number>;
+  readonly selected: Signal<Element | null>;
+  readonly detailsOpen: Signal<boolean>;
+  readonly wrapLines: Signal<boolean>;
+  setTreeViewport(node: HTMLElement | null): void;
+  setCrumbsViewport(node: HTMLElement | null): void;
+  onAction(event: Event): void;
+  onTreeScroll(): void;
+  treeView(): RenderValue;
+  crumbsView(): RenderValue;
+  detailView(): RenderValue;
+  contextMenuView(): RenderValue;
+}
+
+export interface InfoModel {
+  readonly items: readonly { readonly name: string; readonly value: unknown }[];
+}
+
+export interface InfoContextValue {
+  model(): InfoModel;
+  refresh(): void;
+  copyAll(): void;
+  copyItem(name: string): void;
+  renderValue(value: unknown): RenderValue;
+}
+
+export type NetworkDetailTab = "headers" | "payload" | "response" | "timing" | "messages";
+
+export interface NetworkContextValue {
+  readonly records: Signal<readonly NetworkRecord[]>;
+  readonly selectedId: Signal<string | null>;
+  readonly detailOpen: Signal<boolean>;
+  readonly activeDetailTab: Signal<string>;
+  readonly filter: Signal<string>;
+  readonly recording: Signal<boolean>;
+  captureResponseBody(): boolean;
+  bodyPreviewLimit(): number;
+  onAction(event: Event): void;
+  onFilterInput(event: Event): void;
+  openRequest(id: string): void;
+  switchDetailTab(tab: string): void;
+}
+
+export interface ResourcesContextValue {
+  readonly revision: Signal<number>;
+  renderContent(): RenderValue;
+  renderJsonDialog(): RenderValue;
+}
+
+export interface SettingsContextValue {
+  readonly entryIds: Signal<readonly string[]>;
+  renderEntry(id: string): RenderValue;
+}
+
+export interface SnippetsContextValue {
+  readonly snippets: Signal<readonly SnippetItem[]>;
+  readonly activeNames: Signal<ReadonlySet<string>>;
+  add(): void;
+  reset(): void;
+  run(name: string): void;
+  remove(name: string): void;
+}
+
+export interface SourcesContextValue {
+  readonly title: Signal<string>;
+  readonly content: Signal<RenderValue>;
+  action(name: string): void;
+}
+
+/***************************************************************************************************
+ * Root DevTools context contracts
+ **************************************************************************************************/
+
+export interface DevtoolsShellRefs {
+  root: HTMLElement;
+  entryButton: HTMLButtonElement;
+  devtools: HTMLElement;
+  resizer: HTMLElement;
+  tabbar: HTMLElement;
+  tools: HTMLElement;
+  notifications: HTMLElement;
+  modalRoot: HTMLElement;
+}
+
+export interface DevtoolsNotificationEntry {
+  readonly id: number;
+  readonly message: string;
+  readonly type: NotificationType;
+  readonly active: Signal<boolean>;
+  dismiss(): void;
+}
+
+export interface DevtoolsToolRegistration {
+  readonly name: string;
+  readonly title: string;
+  readonly icon?: Node | string;
+  readonly tool: ToolLike;
+  disabled: boolean;
+  view(): RenderValue;
+  mount(panel: HTMLElement): void;
+  activate(): void;
+  dragStart(event: DragEvent): void;
+  dragOver(event: DragEvent): void;
+  drop(event: DragEvent): void;
+}
+
+export interface DevtoolsContextValue {
+  readonly inline: boolean;
+  readonly host: HTMLElement;
+  readonly controller: Signal<DevtoolsControllerLike | null>;
+  readonly refs: Signal<DevtoolsShellRefs | null>;
+  readonly settings: Signal<SettingsLike | null>;
+  readonly toolContext: Signal<ToolContext | null>;
+  readonly tools: Signal<readonly DevtoolsToolRegistration[]>;
+  readonly activePanel: Signal<string>;
+  readonly visible: Signal<boolean>;
+  readonly notifications: Signal<readonly DevtoolsNotificationEntry[]>;
+  readonly modal: Signal<RenderValue | null>;
+}
+
