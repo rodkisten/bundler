@@ -22,10 +22,11 @@ describe('Cipó compiler/atomic-compile', () => {
     expect(joinClassNames([rule, rule], 'scope')).toBe(`scope ${rule.className}`)
   })
 
-  it('registers thresholded atomic artifacts in the shared stylesheet', () => {
+  it('keeps local artifact CSS for introspection while registering the shared stylesheet', () => {
     const artifact = compileAtomicCss([`px: 4; bg: $brand;`] as unknown as TemplateStringsArray, [], false)
     expect(artifact.kind).toBe('cipo.css')
-    expect(artifact.compiledCss).toBe('')
+    expect(artifact.compiledCss).toContain('padding-inline')
+    expect(artifact.compiledCss).toContain('var(--atom-colors-brand)')
     expect(getCssText()).toContain('padding-inline')
     expect(getCssText()).toContain('var(--atom-colors-brand)')
   })
