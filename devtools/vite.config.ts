@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { copyFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,7 +60,16 @@ function devtoolsLandingPlugin(): Plugin {
     apply: "build",
 
     async closeBundle() {
-      await buildDevtoolsLanding();
+      // The standalone Vite build is the authoritative optimized DevTools output.
+      // Keep the historical `.min.js` publication alias in sync with that output
+      // so the earlier root build cannot leave a stale per-component-CSS bundle.
+      await Promise.all([
+        buildDevtoolsLanding(),
+        copyFile(
+          resolve(repoRoot, "dist/devtools.iife.js"),
+          resolve(repoRoot, "dist/devtools.iife.min.js"),
+        ),
+      ]);
     },
   };
 }
