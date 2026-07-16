@@ -362,12 +362,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       editorHighlight,
       html`
         ${tokens.map((token) => html`
-          <span
-            :token=${token.kind}
-            style=${token.kind === "plain"
-              ? ""
-              : `color: var(--maq-${token.kind})`}
-          >${token.value}</span>
+          <span :token=${token.kind}>${token.value}</span>
         `)}
         ${value.endsWith("\n") ? "\n" : ""}
       `,
