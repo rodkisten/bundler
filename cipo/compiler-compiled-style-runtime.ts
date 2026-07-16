@@ -13,7 +13,7 @@ const EMPTY_LIST = Object.freeze([]) as readonly never[]
  * metadata required by styled registries, style injection and public artifact
  * consumers.
  */
-export function createCompiledCssArtifact(className: string, cssText: string): CipoCssArtifact {
+export function createCompiledCssArtifact(className: string, cssText = ''): CipoCssArtifact {
   const debug = Object.freeze({
     id: `cipo-compiled-${className}`,
     ast: EMPTY_LIST,
@@ -39,11 +39,26 @@ export function createCompiledCssArtifact(className: string, cssText: string): C
 }
 
 /**
- * Couples a statically compiled styled component to its CSS side effect and
- * preserves the compiled artifact on the component metadata/registry.
+ * Attaches only the final class list to a compiled styled component.
  *
- * A PURE-annotated call can be removed together with an unused component,
- * while retained components still install their stylesheet exactly once.
+ * @remarks
+ * Whole-build atomic mode emits one shared stylesheet, so individual styled
+ * components must not carry or inject their own CSS strings. The build plugin
+ * rewrites the temporary class token during `renderChunk` after global reuse
+ * analysis has promoted declarations that meet the configured threshold.
+ */
+export function attachCompiledClass<T>(
+  builder: (artifact: CipoCssArtifact) => T,
+  className: string,
+): T {
+  return builder(createCompiledCssArtifact(className))
+}
+
+/**
+ * Couples a statically compiled styled component to its CSS side effect.
+ *
+ * @deprecated Prefer whole-build atomic mode and `attachCompiledClass`. This
+ * helper remains for integrations that compile one module in isolation.
  */
 export function attachCompiledCss<T>(
   builder: (artifact: CipoCssArtifact) => T,
