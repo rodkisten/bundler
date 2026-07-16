@@ -9,6 +9,146 @@ const WORDS = /[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+/g;
  * String utilities
  **************************************************************************************************/
 
+
+/**
+ * Tests case-insensitive containment with an allocation-free ASCII fast path.
+ *
+ * @remarks
+ * **Replaces:** `value.toLowerCase().includes(search.toLowerCase())` in repeated filtering paths.
+ *
+ * **Performance:** Typical DevTools filters, URLs, HTTP methods, selectors, and identifiers are ASCII. For those
+ * inputs this function compares folded UTF-16 code units directly and creates no lowercase copies. If either
+ * input contains non-ASCII code units, it falls back to JavaScript's Unicode-aware lowercase behavior so the
+ * public semantics remain compatible with the common native pipeline.
+ */
+export function includesIgnoreCase(value: string, search: string): boolean {
+    if (search.length === 0) return true;
+    if (search.length > value.length) return false;
+
+    for (let index = 0; index < search.length; index++) {
+        if (search.charCodeAt(index) > 0x7f) return value.toLowerCase().includes(search.toLowerCase());
+    }
+    for (let index = 0; index < value.length; index++) {
+        if (value.charCodeAt(index) > 0x7f) return value.toLowerCase().includes(search.toLowerCase());
+    }
+
+    const searchLength = search.length;
+    const lastStart = value.length - searchLength;
+    for (let startIndex = 0; startIndex <= lastStart; startIndex++) {
+        let offset = 0;
+        for (; offset < searchLength; offset++) {
+            let valueCode = value.charCodeAt(startIndex + offset);
+            let searchCode = search.charCodeAt(offset);
+            if (valueCode >= 65 && valueCode <= 90) valueCode += 32;
+            if (searchCode >= 65 && searchCode <= 90) searchCode += 32;
+            if (valueCode !== searchCode) break;
+        }
+        if (offset === searchLength) return true;
+    }
+    return false;
+}
+
+/**
+ * Splits on ASCII whitespace without invoking the regular-expression engine.
+ *
+ * @remarks
+ * Intended for HTML class names and other browser tokens whose separators are ASCII space, tab, LF, CR, or
+ * form-feed. It replaces `value.trim().split(/\s+/).filter(Boolean)` with one scan and no empty segments.
+ */
+export function splitAsciiWhitespace(value: string): string[] {
+    const result: string[] = [];
+    let tokenStart = -1;
+    for (let index = 0; index <= value.length; index++) {
+        const code = index < value.length ? value.charCodeAt(index) : 32;
+        const isWhitespace = code === 32 || code === 9 || code === 10 || code === 13 || code === 12;
+        if (!isWhitespace) {
+            if (tokenStart < 0) tokenStart = index;
+            continue;
+        }
+        if (tokenStart >= 0) {
+            result.push(value.slice(tokenStart, index));
+            tokenStart = -1;
+        }
+    }
+    return result;
+}
+
+/**
+ * Splits once at the first separator occurrence instead of allocating every segment.
+ *
+ * @remarks
+ * **Replaces:** destructuring patterns such as `const [head, ...tail] = value.split(separator)` when only the
+ * first boundary matters. The second tuple item contains the untouched remainder and may itself contain the
+ * separator.
+ */
+export function splitOnce(value: string, separator: string): readonly [head: string, tail: string] {
+    const separatorIndex = value.indexOf(separator);
+    if (separatorIndex < 0) return [value, ""];
+    return [value.slice(0, separatorIndex), value.slice(separatorIndex + separator.length)];
+}
+
+/**
+ * Splits a string and removes empty segments in place.
+ *
+ * @remarks
+ * **Replaces:** `value.split(separator).filter(Boolean)`.
+ *
+ * **Performance:** Reuses the array allocated by the native split operation and compacts it with read/write
+ * indexes instead of allocating a second filtered array or invoking a predicate callback for every segment.
+ */
+export function splitNonEmpty(value: string, separator: string | RegExp): string[] {
+    const parts = value.split(separator);
+    let writeIndex = 0;
+    for (let readIndex = 0; readIndex < parts.length; readIndex++) {
+        const part = parts[readIndex]!;
+        if (part) parts[writeIndex++] = part;
+    }
+    parts.length = writeIndex;
+    return parts;
+}
+
+/**
+ * Splits, trims, and removes empty segments by compacting the native split result in place.
+ *
+ * @remarks
+ * **Replaces:** `value.split(separator).map(part => part.trim()).filter(Boolean)`. Only the array created by
+ * `String.prototype.split` is retained; trimmed segments overwrite their original slots and the tail is truncated.
+ */
+export function splitTrimmedNonEmpty(value: string, separator: string | RegExp): string[] {
+    const parts = value.split(separator);
+    let writeIndex = 0;
+    for (let readIndex = 0; readIndex < parts.length; readIndex++) {
+        const trimmedPart = parts[readIndex]!.trim();
+        if (trimmedPart) parts[writeIndex++] = trimmedPart;
+    }
+    parts.length = writeIndex;
+    return parts;
+}
+
+/**
+ * Splits text into lines without running a regular expression.
+ *
+ * @remarks
+ * **Replaces:** `value.split(/\\r?\\n/)` in hot parsing and formatting paths.
+ *
+ * **Performance:** Performs one character scan, recognizes both LF and CRLF, and allocates only the returned
+ * line strings. This avoids regular-expression execution overhead that can be noticeable for large source bodies
+ * in mobile Safari/WebKit.
+ */
+export function splitLines(value: string): string[] {
+    const lines: string[] = [];
+    let lineStart = 0;
+    for (let index = 0; index < value.length; index++) {
+        if (value.charCodeAt(index) !== 10) continue;
+        const lineEnd = index > lineStart && value.charCodeAt(index - 1) === 13 ? index - 1 : index;
+        lines.push(value.slice(lineStart, lineEnd));
+        lineStart = index + 1;
+    }
+    const finalEnd = value.length > lineStart && value.charCodeAt(value.length - 1) === 13 ? value.length - 1 : value.length;
+    lines.push(value.slice(lineStart, finalEnd));
+    return lines;
+}
+
 /**
  * Splits an identifier-like string into word tokens.
  *

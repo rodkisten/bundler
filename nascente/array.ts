@@ -2,11 +2,622 @@
  * @packageDocumentation
  * Nascente category module. Public consumers should generally import from the package barrel.
  */
-import type { Awaitable, Comparator, Iteratee, Orderable, Predicate, SortDirection, ValueSelector } from "./types";
+import type { Awaitable, Comparator, Iteratee, Orderable, Predicate, SortDirection, Truthy, ValueSelector } from "./types";
 
 /***************************************************************************************************
  * Array utilities
  **************************************************************************************************/
+
+
+function copyArrayRange<Value>(array: ArrayLike<Value>, startIndex: number, endIndex: number): Value[] {
+    const normalizedStart = Math.max(0, Math.min(array.length, startIndex));
+    const normalizedEnd = Math.max(normalizedStart, Math.min(array.length, endIndex));
+    const result = new Array<Value>(normalizedEnd - normalizedStart);
+    for (let sourceIndex = normalizedStart, targetIndex = 0; sourceIndex < normalizedEnd; sourceIndex++, targetIndex++) {
+        result[targetIndex] = array[sourceIndex]!;
+    }
+    return result;
+}
+
+/**
+ * Maps a generic iterable in one traversal without first materializing it.
+ *
+ * @remarks
+ * **Replaces:** `[...iterable].map(iteratee)` and `Array.from(iterable, iteratee)` when the source does not
+ * expose a stable `length`, such as `Map#values()`, `Map#entries()`, `Set`, `Headers`, and generators.
+ *
+ * **Performance:** Avoids a temporary materialized source array. The result is the only collection allocated.
+ * This is especially useful for DevTools registries and protocol collections that are traversed frequently.
+ */
+export function mapIterable<Value, Result>(iterable: Iterable<Value>, iteratee: Iteratee<Value, Result>): Result[] {
+    const result: Result[] = [];
+    let index = 0;
+    for (const value of iterable) {
+        result.push(iteratee(value, index));
+        index++;
+    }
+    return result;
+}
+
+/** Filters a generic iterable without materializing the source first. */
+export function filterIterable<Value, Selected extends Value>(
+    iterable: Iterable<Value>,
+    predicate: (value: Value, index: number) => value is Selected,
+): Selected[];
+export function filterIterable<Value>(iterable: Iterable<Value>, predicate: Predicate<Value>): Value[];
+export function filterIterable<Value>(iterable: Iterable<Value>, predicate: Predicate<Value>): Value[] {
+    const result: Value[] = [];
+    let index = 0;
+    for (const value of iterable) {
+        if (predicate(value, index)) result.push(value);
+        index++;
+    }
+    return result;
+}
+
+/**
+ * Filters an iterable and stops as soon as the requested result limit is reached.
+ *
+ * @remarks
+ * **Replaces:** `[...iterable].filter(predicate).slice(0, limit)`. This avoids materializing the source, avoids
+ * collecting matches that will be discarded, and can terminate early. Autocomplete and search suggestion lists
+ * benefit disproportionately because their source registries may be large while the UI only renders a small cap.
+ */
+export function filterTakeIterable<Value, Selected extends Value>(
+    iterable: Iterable<Value>,
+    predicate: (value: Value, index: number) => value is Selected,
+    limit: number,
+): Selected[];
+export function filterTakeIterable<Value>(
+    iterable: Iterable<Value>,
+    predicate: Predicate<Value>,
+    limit: number,
+): Value[];
+export function filterTakeIterable<Value>(iterable: Iterable<Value>, predicate: Predicate<Value>, limit: number): Value[] {
+    const maximumResults = Math.max(0, Math.trunc(limit));
+    if (maximumResults === 0) return [];
+    const result: Value[] = [];
+    let index = 0;
+    for (const value of iterable) {
+        if (predicate(value, index) && result.length < maximumResults) result.push(value);
+        index++;
+        if (result.length === maximumResults) break;
+    }
+    return result;
+}
+
+/** Returns whether any iterable value matches without allocating an intermediate array. */
+export function someIterable<Value>(iterable: Iterable<Value>, predicate: Predicate<Value>): boolean {
+    let index = 0;
+    for (const value of iterable) {
+        if (predicate(value, index)) return true;
+        index++;
+    }
+    return false;
+}
+
+/** Finds the first matching iterable value without materializing the iterable. */
+export function findIterable<Value>(iterable: Iterable<Value>, predicate: Predicate<Value>): Value | undefined {
+    let index = 0;
+    for (const value of iterable) {
+        if (predicate(value, index)) return value;
+        index++;
+    }
+    return undefined;
+}
+
+/** Runs an iteratee over a generic iterable without allocating an intermediate array. */
+export function forEachIterable<Value>(iterable: Iterable<Value>, iteratee: Iteratee<Value, void>): void {
+    let index = 0;
+    for (const value of iterable) {
+        iteratee(value, index);
+        index++;
+    }
+}
+
+/**
+ * Reads a non-negative position from an iterable without materializing the full iterable.
+ *
+ * @remarks
+ * Particularly useful for `Map#keys()` and `Set#values()` compatibility adapters where `[...keys][index]`
+ * would allocate the complete key list for every lookup. Negative indexes intentionally return `undefined`;
+ * use {@link at} for indexable collections that support efficient negative indexing.
+ */
+export function atIterable<Value>(iterable: Iterable<Value>, index: number): Value | undefined {
+    if (!Number.isInteger(index) || index < 0) return undefined;
+    let currentIndex = 0;
+    for (const value of iterable) {
+        if (currentIndex === index) return value;
+        currentIndex++;
+    }
+    return undefined;
+}
+
+/**
+ * Appends one value while cloning an array-like source into exact-size storage.
+ *
+ * @remarks
+ * **Replaces:** `[...array, value]`. Exact-size indexed copying avoids spread iterator machinery and makes the
+ * unavoidable output allocation explicit.
+ */
+export function appendArray<Value>(array: ArrayLike<Value>, value: Value): Value[] {
+    const result = new Array<Value>(array.length + 1);
+    for (let index = 0; index < array.length; index++) result[index] = array[index]!;
+    result[array.length] = value;
+    return result;
+}
+
+/**
+ * Appends every value from an array-like source into an existing target array.
+ *
+ * @remarks
+ * **Replaces:** `target.push(...source)` in hot paths. Large spreads can hit argument-count limits and always
+ * route values through call argument expansion. An indexed append keeps memory usage predictable and works for
+ * DOM array-like collections as well as arrays.
+ */
+export function appendArrayValues<Value>(target: Value[], source: ArrayLike<Value>): Value[] {
+    const initialLength = target.length;
+    target.length = initialLength + source.length;
+    for (let index = 0; index < source.length; index++) target[initialLength + index] = source[index]!;
+    return target;
+}
+
+type ArrayLikeValue<Source> = Source extends ArrayLike<infer Value> ? Value : never;
+
+/**
+ * Concatenates array-like sources into one pre-sized result without spread intermediates.
+ *
+ * @remarks
+ * The variadic tuple signature preserves a union of heterogeneous element types instead of forcing every input
+ * array to share the type inferred from the first argument. This keeps configuration builders and mixed value
+ * lists strongly typed while still using one exact-size allocation.
+ */
+export function concatArrays<const Arrays extends readonly ArrayLike<unknown>[]>(
+    ...arrays: Arrays
+): Array<ArrayLikeValue<Arrays[number]>> {
+    type Value = ArrayLikeValue<Arrays[number]>;
+    let totalLength = 0;
+    for (let arrayIndex = 0; arrayIndex < arrays.length; arrayIndex++) totalLength += arrays[arrayIndex]!.length;
+    const result = new Array<Value>(totalLength);
+    let writeIndex = 0;
+    for (let arrayIndex = 0; arrayIndex < arrays.length; arrayIndex++) {
+        const array = arrays[arrayIndex]!;
+        for (let valueIndex = 0; valueIndex < array.length; valueIndex++) result[writeIndex++] = array[valueIndex] as Value;
+    }
+    return result;
+}
+
+/**
+ * Maps iterable values directly into a joined string without allocating either a source or mapped array.
+ *
+ * @remarks
+ * **Replaces:** `[...iterable].map(mapper).join(separator)`. This is intended for `Map`, `Set`, `Headers`,
+ * `FormData`, and generator-backed serializers.
+ */
+export function mapJoinIterable<Value>(
+    iterable: Iterable<Value>,
+    mapper: (value: Value, index: number) => unknown,
+    separator = ",",
+): string {
+    let result = "";
+    let hasValue = false;
+    let index = 0;
+    for (const value of iterable) {
+        const mappedValue = mapper(value, index++);
+        if (hasValue) result += separator;
+        result += mappedValue == null ? "" : String(mappedValue);
+        hasValue = true;
+    }
+    return result;
+}
+
+/**
+ * Maps an array-like value with a predictable indexed loop.
+ *
+ * @remarks
+ * **Replaces:** `array.map(iteratee)` and `Array.from(arrayLike, iteratee)` in hot paths.
+ *
+ * **Performance:** Preallocates the exact output length and writes by index. This avoids callback plumbing
+ * through `Array.prototype.map`, avoids iterator materialization for DOM collections, and keeps the loop shape
+ * simple for JavaScriptCore/WebKit. Native `map` can still be equally fast or faster for tiny arrays.
+ */
+export function mapArray<T, Result>(array: ArrayLike<T>, iteratee: Iteratee<T, Result>): Result[] {
+    const length = array.length;
+    const result = new Array<Result>(length);
+    for (let index = 0; index < length; index++) result[index] = iteratee(array[index]!, index);
+    return result;
+}
+
+export function filterArray<T, Selected extends T>(array: ArrayLike<T>, predicate: (value: T, index: number) => value is Selected): Selected[];
+export function filterArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): T[];
+/**
+ * Filters an array-like value in one indexed pass.
+ *
+ * @remarks
+ * **Replaces:** `array.filter(predicate)` and common `Array.from(collection).filter(predicate)` pipelines.
+ *
+ * **Performance:** Avoids the intermediate array created when DOM collections are first converted with
+ * `Array.from`, and uses direct indexed reads with a single grow-only result array.
+ */
+export function filterArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): T[] {
+    const result: T[] = [];
+    for (let index = 0; index < array.length; index++) {
+        const value = array[index]!;
+        if (predicate(value, index)) result.push(value);
+    }
+    return result;
+}
+
+
+/**
+ * Maps and keeps only truthy mapped values in a single pass.
+ *
+ * @remarks
+ * **Replaces:** `array.map(mapper).filter(Boolean)`.
+ *
+ * **Performance:** Fuses two full traversals and removes the intermediate mapped array. This is particularly
+ * useful when reading optional DOM properties such as `src` and `href` in Safari/WebKit hot paths.
+ */
+export function compactMapArray<T, Result>(array: ArrayLike<T>, mapper: Iteratee<T, Result>): Array<Truthy<Result>> {
+    const result: Array<Truthy<Result>> = [];
+    for (let index = 0; index < array.length; index++) {
+        const mappedValue = mapper(array[index]!, index);
+        if (mappedValue) result.push(mappedValue as Truthy<Result>);
+    }
+    return result;
+}
+
+
+export function mapFilterArray<T, Result, Selected extends Result>(
+    array: ArrayLike<T>,
+    mapper: Iteratee<T, Result>,
+    predicate: (value: Result, index: number) => value is Selected,
+): Selected[];
+export function mapFilterArray<T, Result>(
+    array: ArrayLike<T>,
+    mapper: Iteratee<T, Result>,
+    predicate: Predicate<Result>,
+): Result[];
+/**
+ * Maps an array-like source and filters the mapped values in the same pass.
+ *
+ * @remarks
+ * **Replaces:** `array.map(mapper).filter(predicate)`.
+ *
+ * **Performance:** Eliminates the intermediate mapped array and touches each source element once. This is useful
+ * for DOM collection extraction where the mapped property itself determines whether a value should be retained.
+ */
+export function mapFilterArray<T, Result>(
+    array: ArrayLike<T>,
+    mapper: Iteratee<T, Result>,
+    predicate: Predicate<Result>,
+): Result[] {
+    const result: Result[] = [];
+    for (let index = 0; index < array.length; index++) {
+        const mappedValue = mapper(array[index]!, index);
+        if (predicate(mappedValue, index)) result.push(mappedValue);
+    }
+    return result;
+}
+
+/**
+ * Filters and maps an array-like source in a single pass.
+ *
+ * @remarks
+ * **Replaces:** `array.filter(predicate).map(mapper)`.
+ *
+ * **Performance:** Avoids the intermediate filtered array and performs exactly one source traversal.
+ */
+export function filterMapArray<T, Selected extends T, Result>(
+    array: ArrayLike<T>,
+    predicate: (value: T, index: number) => value is Selected,
+    mapper: Iteratee<Selected, Result>,
+): Result[];
+export function filterMapArray<T, Result>(
+    array: ArrayLike<T>,
+    predicate: Predicate<T>,
+    mapper: Iteratee<T, Result>,
+): Result[];
+export function filterMapArray<T, Result>(
+    array: ArrayLike<T>,
+    predicate: Predicate<T>,
+    mapper: Iteratee<T, Result>,
+): Result[] {
+    const result: Result[] = [];
+    for (let index = 0; index < array.length; index++) {
+        const value = array[index]!;
+        if (predicate(value, index)) result.push(mapper(value, index));
+    }
+    return result;
+}
+
+/**
+ * Filters and flat-maps an array-like source without allocating the filtered intermediate array.
+ *
+ * @remarks
+ * **Replaces:** `array.filter(predicate).flatMap(mapper)`.
+ */
+export function filterFlatMapArray<T, Result>(
+    array: ArrayLike<T>,
+    predicate: Predicate<T>,
+    mapper: Iteratee<T, Result | readonly Result[]>,
+): Result[] {
+    const result: Result[] = [];
+    for (let index = 0; index < array.length; index++) {
+        const value = array[index]!;
+        if (!predicate(value, index)) continue;
+        const mappedValue = mapper(value, index);
+        if (Array.isArray(mappedValue)) {
+            for (let mappedIndex = 0; mappedIndex < mappedValue.length; mappedIndex++) result.push(mappedValue[mappedIndex]!);
+        } else {
+            result.push(mappedValue as Result);
+        }
+    }
+    return result;
+}
+
+/**
+ * Maps values directly into a joined string without allocating a mapped string array.
+ *
+ * @remarks
+ * **Replaces:** `array.map(mapper).join(separator)`.
+ *
+ * **Performance:** Performs one indexed pass and builds the final string directly. This removes the temporary
+ * array of mapped strings, reducing short-lived allocations in serializers, console rendering, and DOM labels.
+ */
+export function mapJoinArray<T>(array: ArrayLike<T>, mapper: Iteratee<T, unknown>, separator = ","): string {
+    if (array.length === 0) return "";
+    const firstValue = mapper(array[0]!, 0);
+    let result = firstValue == null ? "" : String(firstValue);
+    for (let index = 1; index < array.length; index++) {
+        const mappedValue = mapper(array[index]!, index);
+        result += separator + (mappedValue == null ? "" : String(mappedValue));
+    }
+    return result;
+}
+
+
+/**
+ * Filters and joins an array-like source in one traversal without allocating a filtered array.
+ *
+ * @remarks
+ * **Replaces:** `array.filter(predicate).join(separator)`. Separators are appended only after the first retained
+ * value, so the result is built directly while the source is scanned once.
+ */
+export function filterJoinArray<Value>(
+    array: ArrayLike<Value>,
+    predicate: Predicate<Value>,
+    separator = ",",
+): string {
+    let result = "";
+    let hasValue = false;
+    for (let index = 0; index < array.length; index++) {
+        const value = array[index]!;
+        if (!predicate(value, index)) continue;
+        if (hasValue) result += separator;
+        result += value == null ? "" : String(value);
+        hasValue = true;
+    }
+    return result;
+}
+
+/**
+ * Maps, filters, and joins an array-like source in one traversal.
+ *
+ * @remarks
+ * **Replaces:** `array.map(mapper).filter(predicate).join(separator)`.
+ *
+ * **Performance:** Avoids both intermediate arrays and appends separators only for retained values. This is
+ * useful for style serializers, breadcrumb labels, and compact debug strings that run frequently in DevTools.
+ */
+export function mapFilterJoinArray<T, Result>(
+    array: ArrayLike<T>,
+    mapper: Iteratee<T, Result>,
+    predicate: Predicate<Result>,
+    separator = ",",
+): string {
+    let result = "";
+    let hasValue = false;
+    for (let index = 0; index < array.length; index++) {
+        const mappedValue = mapper(array[index]!, index);
+        if (!predicate(mappedValue, index)) continue;
+        if (hasValue) result += separator;
+        result += mappedValue == null ? "" : String(mappedValue);
+        hasValue = true;
+    }
+    return result;
+}
+
+/** Finds the last matching value with a reverse indexed loop and no copied/reversed array. */
+export function findLastArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): T | undefined {
+    for (let index = array.length - 1; index >= 0; index--) {
+        const value = array[index]!;
+        if (predicate(value, index)) return value;
+    }
+    return undefined;
+}
+
+/**
+ * Returns the first index whose value is strictly equal to the searched value.
+ *
+ * @remarks
+ * **Replaces:** `array.indexOf(value, fromIndex)` for array-like hot paths. The implementation performs a direct
+ * indexed scan and also works with DOM array-like collections without converting them first. Semantics match
+ * `Array.prototype.indexOf`, including strict equality rather than SameValueZero.
+ */
+export function indexOfArray<Value>(array: ArrayLike<Value>, searchedValue: Value, fromIndex = 0): number {
+    const length = array.length;
+    let index = fromIndex < 0 ? Math.max(0, length + fromIndex) : fromIndex;
+    for (; index < length; index++) if (array[index] === searchedValue) return index;
+    return -1;
+}
+
+/** Reverse counterpart of {@link indexOfArray} with no copied or reversed array. */
+export function lastIndexOfArray<Value>(array: ArrayLike<Value>, searchedValue: Value, fromIndex = array.length - 1): number {
+    let index = fromIndex < 0 ? array.length + fromIndex : Math.min(fromIndex, array.length - 1);
+    for (; index >= 0; index--) if (array[index] === searchedValue) return index;
+    return -1;
+}
+
+/**
+ * Removes and returns one item while shifting the remaining tail in place.
+ *
+ * @remarks
+ * **Replaces:** `array.splice(index, 1)[0]` when only the removed value is required. Avoids allocating the
+ * one-element array returned by `splice`, which matters for listener registries and frequently edited lists.
+ */
+export function removeAtArray<Value>(array: Value[], index: number): Value | undefined {
+    const normalizedIndex = index < 0 ? array.length + index : index;
+    if (normalizedIndex < 0 || normalizedIndex >= array.length) return undefined;
+    const removedValue = array[normalizedIndex];
+    for (let readIndex = normalizedIndex + 1; readIndex < array.length; readIndex++) {
+        array[readIndex - 1] = array[readIndex]!;
+    }
+    array.length -= 1;
+    return removedValue;
+}
+
+/**
+ * Moves one array item in place with a single shift pass.
+ *
+ * @remarks
+ * **Replaces:** the common `splice(from, 1); splice(to, 0, value)` pair. This avoids the temporary removed-item
+ * array produced by the first `splice` and touches each displaced element only once.
+ */
+export function moveArrayItem<Value>(array: Value[], fromIndex: number, toIndex: number): Value[] {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= array.length || toIndex >= array.length) return array;
+    const value = array[fromIndex]!;
+    if (fromIndex < toIndex) {
+        for (let index = fromIndex; index < toIndex; index++) array[index] = array[index + 1]!;
+    } else {
+        for (let index = fromIndex; index > toIndex; index--) array[index] = array[index - 1]!;
+    }
+    array[toIndex] = value;
+    return array;
+}
+
+/**
+ * Copies an array and clears the source while preserving the original iteration order.
+ *
+ * @remarks
+ * **Replaces:** `array.splice(0)` when callers need a stable snapshot before invoking callbacks that may mutate
+ * the original array. The source is cleared before the snapshot is consumed, matching the reentrancy behavior
+ * of the `splice(0)` cleanup pattern.
+ */
+export function drainArray<Value>(array: Value[]): Value[] {
+    const drained = toArray(array);
+    array.length = 0;
+    return drained;
+}
+
+/**
+ * Discards a prefix in place without allocating the array of removed values produced by `splice`.
+ */
+export function trimArrayStart<Value>(array: Value[], count: number): Value[] {
+    const removeCount = Math.min(array.length, Math.max(0, Math.trunc(count)));
+    if (removeCount === 0) return array;
+    const nextLength = array.length - removeCount;
+    for (let index = 0; index < nextLength; index++) array[index] = array[index + removeCount]!;
+    array.length = nextLength;
+    return array;
+}
+
+/** SameValueZero membership test for array-like sources. */
+export function includesArray<T>(array: ArrayLike<T>, searchedValue: T, fromIndex = 0): boolean {
+    let index = fromIndex < 0 ? Math.max(0, array.length + fromIndex) : fromIndex;
+    for (; index < array.length; index++) {
+        const value = array[index]!;
+        if (value === searchedValue || (value !== value && searchedValue !== searchedValue)) return true;
+    }
+    return false;
+}
+
+/** Returns the first matching value without allocating an intermediate array. */
+export function findArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): T | undefined {
+    for (let index = 0; index < array.length; index++) {
+        const value = array[index]!;
+        if (predicate(value, index)) return value;
+    }
+    return undefined;
+}
+
+/** Returns the index of the first matching value using a direct indexed loop. */
+export function findIndexArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): number {
+    for (let index = 0; index < array.length; index++) if (predicate(array[index]!, index)) return index;
+    return -1;
+}
+
+/** Short-circuiting replacement for `array.some(predicate)`. */
+export function someArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): boolean {
+    for (let index = 0; index < array.length; index++) if (predicate(array[index]!, index)) return true;
+    return false;
+}
+
+/** Short-circuiting replacement for `array.every(predicate)`. */
+export function everyArray<T>(array: ArrayLike<T>, predicate: Predicate<T>): boolean {
+    for (let index = 0; index < array.length; index++) if (!predicate(array[index]!, index)) return false;
+    return true;
+}
+
+/** Iterates an array-like value without allocating an iterator or callback wrapper collection. */
+export function forEachArray<T>(array: ArrayLike<T>, iteratee: Iteratee<T, void>): void {
+    for (let index = 0; index < array.length; index++) iteratee(array[index]!, index);
+}
+
+/**
+ * Converts an iterable or array-like source to an array, optionally mapping during the same traversal.
+ *
+ * @remarks
+ * **Replaces:** `Array.from(source)` and `Array.from(source, mapper)`.
+ *
+ * **Performance:** Uses exact-size preallocation for array-like sources such as `NodeList`, `HTMLCollection`,
+ * `DOMTokenList`, and CSS declaration lists. Generic iterables fall back to one grow-only traversal.
+ */
+export function toArray<T>(source: ArrayLike<T> | Iterable<T>): T[];
+export function toArray<T, Result>(source: ArrayLike<T> | Iterable<T>, iteratee: (value: T, index: number) => Result): Result[];
+export function toArray<T, Result>(source: ArrayLike<T> | Iterable<T>, iteratee?: (value: T, index: number) => Result): T[] | Result[] {
+    if ("length" in Object(source) && typeof (source as ArrayLike<T>).length === "number") {
+        const arrayLike = source as ArrayLike<T>;
+        if (iteratee) return mapArray(arrayLike, iteratee);
+        const result = new Array<T>(arrayLike.length);
+        for (let index = 0; index < arrayLike.length; index++) result[index] = arrayLike[index]!;
+        return result;
+    }
+    const result: Array<T | Result> = [];
+    let index = 0;
+    for (const value of source as Iterable<T>) result.push(iteratee ? iteratee(value, index++) : value);
+    return result as T[] | Result[];
+}
+
+/** Joins array-like values without constructing an intermediate mapped array. */
+export function joinArray(array: ArrayLike<unknown>, separator = ","): string {
+    if (array.length === 0) return "";
+    let result = array[0] == null ? "" : String(array[0]);
+    for (let index = 1; index < array.length; index++) {
+        const value = array[index];
+        result += separator + (value == null ? "" : String(value));
+    }
+    return result;
+}
+
+/** Sorts an array in place while keeping mutation explicit at the call site. */
+export function sortArray<T>(array: T[], comparator?: (left: T, right: T) => number): T[] {
+    return comparator ? array.sort(comparator) : array.sort();
+}
+
+/** Reverses an array in place while keeping mutation explicit at the call site. */
+export function reverseArray<T>(array: T[]): T[] {
+    let leftIndex = 0;
+    let rightIndex = array.length - 1;
+    while (leftIndex < rightIndex) {
+        const leftValue = array[leftIndex]!;
+        array[leftIndex] = array[rightIndex]!;
+        array[rightIndex] = leftValue;
+        leftIndex++;
+        rightIndex--;
+    }
+    return array;
+}
 
 /**
  * Returns the element at an absolute or negative index.
@@ -105,7 +716,7 @@ export function tail<T>(array: readonly T[]): T[] { return array.slice(1); }
  *
  * Nascente favors predictable control flow for hot paths, with special attention to allocation pressure on Safari/WebKit and mobile devices. Native engine optimizations evolve, so this is a performance-oriented implementation, not a universal guarantee of being faster for every input.
  */
-export function take<T>(array: readonly T[], count = 1): T[] { return array.slice(0, count < 0 ? 0 : count); }
+export function take<T>(array: ArrayLike<T>, count = 1): T[] { return copyArrayRange(array, 0, Math.max(0, count)); }
 
 /**
  * Performs the `takeRight` array operation with allocation-conscious control flow.
@@ -117,7 +728,7 @@ export function take<T>(array: readonly T[], count = 1): T[] { return array.slic
  *
  * Nascente favors predictable control flow for hot paths, with special attention to allocation pressure on Safari/WebKit and mobile devices. Native engine optimizations evolve, so this is a performance-oriented implementation, not a universal guarantee of being faster for every input.
  */
-export function takeRight<T>(array: readonly T[], count = 1): T[] { return array.slice(Math.max(0, array.length - count)); }
+export function takeRight<T>(array: ArrayLike<T>, count = 1): T[] { return copyArrayRange(array, Math.max(0, array.length - Math.max(0, count)), array.length); }
 
 /**
  * Performs the `drop` array operation with allocation-conscious control flow.
@@ -129,7 +740,7 @@ export function takeRight<T>(array: readonly T[], count = 1): T[] { return array
  *
  * Nascente favors predictable control flow for hot paths, with special attention to allocation pressure on Safari/WebKit and mobile devices. Native engine optimizations evolve, so this is a performance-oriented implementation, not a universal guarantee of being faster for every input.
  */
-export function drop<T>(array: readonly T[], count = 1): T[] { return array.slice(Math.max(0, count)); }
+export function drop<T>(array: ArrayLike<T>, count = 1): T[] { return copyArrayRange(array, Math.max(0, count), array.length); }
 
 /**
  * Performs the `dropRight` array operation with allocation-conscious control flow.
@@ -141,7 +752,7 @@ export function drop<T>(array: readonly T[], count = 1): T[] { return array.slic
  *
  * Nascente favors predictable control flow for hot paths, with special attention to allocation pressure on Safari/WebKit and mobile devices. Native engine optimizations evolve, so this is a performance-oriented implementation, not a universal guarantee of being faster for every input.
  */
-export function dropRight<T>(array: readonly T[], count = 1): T[] { return array.slice(0, Math.max(0, array.length - count)); }
+export function dropRight<T>(array: ArrayLike<T>, count = 1): T[] { return copyArrayRange(array, 0, Math.max(0, array.length - Math.max(0, count))); }
 
 /**
  * Performs the `takeWhile` array operation with allocation-conscious control flow.

@@ -90,6 +90,11 @@ export type SortDirection = "asc" | "desc";
 export type Awaitable<T> = T | PromiseLike<T>;
 
 /** A JSON primitive supported without structural traversal. */
+export type Falsy = false | 0 | 0n | "" | null | undefined;
+
+/** Removes JavaScript falsy members from a union. */
+export type Truthy<Value> = Value extends Falsy ? never : Value;
+
 export type JsonPrimitive = string | number | boolean | null;
 
 /** A recursively valid JSON value. */
