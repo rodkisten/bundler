@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { build as buildWithEsbuild, type Plugin } from "esbuild";
-import { DIST_DIR, ROOT_DIR, WORKSPACE_PACKAGES } from "./config";
+import { DIST_DIR, ROOT_DIR, WORKSPACE_PACKAGES, workspaceSourceCandidates } from "./config";
 
 export const DEVTOOLS_LANDING_DIR = path.join(DIST_DIR, "devtools");
 
@@ -37,11 +37,10 @@ function workspaceAliasPlugin(): Plugin {
         const subpath = slash === -1 ? "index" : rest.slice(slash + 1);
         if (!(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)) return undefined;
 
-        const candidates = [
-          path.join(ROOT_DIR, pkg, `${subpath}.ts`),
-          path.join(ROOT_DIR, pkg, `${subpath}.tsx`),
-          path.join(ROOT_DIR, pkg, subpath, "index.ts"),
-        ];
+        const candidates = workspaceSourceCandidates(
+          pkg as (typeof WORKSPACE_PACKAGES)[number],
+          subpath,
+        );
         for (const candidate of candidates) {
           try {
             await fs.access(candidate);

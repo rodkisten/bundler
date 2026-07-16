@@ -19,6 +19,47 @@ export const WORKSPACE_PACKAGES = [
   "rod",
 ] as const;
 
+
+export type WorkspacePackageName = (typeof WORKSPACE_PACKAGES)[number];
+
+/**
+ * Returns the physical source candidates for a canonical workspace import.
+ *
+ * @remarks
+ * DevTools intentionally keeps public imports grouped as `core/*` and `panels/*`
+ * while the repository stores those modules as flat `core-*` and `panels-*` files.
+ * Keeping that translation in the resolver preserves stable import specifiers without
+ * coupling source code to the repository's current on-disk layout.
+ */
+export function workspaceSourceCandidates(
+  packageName: WorkspacePackageName,
+  subpath: string,
+): string[] {
+  const physicalSubpaths: string[] = [];
+
+  if (packageName === "devtools" && subpath.startsWith("core/")) {
+    physicalSubpaths.push(`core-${subpath.slice("core/".length)}`);
+  } else if (packageName === "devtools" && subpath.startsWith("panels/")) {
+    physicalSubpaths.push(`panels-${subpath.slice("panels/".length)}`);
+  }
+
+  // Keep the canonical nested path as a fallback so a future directory migration
+  // does not require another resolver rewrite. The flat path is intentionally first.
+  physicalSubpaths.push(subpath);
+
+  const candidates: string[] = [];
+  for (let index = 0; index < physicalSubpaths.length; index += 1) {
+    const physicalSubpath = physicalSubpaths[index]!;
+    candidates.push(
+      path.join(ROOT_DIR, packageName, `${physicalSubpath}.ts`),
+      path.join(ROOT_DIR, packageName, `${physicalSubpath}.tsx`),
+      path.join(ROOT_DIR, packageName, physicalSubpath, "index.ts"),
+    );
+  }
+
+  return candidates;
+}
+
 export type BuildMode = "development" | "production";
 
 export type RootEntry = {
