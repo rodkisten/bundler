@@ -117,21 +117,47 @@ function isImplicitSpreadSlot(
   return IMPLICIT_SPREAD_NEXT_RE.test(nextChunk);
 }
 
-/** Splits text containing value markers into text/value nodes. */
-export function splitMarkerText(value: string): CompiledNode[] {
+export interface SplitMarkerTextOptions {
+  /** Keeps multiline whitespace verbatim for whitespace-sensitive elements such as pre/textarea. */
+  readonly preserveWhitespace?: boolean;
+}
+
+/**
+ * Splits text containing value markers into text/value nodes.
+ *
+ * Multiline whitespace that exists only to format an indented template is omitted
+ * from the compiled instruction stream. A deliberate inline space is preserved,
+ * while whitespace-sensitive element bodies can opt out through `preserveWhitespace`.
+ */
+export function splitMarkerText(
+  value: string,
+  options: SplitMarkerTextOptions = {},
+): CompiledNode[] {
   const output: CompiledNode[] = [];
   let cursor = 0;
   VALUE_MARKER_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = VALUE_MARKER_RE.exec(value))) {
-    const before = value.slice(cursor, match.index);
-    if (before) output.push({ type: "text", value: before });
+    pushLiteralText(output, value.slice(cursor, match.index), options.preserveWhitespace === true);
     output.push({ type: "value", index: Number(match[1]) });
     cursor = VALUE_MARKER_RE.lastIndex;
   }
-  const tail = value.slice(cursor);
-  if (tail) output.push({ type: "text", value: tail });
+  pushLiteralText(output, value.slice(cursor), options.preserveWhitespace === true);
   return output;
+}
+
+function pushLiteralText(
+  output: CompiledNode[],
+  value: string,
+  preserveWhitespace: boolean,
+): void {
+  if (!value) return;
+  if (!preserveWhitespace && isFormattingWhitespace(value)) return;
+  output.push({ type: "text", value });
+}
+
+function isFormattingWhitespace(value: string): boolean {
+  return value.trim() === "" && /[\r\n]/.test(value);
 }
 
 /** Parses a value that interleaves literals with value markers. */
@@ -213,7 +239,11 @@ export function parseCompiledNodes<Tag = string>(
   function pushText(value: string): void {
     if (!value) return;
     const current = stack[stack.length - 1]!;
-    current.children.push(...(splitMarkerText(value) as CompiledNode<Tag>[]));
+    const tag = String(current.tag).toLowerCase();
+    const preserveWhitespace = tag === "pre" || tag === "textarea";
+    current.children.push(
+      ...(splitMarkerText(value, { preserveWhitespace }) as CompiledNode<Tag>[]),
+    );
   }
 }
 
