@@ -118,6 +118,5 @@ export const MaquinaSuggestion = styled.button("MaquinaSuggestion").css`
   }
 `;
 
-export const maquinaStyleArtifacts = [MaquinaRoot, MaquinaViewport, MaquinaHighlight, MaquinaInput, MaquinaSuggestions, MaquinaSuggestion]
-  .flatMap((entry) => entry.artifacts)
-  .filter((artifact) => artifact.kind === "cipo.css");
+/** All Cipó artifacts created by this styled factory, collected automatically. */
+export const maquinaStyleArtifacts = styled.registry.cssArtifacts;
