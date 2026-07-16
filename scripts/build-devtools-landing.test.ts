@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createBuiltDevtoolsLandingHtml } from "./build-devtools-landing";
@@ -24,12 +25,21 @@ describe("DevTools landing build", () => {
     expect(built).not.toContain("/landing.ts");
   });
 
-  it("resolves canonical DevTools core and panel aliases to flat source files first", () => {
-    expect(workspaceSourceCandidates("devtools", "core/shell")[0]).toBe(
-      path.join(process.cwd(), "devtools/core-shell.ts"),
+  it("resolves canonical DevTools aliases to current flat modules before legacy prefixed fallbacks", () => {
+    expect(workspaceSourceCandidates("devtools", "core/shell").find(existsSync)).toBe(
+      path.join(process.cwd(), "devtools/shell.ts"),
     );
-    expect(workspaceSourceCandidates("devtools", "panels/elements")[0]).toBe(
-      path.join(process.cwd(), "devtools/panels-elements.ts"),
+    expect(workspaceSourceCandidates("devtools", "panels/elements").find(existsSync)).toBe(
+      path.join(process.cwd(), "devtools/elements.ts"),
+    );
+
+    // Internal modules that only exist under the legacy prefix still resolve without
+    // forcing callers to change the canonical `core/*` / `panels/*` import surface.
+    expect(workspaceSourceCandidates("devtools", "core/dom").find(existsSync)).toBe(
+      path.join(process.cwd(), "devtools/core-dom.ts"),
+    );
+    expect(workspaceSourceCandidates("devtools", "panels/shared-components").find(existsSync)).toBe(
+      path.join(process.cwd(), "devtools/panels-shared-components.ts"),
     );
   });
 

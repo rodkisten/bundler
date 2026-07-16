@@ -38,13 +38,23 @@ export function workspaceSourceCandidates(
   const physicalSubpaths: string[] = [];
 
   if (packageName === "devtools" && subpath.startsWith("core/")) {
-    physicalSubpaths.push(`core-${subpath.slice("core/".length)}`);
+    const moduleName = subpath.slice("core/".length);
+
+    // The current DevTools architecture keeps primary modules flat (`shell.ts`,
+    // `context.ts`, `runtime.ts`) while a few legacy/internal modules still use
+    // the `core-*` prefix. Prefer the current flat module and retain the prefixed
+    // file as a compatibility fallback without changing canonical imports.
+    physicalSubpaths.push(moduleName, `core-${moduleName}`);
   } else if (packageName === "devtools" && subpath.startsWith("panels/")) {
-    physicalSubpaths.push(`panels-${subpath.slice("panels/".length)}`);
+    const moduleName = subpath.slice("panels/".length);
+
+    // Panel entrypoints and component modules are flat in the current source tree.
+    // Shared/internal panel modules may still exist only as `panels-*` files.
+    physicalSubpaths.push(moduleName, `panels-${moduleName}`);
   }
 
-  // Keep the canonical nested path as a fallback so a future directory migration
-  // does not require another resolver rewrite. The flat path is intentionally first.
+  // Preserve the canonical nested path as the final fallback for a future
+  // directory-based layout. Canonical import specifiers remain stable either way.
   physicalSubpaths.push(subpath);
 
   const candidates: string[] = [];
