@@ -13,14 +13,14 @@ export interface DevtoolsBuildInfo {
 declare const __RODERUDA_BUILD__: DevtoolsBuildInfo | undefined;
 
 const FALLBACK_BUILD_INFO: DevtoolsBuildInfo = Object.freeze({
-  sha: "development",
+  sha: "dev",
   shortSha: "dev",
   builtAt: new Date(0).toISOString(),
-  builtAtGmtMinus3: "development build",
+  builtAtGmtMinus3: "dev build",
   buildDateShort: "dev",
   buildTimeShort: "local",
   timezone: "GMT-3",
-  mode: "development",
+  mode: "dev",
   version: "0.0.0-dev",
 });
 
