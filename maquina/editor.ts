@@ -1,5 +1,5 @@
 import { createDeepStore } from "@rodkisten/broto";
-import { maquinaFabrica, html, ref } from "@rodkisten/maquina/components";
+import { maquinaFabrica, html, ref, event } from "@rodkisten/maquina/components";
 import { resolveMaquinaTheme } from "@rodkisten/maquina/theme";
 import { tokenizeMaquina } from "@rodkisten/maquina/tokenizer";
 import type { MaquinaCompletionContext, MaquinaCompletionItem, MaquinaCompletionMatch, MaquinaHandle, MaquinaLanguage, MaquinaOptions, MaquinaThemeName } from "@rodkisten/maquina/types";
@@ -63,9 +63,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const mountedTextarea = options.parent.querySelector<HTMLTextAreaElement>("textarea");
   const mountedHighlight = highlight as HTMLElement | null;
   const mountedSuggestions = suggestions as HTMLElement | null;
+
   if (!root || !mountedTextarea || !mountedHighlight || !mountedSuggestions) {
     throw new Error("[Maquina] Editor failed to mount");
   }
+
   textarea = mountedTextarea;
   highlight = mountedHighlight;
   suggestions = mountedSuggestions;
@@ -76,13 +78,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   textarea.setSelectionRange(options.value.length, options.value.length);
 
   applyTheme(root, theme.name);
+
   root.style.setProperty("--maq-tab-size", String(Math.max(1, Math.min(16, options.tabSize ?? 2))));
   root.style.setProperty("--maq-scale", String(Math.max(0.5, Math.min(2, (options.fontSize ?? 16) / 16))));
+ 
   const scale = Math.max(0.5, Math.min(2, (options.fontSize ?? 16) / 16));
   root.style.transformOrigin = "top left";
   root.style.transform = scale === 1 ? "" : `scale(${scale})`;
   root.style.width = scale === 1 ? "100%" : `${100 / scale}%`;
   root.style.height = scale === 1 ? "100%" : `${100 / scale}%`;
+ 
   const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
   textarea.style.fontSize = "16px";
   highlight.style.fontSize = "16px";
@@ -93,36 +98,60 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   const renderHighlight = (): void => {
     if (!highlight) return;
+   
     highlight.replaceChildren(...tokenizeMaquina(state.value.peek(), state.language.peek()).map((token) => {
-      const span = document.createElement("span");
+      const span = html`
+        <span :token=${token.kind}>${token.value}</span>
+      `;
+      
+      const _span = document.createElement("span");
       span.textContent = token.value;
       span.dataset.token = token.kind;
+      
       if (token.kind !== "plain") span.style.color = `var(--maq-${token.kind})`;
+      
       return span;
     }));
+   
     if (state.value.peek().endsWith("\n")) highlight.append(document.createTextNode("\n"));
   };
 
   const syncScroll = (): void => {
     if (!textarea || !highlight) return;
+  
     highlight.style.transform = `translate(${-textarea.scrollLeft}px, ${-textarea.scrollTop}px)`;
   };
 
   const closeSuggestions = (): void => {
     state.patch({ open: false as boolean, suggestions: [] as MaquinaCompletionItem[], activeSuggestion: 0 }, { cause: "maquina:close-completions" });
+   
     if (suggestions) suggestions.hidden = true;
   };
 
   const renderSuggestions = (): void => {
     if (!suggestions || !textarea) return;
+   
     const items = state.suggestions.peek();
+   
     if (!state.open.peek() || !items.length) {
       suggestions.hidden = true;
       return;
     }
     suggestions.hidden = false;
     suggestions.replaceChildren(...items.map((item, index) => {
-      const button = document.createElement("button");
+   
+    const button = html`
+     <button 
+       :active=${index === state.activeSuggestion.peek()}
+       @pointerdown=${event.pointerdown((event) => {
+        event.preventDefault();
+        applySuggestion(index);
+      }))}>
+       <span>${item.labe}</span>
+       <small>${item.detail || item.type || ""}</small>
+     </button>`;
+      
+      const _button = document.createElement("button");
       button.type = "button";
       button.dataset.active = String(index === state.activeSuggestion.peek());
       button.innerHTML = `<span></span><small></small>`;
@@ -134,21 +163,25 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       });
       return button;
     }));
+    
     const lineHeight = 24.8;
     const before = textarea.value.slice(0, textarea.selectionStart);
     const lines = before.split("\n");
     const line = lines.length - 1;
     const column = lines.at(-1)?.length ?? 0;
+   
     suggestions.style.left = `${Math.min(root.clientWidth - 230, 16 + column * 8.5)}px`;
     suggestions.style.top = `${Math.min(root.clientHeight - 180, 18 + line * lineHeight)}px`;
   };
 
   const requestCompletions = async (): Promise<void> => {
     if (!options.completions || !textarea || options.readOnly) return;
+   
     const version = ++completionVersion;
     const cursor = textarea.selectionStart;
     const context = createCompletionContext(textarea.value, cursor);
     const result = await options.completions(context);
+  
     if (destroyed || version !== completionVersion || !result?.options.length) {
       closeSuggestions();
       return;
@@ -161,14 +194,18 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (!textarea) return;
     const item = state.suggestions.peek()[index];
     if (!item) return;
+  
     const from = state.suggestionFrom.peek();
     const to = textarea.selectionStart;
     const insert = item.apply ?? item.label;
+  
     textarea.setRangeText(insert, from, to, "end");
     state.value.set(textarea.value);
     options.onChange?.(textarea.value);
+  
     renderHighlight();
     closeSuggestions();
+    
     textarea.focus();
   };
 
@@ -176,7 +213,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (!textarea) return;
     state.value.set(textarea.value);
     options.onChange?.(textarea.value);
+   
     renderHighlight();
+    
     if (options.activateCompletionOnTyping !== false) void requestCompletions();
   };
 
