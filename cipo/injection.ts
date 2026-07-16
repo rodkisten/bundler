@@ -1,50 +1,35 @@
+import { finalizeAtomicArtifacts } from '@rodkisten/cipo/compiler-atomic-program'
 import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
 import { formatCss, getLayerDeclaration } from '@rodkisten/cipo/format'
 import { runtime } from '@rodkisten/cipo/runtime'
-import type { CipoInjectableStyleArtifact, CipoInjectStyleOptions } from '@rodkisten/cipo/types'
+import type { CipoCssArtifact, CipoInjectableStyleArtifact, CipoInjectStyleOptions } from '@rodkisten/cipo/types'
 import { hashString, normalizeCss } from '@rodkisten/cipo/utils'
 
 export type CipoRuntimeStyleTarget = HTMLElement | ShadowRoot | Document | null
 
 let runtimeStyleTarget: CipoRuntimeStyleTarget | undefined
+let staticCssText = ''
+let atomicCssText = ''
+const atomicArtifacts = new Set<CipoCssArtifact>()
 
 /**
- * Injects CSS into the runtime stylesheet sink.
+ * Injects non-atomic CSS into the single runtime stylesheet sink.
  *
  * @remarks
- * The sink is intentionally dual-mode:
- *
- * - In browsers, rules are appended to the global `<style>` tag.
- * - In Node/Vitest, rules are still recorded in `runtime.generatedCssText` so
- *   `getCssText()` remains deterministic without a DOM environment.
- *
- * This keeps old tests and server-side compile checks working while preserving
- * the browser fast path. The rule splitter is manual and allocation-light: no
- * nested maps, no reduce, no sort, just one scan through the text.
- *
- * @param cssText - CSS to inject.
- * @returns Nothing.
- *
- * @example
- * ```ts
- * insertCss('.cipo-a-x{color:red;}')
- * getCssText()
- * // '.cipo-a-x{color:red;}'
- * ```
+ * Component artifacts do not call this path when thresholded atomization is
+ * enabled. They are registered through `registerAtomicArtifact()` so Cipó can
+ * rebuild only the atomic portion of the same stylesheet when a declaration
+ * reaches its promotion threshold.
  */
 export function insertCss(cssText: string): void {
   if (!cssText || !cssText.trim()) return
+  ensureSharedStateFresh()
 
   const style = hasDocument() && runtimeStyleTarget !== null ? ensureStyleElement() : null
-
-  if (runtime.config.layers && !runtime.layerHeaderInserted) {
-    const header = `${getLayerDeclaration()}\n`
-    runtime.generatedCssText += header
-    if (style) style.appendChild(document.createTextNode(header))
-    runtime.layerHeaderInserted = true
-  }
+  if (runtime.config.layers) runtime.layerHeaderInserted = true
 
   const rules = splitTopLevelRules(cssText)
+  let changed = false
 
   for (let index = 0; index < rules.length; index += 1) {
     const rule = rules[index]
@@ -54,14 +39,49 @@ export function insertCss(cssText: string): void {
     if (!normalized || runtime.insertedCss.has(normalized)) continue
 
     runtime.insertedCss.add(normalized)
-
-    const formatted = `${formatCss(rule)}\n`
-    runtime.generatedCssText += formatted
-
-    if (style) {
-      style.appendChild(document.createTextNode(formatted))
-    }
+    staticCssText += `${formatCss(rule)}\n`
+    changed = true
   }
+
+  if (changed) rebuildRuntimeCss(style)
+}
+
+/**
+ * Registers a component artifact in the process-wide atomic program.
+ *
+ * Every Cipó/Fábrica Elements styled component reaches this collector by
+ * default. The resulting CSS is recomputed from the complete artifact set, so a
+ * second use can replace two scoped fallbacks with one shared atomic rule.
+ */
+export function registerAtomicArtifact(artifact: CipoCssArtifact): void {
+  ensureSharedStateFresh()
+  const size = atomicArtifacts.size
+  atomicArtifacts.add(artifact)
+  if (atomicArtifacts.size === size) return
+  syncAtomicStylesheet()
+}
+
+/** Rebuilds the shared atomic stylesheet from all currently registered artifacts. */
+export function syncAtomicStylesheet(): string {
+  ensureSharedStateFresh()
+  const program = finalizeAtomicArtifacts(Array.from(atomicArtifacts), runtime.config.atomic.minUses)
+  replaceAtomicCss(program.cssText)
+  return program.cssText
+}
+
+/** Returns a snapshot of artifacts contributing to the shared atomic sheet. */
+export function getRegisteredAtomicArtifacts(): readonly CipoCssArtifact[] {
+  ensureSharedStateFresh()
+  return Object.freeze(Array.from(atomicArtifacts))
+}
+
+/** Replaces only the atomic section while preserving theme/global/runtime CSS. */
+export function replaceAtomicCss(cssText: string): void {
+  ensureSharedStateFresh()
+  atomicCssText = cssText.trim() ? `${cssText.trim()}\n` : ''
+  if (runtime.config.layers && atomicCssText) runtime.layerHeaderInserted = true
+  const style = hasDocument() && runtimeStyleTarget !== null ? ensureStyleElement() : null
+  rebuildRuntimeCss(style)
 }
 
 export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined): HTMLStyleElement | null {
@@ -72,36 +92,40 @@ export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined
   if (target === null) return null
 
   const style = ensureStyleElement()
-  if (runtime.generatedCssText && style.textContent !== runtime.generatedCssText) {
-    style.textContent = runtime.generatedCssText
-  }
+  if (style.textContent !== runtime.generatedCssText) style.textContent = runtime.generatedCssText
   return style
 }
 
 /**
- * Injects style artifacts into a specific target such as a ShadowRoot.
+ * Injects style artifacts into one target using one stylesheet element.
  *
- * @param target - HTMLElement, ShadowRoot or Document.
- * @param styles - Style artifact(s).
- * @param options - Injection options.
- * @returns Created or reused style element.
- *
- * @example
- * ```ts
- * const shadow = host.attachShadow({ mode: 'open' })
- * injectStyle(shadow, cardStyles)
- * ```
+ * Atomic artifacts are finalized together before insertion. This is the same
+ * aggregation used by the runtime registry, which means passing
+ * `styled.registry.cssArtifacts` produces a single shared atomic stylesheet
+ * instead of concatenating one component stylesheet per `styled` declaration.
  */
 export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoInjectableStyleArtifact | readonly CipoInjectableStyleArtifact[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
   const list = Array.isArray(styles) ? styles : [styles]
-  let cssText = ''
+  const atomic: CipoCssArtifact[] = []
+  const chunks: string[] = []
+  let atomicInsertIndex = -1
 
   for (let index = 0; index < list.length; index += 1) {
     const style = list[index]
-    cssText += index > 0 ? '\n' : ''
-    cssText += style.kind === 'cipo.inline-css' || style.kind === 'cipo.stylesheet' ? style.cssText : style.compiledCss
+    if (style.kind === 'cipo.css') {
+      if (atomicInsertIndex < 0) atomicInsertIndex = chunks.length
+      atomic.push(style)
+      continue
+    }
+    chunks.push(style.cssText)
   }
 
+  if (atomic.length > 0) {
+    const atomicSheet = finalizeAtomicArtifacts(atomic, runtime.config.atomic.minUses).cssText
+    if (atomicSheet) chunks.splice(atomicInsertIndex < 0 ? chunks.length : atomicInsertIndex, 0, atomicSheet)
+  }
+
+  const cssText = chunks.filter(Boolean).join('\n')
   const key = `cipo-style-${hashString(cssText)}`
   const parent = target instanceof Document ? target.head : target
 
@@ -119,15 +143,7 @@ export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles:
   return element
 }
 
-/**
- * Reads generated runtime CSS text.
- *
- * @remarks
- * In a browser this prefers the live style tag. In DOM-less tests it returns
- * the internal generated CSS buffer populated by `insertCss()`.
- *
- * @returns CSS text.
- */
+/** Reads the complete generated runtime stylesheet text. */
 export function getCssText(): string {
   if (hasDocument()) {
     const style = findStyleElement()
@@ -137,11 +153,7 @@ export function getCssText(): string {
   return runtime.generatedCssText
 }
 
-/**
- * Ensures a global style element exists.
- *
- * @returns Style element.
- */
+/** Ensures the single runtime style element exists. */
 export function ensureStyleElement(): HTMLStyleElement {
   const parent = getRuntimeStyleParent()
   if (!parent) throw new Error('[Cipó] Runtime style target is disabled')
@@ -161,6 +173,27 @@ export function ensureStyleElement(): HTMLStyleElement {
 
 export function hasDocument(): boolean {
   return typeof document !== 'undefined' && Boolean(document.head)
+}
+
+function rebuildRuntimeCss(style: HTMLStyleElement | null): void {
+  const header = runtime.config.layers && runtime.layerHeaderInserted
+    ? `${getLayerDeclaration()}\n`
+    : ''
+  runtime.generatedCssText = `${header}${staticCssText}${atomicCssText}`
+  if (style && style.textContent !== runtime.generatedCssText) style.textContent = runtime.generatedCssText
+}
+
+/**
+ * Lazily observes the public reset contract without coupling this module back to
+ * index.ts. `reset()` clears generatedCssText and insertedCss; the next style
+ * operation treats that combination as a fresh stylesheet epoch.
+ */
+function ensureSharedStateFresh(): void {
+  if (runtime.generatedCssText || runtime.insertedCss.size > 0) return
+  if (!staticCssText && !atomicCssText && atomicArtifacts.size === 0) return
+  staticCssText = ''
+  atomicCssText = ''
+  atomicArtifacts.clear()
 }
 
 function getRuntimeStyleParent(): HTMLElement | ShadowRoot | null {
