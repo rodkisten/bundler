@@ -27,16 +27,16 @@ type CategoryDefinition = {
 
 const CATEGORY_DEFINITIONS: readonly CategoryDefinition[] = [
   category("array", "Array utilities", "Single-pass transforms, bounded async work, set algebra, sampling and indexed traversal.", [
-    "at", "cartesianProduct", "chunk", "combinations", "compact", "countBy", "difference", "differenceBy", "differenceWith", "drop", "dropRight", "dropRightWhile", "dropWhile", "fill", "filterAsync", "flatMap", "flatMapAsync", "flatMapDeep", "flatten", "flattenDeep", "forEachAsync", "forEachRight", "groupBy", "head", "initial", "intersection", "intersectionBy", "intersectionWith", "isSubset", "isSubsetWith", "keyBy", "last", "limitAsync", "mapAsync", "maxBy", "minBy", "orderBy", "partition", "pull", "pullAt", "reduceAsync", "remove", "sample", "sampleSize", "shuffle", "sortBy", "tail", "take", "takeRight", "takeRightWhile", "takeWhile", "toFilled", "union", "unionBy", "unionWith", "uniq", "uniqBy", "uniqWith", "unzip", "unzipWith", "windowed", "without", "xor", "xorBy", "xorWith", "zip", "zipObject", "zipWith",
+    "at", "mapIterable", "filterIterable", "filterTakeIterable", "someIterable", "findIterable", "forEachIterable", "atIterable", "appendArray", "appendArrayValues", "concatArrays", "mapJoinIterable", "mapArray", "filterArray", "findArray", "findIndexArray", "findLastArray", "someArray", "everyArray", "forEachArray", "toArray", "joinArray", "sortArray", "reverseArray", "compactMapArray", "mapFilterArray", "filterMapArray", "filterFlatMapArray", "mapJoinArray", "filterJoinArray", "mapFilterJoinArray", "indexOfArray", "lastIndexOfArray", "removeAtArray", "moveArrayItem", "drainArray", "trimArrayStart", "includesArray", "cartesianProduct", "chunk", "combinations", "compact", "countBy", "difference", "differenceBy", "differenceWith", "drop", "dropRight", "dropRightWhile", "dropWhile", "fill", "filterAsync", "flatMap", "flatMapAsync", "flatMapDeep", "flatten", "flattenDeep", "forEachAsync", "forEachRight", "groupBy", "head", "initial", "intersection", "intersectionBy", "intersectionWith", "isSubset", "isSubsetWith", "keyBy", "last", "limitAsync", "mapAsync", "maxBy", "minBy", "orderBy", "partition", "pull", "pullAt", "reduceAsync", "remove", "sample", "sampleSize", "shuffle", "sortBy", "tail", "take", "takeRight", "takeRightWhile", "takeWhile", "toFilled", "union", "unionBy", "unionWith", "uniq", "uniqBy", "uniqWith", "unzip", "unzipWith", "windowed", "without", "xor", "xorBy", "xorWith", "zip", "zipObject", "zipWith",
   ]),
   category("function", "Function utilities", "Composition, memoization and scheduling helpers with deliberately small runtime machinery.", [
-    "after", "ary", "asyncNoop", "before", "curry", "curryRight", "debounce", "flow", "flowRight", "identity", "memoize", "negate", "noop", "once", "partial", "partialRight", "rest", "retry", "spread", "throttle", "unary",
+    "after", "ary", "asyncNoop", "before", "curry", "curryRight", "debounce", "flow", "flowRight", "identity", "memoize", "memoizeLast", "negate", "noop", "once", "partial", "partialRight", "rest", "retry", "spread", "throttle", "unary",
   ]),
   category("map-set", "Map & Set utilities", "Native collection transforms that avoid converting through temporary arrays or Object entries.", [
     "mapMap", "filterMap", "mapKeysMap", "mapValuesMap", "reduceMap", "everyMap", "someMap", "findKeyMap", "findValueMap", "hasValue", "forEachMap", "keyByMap", "mapSet", "filterSet", "reduceSet", "everySet", "someSet", "findSet", "forEachSet", "keyBySet",
   ]),
   category("object", "Object utilities", "Record transforms, cloning and merging without obligatory Object.entries pipelines.", [
-    "clone", "cloneDeep", "cloneDeepWith", "flattenObject", "invert", "mapKeys", "mapValues", "merge", "mergeWith", "omit", "omitBy", "pick", "pickBy", "sortKeys", "toCamelCaseKeys", "toMerged", "toSnakeCaseKeys",
+    "objectKeys", "objectEntries", "objectValues", "objectFromEntries", "forEachObject", "mapObject", "objectToMap", "clone", "cloneDeep", "cloneDeepWith", "flattenObject", "invert", "mapKeys", "mapValues", "merge", "mergeWith", "omit", "omitBy", "pick", "pickBy", "sortKeys", "toCamelCaseKeys", "toMerged", "toSnakeCaseKeys",
   ]),
   category("predicate", "Predicates", "Narrowing-friendly runtime checks for browser, Node and JavaScript built-ins.", [
     "isArrayBuffer", "isBlob", "isBoolean", "isBrowser", "isBuffer", "isDate", "isEmptyObject", "isEqual", "isEqualWith", "isError", "isFile", "isFunction", "isIterable", "isJSON", "isJSONArray", "isJSONObject", "isJSONValue", "isLength", "isMap", "isNil", "isNode", "isNotNil", "isNull", "isNumber", "isPlainObject", "isPrimitive", "isPromise", "isRegExp", "isSet", "isString", "isSymbol", "isTypedArray", "isUndefined", "isWeakMap", "isWeakSet",
@@ -48,13 +48,13 @@ const CATEGORY_DEFINITIONS: readonly CategoryDefinition[] = [
     "allKeyed", "delay", "Mutex", "Semaphore", "timeout", "withTimeout", "AbortError", "TimeoutError",
   ]),
   category("string", "String utilities", "Case conversion, escaping and trimming helpers designed around small reusable primitives.", [
-    "camelCase", "capitalize", "constantCase", "deburr", "escape", "escapeRegExp", "kebabCase", "lowerCase", "lowerFirst", "pad", "pascalCase", "reverseString", "snakeCase", "startCase", "trim", "trimEnd", "trimStart", "unescape", "upperCase", "upperFirst", "words",
+    "includesIgnoreCase", "splitAsciiWhitespace", "splitOnce", "splitNonEmpty", "splitTrimmedNonEmpty", "splitLines", "camelCase", "capitalize", "constantCase", "deburr", "escape", "escapeRegExp", "kebabCase", "lowerCase", "lowerFirst", "pad", "pascalCase", "reverseString", "snakeCase", "startCase", "trim", "trimEnd", "trimStart", "unescape", "upperCase", "upperFirst", "words",
   ]),
   category("utility", "Utility functions", "Assertions and result-oriented attempt helpers for explicit failure handling.", [
     "assert", "attempt", "attemptAsync", "invariant",
   ]),
   category("types", "Core types", "Semantic public types shared by the flat API.", [
-    "Iteratee", "Predicate", "Comparator", "OrderingComparator", "Orderable", "Awaitable", "AsyncIteratee", "AsyncPredicate", "KeySelector", "ValueSelector", "SortDirection", "AttemptResult", "JsonPrimitive", "JsonValue",
+    "Falsy", "Truthy", "Iteratee", "Predicate", "Comparator", "OrderingComparator", "Orderable", "Awaitable", "AsyncIteratee", "AsyncPredicate", "KeySelector", "ValueSelector", "SortDirection", "AttemptResult", "JsonPrimitive", "JsonValue",
   ]),
 ];
 
