@@ -186,7 +186,7 @@ jobs:
     needs: scope
     if: ${{ needs.scope.outputs.build_scope != 'none' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 2
 
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
