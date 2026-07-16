@@ -1,4 +1,8 @@
 ## Unreleased
+- Made thresholded atomization the default (`atomic-min-uses: 2`) for Cipó/Fábrica Elements styled output. Component artifacts now register into one shared atomic program: first-use declarations stay scoped, the second identical declaration is promoted into one reusable atom, and the runtime replaces the atomic section of a single stylesheet instead of appending per-component CSS.
+- Build-compiled styled components now carry compact parser-free atomic metadata through the PURE `attachCompiledCss()` bridge, preserving JavaScript/CSS tree shaking while participating in the same shared runtime stylesheet as non-compiled components.
+- `injectStyle()` now aggregates `styled.registry.cssArtifacts` before emission and folds injections targeting the active runtime target into the existing Cipó style element, eliminating the extra per-DevTools stylesheet.
+- Moved the DevTools atomization/class-name/minification intent back into its CSS-first `@cipo` sheet (`debug: false`, `minify: true`, `atomic-min-uses: 2`) instead of build-only class-name knobs.
 - Added a factory-local `styled.registry` collector with cached `components`/`artifacts` snapshots and `cssArtifacts` for Cipó. Build-compiled styled components now preserve lightweight `CipoCssArtifact` metadata through `attachCompiledCss()`, keeping registry output identical across runtime and production while retaining PURE tree shaking.
 - Added compiled runtime configuration payloads: Vite build mode can lower eligible `configureFromCss(config)` calls to `configureCompiledCssConfig()` without shipping raw `@theme` DSL or the parser graph. Runtime presets/plugins safely stay on the parser path.
 - Restored canonical `@rodkisten/*` imports in the Cipó Vite adapter and moved workspace path resolution to `vite-tsconfig-paths`; standalone Vite configs now bootstrap through `tsx` plus the native config loader instead of requiring relative `.js` compiler imports.
@@ -120,7 +124,7 @@
 
 ## Smart shorthand expansion pass
 
-- Added declaration-level smart helpers for `h(...)`, `w(...)`, `pos(...)`, `grid-template(...)`, `grid-flow(...)`, `stack(...)`, `cluster(...)`, `center(...)`, `cover(...)`, `sidebar(...)`, `scroll(...)`, `scrollbar(...)`, `snap(...)`, `snap-item(...)`, `overscroll(...)`, `tap(...)`, `select(...)`, `drag(...)`, `focus-ring(...)`, `transition(...)` and `animate(...)`.
+- Added declaration-level smart helpers for `h(...)`, `w(...)`, `pos(...)`, `grid-template(...)`, `grid-flow(...)`, `stack(...)`, `cluster(...)`, `center(...)`, `cover(...)`, `sidebar(...)`, `scroll(...)`, `scrollbar(...)`, `snap(...)`, `snap-item(...)`, `overscroll(...)`, `tap(...)`, `select(...)`, `drag(...)`, `focus-ring(...)`, `transition(...)`, `animate(...)` and `animate(...)`.
 - Added border inference aliases `bor`, `bor-x`, `bor-y`, `bor-t`, `bor-r`, `bor-b` and `bor-l`, including implicit `1px solid` output when only a color is supplied.
 - Added modern background value support for `image(...)` and expanded `gradient(...)` to include repeating linear, radial and conic gradients.
 - Added deterministic OKLCH utility values for `color-{name}-{shade}` and `bg-{name}-{shade}` in normal declarations.
