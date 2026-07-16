@@ -1,8 +1,10 @@
-import { compileCss } from '@rodkisten/cipo/compiler-sheet-compile'
-import { resolveScopedSelector } from '@rodkisten/cipo/compiler-selector-compile'
+import { addImportant } from '@rodkisten/cipo/compiler-important'
 import { optimizeCompiledCss } from '@rodkisten/cipo/compiler-compiled-css-optimizer'
+import { compileSelector, resolveScopedSelector, wrapContext } from '@rodkisten/cipo/compiler-selector-compile'
+import { formatCss, wrapLayer } from '@rodkisten/cipo/format'
 import { runtime } from '@rodkisten/cipo/runtime'
 import type { CipoAtomicRule, CipoCssArtifact, CipoDeclarationNode, CipoScopedRule } from '@rodkisten/cipo/types'
+import { createDeclaration } from '@rodkisten/cipo/utils'
 
 export interface CipoRuntimeAtomicProgram {
   /** One stylesheet containing promoted shared atoms and scoped one-use fallbacks. */
@@ -64,7 +66,7 @@ export function compileRuntimeAtomicStyles(
   }
 
   const css = optimizeCompiledCss(
-    compileCss(Array.from(promotedById.values()), scopedRules),
+    compileProgram(Array.from(promotedById.values()), scopedRules),
     {
       minify: runtime.config.minify,
       mergeEquivalentRules: true,
@@ -76,6 +78,29 @@ export function compileRuntimeAtomicStyles(
     promotedCount: promotedById.size,
     minUses: threshold,
   }
+}
+
+function compileProgram(atoms: readonly CipoAtomicRule[], scopedRules: readonly CipoScopedRule[]): string {
+  const atomicCss = atoms.map((atom) => (
+    wrapContext(
+      `${compileSelector(atom.className, atom.context)}{${createDeclaration(atom.property, atom.value)}}`,
+      atom.context,
+    )
+  )).join('\n')
+  const scopedCss = scopedRules.map(compileScopedRule).join('\n')
+  return formatCss(
+    [wrapLayer('atomic', atomicCss), wrapLayer('scoped', scopedCss)]
+      .filter(Boolean)
+      .join('\n'),
+  )
+}
+
+function compileScopedRule(rule: CipoScopedRule): string {
+  const declarations = rule.declarations.map((declaration) => createDeclaration(
+    declaration.property,
+    runtime.config.important ? addImportant(declaration.value) : declaration.value,
+  )).join('')
+  return wrapContext(`${rule.selector}{${declarations}}`, rule.context)
 }
 
 function normalizeMinUses(value: number): number {
