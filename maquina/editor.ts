@@ -45,8 +45,15 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           autocapitalize="off"
           autocomplete="off"
           autocorrect="off"
+          
+          inputmode="none"
+          :gramm="false"
+          :gramm_editor="false"
+          :enable-grammarly="false"
+          :ms-editor="false"
+          
           ?readonly=${options.readOnly === true}
-        ></MaquinaInput>
+        />
         <MaquinaSuggestions hidden ref=${ref<HTMLElement>((node) => { suggestions = node; })}></MaquinaSuggestions>
       </MaquinaViewport>
     </MaquinaRoot>
