@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { SnippetItem } from "@rodkisten/devtools/types";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
@@ -43,16 +42,6 @@ export const SnippetDescription = styled.div("RodSnippetDescription").css`
   word-break: break-word;
 `;
 
-const SNIPPETS_STYLED_COMPONENTS = Object.freeze([
-  SnippetsTitle,
-  SnippetName,
-  SnippetDescription,
-]);
-
-export const snippetsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SNIPPETS_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodSnippetsView", function RodSnippetsView(_props, ctx) {
   const view = ctx.useRequiredContext(SnippetsViewContext);

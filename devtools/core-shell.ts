@@ -1,6 +1,5 @@
 import { debugLog } from "@rodkisten/devtools/core-debug";
 import { icon } from "@rodkisten/devtools/core-utils";
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, html, renderInto, repeat, signal, styled, uiState } from "@rodkisten/devtools/core-runtime";
 import { DevtoolsContext } from "@rodkisten/devtools/core-context";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "@rodkisten/devtools/core-build-info";
@@ -235,23 +234,6 @@ const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
   }
 `;
 
-const SHELL_STYLED_COMPONENTS = Object.freeze([
-  ShellRoot,
-  EntryButtonView,
-  DevtoolsDock,
-  Resizer,
-  Tabbar,
-  BuildBadge,
-  Tools,
-  Notifications,
-  ModalRoot,
-]);
-
-export const shellStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SHELL_STYLED_COMPONENTS
-    .flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 export interface ShellRefs {
   root: HTMLElement;

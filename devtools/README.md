@@ -37,6 +37,15 @@ devtools.scale(1);
 
 The default export also exposes the compatibility aliases `eruda`, `chobitsu`, all tool constructors, `Tool`, `DevTools`, `EntryBtn`, themes, and utilities.
 
+## Styled CSS registry
+
+All DevTools panels keep using the shared `styled` factory from `core-runtime`.
+Each component is registered automatically in `styledRegistry`, and the mount
+pipeline installs `styledRegistry.cssArtifacts` in one pass. Panels no longer
+maintain duplicated component arrays or per-panel `*StyleArtifacts` exports.
+This also means a newly declared styled component, including shared panel UI,
+participates in runtime and compiled production CSS automatically.
+
 ## Bundler output
 
 The implementation lives in `src/devtools/`. The thin `src/devtools.ts` root entry follows the same pattern as Cipo, Fábrica and Broto, allowing the existing discovery pipeline to emit the `devtools` IIFE and ESM artifacts.

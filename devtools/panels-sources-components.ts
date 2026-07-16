@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import { icon } from "@rodkisten/devtools/utils";
 import "@rodkisten/devtools/panels-shared-components";
@@ -25,7 +24,7 @@ export const SourcesIconButton = styled.button("RodSourcesIconButton", {
   attrs: (props) => ({
     type: 'button',
     'aria-label': props.label,
-  })).css`
+  })}).css`
   appearance: none;
   display: inline-grid;
   place-items: center;
@@ -188,27 +187,6 @@ export const SourcesTextButton = styled.button("RodSourcesTextButton").css`
   }
 `;
 
-const SOURCES_STYLED_COMPONENTS = Object.freeze([
-  SourcesRoot,
-  SourcesIconButton,
-  SourcesTitle,
-  SourcesBody,
-  SourcesEmpty,
-  SourcesPre,
-  SourcesEditor,
-  SourcesBreadcrumb,
-  SourcesCodeMirrorHost,
-  SourcesObject,
-  SourcesImage,
-  SourcesIframe,
-  SourcesLinkList,
-  SourcesTextButton,
-]);
-
-export const sourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SOURCES_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodSourcesView", function RodSourcesView(_props, ctx) {
   const view = ctx.useRequiredContext(SourcesViewContext);

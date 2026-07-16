@@ -7,7 +7,6 @@ import type { Cleanup, ElementsConfig, ToolContext } from "@rodkisten/devtools/t
 import { copyText, icon, isDevtoolsNode, nodePath } from "@rodkisten/devtools/utils";
 import { asElement, event, html,  render } from "@rodkisten/devtools/core-runtime";
 import {
-  elementsStyleArtifacts,
   listenerModels,
   propertyModels,
   styleRuleModels,
@@ -20,7 +19,6 @@ import {
 import { getMatchedRules, collectRules, clamp, meaningfulText } from "@rodkisten/devtools/panels-elements.functions";
 
 
-export { elementsStyleArtifacts };
 
 type SelectOptions = {
   addHistory?: boolean;

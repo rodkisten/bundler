@@ -20,14 +20,12 @@ import {
   ConsoleTableHead,
   ConsoleTableWrap,
   ConsoleTime,
-  consoleStyleArtifacts,
   type ConsoleState,
   type ConsoleViewModel,
   visibleLevels,
   ConsoleViewContext,
 } from "@rodkisten/devtools/panels-console-components";
 
-export { consoleStyleArtifacts };
 
 const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   asyncRender: true,

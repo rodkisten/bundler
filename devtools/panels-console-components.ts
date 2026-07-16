@@ -1,5 +1,4 @@
 import type { Store } from "@rodkisten/broto";
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord } from "@rodkisten/devtools/types";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import { icon } from "@rodkisten/devtools/utils";
@@ -342,36 +341,6 @@ export const ConsoleTableCell = styled.td("RodConsoleTableCell").css`
   text-align: left;
 `;
 
-const CONSOLE_STYLED_COMPONENTS = Object.freeze([
-  ConsoleSurface,
-  ConsoleControl,
-  ConsoleIconButton,
-  ConsoleLevels,
-  ConsoleLevelButton,
-  ConsoleControlSpacer,
-  ConsoleFilter,
-  ConsoleList,
-  ConsoleRow,
-  ConsoleStack,
-  ConsoleRepeat,
-  ConsoleGroup,
-  ConsoleTime,
-  ConsoleInputWrap,
-  ConsolePrompt,
-  ConsoleInput,
-  ConsoleCodeEditorHost,
-  ConsoleEditorActions,
-  ConsoleEditorButton,
-  ConsoleTableWrap,
-  ConsoleTable,
-  ConsoleTableHead,
-  ConsoleTableCell,
-]);
-
-export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  CONSOLE_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodConsoleView", function RodConsoleView(_props, ctx) {
   const view = ctx.useRequiredContext(ConsoleViewContext);

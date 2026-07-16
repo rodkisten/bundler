@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { RenderValue } from "@rodkisten/fabrica/runtime";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
@@ -63,18 +62,6 @@ export const InfoValue = styled.div("RodInfoValue").css`
   word-break: break-word;
 `;
 
-const INFO_STYLED_COMPONENTS = Object.freeze([
-  InfoTitle,
-  InfoCardContent,
-  InfoKv,
-  InfoKey,
-  InfoValue,
-]);
-
-export const infoStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  INFO_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodInfoView", function RodInfoView(_props, ctx) {
   const view = ctx.useRequiredContext(InfoViewContext);

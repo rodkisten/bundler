@@ -8,7 +8,6 @@ import type { NetworkConfig, NetworkRecord, ToolContext } from "@rodkisten/devto
 import {
   networkDetailTemplate,
   networkListTemplate,
-  networkStyleArtifacts,
   type NetworkViewModel,
   NetworkViewContext,
 } from "@rodkisten/devtools/panels-network-components";
@@ -16,7 +15,6 @@ import { shellQuote, toCurl } from "@rodkisten/devtools/panels-network.functions
 export { toCurl } from "@rodkisten/devtools/panels-network.functions";
 
 
-export { networkStyleArtifacts };
 
 export class Network extends Tool {
   readonly name = "network";

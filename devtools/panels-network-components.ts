@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { RenderValue } from "@rodkisten/fabrica/runtime";
 import { escapeHtml, formatBytes, formatDuration, icon, truncate } from "@rodkisten/devtools/utils";
 import { highlightCode, inferSourceType, withLineNumbers } from "@rodkisten/devtools/core-serialize";
@@ -284,30 +283,6 @@ const NetworkEmpty = styled.div("RodNetworkEmpty").css`
   }
 `;
 
-const NETWORK_STYLED_COMPONENTS = Object.freeze([
-  NetworkIconButton,
-  NetworkSearch,
-  NetworkList,
-  NetworkTable,
-  NetworkRow,
-  NetworkName,
-  NetworkStatus,
-  NetworkMethod,
-  NetworkDetail,
-  NetworkTabs,
-  NetworkTabButton,
-  NetworkPane,
-  NetworkSection,
-  NetworkSectionTitle,
-  NetworkKvTable,
-  NetworkCode,
-  NetworkEmpty,
-]);
-
-export const networkStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  NETWORK_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodNetworkView", function RodNetworkView(_props, ctx) {
   const view = ctx.useRequiredContext(NetworkViewContext);

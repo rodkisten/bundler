@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
@@ -210,28 +209,6 @@ export const ResourcesJsonActions = styled.div("RodResourcesJsonActions").css`
   background: $backgroundDark;
 `;
 
-const RESOURCES_STYLED_COMPONENTS = Object.freeze([
-  ResourcesSection,
-  ResourcesTableWrap,
-  ResourcesSectionTitle,
-  ResourcesSectionActions,
-  ResourcesIconButton,
-  ResourcesTable,
-  ResourcesInput,
-  ResourcesLinkList,
-  ResourcesSectionContent,
-  ResourcesImageList,
-  ResourcesImageCard,
-  ResourcesJsonDialog,
-  ResourcesJsonHeader,
-  ResourcesJsonEditorHost,
-  ResourcesJsonActions,
-]);
-
-export const resourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  RESOURCES_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodResourcesView", function RodResourcesView(_props, ctx) {
   const view = ctx.useRequiredContext(ResourcesViewContext);

@@ -8,7 +8,6 @@ import {
   InfoKey,
   InfoKv,
   InfoValue,
-  infoStyleArtifacts,
   type InfoModel,
   type InfoViewModel,
 } from "@rodkisten/devtools/panels-info-components";

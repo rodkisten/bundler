@@ -31,7 +31,6 @@ import type {
   ToolLike,
 } from "@rodkisten/devtools/types";
 import {
-  sourcesStyleArtifacts,
   type SourcesViewModel,
   SourcesViewContext,
 } from "@rodkisten/devtools/panels-sources-components";
@@ -39,7 +38,6 @@ import { isSourcePayload, collectSources, serializeDocumentSource, inferInlineSc
 export { formatSource } from "@rodkisten/devtools/panels-sources.functions";
 
 
-export { sourcesStyleArtifacts };
 
 type ResolvedSource = {
   type: SourceType | string;
