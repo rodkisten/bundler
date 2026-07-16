@@ -1,9 +1,15 @@
 import { runtime } from '@rodkisten/cipo/runtime'
 import type { CipoAtomicRule, CipoDeclarationNode, CipoRuleContext, CipoScopedRule } from '@rodkisten/cipo/types'
-import { createDeclaration, hashString } from '@rodkisten/cipo/utils'
+import { hashString } from '@rodkisten/cipo/utils'
 import { addImportant } from '@rodkisten/cipo/compiler-important'
-import { compileSelector, createAtomicRuleId, resolveScopedSelector, wrapContext } from '@rodkisten/cipo/compiler-selector-compile'
+import { createAtomicRuleId, resolveScopedSelector } from '@rodkisten/cipo/compiler-selector-compile'
 import { createAtomicClassName } from '@rodkisten/cipo/compiler-atomic-class-name'
+import {
+  compileAtomicProgramRule,
+  compileAtomicStylesheet,
+  createAtomicFallbackRule,
+  joinAtomicClassNames,
+} from '@rodkisten/cipo/compiler-atomic-program'
 
 /** Creates or reuses an atomic rule for a declaration/context pair. */
 export function createAtomicRule(declaration: CipoDeclarationNode, context: CipoRuleContext): CipoAtomicRule {
@@ -26,13 +32,11 @@ export function createAtomicRule(declaration: CipoDeclarationNode, context: Cipo
   return atom
 }
 
-
 /**
- * Applies the configured atomic promotion threshold.
+ * Legacy streaming promotion helper.
  *
- * Declarations below `atomic.minUses` stay inside the artifact scope class so
- * one-off rules do not pollute the shared atomic sheet. Once a declaration is
- * seen often enough, future artifacts reuse the shared atom.
+ * @deprecated Component/styled compilation now uses the shared-program finalizer,
+ * which can promote a declaration retroactively when its second use appears.
  */
 export function partitionPromotedAtoms(
   atoms: readonly CipoAtomicRule[],
@@ -68,27 +72,30 @@ export function partitionPromotedAtoms(
 
 /** Compiles one atomic rule. */
 export function compileAtomicRule(atom: CipoAtomicRule): string {
-  return wrapContext(`${compileSelector(atom.className, atom.context)}{${createDeclaration(atom.property, atom.value)}}`, atom.context)
+  return compileAtomicProgramRule(atom)
 }
 
 /** Joins atomic and scope classes while preserving insertion order and uniqueness. */
 export function joinClassNames(atoms: readonly CipoAtomicRule[], scopeClassName: string): string {
-  const seen = new Set<string>()
-  const output: string[] = []
-  if (scopeClassName) { seen.add(scopeClassName); output.push(scopeClassName) }
-  for (const atom of atoms) if (!seen.has(atom.className)) { seen.add(atom.className); output.push(atom.className) }
-  return output.join(' ')
+  return joinAtomicClassNames(atoms, scopeClassName)
 }
 
 import type { CipoAstNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoWarning } from '@rodkisten/cipo/types'
 import { transformCss } from '@rodkisten/cipo/transform'
 import { buildSafeSource } from '@rodkisten/cipo/safe-source'
 import { parseStylesheet } from '@rodkisten/cipo/parser'
-import { insertCss } from '@rodkisten/cipo/injection'
+import { insertCss, registerAtomicArtifact } from '@rodkisten/cipo/injection'
 import { collectRules } from '@rodkisten/cipo/compiler-at-rules'
-import { compileCss, createArtifactCacheKey, getCachedArtifact, setCachedArtifact } from '@rodkisten/cipo/compiler-sheet-compile'
+import { createArtifactCacheKey, getCachedArtifact, setCachedArtifact } from '@rodkisten/cipo/compiler-sheet-compile'
 
-/** Compiles explicit atomic CSS and injects its generated rules. */
+export interface CreateAtomicArtifactOptions {
+  /** Build compiler override for a deterministic component scope class. */
+  readonly scopeClassName?: string
+  /** Registers thresholded artifacts in the shared runtime stylesheet. Defaults to true. */
+  readonly register?: boolean
+}
+
+/** Compiles explicit atomic CSS and injects/registers its generated rules. */
 export function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
   const rawCss = buildSafeSource(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
@@ -105,27 +112,56 @@ export function compileAtomicCss(strings: TemplateStringsArray, values: readonly
   const ast = parseStylesheet(transformedCss, warnings)
   const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
 
-  insertCss(artifact.compiledCss)
+  // Classic minUses:1 artifacts are already final and can use the append-only
+  // fast path. Thresholded artifacts are registered by createAtomicArtifact()
+  // and rebuild the single shared atomic sheet when promotion changes.
+  if (runtime.config.atomic.minUses <= 1) insertCss(artifact.compiledCss)
   if (cacheable) setCachedArtifact(cacheKey, artifact)
   return artifact
 }
 
-/** Creates the legacy atomic/component artifact. */
-export function createAtomicArtifact(rawCss: string, transformedCss: string, ast: readonly CipoAstNode[], warnings: readonly CipoWarning[], forceImportant = false): CipoCssArtifact {
+/**
+ * Creates an atomic/component artifact.
+ *
+ * @remarks
+ * With a promotion threshold greater than one, every declaration remains in the
+ * artifact metadata and the component receives both its deterministic scope class
+ * and its potential atomic classes. The shared stylesheet finalizer decides which
+ * atoms actually exist in CSS. This allows a later second use to promote a rule
+ * without recreating components that were already rendered.
+ */
+export function createAtomicArtifact(
+  rawCss: string,
+  transformedCss: string,
+  ast: readonly CipoAstNode[],
+  warnings: readonly CipoWarning[],
+  forceImportant = false,
+  options: CreateAtomicArtifactOptions = {},
+): CipoCssArtifact {
   const mutableWarnings = [...warnings]
-  const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
+  const scopeClassName = options.scopeClassName ?? `${runtime.config.prefix}-s-${hashString(transformedCss)}`
   const previousImportant = runtime.config.important
   runtime.config.important = previousImportant || forceImportant
   const collected = collectRules(ast, scopeClassName, mutableWarnings)
-  const promoted = partitionPromotedAtoms(collected.atoms, scopeClassName)
-  const atoms = promoted.atoms
-  const scopedRules = [...promoted.scopedRules, ...collected.scopedRules]
-  const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
-  const compiledCss = compileCss(atoms, scopedRules)
-  runtime.config.important = previousImportant
-  const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
+  const atoms = collected.atoms
+  const scopedRules = collected.scopedRules
+  const thresholded = runtime.config.atomic.minUses > 1
+  const className = joinAtomicClassNames(
+    atoms,
+    thresholded || scopedRules.length > 0 ? scopeClassName : '',
+  )
 
-  return {
+  // Per-artifact CSS is intentionally empty in thresholded mode. Emitting the
+  // first-use fallback here would make every styled component own a stylesheet
+  // fragment and would make retroactive promotion impossible. The shared registry
+  // owns final CSS instead.
+  const compiledCss = thresholded
+    ? ''
+    : compileAtomicStylesheet(atoms, scopedRules)
+  runtime.config.important = previousImportant
+  const artifactId = `${runtime.config.prefix}-artifact-${hashString(`${scopeClassName}|${rawCss}`)}`
+
+  const artifact: CipoCssArtifact = {
     kind: 'cipo.css',
     className,
     scopeClassName,
@@ -139,6 +175,15 @@ export function createAtomicArtifact(rawCss: string, transformedCss: string, ast
     [Symbol.toPrimitive]: () => className,
     [Symbol.toStringTag]: 'CipoCssArtifact',
   }
+
+  if (thresholded && options.register !== false) registerAtomicArtifact(artifact)
+  return artifact
+}
+
+/** Builds the local scoped fallback representation used by diagnostics/tests. */
+export function compileAtomicArtifactFallback(artifact: CipoCssArtifact): string {
+  const fallbackRules = artifact.atoms.map((atom) => createAtomicFallbackRule(atom, artifact.scopeClassName))
+  return compileAtomicStylesheet([], [...fallbackRules, ...artifact.scopedRules])
 }
 
 function isAtomicCssArtifactLike(artifact: CipoCssResult): artifact is CipoCssArtifact {
