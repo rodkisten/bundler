@@ -1,0 +1,43 @@
+name: 🔎 Debug typecheck
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: typecheck
+        shell: bash
+        run: |
+          set +e
+          pnpm typecheck > typecheck.log 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Upload typecheck diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+      - name: Print typecheck diagnostics
+        if: always()
+        run: cat typecheck.log
+      - name: Fail on typecheck errors
+        if: steps.typecheck.outputs.status != '0'
+        run: exit 1
