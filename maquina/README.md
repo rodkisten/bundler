@@ -67,6 +67,23 @@ editor.setTheme("forest");
 
 The editable control always keeps an actual `16px` font size. `fontSize` controls a scale applied to the whole editor, so a requested `12px` editor remains visually compact without triggering Safari input zoom.
 
+## CSS-first atomic production build
+
+Máquina keeps authoring normal named `styled` components, but its Vite build uses Cipó's whole-build atomic compiler. Styling policy lives in `maquina/cipo-config.ts`:
+
+```css
+@cipo {
+  prefix: maq;
+  debug: false;
+  minify: true;
+  atomic-min-uses: 2;
+}
+```
+
+Static component declarations are analyzed together. A declaration used by at least two components becomes one shared atomic class, while one-off declarations remain under a compact component scope. The final production bundle injects one consolidated stylesheet instead of embedding one CSS string for every `Maquina*` styled component.
+
+When Máquina is imported by another Cipó Vite build, such as RodEruda DevTools, the parent compiler should follow the complete reachable workspace graph. This allows Máquina declarations to share atoms with the parent bundle instead of leaking uncompiled `.css\`...\`` templates into the final JavaScript.
+
 ## Vite path aliases
 
 The development and production Vite commands resolve `@rodkisten/*` imports from the root TypeScript path mappings with `vite-tsconfig-paths`. The Vite config is loaded through `tsx` and Vite's native config loader so aliased Cipó imports also work while the config itself is being evaluated.
