@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { reset, setup } from '@rodkisten/cipo'
+import { getCssText, reset, setup } from '@rodkisten/cipo'
 import { compileAtomicCss, compileAtomicRule, createAtomicRule, joinClassNames } from '@rodkisten/cipo/compiler-atomic-compile'
 
 describe('Cipó compiler/atomic-compile', () => {
@@ -22,10 +22,11 @@ describe('Cipó compiler/atomic-compile', () => {
     expect(joinClassNames([rule, rule], 'scope')).toBe(`scope ${rule.className}`)
   })
 
-  it('compiles explicit atomic artifacts', () => {
+  it('registers thresholded atomic artifacts in the shared stylesheet', () => {
     const artifact = compileAtomicCss([`px: 4; bg: $brand;`] as unknown as TemplateStringsArray, [], false)
     expect(artifact.kind).toBe('cipo.css')
-    expect(artifact.compiledCss).toContain('padding-inline')
-    expect(artifact.compiledCss).toContain('var(--atom-colors-brand)')
+    expect(artifact.compiledCss).toBe('')
+    expect(getCssText()).toContain('padding-inline')
+    expect(getCssText()).toContain('var(--atom-colors-brand)')
   })
 })
