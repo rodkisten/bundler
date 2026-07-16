@@ -1,3 +1,5 @@
+import type { CipoCssArtifact } from "@rodkisten/cipo";
+import { filterArray, flatMap } from "@rodkisten/nascente";
 import { styled } from "@rodkisten/devtools/core-runtime";
 
 /* ******************** */
@@ -162,3 +164,29 @@ export const SharedPreBlock = styled.pre("RodSharedPreBlock").css`
 /* Style artifacts      */
 /* ******************** */
 
+
+const SHARED_STYLED_COMPONENTS = Object.freeze([
+  SharedPanelLayout,
+  SharedPanelRoot,
+  SharedControlBar,
+  SharedControlSpacer,
+  SharedHeader,
+  SharedActions,
+  SharedButton,
+  SharedPanelBody,
+  SharedScrollableBody,
+  SharedDetailTitle,
+  SharedEmptyState,
+  SharedCard,
+  SharedSection,
+  SharedTableWrap,
+  SharedPreBlock,
+]);
+
+/** Static Cipó artifacts emitted by shared panel primitives. */
+export const sharedStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
+  filterArray(
+    flatMap(SHARED_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts),
+    (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css",
+  ),
+);

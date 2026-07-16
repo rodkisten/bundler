@@ -1,4 +1,5 @@
 import type { Cleanup } from "@rodkisten/devtools/types";
+import { filterArray, filterMapArray, forEachArray, mapArray, toArray } from "@rodkisten/nascente";
 
 const SECTION_SELECTOR = "[data-section]";
 const CANDIDATE_SELECTOR = "[data-section], rodnetworksection, rodresourcessection, rodsettingssection, rodelementsdetailsection";
@@ -11,7 +12,7 @@ export function installSectionReordering(root: HTMLElement, storageKey: string):
   let moved = false;
 
   const prepare = (): void => {
-    Array.from(root.querySelectorAll<HTMLElement>(CANDIDATE_SELECTOR)).forEach((section, index) => {
+    forEachArray(root.querySelectorAll<HTMLElement>(CANDIDATE_SELECTOR), (section, index) => {
       section.dataset.section ||= `${section.tagName.toLowerCase()}-${index}`;
       section.removeAttribute("draggable");
       const title = section.querySelector<HTMLElement>(
@@ -29,10 +30,7 @@ export function installSectionReordering(root: HTMLElement, storageKey: string):
   };
 
   const persist = (parent: HTMLElement): void => {
-    const order = Array.from(parent.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child.matches(SECTION_SELECTOR))
-      .map((section) => section.dataset.section)
-      .filter((value): value is string => Boolean(value));
+    const order = filterArray(filterMapArray(parent.children, (child): child is HTMLElement => child instanceof HTMLElement && child.matches(SECTION_SELECTOR), (section) => section.dataset.section), (value): value is string => Boolean(value));
     try { localStorage.setItem(storageKey, JSON.stringify(order)); } catch {}
   };
 
@@ -41,11 +39,11 @@ export function installSectionReordering(root: HTMLElement, storageKey: string):
     let order: string[] = [];
     try {
       const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      if (Array.isArray(parsed)) order = parsed.filter((value): value is string => typeof value === "string");
+      if (Array.isArray(parsed)) order = filterArray(parsed, (value): value is string => typeof value === "string");
     } catch {}
     if (!order.length) return;
-    const sections = Array.from(root.querySelectorAll<HTMLElement>(SECTION_SELECTOR));
-    const byName = new Map(sections.map((section) => [section.dataset.section ?? "", section]));
+    const sections = toArray(root.querySelectorAll<HTMLElement>(SECTION_SELECTOR));
+    const byName = new Map(mapArray(sections, (section) => [section.dataset.section ?? "", section]));
     for (const name of order) {
       const section = byName.get(name);
       if (section?.parentElement) section.parentElement.append(section);

@@ -3,6 +3,7 @@ import type {
   DevtoolsInitOptions,
   InitialConsoleBag,
 } from "@rodkisten/devtools/types";
+import { filterArray, includesArray } from "@rodkisten/nascente";
 
 export const DEFAULT_DEVTOOLS_BUNDLE_URL = "https://rod.migos.club/bundler/devtools.iife.js";
 export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
@@ -171,13 +172,13 @@ export function normalizeInjectableScriptUrl(value: string): string {
 }
 
 export function selectedLandingPanels(selection: LandingPanelSelection): LandingPanelName[] {
-  const panels = LANDING_PANEL_NAMES.filter((name) => selection[name]);
+  const panels = filterArray(LANDING_PANEL_NAMES, (name) => selection[name]);
   return panels.length ? panels : ["console"];
 }
 
 export function resolveInitialLandingTool(state: DevtoolsLandingState): LandingPanelName {
   const panels = selectedLandingPanels(state.panels);
-  return panels.includes(state.initialTool) ? state.initialTool : panels[0]!;
+  return includesArray(panels, state.initialTool) ? state.initialTool : panels[0]!;
 }
 
 export function createLandingInitOptions(
@@ -371,7 +372,7 @@ export function createLandingTokenCss(tokens: LandingTokenState): string {
 function mergeLandingState(input: Partial<DevtoolsLandingState>): DevtoolsLandingState {
   const defaults = DEFAULT_LANDING_STATE;
   const panels: Partial<LandingPanelSelection> = input.panels ?? {};
-  const initialTool = LANDING_PANEL_NAMES.includes(input.initialTool as LandingPanelName)
+  const initialTool = includesArray(LANDING_PANEL_NAMES, input.initialTool as LandingPanelName)
     ? input.initialTool as LandingPanelName
     : defaults.initialTool;
 
@@ -471,13 +472,13 @@ function colorValue(value: unknown, fallback: string): string {
 }
 
 function themeValue(value: unknown, fallback: LandingTheme): LandingTheme {
-  return ["AMOLED", "Dark", "Light", "System preference"].includes(String(value))
+  return includesArray(["AMOLED", "Dark", "Light", "System preference"], String(value))
     ? value as LandingTheme
     : fallback;
 }
 
 function debugLevelValue(value: unknown, fallback: DebugLevel): DebugLevel {
-  return ["trace", "debug", "info", "warn", "error", "silent"].includes(String(value))
+  return includesArray(["trace", "debug", "info", "warn", "error", "silent"], String(value))
     ? value as DebugLevel
     : fallback;
 }

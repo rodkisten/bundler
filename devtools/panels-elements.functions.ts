@@ -6,25 +6,26 @@ import type {
   StyleRuleInfo,
   StyleRuleModel,
 } from "@rodkisten/devtools/panels-elements-components";
+import { appendArray, concatArrays, mapArray, mapJoinArray, mapObject, reverseArray, take, toArray } from "@rodkisten/nascente";
 
 export function styleRuleModels(element: Element, rules: StyleRuleInfo[]): StyleRuleModel[] {
-  const inline = Array.from(element instanceof HTMLElement ? element.style : []).map((property) => ({
+  const inline = mapArray(element instanceof HTMLElement ? element.style : [], (property) => ({
     property,
     value: (element as HTMLElement).style.getPropertyValue(property),
     priority: (element as HTMLElement).style.getPropertyPriority(property),
   }));
 
-  return [
-    {
+  return concatArrays(
+    [{
       selector: "element.style",
-      declarations: [...inline, { property: "", value: "", priority: "" }],
+      declarations: appendArray(inline, { property: "", value: "", priority: "" }),
       editable: true,
-    },
-    ...rules.map((rule) => ({
+    }],
+    mapArray(rules, (rule) => ({
       ...rule,
       editable: false,
     })),
-  ];
+  );
 }
 
 export function listenerModels(
@@ -33,12 +34,12 @@ export function listenerModels(
     options?: boolean | AddEventListenerOptions;
   }[]>>,
 ): ListenerModel[] {
-  return Object.entries(listeners).map(([type, values]) => ({ type, values }));
+  return mapObject(listeners, (values, type) => ({ type, values }));
 }
 
 export function propertyModels(element: Element): PropertyModel[] {
   const rows: PropertyModel[] = [{ key: "selector", value: nodePath(element) }];
-  const keys = Reflect.ownKeys(element).slice(0, 100);
+  const keys = take(Reflect.ownKeys(element), 100);
 
   for (const key of keys) {
     let value: unknown;
@@ -59,7 +60,7 @@ export function propertyModels(element: Element): PropertyModel[] {
 }
 
 export function crumbLabel(element: Element): string {
-  return `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${Array.from(element.classList).slice(0, 1).map((name) => `.${name}`).join("")}`;
+  return `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${mapJoinArray(take(element.classList, 1), (name) => `.${name}`, "")}`;
 }
 
 export function listenerText(listener: EventListenerOrEventListenerObject): string {
@@ -74,7 +75,7 @@ export function number(value: string): number {
 export function getMatchedRules(element: Element): StyleRuleInfo[] {
   const output: StyleRuleInfo[] = [];
 
-  for (const stylesheet of Array.from(document.styleSheets)) {
+  for (const stylesheet of toArray(document.styleSheets)) {
     let rules: CSSRuleList;
 
     try {
@@ -92,7 +93,7 @@ export function getMatchedRules(element: Element): StyleRuleInfo[] {
     );
   }
 
-  return output.reverse();
+  return reverseArray(output);
 }
 
 export function collectRules(
@@ -101,7 +102,7 @@ export function collectRules(
   output: StyleRuleInfo[],
   source: string,
 ): void {
-  for (const rule of Array.from(rules)) {
+  for (const rule of toArray(rules)) {
     if (rule instanceof CSSStyleRule) {
       try {
         if (!element.matches(rule.selectorText)) {
@@ -115,7 +116,7 @@ export function collectRules(
       output.push({
         selector: rule.selectorText,
         source,
-        declarations: Array.from(rule.style).map((property) => ({
+        declarations: mapArray(rule.style, (property) => ({
           property,
           value: rule.style.getPropertyValue(property),
           priority: rule.style.getPropertyPriority(property),

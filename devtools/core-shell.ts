@@ -3,6 +3,7 @@ import { icon } from "@rodkisten/devtools/core-utils";
 import { component, html, renderInto, repeat, signal, styled, uiState } from "@rodkisten/devtools/core-runtime";
 import { DevtoolsContext } from "@rodkisten/devtools/core-context";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "@rodkisten/devtools/core-build-info";
+import { filterArray, joinArray, objectKeys } from "@rodkisten/nascente";
 
 const EMPTY_PANELS = signal<string[]>([]);
 
@@ -350,7 +351,7 @@ export function renderShell(target: HTMLElement | ShadowRoot, inline = false): S
   uiState.setPath("shell.mounted", true);
 
   const shellRefs = assertShellRefs(refs, target);
-  debugLog("shell", "render:end", { refs: Object.keys(shellRefs) });
+  debugLog("shell", "render:end", { refs: objectKeys(shellRefs) });
 
   return shellRefs;
 }
@@ -374,9 +375,9 @@ function assertShellRefs(refs: Partial<ShellRefs>, target: HTMLElement | ShadowR
     if (node) assignShellRef(refs, key, node);
   }
 
-  const missing = keys.filter((key) => !refs[key]);
+  const missing = filterArray(keys, (key) => !refs[key]);
   if (missing.length) {
-    throw new Error(`[RodEruda] Shell did not mount: ${missing.join(", ")}`);
+    throw new Error(`[RodEruda] Shell did not mount: ${joinArray(missing, ", ")}`);
   }
 
   return refs as ShellRefs;

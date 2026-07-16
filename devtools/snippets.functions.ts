@@ -1,5 +1,6 @@
 import { escapeHtml, setStyles } from "@rodkisten/devtools/utils";
 import type { OverlayController } from "@rodkisten/devtools/panels/snippets";
+import { joinArray, toArray } from "@rodkisten/nascente";
 
 export function openWindow(title: string, body: string): Window | null {
   const popup = window.open("", "_blank", "noopener,noreferrer");
@@ -47,12 +48,12 @@ export function startMonitor(): OverlayController {
       frames = 0;
       previous = now;
       const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
-      panel.textContent = [
+      panel.textContent = joinArray([
         `FPS   ${String(fps).padStart(3, " ")}`,
         `DOM   ${document.getElementsByTagName("*").length}`,
         `HEAP  ${memory ? `${(memory.usedJSHeapSize / 1048576).toFixed(1)} MiB` : "n/a"}`,
         `VIEW  ${innerWidth} × ${innerHeight}`,
-      ].join("\n");
+      ], "\n");
     }
     raf = requestAnimationFrame(render);
   };
@@ -74,7 +75,7 @@ export function startTouchVisualizer(): OverlayController {
   const circles = new Map<number, HTMLElement>();
   const render = (event: TouchEvent) => {
     const active = new Set<number>();
-    for (const touch of Array.from(event.touches)) {
+    for (const touch of toArray(event.touches)) {
       active.add(touch.identifier);
       let circle = circles.get(touch.identifier);
       if (!circle) {

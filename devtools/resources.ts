@@ -8,7 +8,8 @@ import type { ResourcesConfig, ResourcesContextValue, SourcePayload, ToolContext
 import { event, html } from "@rodkisten/devtools/core/runtime";
 import { mountCodeEditor, type CodeEditorHandle } from "@rodkisten/devtools/core/code-editor";
 import { resourcesStyleArtifacts, ResourcesContext } from "@rodkisten/devtools/panels/resources-components";
-import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, formatJsonValue, unique } from "@rodkisten/devtools/panels/resources.functions";
+import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, formatJsonValue } from "@rodkisten/devtools/panels/resources.functions";
+import { compactMapArray, concatArrays, filterArray, filterFlatMapArray, filterMapArray, includesArray, joinArray, mapArray, mapFilterArray, someArray, take, toArray, union, uniq } from "@rodkisten/nascente";
 
 
 export { resourcesStyleArtifacts };
@@ -120,7 +121,7 @@ export class Resources extends Tool {
       value && this.active ? this.observe() : this.observer?.disconnect();
     }
 
-    if (["listBottomPadding"].includes(key)) this.applyTweakVariables();
+    if (includesArray(["listBottomPadding"], key)) this.applyTweakVariables();
     if (this.active) this.refresh();
   };
 
@@ -147,7 +148,7 @@ export class Resources extends Tool {
     this.observer = new MutationObserver((mutations) => {
       const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-      if (mutations.some((mutation) => mutationTouchesResources(mutation, host))) {
+      if (someArray(mutations, (mutation) => mutationTouchesResources(mutation, host))) {
         this.scheduleRefresh();
       }
     });
@@ -167,7 +168,7 @@ export class Resources extends Tool {
   private storageSection(title: string, type: StorageType, storage: Storage) {
     const rows = storageRows(type, storage);
     const body = rows.length
-      ? rows.map((row) => this.storageRow(row))
+      ? mapArray(rows, (row) => this.storageRow(row))
       : html`<tr><td colspan="3">Empty</td></tr>`;
 
     return html`
@@ -234,7 +235,7 @@ export class Resources extends Tool {
               </tr>
             </thead>
             <tbody>
-              ${cookies.length ? cookies.map((cookie) => html`
+              ${cookies.length ? mapArray(cookies, (cookie) => html`
                 <tr>
                   <td>${cookie.name}</td>
                   <td>${cookie.value}</td>
@@ -269,7 +270,7 @@ export class Resources extends Tool {
         </ResourcesSectionTitle>
 
         <ResourcesLinkList>
-          ${items.map((item) => html`
+          ${mapArray(items, (item) => html`
             <li>${item.name}: ${item.available ? "available" : "unavailable"}</li>
           `)}
         </ResourcesLinkList>
@@ -288,7 +289,7 @@ export class Resources extends Tool {
         </ResourcesSectionTitle>
 
         <ResourcesLinkList>
-          ${urls.length ? urls.map((url) => html`
+          ${urls.length ? mapArray(urls, (url) => html`
             <li>
               <a href=${url} @click=${event.click((click) => this.openSource(click, type, url))}>${url}</a>
             </li>
@@ -310,7 +311,7 @@ export class Resources extends Tool {
 
         <ResourcesSectionContent>
           <ResourcesImageList>
-            ${urls.length ? urls.slice(0, 500).map((url) => html`
+            ${urls.length ? mapArray(take(urls, 500), (url) => html`
               <ResourcesImageCard type="button" @click=${event.click((click) => this.openSource(click, "image", url))}>
                 <img src=${url} loading="lazy" alt="" />
                 <span title=${url}>${truncate(url, 100)}</span>
@@ -323,42 +324,28 @@ export class Resources extends Tool {
   }
 
   private scriptUrls(): string[] {
-    return unique(Array.from(document.scripts)
-      .map((script) => script.src)
-      .filter(Boolean))
-      .filter((url) => !this.hidden(url));
+    return filterArray(uniq(compactMapArray(document.scripts, (script) => script.src)), (url) => !this.hidden(url));
   }
 
   private stylesheetUrls(): string[] {
-    const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'))
-      .map((link) => link.href);
+    const links = mapArray(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'), (link) => link.href);
 
-    const sheets = Array.from(document.styleSheets)
-      .map((sheet) => sheet.href)
-      .filter((href): href is string => Boolean(href));
+    const sheets = mapFilterArray(document.styleSheets, (sheet) => sheet.href, (href): href is string => Boolean(href));
 
-    return unique([...links, ...sheets]).filter((url) => !this.hidden(url));
+    return filterArray(union(links, sheets), (url) => !this.hidden(url));
   }
 
   private iframeUrls(): string[] {
-    return unique(Array.from(document.querySelectorAll<HTMLIFrameElement>("iframe[src]"))
-      .map((frame) => frame.src)
-      .filter(Boolean))
-      .filter((url) => !this.hidden(url));
+    return filterArray(uniq(compactMapArray(document.querySelectorAll<HTMLIFrameElement>("iframe[src]"), (frame) => frame.src)), (url) => !this.hidden(url));
   }
 
   private imageUrls(): string[] {
-    const images = Array.from(document.images)
-      .filter((image) => !isDevtoolsNode(image, this.context?.shadowRoot?.host as HTMLElement | undefined))
-      .flatMap((image) => [image.currentSrc, image.src])
-      .filter(Boolean);
+    const images = filterArray(filterFlatMapArray(document.images, (image) => !isDevtoolsNode(image, this.context?.shadowRoot?.host as HTMLElement | undefined), (image) => [image.currentSrc, image.src]), Boolean);
 
-    const inlineBackgrounds = Array.from(document.querySelectorAll<HTMLElement>("[style]"))
-      .filter((element) => !isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined))
-      .flatMap((element) => extractCssUrls(`${element.style.backgroundImage} ${element.style.background}`));
+    const inlineBackgrounds = filterFlatMapArray(document.querySelectorAll<HTMLElement>("[style]"), (element) => !isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined), (element) => extractCssUrls(`${element.style.backgroundImage} ${element.style.background}`));
 
     const stylesheetBackgrounds: string[] = [];
-    for (const stylesheet of Array.from(document.styleSheets)) {
+    for (const stylesheet of toArray(document.styleSheets)) {
       try {
         collectCssRuleUrls(stylesheet.cssRules, stylesheetBackgrounds);
       } catch {
@@ -368,18 +355,10 @@ export class Resources extends Tool {
     }
 
     const performanceImages = typeof performance.getEntriesByType === "function"
-      ? performance.getEntriesByType("resource")
-        .filter((entry): entry is PerformanceResourceTiming => "initiatorType" in entry)
-        .filter((entry) => entry.initiatorType === "img" || looksLikeImageUrl(entry.name))
-        .map((entry) => entry.name)
+      ? filterMapArray(filterArray(performance.getEntriesByType("resource"), (entry): entry is PerformanceResourceTiming => "initiatorType" in entry), (entry) => entry.initiatorType === "img" || looksLikeImageUrl(entry.name), (entry) => entry.name)
       : [];
 
-    return unique([
-      ...images,
-      ...inlineBackgrounds,
-      ...stylesheetBackgrounds,
-      ...performanceImages,
-    ]).filter((url) => !this.hidden(url));
+    return filterArray(uniq(concatArrays(images, inlineBackgrounds, stylesheetBackgrounds, performanceImages)), (url) => !this.hidden(url));
   }
 
   private hidden(url: string): boolean {
@@ -540,7 +519,7 @@ export class Resources extends Tool {
 
 }
 
-export const RESOURCE_ELEMENT_SELECTOR = [
+export const RESOURCE_ELEMENT_SELECTOR = joinArray([
   "script",
   "style",
   "link[href]",
@@ -550,4 +529,4 @@ export const RESOURCE_ELEMENT_SELECTOR = [
   "video[src]",
   "audio[src]",
   "[style]",
-].join(",");
+], ",");

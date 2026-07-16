@@ -3,6 +3,7 @@ import type { ConsoleContextValue, ConsoleLevel } from "@rodkisten/devtools/type
 import { component, event, html, repeat, styled } from "@rodkisten/devtools/core/runtime";
 import { icon } from "@rodkisten/devtools/utils";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
+import { filterArray, flatMap, includesArray, mapArray } from "@rodkisten/nascente";
 
 export const ConsoleContext = createRequiredFabricaContext<ConsoleContextValue>("ConsoleContext");
 
@@ -334,8 +335,7 @@ const CONSOLE_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const consoleStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  CONSOLE_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(CONSOLE_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 component("RodConsoleView", function RodConsoleView(_props, ctx) {
@@ -359,12 +359,12 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
       <RodConsoleControl>
         <RodConsoleIconButton type="button" title="Clear" :action="clear" @click=${event.click((click) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
         <RodConsoleLevels role="group" :label="Console levels">
-          ${visibleLevels.map((level) => html`
+          ${mapArray(visibleLevels, (level) => html`
             <RodConsoleLevelButton
-              :active=${() => state.enabledLevels().includes(level)}
+              :active=${() => includesArray(state.enabledLevels(), level)}
               :level=${level}
               type="button"
-              aria-pressed=${() => state.enabledLevels().includes(level)}
+              aria-pressed=${() => includesArray(state.enabledLevels(), level)}
               @click=${event.click((levelEvent) => { 
                 levelEvent.preventDefault(); 
                 view.toggleLevel(level); })}

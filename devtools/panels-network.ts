@@ -12,6 +12,7 @@ import {
   NetworkViewContext,
 } from "@rodkisten/devtools/panels-network-components";
 import { shellQuote, toCurl } from "@rodkisten/devtools/panels-network.functions";
+import { at, filterArray, includesIgnoreCase } from "@rodkisten/nascente";
 export { toCurl } from "@rodkisten/devtools/panels-network.functions";
 
 
@@ -175,18 +176,19 @@ export class Network extends Tool {
     if (!this.active || !this.list) return;
 
     const selectedId = this.state.snapshot().selectedId;
-    const records = this.capture.requests().filter((record) => this.matches(record));
+    const records = filterArray(this.capture.requests(), (record) => this.matches(record));
 
     render(this.list, networkListTemplate(records, selectedId, (id) => this.openDetail(id)));
   }
 
   private matches(record: NetworkRecord): boolean {
-    const filter = this.config.get("filter").trim().toLowerCase();
+    const filter = this.config.get("filter").trim();
     if (!filter) return true;
 
-    return `${record.method} ${record.url} ${record.status ?? ""} ${record.type ?? ""} ${record.mimeType ?? ""}`
-      .toLowerCase()
-      .includes(filter);
+    return includesIgnoreCase(
+      `${record.method} ${record.url} ${record.status ?? ""} ${record.type ?? ""} ${record.mimeType ?? ""}`,
+      filter,
+    );
   }
 
   private openDetail(id: string): void {
@@ -243,7 +245,7 @@ export class Network extends Tool {
         break;
 
       case "copy": {
-        const record = this.selectedRecord() || this.capture.requests().at(-1);
+        const record = this.selectedRecord() || at(this.capture.requests(), -1);
         if (!record) return;
 
         void copyText(toCurl(record)).then(() => {

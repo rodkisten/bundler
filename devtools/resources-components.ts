@@ -3,6 +3,7 @@ import type { ResourcesContextValue } from "@rodkisten/devtools/types";
 import { component, html,  styled } from "@rodkisten/devtools/core/runtime";
 import "@rodkisten/devtools/panels/shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
+import { filterArray, flatMap } from "@rodkisten/nascente";
 
 export const ResourcesContext = createRequiredFabricaContext<ResourcesContextValue>("ResourcesContext");
 
@@ -226,8 +227,7 @@ const RESOURCES_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const resourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  RESOURCES_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(RESOURCES_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 component("RodResourcesView", function RodResourcesView(_props, ctx) {

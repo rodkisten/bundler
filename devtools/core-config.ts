@@ -5,6 +5,7 @@ import type {
 } from "@rodkisten/devtools/types";
 import { debugTrace, debugWarn } from "@rodkisten/devtools/core-debug";
 import { Emitter } from "@rodkisten/devtools/core-emitter";
+import { objectKeys } from "@rodkisten/nascente";
 
 type ConfigEvents<Values extends object> = {
   change: [
@@ -68,7 +69,7 @@ export class ConfigStore<Values extends object>
   }
 
   patch(values: Partial<Values>): void {
-    for (const key of Object.keys(values) as StringKey<Values>[]) {
+    for (const key of objectKeys(values) as StringKey<Values>[]) {
       const value = values[key];
       if (value !== undefined) this.set(key, value as Values[typeof key]);
     }
@@ -79,7 +80,7 @@ export class ConfigStore<Values extends object>
     this.values = { ...this.defaults };
     this.storage.removeItem(this.storageKey);
 
-    for (const key of Object.keys(this.values) as StringKey<Values>[]) {
+    for (const key of objectKeys(this.values) as StringKey<Values>[]) {
       this.emit("change", key, this.values[key], previous[key]);
     }
   }

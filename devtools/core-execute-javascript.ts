@@ -1,3 +1,5 @@
+
+import { at, concatArrays, joinArray, mapArray, mapJoinArray, noop, objectToMap, someArray, splitLines, toArray } from "@rodkisten/nascente";
 /* ******************** */
 /* Public types         */
 /* ******************** */
@@ -711,11 +713,11 @@ function createAsyncFunctionBody(
 
   const executableCode = createExecutableCode(code, options);
 
-  return [
+  return joinArray([
     '"use strict";',
     executableCode,
     `//# sourceURL=${sourceURL}`,
-  ].join("\n");
+  ], "\n");
 }
 
 function createFunctionBody(
@@ -729,13 +731,13 @@ function createFunctionBody(
 
   const executableCode = createExecutableCode(code, options);
 
-  return [
+  return joinArray([
     '"use strict";',
     "return (async () => {",
     indentCode(executableCode, 2),
     "})();",
     `//# sourceURL=${sourceURL}`,
-  ].join("\n");
+  ], "\n");
 }
 
 function createBlobModuleSource(
@@ -752,14 +754,14 @@ function createBlobModuleSource(
 
   const executableCode = createExecutableCode(code, options);
 
-  return [
+  return joinArray([
     "export default async function executeBlobModule() {",
     '  "use strict";',
     indentCode(declarations, 2),
     indentCode(executableCode, 2),
     "}",
     `//# sourceURL=${sourceURL}`,
-  ].join("\n");
+  ], "\n");
 }
 
 function createBlobScriptSource(
@@ -777,7 +779,7 @@ function createBlobScriptSource(
 
   const executableCode = createExecutableCode(code, options);
 
-  return [
+  return joinArray([
     "(async function executeBlobScript() {",
     '  "use strict";',
     "  try {",
@@ -809,7 +811,7 @@ function createBlobScriptSource(
     "  }",
     "})();",
     `//# sourceURL=${sourceURL}`,
-  ].join("\n");
+  ], "\n");
 }
 
 function createIndirectEvalSource(
@@ -826,14 +828,14 @@ function createIndirectEvalSource(
 
   const executableCode = createExecutableCode(code, options);
 
-  return [
+  return joinArray([
     "(async function executeIndirectEval() {",
     '  "use strict";',
     indentCode(declarations, 2),
     indentCode(executableCode, 2),
     "})();",
     `//# sourceURL=${sourceURL}`,
-  ].join("\n");
+  ], "\n");
 }
 
 function createExecutableCode(
@@ -847,7 +849,7 @@ function createExecutableCode(
     return createStatementCode(code, options);
   }
 
-  return [
+  return joinArray([
     "try {",
     `  return await (${code});`,
     "} catch (__rodExpressionError) {",
@@ -858,7 +860,7 @@ function createExecutableCode(
     "  }",
     "}",
     createStatementCode(code, options),
-  ].join("\n");
+  ], "\n");
 }
 
 function createStatementCode(
@@ -880,12 +882,8 @@ function createContextDeclarations(
     return "";
   }
 
-  return names
-    .map(
-      (name, index) =>
-        `const ${name} = ${sourceExpression}[${index}];`,
-    )
-    .join("\n");
+  return mapJoinArray(names, (name, index) =>
+        `const ${name} = ${sourceExpression}[${index}];`, "\n");
 }
 
 /* ******************** */
@@ -949,32 +947,18 @@ function normalizeExecutionContext(
       return [];
     }
 
-    return Array.from(
-      root.querySelectorAll<TElement>(selector),
-    );
+    return toArray(root.querySelectorAll<TElement>(selector));
   };
 
-  const names = [
-    "$_",
-    "$0",
-    "$",
-    "$$",
-    "devtools",
-    "document",
-    "window",
-    ...globals.keys(),
-  ];
+  const names = concatArrays(
+    ["$_", "$0", "$", "$$", "devtools", "document", "window"],
+    toArray(globals.keys()),
+  );
 
-  const values: unknown[] = [
-    context.$_,
-    context.$0 ?? null,
-    queryOne,
-    queryAll,
-    context.devtools,
-    executionDocument,
-    executionWindow,
-    ...globals.values(),
-  ];
+  const values: unknown[] = concatArrays(
+    [context.$_, context.$0 ?? null, queryOne, queryAll, context.devtools, executionDocument, executionWindow],
+    toArray(globals.values()),
+  );
 
   return {
     document: executionDocument,
@@ -996,7 +980,7 @@ function normalizeGlobals(
     return new Map(globals);
   }
 
-  return new Map(Object.entries(globals));
+  return objectToMap(globals);
 }
 
 function validateGlobalNames(
@@ -1132,9 +1116,7 @@ function isAbortError(error: unknown): boolean {
 function transformLastExpressionIntoReturn(
   code: string,
 ): string {
-  const lines = code
-    .split("\n")
-    .map((line) => line.trimEnd());
+  const lines = mapArray(splitLines(code), (line) => line.trimEnd());
 
   let lastIndex = lines.length - 1;
 
@@ -1160,7 +1142,7 @@ function transformLastExpressionIntoReturn(
   lines[lastIndex] =
     `return await (${expression});`;
 
-  return lines.join("\n");
+  return joinArray(lines, "\n");
 }
 
 function canBecomeReturnedExpression(
@@ -1200,9 +1182,8 @@ function canBecomeReturnedExpression(
   ];
 
   if (
-    blockedPrefixes.some((prefix) =>
-      line.startsWith(prefix),
-    )
+    someArray(blockedPrefixes, (prefix) =>
+      line.startsWith(prefix))
   ) {
     return false;
   }
@@ -1241,29 +1222,27 @@ function createAggregateExecutionError(
   code: string,
   attempts: readonly JavaScriptExecutionAttempt[],
 ): JavaScriptExecutionError {
-  const details = attempts
-    .map(({ strategy, error }) => {
+  const details = mapJoinArray(attempts, ({ strategy, error }) => {
       const message =
         error instanceof Error
           ? error.message
           : String(error);
 
       return `- ${strategy}: ${message}`;
-    })
-    .join("\n");
+    }, "\n");
 
   return new JavaScriptExecutionError({
-    message: [
+    message: joinArray([
       "All JavaScript execution strategies failed.",
       "",
       details,
       "",
       "Executed code:",
       createCodePreview(code),
-    ].join("\n"),
+    ], "\n"),
     code,
     attempts,
-    cause: attempts.at(-1)?.error,
+    cause: at(attempts, -1)?.error,
   });
 }
 
@@ -1345,8 +1324,8 @@ function normalizeStrategies(
 ): readonly JavaScriptExecutionStrategy[] {
   const normalized =
     strategies?.length
-      ? Array.from(new Set(strategies))
-      : [...DEFAULT_STRATEGIES];
+      ? toArray(new Set(strategies))
+      : toArray(DEFAULT_STRATEGIES);
 
   if (normalized.length === 0) {
     throw new TypeError(
@@ -1375,11 +1354,11 @@ function normalizeSourceURL(
     return `${sanitized}-${strategy}.js`;
   }
 
-  return [
+  return joinArray([
     sanitized.slice(0, extensionIndex),
     `-${strategy}`,
     sanitized.slice(extensionIndex),
-  ].join("");
+  ], "");
 }
 
 function createUniqueGlobalKey(
@@ -1406,12 +1385,8 @@ function indentCode(
 
   const indentation = " ".repeat(spaces);
 
-  return code
-    .split("\n")
-    .map((line) =>
-      line ? `${indentation}${line}` : line,
-    )
-    .join("\n");
+  return mapJoinArray(splitLines(code), (line) =>
+      line ? `${indentation}${line}` : line, "\n");
 }
 
 function assertCode(code: unknown): asserts code is string {
@@ -1503,10 +1478,10 @@ function mergeGlobals(
   baseGlobals: JavaScriptGlobals | undefined,
   overrideGlobals: JavaScriptGlobals | undefined,
 ): ReadonlyMap<string, unknown> {
-  return new Map([
-    ...normalizeGlobals(baseGlobals),
-    ...normalizeGlobals(overrideGlobals),
-  ]);
+  return new Map(concatArrays(
+    toArray(normalizeGlobals(baseGlobals)),
+    toArray(normalizeGlobals(overrideGlobals)),
+  ));
 }
 
 /* ******************** */

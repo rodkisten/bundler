@@ -9,6 +9,92 @@ import { camelCase, snakeCase } from "./string";
  * Object utilities
  **************************************************************************************************/
 
+
+/** Returns own enumerable string keys with a strongly typed result. */
+export function objectKeys<ObjectType extends object>(object: ObjectType): Array<Extract<keyof ObjectType, string>> {
+    return Object.keys(object) as Array<Extract<keyof ObjectType, string>>;
+}
+
+/** Returns own enumerable string-keyed entries with typed keys and values. */
+export function objectEntries<ObjectType extends object>(object: ObjectType): Array<[Extract<keyof ObjectType, string>, ObjectType[keyof ObjectType]]> {
+    const keys = objectKeys(object);
+    const result = new Array<[Extract<keyof ObjectType, string>, ObjectType[keyof ObjectType]]>(keys.length);
+    for (let index = 0; index < keys.length; index++) {
+        const key = keys[index]!;
+        result[index] = [key, object[key]];
+    }
+    return result;
+}
+
+/** Returns own enumerable string-keyed values without allocating entry tuples. */
+export function objectValues<ObjectType extends object>(object: ObjectType): Array<ObjectType[keyof ObjectType]> {
+    const keys = objectKeys(object);
+    const result = new Array<ObjectType[keyof ObjectType]>(keys.length);
+    for (let index = 0; index < keys.length; index++) result[index] = object[keys[index]!]!;
+    return result;
+}
+
+/** Builds a record from key/value pairs with direct writes. */
+export function objectFromEntries<Key extends PropertyKey, Value>(entries: Iterable<readonly [Key, Value]>): Record<Key, Value> {
+    const result = Object.create(null) as Record<Key, Value>;
+    for (const [key, value] of entries) result[key] = value;
+    return result;
+}
+
+/**
+ * Iterates own enumerable string properties without allocating an entries array or `[key, value]` tuples.
+ *
+ * @remarks
+ * **Replaces:** `for (const [key, value] of Object.entries(object))` in hot paths.
+ */
+export function forEachObject<ObjectType extends object>(
+    object: ObjectType,
+    iteratee: (value: ObjectType[keyof ObjectType], key: Extract<keyof ObjectType, string>) => void,
+): void {
+    for (const key in object) {
+        if (Object.hasOwn(object, key)) iteratee(object[key as keyof ObjectType], key as Extract<keyof ObjectType, string>);
+    }
+}
+
+
+/**
+ * Maps own enumerable string properties directly into a dense result array.
+ *
+ * @remarks
+ * **Replaces:** `Object.entries(object).map(([key, value]) => ...)`.
+ *
+ * **Performance:** Avoids the entries array and every temporary `[key, value]` tuple. The result array is the
+ * only required collection allocation, making this a better fit for inspector tables and protocol payloads.
+ */
+export function mapObject<ObjectType extends object, Result>(
+    object: ObjectType,
+    iteratee: (
+        value: ObjectType[keyof ObjectType],
+        key: Extract<keyof ObjectType, string>,
+        index: number,
+    ) => Result,
+): Result[] {
+    const result: Result[] = [];
+    let index = 0;
+    for (const key in object) {
+        if (!Object.hasOwn(object, key)) continue;
+        result.push(iteratee(object[key as keyof ObjectType], key as Extract<keyof ObjectType, string>, index));
+        index++;
+    }
+    return result;
+}
+
+/** Converts own enumerable string properties to a Map without allocating entry tuples first. */
+export function objectToMap<ObjectType extends object>(
+    object: ObjectType,
+): Map<Extract<keyof ObjectType, string>, ObjectType[keyof ObjectType]> {
+    const result = new Map<Extract<keyof ObjectType, string>, ObjectType[keyof ObjectType]>();
+    for (const key in object) {
+        if (Object.hasOwn(object, key)) result.set(key as Extract<keyof ObjectType, string>, object[key as keyof ObjectType]);
+    }
+    return result;
+}
+
 /**
  * Transforms the own enumerable string-keyed values of an object while preserving keys.
  *

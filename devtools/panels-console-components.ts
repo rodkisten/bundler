@@ -3,6 +3,7 @@ import type { ConsoleFilter as ConsoleFilterValue, ConsoleLevel, ConsoleRecord }
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import { icon } from "@rodkisten/devtools/utils";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
+import { includesArray, mapArray } from "@rodkisten/nascente";
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];
@@ -360,13 +361,13 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
       <RodConsoleControl>
         <RodConsoleIconButton type="button" title="Clear" :action="clear" @click=${event.click((click) => { click.preventDefault(); view.clear(); })}>${icon("clear")}</RodConsoleIconButton>
         <RodConsoleLevels role="group" :label="Console levels">
-          ${visibleLevels.map((level) => html`
+          ${mapArray(visibleLevels, (level) => html`
             <RodConsoleLevelButton
-              :data=${{ active: state.enabledLevels().includes(level),
+              :data=${{ active: includesArray(state.enabledLevels(), level),
                         level: level,
                       }}
               type="button"
-              aria-pressed=${() => state.enabledLevels().includes(level)}
+              aria-pressed=${() => includesArray(state.enabledLevels(), level)}
               @click=${event.click((levelEvent) => { 
                 levelEvent.preventDefault(); 
                 view.toggleLevel(level); })}

@@ -2,6 +2,7 @@ import type { RenderValue } from "@rodkisten/fabrica/runtime";
 import { component, event, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
+import { mapArray } from "@rodkisten/nascente";
 
 export type InfoModel = {
   items: Array<{ name: string; value: unknown }>;
@@ -80,7 +81,7 @@ component("RodInfoView", function RodInfoView(_props, ctx) {
         </RodSharedActions>
       </RodSharedHeader>
       <RodSharedPanelBody :infoBody>
-        ${model.items.length ? model.items.map((item, index) => html`
+        ${model.items.length ? mapArray(model.items, (item, index) => html`
           <RodSharedCard>
             <RodSharedHeader>
               <RodInfoTitle>${item.name}</RodInfoTitle>

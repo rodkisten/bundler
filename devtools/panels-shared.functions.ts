@@ -1,5 +1,6 @@
 import { asElement, event, html, styled } from "@rodkisten/devtools/core-runtime";
 import { PanelShellOptions, PanelShellRefs, PanelAction } from "@rodkisten/devtools/panels-panel-ui";
+import { forEachObject, mapArray } from "@rodkisten/nascente";
 
 export function renderPanelShell(target: HTMLElement, options: PanelShellOptions = {}): PanelShellRefs {
   const bodyRef = { current: null as HTMLElement | null };
@@ -36,7 +37,7 @@ export function panelHeaderTemplate(options: PanelShellOptions) {
       <RodPanelTitle>${options.title ?? ""}</RodPanelTitle>
       ${options.actions?.length ? html`
         <RodPanelActions>
-          ${options.actions.map((item) => panelActionTemplate(item, options))}
+          ${mapArray(options.actions, (item) => panelActionTemplate(item, options))}
         </RodPanelActions>
       ` : ""}
     </RodPanelHeader>
@@ -62,9 +63,9 @@ export function attrs(values?: PanelAction["attrs"]): Record<string, string | nu
   const output: Record<string, string | null> = {};
   if (!values) return output;
 
-  for (const [name, value] of Object.entries(values)) {
+  forEachObject(values, (value, name) => {
     output[name] = value == null || value === false ? null : value === true ? "" : String(value);
-  }
+  });
 
   return output;
 }

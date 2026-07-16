@@ -1,3 +1,5 @@
+
+import { forEachObject } from "@rodkisten/nascente";
 export interface DevtoolsTheme {
   background: string;
   darkerBackground: string;
@@ -209,9 +211,10 @@ export function applyTheme(element: HTMLElement, name?: string): string {
   const resolved = resolveTheme(name);
   element.classList.toggle("roderuda-dark", resolved.dark);
   element.style.colorScheme = resolved.dark ? "dark" : "light";
-  for (const [key, value] of Object.entries(resolved.theme)) {
+  forEachObject(resolved.theme, (value, key) => {
+    if (value === undefined) return;
     const variable = `--${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
     element.style.setProperty(variable, value);
-  }
+  });
   return resolved.name;
 }

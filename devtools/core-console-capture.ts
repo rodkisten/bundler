@@ -1,5 +1,6 @@
 import { Emitter } from "@rodkisten/devtools/core-emitter";
 import type { ConsoleLevel, ConsoleRecord } from "@rodkisten/devtools/types";
+import { concatArrays, drop, filterArray, includesArray, trimArrayStart } from "@rodkisten/nascente";
 
 interface ConsoleCaptureEvents {
   record: [record: ConsoleRecord];
@@ -269,7 +270,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.records.push(record);
 
     if (this.records.length > 1000) {
-      this.records.splice(0, this.records.length - 1000);
+      trimArrayStart(this.records, this.records.length - 1000);
     }
 
     this.emit("record", record);
@@ -507,7 +508,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 ): T {
   if (
     isConsoleTarget(target) &&
-    methods.includes(propertyKey as ConsoleMethod)
+    includesArray(methods, propertyKey as ConsoleMethod)
   ) {
     const method = propertyKey as ConsoleMethod;
     const wrapper = capture.wrappers.get(method);
@@ -551,7 +552,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     ): boolean {
       if (
         isConsoleTarget(target) &&
-        methods.includes(propertyKey as ConsoleMethod)
+        includesArray(methods, propertyKey as ConsoleMethod)
       ) {
         try {
           Object.defineProperty(target, propertyKey, attributes);
@@ -685,7 +686,11 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         if (typeof original !== 'function' || original.__roderudaCaptureWrapper) continue;
         originals[level] = original;
         const wrapped = function(...args) {
-          try { document.dispatchEvent(new CustomEvent(EVENT, { detail: { level, args: args.map(preview) } })); } catch {}
+          try {
+            const previewedArgs = new Array(args.length);
+            for (let index = 0; index < args.length; index++) previewedArgs[index] = preview(args[index]);
+            document.dispatchEvent(new CustomEvent(EVENT, { detail: { level, args: previewedArgs } }));
+          } catch {}
           return Reflect.apply(original, console, args);
         };
         try { Object.defineProperty(console, level, { configurable: true, writable: true, value: wrapped }); }
@@ -760,7 +765,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
       case "assert":
         if (args[0]) return;
-        this.record("error", ["Assertion failed", ...args.slice(1)]);
+        this.record("error", concatArrays(["Assertion failed"], drop(args, 1)));
         return;
 
       case "count": {
@@ -795,7 +800,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         }
 
         const elapsed = performance.now() - start;
-        this.record("info", [`${label}: ${elapsed.toFixed(3)} ms`, ...args.slice(1)]);
+        this.record("info", concatArrays([`${label}: ${elapsed.toFixed(3)} ms`], drop(args, 1)));
 
         if (method === "timeEnd") {
           this.timers.delete(label);
@@ -835,7 +840,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     const fingerprint = `error|${error.name}|${error.message}|${location}|${error.stack ?? ""}`;
     if (this.isDuplicateGlobalError(fingerprint)) return;
 
-    this.record("error", [error, location].filter(Boolean), {
+    this.record("error", filterArray([error, location], Boolean), {
       stack: error.stack,
     });
   };

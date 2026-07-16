@@ -13,6 +13,7 @@ import type {
 } from "@rodkisten/devtools/types";
 import { Tool } from "@rodkisten/devtools/tool";
 import { settingsStyleArtifacts, SettingsContext } from "@rodkisten/devtools/panels/settings-components";
+import { findArray, findIndexArray, mapArray, range, removeAtArray } from "@rodkisten/nascente";
 
 export { settingsStyleArtifacts };
 
@@ -182,10 +183,10 @@ export class Settings extends Tool {
   }
 
   removeSetting(id: string): void {
-    const index = this.entries.findIndex((entry) => entry.id === id);
+    const index = findIndexArray(this.entries, (entry) => entry.id === id);
     if (index < 0) return;
 
-    const [entry] = this.entries.splice(index, 1);
+    const entry = removeAtArray(this.entries, index);
     entry?.dispose?.();
     this.syncEntryIds();
   }
@@ -225,11 +226,11 @@ export class Settings extends Tool {
   }
 
   private syncEntryIds(): void {
-    this.entryIds.set(this.entries.map((entry) => entry.id));
+    this.entryIds.set(mapArray(this.entries, (entry) => entry.id));
   }
 
   private renderEntryById(id: string): RenderValue {
-    const entry = this.entries.find((candidate) => candidate.id === id);
+    const entry = findArray(this.entries, (candidate) => candidate.id === id);
     if (!entry) return null;
 
     entry.version();
@@ -277,7 +278,7 @@ export class Settings extends Tool {
                 if (change.target instanceof HTMLSelectElement) entry.setValue(change.target.value);
               })}
             >
-              ${entry.selections.map((selection) => html`
+              ${mapArray(entry.selections, (selection) => html`
                 <option value=${selection} .selected=${selection === value}>${selection}</option>
               `)}
             </SettingsSelect>

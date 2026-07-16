@@ -6,9 +6,13 @@ import { Tool } from "@rodkisten/devtools/tool";
 import type { SnippetItem, SnippetsContextValue, ToolContext } from "@rodkisten/devtools/types";
 import { snippetsStyleArtifacts, SnippetsContext } from "@rodkisten/devtools/panels/snippets-components";
 import { openWindow, addBorderOverlay, startMonitor, startTouchVisualizer, featureRows } from "@rodkisten/devtools/panels/snippets.functions";
+import { appendArray, drainArray, escapeRegExp, filterArray, findArray, findIndexArray, includesArray, mapArray, mapJoinArray, memoizeLast, takeRight, toArray } from "@rodkisten/nascente";
 
 
 export { snippetsStyleArtifacts };
+
+const SEARCH_IGNORED_TAG_NAMES = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "NOSCRIPT"]);
+const createSearchExpression = memoizeLast((query: string) => new RegExp(escapeRegExp(query), "gi"));
 
 export interface OverlayController {
   stop(): void;
@@ -61,25 +65,25 @@ export class Snippets extends Tool {
         ? descriptionOrRun
         : "Custom snippet";
     const current = this.snippets.peek();
-    const existingIndex = current.findIndex((snippet) => snippet.name === name);
+    const existingIndex = findIndexArray(current, (snippet) => snippet.name === name);
     this.snippets.set(existingIndex >= 0
-      ? current.map((snippet, index) => index === existingIndex ? { ...snippet, description, run } : snippet)
-      : [...current, { name, description, run }]);
+      ? mapArray(current, (snippet, index) => index === existingIndex ? { ...snippet, description, run } : snippet)
+      : appendArray(current, { name, description, run }));
     return this;
   }
 
   run(name: string): this {
-    const index = this.snippets.peek().findIndex((snippet) => snippet.name === name);
+    const index = findIndexArray(this.snippets.peek(), (snippet) => snippet.name === name);
     if (index >= 0) void this.execute(index);
     return this;
   }
 
   get(name: string): SnippetItem | undefined {
-    return this.snippets.peek().find((snippet) => snippet.name === name);
+    return findArray(this.snippets.peek(), (snippet) => snippet.name === name);
   }
 
   remove(name: string): this {
-    this.snippets.update((items) => items.filter((snippet) => snippet.name !== name));
+    this.snippets.update((items) => filterArray(items, (snippet) => snippet.name !== name));
     this.activeOverlays.get(name)?.stop();
     this.activeOverlays.delete(name);
     this.syncActiveNames();
@@ -101,7 +105,7 @@ export class Snippets extends Tool {
   }
 
   override destroy(): void {
-    for (const cleanup of this.cleanup.splice(0)) cleanup();
+    for (const cleanup of drainArray(this.cleanup)) cleanup();
     for (const overlay of this.activeOverlays.values()) overlay.stop();
     this.activeOverlays.clear();
     this.syncActiveNames();
@@ -190,16 +194,16 @@ export class Snippets extends Tool {
   private async searchText(): Promise<void> {
     const query = await this.context?.prompt("Enter the text", "");
     if (!query?.trim()) return;
-    for (const wrapper of Array.from(document.querySelectorAll<HTMLElement>(".roderuda-search-highlight-block"))) {
+    for (const wrapper of toArray(document.querySelectorAll<HTMLElement>(".roderuda-search-highlight-block"))) {
       wrapper.replaceWith(document.createTextNode(wrapper.textContent ?? ""));
     }
     document.body.normalize();
-    const expression = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    const expression = createSearchExpression(query);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode: (node) => {
         const parent = node.parentElement;
         if (!parent || isDevtoolsNode(parent, this.context?.shadowRoot?.host as HTMLElement | undefined)) return NodeFilter.FILTER_REJECT;
-        if (["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "NOSCRIPT"].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
+        if (SEARCH_IGNORED_TAG_NAMES.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
         expression.lastIndex = 0;
         return node.nodeValue && expression.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       },
@@ -240,19 +244,19 @@ export class Snippets extends Tool {
       VueGlobal: target.Vue ?? null,
       VueFlag: target.__VUE__ ?? false,
       DevtoolsHook: target.__VUE_DEVTOOLS_GLOBAL_HOOK__ ?? null,
-      VueRoots: Array.from(document.querySelectorAll("[data-v-app], [data-vue-meta], [data-vue-root]"), (node) => node.outerHTML.slice(0, 200)),
+      VueRoots: toArray(document.querySelectorAll("[data-v-app], [data-vue-meta], [data-vue-root]"), (node) => node.outerHTML.slice(0, 200)),
     };
     openWindow("Vue inspection", `<pre>${escapeHtml(safeStringify(report))}</pre>`);
   }
 
   private showFeatures(): void {
-    const rows = featureRows().map(([name, supported]) => `<tr><td>${escapeHtml(name)}</td><td>${supported ? "✓ supported" : "✕ unavailable"}</td></tr>`).join("");
+    const rows = mapJoinArray(featureRows(), ([name, supported]) => `<tr><td>${escapeHtml(name)}</td><td>${supported ? "✓ supported" : "✕ unavailable"}</td></tr>`, "");
     openWindow("Browser features", `<table><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`);
   }
 
   private showTiming(): void {
     const navigation = performance.getEntriesByType("navigation");
-    const resources = performance.getEntriesByType("resource").slice(-100);
+    const resources = takeRight(performance.getEntriesByType("resource"), 100);
     openWindow("Performance timing", `<pre>${escapeHtml(safeStringify({ navigation, resources }))}</pre>`);
   }
 

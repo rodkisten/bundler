@@ -268,7 +268,7 @@ export function installBrowserGlobal(target = globalThis, aliases: readonly stri
 }
 
 function assignPublicApi<T extends object>(target: T, source: Record<string, unknown>): void {
-  const output = target as T & Record<string, unknown>
+  const output = target as unknown as Record<string, unknown>
   for (const key in source) output[key] = source[key]
 }
 

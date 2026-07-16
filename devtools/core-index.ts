@@ -25,6 +25,7 @@ import type {
   Position,
   ToolLike,
 } from "@rodkisten/devtools/types";
+import { concatArrays, delay, filterArray, filterMapArray, findArray, joinArray, mapArray, toArray, uniq } from "@rodkisten/nascente";
 
 export const VERSION = "4.0.0-native";
 
@@ -203,10 +204,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       const first = this.firstMountedTool(normalizedOptions.tools) ?? "settings";
       this.devtools.showTool(first);
 
-      const startupEntries = [
-        ...(normalizedOptions.initialLogs ?? []),
-        ...(normalizedOptions.initialErrors ?? []),
-      ];
+      const startupEntries = concatArrays(
+        normalizedOptions.initialLogs ?? [],
+        normalizedOptions.initialErrors ?? [],
+      );
       const consoleTool = this.devtools.get<Console>("console");
       if (startupEntries.length) consoleTool?.ingestInitial(startupEntries);
 
@@ -429,7 +430,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   }
 
   private firstMountedTool(selected: string[]): string | undefined {
-    return selected.find((name) => this.devtools?.get(name));
+    return findArray(selected, (name) => this.devtools?.get(name) != null);
   }
 
   private prepareHost(host: HTMLElement, inline: boolean): void {
@@ -591,12 +592,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       ["tabbar", this.refs.tabbar],
     ];
 
-    const missing = required
-      .filter(([, node]) => !(node instanceof Element))
-      .map(([name]) => name);
+    const missing = filterMapArray(required, ([, node]) => !(node instanceof Element), ([name]) => name);
 
     if (missing.length) {
-      throw new Error(`[RodEruda] Shell refs are missing after render: ${missing.join(", ")}`);
+      throw new Error(`[RodEruda] Shell refs are missing after render: ${joinArray(missing, ", ")}`);
     }
   }
 
@@ -640,12 +639,12 @@ type NormalizedInitOptions = DevtoolsInitOptions & {
 
 function normalizeInitOptions(options: DevtoolsInitOptions): NormalizedInitOptions {
   const toolInput = options.tool == null
-    ? [...defaultTools]
+    ? toArray(defaultTools)
     : Array.isArray(options.tool)
       ? options.tool
       : [options.tool];
 
-  const tools = unique(toolInput.map(normalizeToolName)).filter(Boolean);
+  const tools = filterArray(uniq(mapArray(toolInput, normalizeToolName)), Boolean);
 
   return {
     ...options,
@@ -672,9 +671,6 @@ function applyToolConfig(tool: ToolLike, values: object | undefined): void {
   configurable.config?.patch?.(values as Record<string, unknown>);
 }
 
-function unique<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
-}
 
 
 

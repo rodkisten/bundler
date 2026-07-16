@@ -283,6 +283,33 @@ export function memoize<Arguments extends unknown[], Result, CacheKey = Argument
     };
 }
 
+
+/**
+ * Memoizes only the most recent invocation.
+ *
+ * @remarks
+ * **Replaces:** A `Map`-backed memoizer when only repeated adjacent calls need caching.
+ *
+ * **Performance:** Stores one key and one value, avoiding `Map` allocation and hashing. This is a strong fit for
+ * search queries, dynamically compiled regular expressions, and render helpers that repeatedly receive the same
+ * current value but should not retain an unbounded cache.
+ */
+export function memoizeLast<Argument, Result>(
+    functionToMemoize: (argument: Argument) => Result,
+    equals: (left: Argument, right: Argument) => boolean = Object.is,
+): (argument: Argument) => Result {
+    let initialized = false;
+    let previousArgument: Argument;
+    let previousResult: Result;
+    return (argument: Argument): Result => {
+        if (initialized && equals(previousArgument!, argument)) return previousResult!;
+        previousArgument = argument;
+        previousResult = functionToMemoize(argument);
+        initialized = true;
+        return previousResult;
+    };
+}
+
 /**
  * Delays execution until calls stop for the configured interval.
  *

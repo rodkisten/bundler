@@ -24,6 +24,7 @@ import {
   type ResourcesViewModel,
 } from "@rodkisten/devtools/panels-resources-components";
 import { RESOURCE_ELEMENT_SELECTOR, StorageType, CapabilityModel } from "@rodkisten/devtools/panels-resources";
+import { appendArrayValues, atIterable, mapArray, someArray, splitNonEmpty, toArray, uniq } from "@rodkisten/nascente";
 
 export function mutationTouchesResources(
   mutation: MutationRecord,
@@ -36,20 +37,19 @@ export function mutationTouchesResources(
       && mutation.target.matches(RESOURCE_ELEMENT_SELECTOR);
   }
 
-  for (const node of [...mutation.addedNodes, ...mutation.removedNodes]) {
-    if (!(node instanceof Element) || isDevtoolsNode(node, devtoolsHost)) continue;
-    if (node.matches(RESOURCE_ELEMENT_SELECTOR) || node.querySelector(RESOURCE_ELEMENT_SELECTOR)) {
-      return true;
-    }
-  }
+  const touchesResource = (node: Node): boolean => {
+    if (!(node instanceof Element) || isDevtoolsNode(node, devtoolsHost)) return false;
+    return node.matches(RESOURCE_ELEMENT_SELECTOR) || node.querySelector(RESOURCE_ELEMENT_SELECTOR) !== null;
+  };
 
-  return false;
+  return someArray(mutation.addedNodes, touchesResource)
+    || someArray(mutation.removedNodes, touchesResource);
 }
 
 export function collectCssRuleUrls(rules: CSSRuleList, output: string[]): void {
-  for (const rule of Array.from(rules)) {
+  for (const rule of toArray(rules)) {
     if (rule instanceof CSSStyleRule) {
-      output.push(...extractCssUrls(`${rule.style.backgroundImage} ${rule.style.background}`));
+      appendArrayValues(output, extractCssUrls(`${rule.style.backgroundImage} ${rule.style.background}`));
       continue;
     }
 
@@ -95,20 +95,20 @@ export function storageRows(type: StorageType, storage: Storage): Array<{ type: 
 }
 
 export function capabilityItems(): CapabilityModel[] {
-  return [
+  return mapArray([
     ["IndexedDB", typeof indexedDB !== "undefined"],
     ["Cache Storage", typeof caches !== "undefined"],
     ["WebSQL", typeof (window as unknown as { openDatabase?: unknown }).openDatabase === "function"],
     ["localStorage", canUseStorage("local")],
     ["sessionStorage", canUseStorage("session")],
     ["Cookies", typeof document.cookie === "string"],
-  ].map(([name, available]) => ({ name: String(name), available: Boolean(available) }));
+  ], ([name, available]) => ({ name: String(name), available: Boolean(available) }));
 }
 
 export function parseCookies(): Array<{ name: string; value: string }> {
   if (!document.cookie) return [];
 
-  return document.cookie.split(/;\s*/).filter(Boolean).map((chunk) => {
+  return mapArray(splitNonEmpty(document.cookie, /;\s*/), (chunk) => {
     const index = chunk.indexOf("=");
     const name = index < 0 ? chunk : chunk.slice(0, index);
     const value = index < 0 ? "" : chunk.slice(index + 1);
@@ -125,7 +125,7 @@ export function removeCookie(name: string): void {
   const encoded = encodeURIComponent(name);
   const paths = ["/", location.pathname, location.pathname.replace(/\/[^/]*$/, "") || "/"];
 
-  for (const path of unique(paths)) document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
+  for (const path of uniq(paths)) document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
 }
 
 export function safeStorage(type: StorageType): Storage {
@@ -138,7 +138,7 @@ export function safeStorage(type: StorageType): Storage {
       get length() { return memory.size; },
       clear: () => memory.clear(),
       getItem: (key) => memory.get(key) ?? null,
-      key: (index) => [...memory.keys()][index] ?? null,
+      key: (index) => atIterable(memory.keys(), index) ?? null,
       removeItem: (key) => { memory.delete(key); },
       setItem: (key, value) => { memory.set(key, String(value)); },
     };
@@ -177,6 +177,3 @@ export function formatJsonValue(value: string): string {
   }
 }
 
-export function unique<T>(values: readonly T[]): T[] {
-  return [...new Set(values)];
-}

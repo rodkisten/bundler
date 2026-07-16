@@ -3,6 +3,7 @@ import type { SnippetsContextValue } from "@rodkisten/devtools/types";
 import { component, event, html, repeat, styled } from "@rodkisten/devtools/core/runtime";
 import "@rodkisten/devtools/panels/shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
+import { filterArray, flatMap } from "@rodkisten/nascente";
 
 export const SnippetsContext = createRequiredFabricaContext<SnippetsContextValue>("SnippetsContext");
 
@@ -36,8 +37,7 @@ const SNIPPETS_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const snippetsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SNIPPETS_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(SNIPPETS_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 component("RodSnippetsView", function RodSnippetsView(_props, ctx) {

@@ -8,6 +8,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
+import { findArray } from "@rodkisten/nascente";
 
 const devtoolsDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(devtoolsDir, "..");
@@ -37,7 +38,7 @@ function buildMetadata() {
     minute: "2-digit",
     hour12: false,
   }).formatToParts(now);
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const value = (type: Intl.DateTimeFormatPartTypes) => findArray(parts, (part) => part.type === type)?.value ?? "";
   const date = `${value("day")}/${value("month")}/${value("year")}`;
   const time = `${value("hour")}:${value("minute")}`;
 

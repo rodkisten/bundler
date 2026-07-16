@@ -6,6 +6,7 @@ import { component, event, html,  styled } from "@rodkisten/devtools/core-runtim
 import "@rodkisten/devtools/panels-shared-components";
 import { styleRuleModels, listenerModels, propertyModels, crumbLabel, listenerText, number } from "@rodkisten/devtools/panels-elements.functions";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
+import { mapArray, mapJoinArray, sortArray, take, toArray } from "@rodkisten/nascente";
 export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "@rodkisten/devtools/panels-elements.functions";
 
 
@@ -609,7 +610,7 @@ export const ElementsAttributesView = component<{
 }>("RodElementsAttributesView", function RodElementsAttributesView(props) {
   return html`
     <RodElementsAttributesGrid>
-      ${props.attributes.map((attribute) => html`
+      ${mapArray(props.attributes, (attribute) => html`
         <RodElementsAttributeRowView
           name=${attribute.name}
           value=${attribute.value}
@@ -632,9 +633,7 @@ export const ElementsBoxModelView = component<{
   style: CSSStyleDeclaration;
   rect: DOMRect;
 }>("RodElementsBoxModelView", function RodElementsBoxModelView(props) {
-  const values = (prefix: string, suffix = "") => ["top", "right", "bottom", "left"]
-    .map((side) => props.style.getPropertyValue(`${prefix}-${side}${suffix}`) || "0px")
-    .join(" · ");
+  const values = (prefix: string, suffix = "") => mapJoinArray(["top", "right", "bottom", "left"], (side) => props.style.getPropertyValue(`${prefix}-${side}${suffix}`) || "0px", " · ");
 
   const contentWidth = Math.max(
     0,
@@ -672,7 +671,7 @@ export const ElementsComputedStyleView = component<{
     <RodElementsTableWrap :compact="computed">
       <RodElementsKvTable>
         <tbody>
-          ${Array.from(props.style).sort().map((property) => html`<tr><td>${property}</td><td>${props.style.getPropertyValue(property)}</td></tr>`)}
+          ${mapArray(sortArray(toArray(props.style)), (property) => html`<tr><td>${property}</td><td>${props.style.getPropertyValue(property)}</td></tr>`)}
         </tbody>
       </RodElementsKvTable>
     </RodElementsTableWrap>
@@ -685,12 +684,12 @@ export const ElementsStylesView = component<{
 }>("RodElementsStylesView", function RodElementsStylesView(props) {
   return html`
     <div>
-      ${props.rules.map((rule) => html`
+      ${mapArray(props.rules, (rule) => html`
         <RodElementsStyleRule>
           <RodElementsStyleSelector>
             ${rule.selector}${rule.source ? html`<RodElementsStyleSource> ${rule.source}</RodElementsStyleSource>` : ""}
           </RodElementsStyleSelector>
-          ${rule.declarations.map((declaration) => html`
+          ${mapArray(rule.declarations, (declaration) => html`
             <RodElementsStyleDeclaration :styleDeclaration=${rule.editable ? "" : null} :originalProperty=${rule.editable ? declaration.property : null}>
               ${rule.editable ? html`
                 <RodElementsStyleDeclarationInput :styleProperty :kind="property" .value=${declaration.property} placeholder="property" @change=${event.change((change) => props.onChange?.(change))} />
@@ -713,10 +712,10 @@ export const ElementsListenersView = component<{
   if (!props.listeners.length) return html`<RodElementsEmptyState>No tracked listeners.</RodElementsEmptyState>`;
   return html`
     <div>
-      ${props.listeners.map((entry) => html`
+      ${mapArray(props.listeners, (entry) => html`
         <RodElementsListenerBox>
           <RodElementsListenerTitle>${entry.type} (${entry.values.length})</RodElementsListenerTitle>
-          ${entry.values.map((value) => html`<RodElementsListenerPre>${listenerText(value.listener)}\noptions: ${JSON.stringify(value.options ?? false)}</RodElementsListenerPre>`)}
+          ${mapArray(entry.values, (value) => html`<RodElementsListenerPre>${listenerText(value.listener)}\noptions: ${JSON.stringify(value.options ?? false)}</RodElementsListenerPre>`)}
         </RodElementsListenerBox>
       `)}
     </div>
@@ -730,7 +729,7 @@ export const ElementsPropertiesView = component<{
     <RodElementsTableWrap>
       <RodElementsKvTable>
         <tbody>
-          ${props.properties.map((property) => html`<tr><td>${property.key}</td><td>${property.value}</td></tr>`)}
+          ${mapArray(props.properties, (property) => html`<tr><td>${property.key}</td><td>${property.value}</td></tr>`)}
         </tbody>
       </RodElementsKvTable>
     </RodElementsTableWrap>
@@ -747,7 +746,7 @@ export const ElementsDetailHeaderView = component<{
       <RodSharedDetailTitle>
         <RodElementsDomTag>&lt;${props.element.tagName.toLowerCase()}</RodElementsDomTag>
         ${props.element.id ? html`<RodElementsDomAttrName>#${props.element.id}</RodElementsDomAttrName>` : ""}
-        ${Array.from(props.element.classList).slice(0, 6).map((name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
+        ${mapArray(take(props.element.classList, 6), (name) => html`<RodElementsDomAttrValue>.${name}</RodElementsDomAttrValue>`)}
         <RodElementsDomTag>&gt;</RodElementsDomTag>
       </RodSharedDetailTitle>
       <RodElementsIconButton type="button" :action="refresh-detail" title="Refresh" @click=${event.click(props.onAction)}>${icon("refresh")}</RodElementsIconButton>
@@ -833,7 +832,7 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
     if (!(node instanceof Element)) return node.nodeName;
     return html`
       <RodElementsDomTag>&lt;${node.tagName.toLowerCase()}</RodElementsDomTag>
-      ${Array.from(node.attributes).slice(0, 24).map((attribute) => html`
+      ${mapArray(take(node.attributes, 24), (attribute) => html`
         ${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 200)}</RodElementsDomAttrValue>"
       `)}
       <RodElementsDomTag>&gt;</RodElementsDomTag>
@@ -845,7 +844,7 @@ export const ElementsCrumbsView = component<{
   elements: Element[];
   onSelect?: (index: number, event: Event) => void;
 }>("RodElementsCrumbsView", (props) => html`
-  ${props.elements.map((element, index) => html`
+  ${mapArray(props.elements, (element, index) => html`
     <RodElementsCrumbButton
       type="button"
       :crumbIndex=${index}
@@ -873,7 +872,7 @@ export const ElementsContextMenuView = component<{
 
   return html`
     <RodElementsMenu role="menu" :elementsMenu :nodeId=${props.elementId}>
-      ${actions.map(([action, label]) => html`
+      ${mapArray(actions, ([action, label]) => html`
         <RodElementsMenuButton
           type="button"
           role="menuitem"

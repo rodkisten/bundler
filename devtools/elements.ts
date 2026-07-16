@@ -19,6 +19,7 @@ import {
   ElementsDomNodeView,
 } from "@rodkisten/devtools/panels/elements-components";
 import { getMatchedRules, clamp, meaningfulText } from "@rodkisten/devtools/panels/elements.functions";
+import { at, drainArray, filterArray, forEachObject, includesArray, mapArray, mapJoinArray, someArray, splitLines, take, toArray } from "@rodkisten/nascente";
 
 
 export { elementsStyleArtifacts };
@@ -214,7 +215,7 @@ export class Elements extends Tool {
 
     this.config.off("change", this.onConfigChange);
 
-    for (const cleanup of this.cleanup.splice(0)) {
+    for (const cleanup of drainArray(this.cleanup)) {
       cleanup();
     }
 
@@ -262,9 +263,9 @@ export class Elements extends Tool {
     }
 
     if (addHistory) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
+      this.history = take(this.history, this.historyIndex + 1);
 
-      if (this.history.at(-1) !== element) {
+      if (at(this.history, -1) !== element) {
         this.history.push(element);
         this.historyIndex = this.history.length - 1;
       }
@@ -306,7 +307,7 @@ export class Elements extends Tool {
       this.wrapLinesState.set(Boolean(value));
     }
 
-    if (["treeBottomPadding", "rowIndent"].includes(key)) this.applyTweakVariables();
+    if (includesArray(["treeBottomPadding", "rowIndent"], key)) this.applyTweakVariables();
 
     if ((key === "showWhitespace" || key === "maxVisibleChildren") && this.active) {
       this.invalidateTree();
@@ -352,26 +353,22 @@ export class Elements extends Tool {
     this.observer = new MutationObserver((mutations) => {
       const devtoolsHost = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-      const relevantMutations = mutations.filter(
-        (mutation) => !isDevtoolsNode(mutation.target, devtoolsHost),
-      );
+      const relevantMutations = filterArray(mutations, (mutation) => !isDevtoolsNode(mutation.target, devtoolsHost));
 
       if (!this.active || !relevantMutations.length) return;
 
       // Collapsed branches have no mounted rows below them, so rebuilding the
       // visible tree for mutations deep inside those branches only burns CPU.
       // Their contents are read fresh when the user expands the branch.
-      if (relevantMutations.some((mutation) => this.mutationTouchesVisibleTree(mutation))) {
+      if (someArray(relevantMutations, (mutation) => this.mutationTouchesVisibleTree(mutation))) {
         this.scheduleTreeInvalidation();
       }
 
       if (
         this.selected
-        && relevantMutations.some(
-          (mutation) =>
+        && someArray(relevantMutations, (mutation) =>
             mutation.target === this.selected
-            || this.selected?.contains(mutation.target),
-        )
+            || (this.selected?.contains(mutation.target) ?? false))
       ) {
         this.scheduleDetailInvalidation();
       }
@@ -424,7 +421,7 @@ export class Elements extends Tool {
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
     const expanded = this.expanded.has(node);
-    const limited = children.slice(0, this.config.get("maxVisibleChildren"));
+    const limited = take(children, this.config.get("maxVisibleChildren"));
     const moreCount = children.length - limited.length;
     const nodeId = this.nodeId(node);
 
@@ -446,7 +443,7 @@ export class Elements extends Tool {
       onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
       onPointerOut: () => this.highlighter?.hide(),
       children: expanded
-        ? limited.map((child) => this.renderNode(child, depth + 1))
+        ? mapArray(limited, (child) => this.renderNode(child, depth + 1))
         : null,
     });
   }
@@ -454,7 +451,7 @@ export class Elements extends Tool {
   private visibleChildren(node: Node): Node[] {
     const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-    return Array.from(node.childNodes).filter((child) => {
+    return filterArray(node.childNodes, (child) => {
       if (isDevtoolsNode(child, host)) {
         return false;
       }
@@ -517,7 +514,7 @@ export class Elements extends Tool {
     const rect = element.getBoundingClientRect();
     const matchedRules = getMatchedRules(element);
     const listeners = listenerModels(getEventListeners(element));
-    const attributes = Array.from(element.attributes).map((attribute) => ({
+    const attributes = mapArray(element.attributes, (attribute) => ({
       name: attribute.name,
       value: attribute.value,
     }));
@@ -744,7 +741,7 @@ export class Elements extends Tool {
     this.longPressTimer = 0;
     this.longPressPoint = null;
 
-    for (const cleanup of this.longPressCleanup.splice(0)) {
+    for (const cleanup of drainArray(this.longPressCleanup)) {
       cleanup();
     }
   }
@@ -983,9 +980,7 @@ export class Elements extends Tool {
   }
 
   private async editAttributes(element: Element): Promise<void> {
-    const current = Array.from(element.attributes)
-      .map((attribute) => `${attribute.name}=${attribute.value}`)
-      .join("\n");
+    const current = mapJoinArray(element.attributes, (attribute) => `${attribute.name}=${attribute.value}`, "\n");
 
     const next = await this.context?.prompt(
       "Edit attributes as name=value, one per line",
@@ -995,11 +990,11 @@ export class Elements extends Tool {
     if (next == null) return;
 
     try {
-      for (const attribute of Array.from(element.attributes)) {
+      for (const attribute of toArray(element.attributes)) {
         element.removeAttribute(attribute.name);
       }
 
-      for (const line of next.split(/\r?\n/g)) {
+      for (const line of splitLines(next)) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
@@ -1069,7 +1064,7 @@ export class Elements extends Tool {
     try {
       const props = JSON.parse(next) as Record<string, unknown>;
 
-      for (const [key, value] of Object.entries(props)) {
+      forEachObject(props, (value, key) => {
         if (key === "textContent") {
           element.textContent = value == null ? "" : String(value);
         } else if (key in element) {
@@ -1082,7 +1077,7 @@ export class Elements extends Tool {
             value === true ? "" : String(value),
           );
         }
-      }
+      });
 
       this.invalidateTree();
       this.invalidateDetail();
@@ -1162,7 +1157,7 @@ export class Elements extends Tool {
   private stopPicker(): void {
     this.picking = false;
 
-    for (const cleanup of this.pickerCleanup.splice(0)) {
+    for (const cleanup of drainArray(this.pickerCleanup)) {
       cleanup();
     }
 

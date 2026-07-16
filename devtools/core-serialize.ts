@@ -1,5 +1,7 @@
 import { create } from "@rodkisten/devtools/core-dom";
-import { describeNode, safeStringify, escapeHtml, truncate } from "@rodkisten/devtools/utils"; 
+import { describeNode, safeStringify, escapeHtml, truncate } from "@rodkisten/devtools/utils";
+import { joinArray, mapJoinArray, objectKeys, splitLines, take } from "@rodkisten/nascente";
+ 
 
 export interface RenderValueOptions {
   depth?: number;
@@ -217,8 +219,8 @@ function objectSummary(value: object): string {
   if (constructorName && constructorName !== "Object") return constructorName;
 
   try {
-    const keys = Object.keys(value);
-    const preview = keys.slice(0, 3).join(", ");
+    const keys = objectKeys(value);
+    const preview = joinArray(take(keys, 3), ", ");
     return keys.length ? `{ ${preview}${keys.length > 3 ? ", …" : ""} }` : "{}";
   } catch {
     return "Object";
@@ -291,10 +293,7 @@ function highlightJavaScriptLike(code: string): string {
 }
 
 export function withLineNumbers(highlighted: string): string {
-  return highlighted
-    .split("\n")
-    .map((line, index) => `<span class="roderuda-line" data-line="${index + 1}">${line || " "}</span>`)
-    .join("");
+  return mapJoinArray(splitLines(highlighted), (line, index) => `<span class="roderuda-line" data-line="${index + 1}">${line || " "}</span>`, "");
 }
 
 export function inferSourceType(value: unknown, url = ""): string {

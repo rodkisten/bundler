@@ -22,6 +22,7 @@ import {
   WORKSPACE_PACKAGES,
   readBooleanEnv,
   readEnv,
+  workspaceSourceCandidates,
   type RootEntry,
 } from "./config";
 import { discoverRootEntries } from "./discover-entries";
@@ -46,11 +47,10 @@ function workspaceAliasPlugin(): Plugin {
         const subpath = slash === -1 ? "index" : rest.slice(slash + 1);
         if (!(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)) return undefined;
 
-        const candidates = [
-          path.join(ROOT_DIR, pkg, `${subpath}.ts`),
-          path.join(ROOT_DIR, pkg, `${subpath}.tsx`),
-          path.join(ROOT_DIR, pkg, subpath, "index.ts"),
-        ];
+        const candidates = workspaceSourceCandidates(
+          pkg as (typeof WORKSPACE_PACKAGES)[number],
+          subpath,
+        );
         for (const candidate of candidates) {
           try {
             await fs.access(candidate);

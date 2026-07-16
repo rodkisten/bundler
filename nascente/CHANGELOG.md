@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 - 2026-07-16
+
+- Adiciona primitivas de hot path para `ArrayLike` e `Iterable`, incluindo mapeamento, filtragem, busca, junção e consumo limitado sem materializações intermediárias.
+- Adiciona mutações especializadas (`removeAtArray`, `moveArrayItem`, `drainArray` e `trimArrayStart`) para substituir usos frequentes de `splice` em filas e registries.
+- Adiciona composição de arrays sem spread (`appendArray`, `appendArrayValues` e `concatArrays`) e pipelines fundidos de map/filter/join.
+- Adiciona helpers de strings para WebKit/mobile (`includesIgnoreCase`, `splitAsciiWhitespace`, `splitOnce` e `splitTrimmedNonEmpty`) para evitar lowercase e passes extras comuns.
+- Adiciona `memoizeLast` para caches de uma entrada em caminhos onde um `Map` persistente seria custo desnecessário.
+- Integra `@rodkisten/nascente` profundamente ao DevTools e substitui pipelines de coleções por percursos únicos ou loops diretos em hot paths.
+
 ## 0.3.0 - 2026-07-15
 
 - Separa a implementação monolítica em módulos por categoria: arrays, funções, Map, matemática, objetos, predicados, promises, Set, strings, utilitários, erros e tipos.

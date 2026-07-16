@@ -5,6 +5,7 @@ import type { NetworkContextValue } from "@rodkisten/devtools/types";
 import "@rodkisten/devtools/panels/shared-components";
 import { networkRowTemplate, networkDetailTemplate } from "@rodkisten/devtools/panels/network.functions";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
+import { filterArray, findArray, flatMap } from "@rodkisten/nascente";
 export { networkListTemplate, networkRowTemplate, networkDetailTemplate } from "@rodkisten/devtools/panels/network.functions";
 
 
@@ -291,15 +292,14 @@ const NETWORK_STYLED_COMPONENTS = Object.freeze([
 ]);
 
 export const networkStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  NETWORK_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
+  filterArray(flatMap(NETWORK_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
 );
 
 component("RodNetworkView", function RodNetworkView(_props, ctx) {
   const network = ctx.useRequiredContext(NetworkContext);
   const selectedRecord = () => {
     const id = network.selectedId();
-    return id ? network.records().find((record) => record.id === id) ?? null : null;
+    return id ? findArray(network.records(), (record) => record.id === id) ?? null : null;
   };
 
   return html`

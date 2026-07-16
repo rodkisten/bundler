@@ -18,6 +18,7 @@ import {
   formatTime, 
   safeStringify 
 } from "@rodkisten/devtools/utils";
+import { forEachObject, objectKeys, toArray } from "@rodkisten/nascente";
 
 type TrustedTypesPolicy = { createHTML(value: string): unknown };
 
@@ -59,7 +60,7 @@ export function qs<T = any>(root: ParentNode, selector: string): T {
 }
 
 export function qsa<T = HTMLElement>(root: ParentNode, selector: string): T[] {
-  const elements = Array.from(root.querySelectorAll(selector)) as unknown as T[];
+  const elements = toArray(root.querySelectorAll(selector)) as unknown as T[];
   debugTrace("dom", "qsa", { selector, count: elements.length });
   return elements;
 }
@@ -73,7 +74,7 @@ export function create<K extends keyof HTMLElementTagNameMap>(
     attrs?: Record<string, string | number | boolean | null | undefined>;
   } = {},
 ): HTMLElementTagNameMap[K] {
- // debugTrace("dom", "create", { tag, className: options.className, attrs: Object.keys(options.attrs ?? {}) });
+ // debugTrace("dom", "create", { tag, className: options.className, attrs: objectKeys(options.attrs ?? {}) });
   return uiElement(tag, options) as HTMLElementTagNameMap[K];
 }
 
@@ -81,10 +82,10 @@ export function setStyles(
   style: CSSStyleDeclaration,
   properties: Record<string, string | number | null | undefined>,
 ): void {
-  for (const [property, value] of Object.entries(properties)) {
-    if (value == null) continue;
+  forEachObject(properties, (value, property) => {
+    if (value == null) return;
     style.setProperty(toCssPropertyName(property), String(value));
-  }
+  });
 }
 
 export function on<K extends keyof HTMLElementEventMap>(
@@ -131,10 +132,10 @@ export function delegate(
 }
 
 export function applyImportantStyle(element: HTMLElement, styles: Record<string, string>): void {
-  debugTrace("dom", "applyImportantStyle", { target: describeTarget(element), properties: Object.keys(styles) });
-  for (const [property, value] of Object.entries(styles)) {
+  debugTrace("dom", "applyImportantStyle", { target: describeTarget(element), properties: objectKeys(styles) });
+  forEachObject(styles, (value, property) => {
     element.style.setProperty(property, value, "important");
-  }
+  });
 }
 
 export function forceAppendToPage(element: HTMLElement): boolean {
@@ -236,7 +237,13 @@ export function eventPoint(event: PointerEvent | MouseEvent | TouchEvent): { x: 
 function describeEventOptions(options?: AddEventListenerOptions | boolean): string {
   if (typeof options === "boolean") return options ? "capture" : "bubble";
   if (!options) return "default";
-  return Object.entries(options).filter(([, value]) => value != null).map(([key, value]) => `${key}:${String(value)}`).join(",") || "default";
+  let description = "";
+  forEachObject(options, (value, key) => {
+    if (value == null) return;
+    if (description) description += ",";
+    description += `${key}:${String(value)}`;
+  });
+  return description || "default";
 }
 
 function toCssPropertyName(property: string): string {

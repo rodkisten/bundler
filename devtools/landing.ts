@@ -22,6 +22,7 @@ import {
   type LandingTheme,
   type LandingTokenState,
 } from "@rodkisten/devtools/landing.functions";
+import { filterArray, mapArray, objectFromEntries, toArray, trimArrayStart } from "@rodkisten/nascente";
 
 const STATE_STORAGE_KEY = "rod.devtools.landing.state.v1";
 const TOKEN_STORAGE_KEY = "rod.devtools.landing.tokens.v1";
@@ -81,12 +82,12 @@ synchronizeOutputs();
 refreshPreview();
 setStatus("READY", "Configuration loaded. The browser laboratory is armed.", "ready");
 
-for (const input of Array.from(elements.form.elements)) {
+for (const input of toArray(elements.form.elements)) {
   input.addEventListener("input", onConfigurationInput);
   input.addEventListener("change", onConfigurationInput);
 }
 
-for (const input of Array.from(elements.tokenForm.elements)) {
+for (const input of toArray(elements.tokenForm.elements)) {
   input.addEventListener("input", onTokenInput);
   input.addEventListener("change", onTokenInput);
 }
@@ -320,9 +321,7 @@ function synchronizeOutputs(): void {
 
 function readStateFromForm(form: HTMLFormElement): DevtoolsLandingState {
   const data = new FormData(form);
-  const panels = Object.fromEntries(
-    LANDING_PANEL_NAMES.map((panelName) => [panelName, data.has(`panel-${panelName}`)]),
-  ) as unknown as DevtoolsLandingState["panels"];
+  const panels = objectFromEntries(mapArray(LANDING_PANEL_NAMES, (panelName) => [panelName, data.has(`panel-${panelName}`)])) as unknown as DevtoolsLandingState["panels"];
 
   return {
     bundleUrl: fieldString(data, "bundleUrl", DEFAULT_LANDING_STATE.bundleUrl),
@@ -516,7 +515,7 @@ function captureStartupFailures(): void {
 
 function pushStartupEntry(entry: InitialConsoleEntry): void {
   startupEntries.push(entry);
-  if (startupEntries.length > MAX_STARTUP_ENTRIES) startupEntries.splice(0, startupEntries.length - MAX_STARTUP_ENTRIES);
+  if (startupEntries.length > MAX_STARTUP_ENTRIES) trimArrayStart(startupEntries, startupEntries.length - MAX_STARTUP_ENTRIES);
 }
 
 function setStatus(label: string, message: string, state: string): void {
@@ -562,7 +561,7 @@ function removeStorage(key: string): void {
 }
 
 function selectedPanelCount(state: DevtoolsLandingState): number {
-  return LANDING_PANEL_NAMES.filter((panelName) => state.panels[panelName]).length;
+  return filterArray(LANDING_PANEL_NAMES, (panelName) => state.panels[panelName]).length;
 }
 
 function appendCacheBust(url: string, enabled: boolean): string {
