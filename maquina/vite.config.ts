@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
+import { maquinaCipoConfigCss } from "@rodkisten/maquina/cipo-config";
 
 const maquinaDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(maquinaDir, "..");
@@ -24,13 +25,12 @@ export default defineConfig({
     tsconfigPaths({ root: repoRoot, projects: ["tsconfig.base.json"] }),
     cipoVite({
       root: repoRoot,
-      include: /[/\\]maquina[/\\].*\.[cm]?[jt]sx?$/,
       mode: "build",
       enabled: true,
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      classPrefix: "maq",
+      configCss: maquinaCipoConfigCss,
     }),
   ],
 });
