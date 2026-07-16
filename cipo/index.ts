@@ -12,7 +12,7 @@ import { configure, setup } from '@rodkisten/cipo/config'
 import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from '@rodkisten/cipo/css'
 import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from '@rodkisten/cipo/debug'
 import { getDebugOverlayStats, installDebugOverlay } from '@rodkisten/cipo/debug-overlay'
-import { getCssText, injectStyle, setRuntimeStyleTarget } from '@rodkisten/cipo/injection'
+import { getCssText, injectStyle, resetInjectionState, setRuntimeStyleTarget } from '@rodkisten/cipo/injection'
 import { inline } from '@rodkisten/cipo/inline'
 import { compiledInlineCss, compileCipoSourceInline, createCompiledStyled } from '@rodkisten/cipo/compiler-compiled-inline'
 import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler-compiled-build'
@@ -93,6 +93,7 @@ export function html(strings: TemplateStringsArray, ...values: readonly unknown[
  */
 export function reset(): void {
   setRuntimeStyleTarget(undefined)
+  resetInjectionState()
   runtime.sheet = null
   runtime.insertedCss.clear()
   runtime.atomicCache.clear()
@@ -258,31 +259,21 @@ export function createBrowserGlobal() {
 
 /**
  * Installs `window.Cipo` and, by default, `window.RodK`.
- *
- * @param globalName - Primary global name.
- * @returns Global API.
  */
-export function installBrowserGlobal(globalName = 'Cipo') {
+export function installBrowserGlobal(target = globalThis, aliases: readonly string[] = ['RodK']): ReturnType<typeof createBrowserGlobal> {
   const api = createBrowserGlobal()
-  const target = globalThis as typeof globalThis & Record<string, unknown>
-  target[globalName] = api
-  if (globalName === 'Cipo') target.RodK = api
+  ;(target as Record<string, unknown>).Cipo = api
+  for (const alias of aliases) (target as Record<string, unknown>)[alias] = api
   return api
+}
+
+function assignPublicApi<T extends object>(target: T, source: Record<string, unknown>): void {
+  const output = target as T & Record<string, unknown>
+  for (const key in source) output[key] = source[key]
 }
 
 installBuiltInHelpers()
 installBuiltInAliases()
 installNativePropertyGuards()
 
-if (typeof window !== 'undefined') {
-  installBrowserGlobal('Cipo')
-}
-
-function assignPublicApi(target: CipoCallableRuntime, api: Record<string, unknown>): void {
-  const writableTarget = target as unknown as Record<string, unknown>
-  for (const [key, value] of Object.entries(api)) {
-    const descriptor = Object.getOwnPropertyDescriptor(target, key)
-    if (descriptor && !descriptor.writable && typeof descriptor.set !== 'function') continue
-    writableTarget[key] = value
-  }
-}
+if (typeof window !== 'undefined') installBrowserGlobal(window)

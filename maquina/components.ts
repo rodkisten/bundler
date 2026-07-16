@@ -255,48 +255,5 @@ export const MaquinaSuggestion = styled.button("MaquinaSuggestion").css`
  */
 styled.flushRegistry();
 
-/**
- * Collect style artifacts without flatMap/filter intermediate arrays.
- *
- * This only runs once at module initialization, so the absolute impact is
- * small, but the implementation stays allocation-conscious.
- */
-const MAQUINA_STYLED_COMPONENTS = [
-  MaquinaRoot,
-  MaquinaViewport,
-  MaquinaHighlight,
-  MaquinaInput,
-  MaquinaSuggestions,
-  MaquinaSuggestion,
-] as const;
-
-export const maquinaStyleArtifacts = collectMaquinaStyleArtifacts();
-
-function collectMaquinaStyleArtifacts() {
-  const artifacts: Array<
-    (typeof MAQUINA_STYLED_COMPONENTS)[number]["artifacts"][number]
-  > = [];
-
-  for (
-    let componentIndex = 0;
-    componentIndex < MAQUINA_STYLED_COMPONENTS.length;
-    componentIndex += 1
-  ) {
-    const componentArtifacts =
-      MAQUINA_STYLED_COMPONENTS[componentIndex].artifacts;
-
-    for (
-      let artifactIndex = 0;
-      artifactIndex < componentArtifacts.length;
-      artifactIndex += 1
-    ) {
-      const artifact = componentArtifacts[artifactIndex];
-
-      if (artifact.kind === "cipo.css") {
-        artifacts.push(artifact);
-      }
-    }
-  }
-
-  return artifacts;
-}
+/** All Cipó artifacts created by this factory, collected automatically. */
+export const maquinaStyleArtifacts = styled.registry.cssArtifacts;
