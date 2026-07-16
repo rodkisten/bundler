@@ -51,6 +51,23 @@ describe('Fabrica Elements named styled registry', () => {
     expect(Button.artifact).toEqual({ id: 1 })
   })
 
+  it('collects every styled component and deduplicates its static artifacts per factory', () => {
+    const registry = createRegistry()
+    const styled = createFactory(registry)
+    const Button = styled.button('Button').css`display: inline-flex;`
+    const Anonymous = styled.div.css`display: grid;`
+
+    expect(styled.registry.size).toBe(2)
+    expect(styled.registry.components).toEqual([Button, Anonymous])
+    expect(styled.registry.artifacts).toEqual([Button.artifact, Anonymous.artifact])
+
+    styled.registry.clear()
+    expect(styled.registry.size).toBe(0)
+    expect(styled.registry.components).toEqual([])
+    expect(styled.registry.artifacts).toEqual([])
+    expect(registry.values.get('Button')).toBe(Button)
+  })
+
   it('supports direct styled syntax, attrs functions and polymorphic as', () => {
     const registry = createRegistry()
     const styled = createFactory(registry)
@@ -229,6 +246,17 @@ describe('Fabrica Elements polymorphic style inputs', () => {
     const destructive = Button({ danger: true, children: 'Delete' }) as HTMLButtonElement
     expect(safe.className).toBe('base-class')
     expect(destructive.className).toBe('base-class danger-class')
+  })
+
+  it('deduplicates shared static artifacts across multiple registered styled components', () => {
+    const styled = createArtifactFactory()
+    const shared = { id: 'shared', className: 'shared-class' }
+    const First = styled.div('First')(shared)
+    const Second = styled.span('Second')(shared)
+
+    expect(styled.registry.components).toEqual([First, Second])
+    expect(styled.registry.artifacts).toEqual([shared])
+    expect(styled.registry.artifacts).toBe(styled.registry.artifacts)
   })
 
   it('styles an existing DOM element from a precompiled artifact', () => {
