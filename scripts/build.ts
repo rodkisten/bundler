@@ -135,6 +135,7 @@ export async function main(): Promise<void> {
   await copyLanding("fabrica");
   await buildNascenteDocs();
   await buildDevtoolsLanding();
+  await copyLanding("maquina");
 }
 
 function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
