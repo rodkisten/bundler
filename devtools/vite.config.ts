@@ -112,14 +112,15 @@ export default defineConfig({
     devtoolsLandingPlugin(),
     cipoVite({
       root: repoRoot,
-      include: /[/\\]devtools[/\\].*\.[cm]?[jt]sx?$/,
       mode: "build",
       enabled: true,
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      // Class naming, minification, atomic promotion and tokens are all defined
-      // by the CSS-first sheet. Build integration options stay integration-only.
+      // The compiler intentionally follows the entire reachable workspace graph.
+      // DevTools imports Maquina and shared Fábrica Elements components, so path
+      // filtering here would leave nested styled templates uncompiled.
+      // Class naming, minification, atomic promotion and tokens all come from CSS.
       configCss: devtoolsCipoConfigCss,
     }),
   ],
