@@ -106,6 +106,15 @@ export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined
  */
 export function injectStyle(target: HTMLElement | ShadowRoot | Document, styles: CipoInjectableStyleArtifact | readonly CipoInjectableStyleArtifact[], options: CipoInjectStyleOptions = {}): HTMLStyleElement {
   const list = Array.isArray(styles) ? styles : [styles]
+
+  // When callers inject into the active runtime target (the DevTools shadow root
+  // is the main example), fold everything into the existing runtime sink instead
+  // of creating a second <style> element. Atomic artifacts are already globally
+  // registered in most cases; Set identity makes re-registration a cheap no-op.
+  if (target === runtimeStyleTarget) {
+    return injectIntoRuntimeTarget(target, list, options)
+  }
+
   const atomic: CipoCssArtifact[] = []
   const chunks: string[] = []
   let atomicInsertIndex = -1
@@ -173,6 +182,34 @@ export function ensureStyleElement(): HTMLStyleElement {
 
 export function hasDocument(): boolean {
   return typeof document !== 'undefined' && Boolean(document.head)
+}
+
+function injectIntoRuntimeTarget(
+  target: HTMLElement | ShadowRoot | Document,
+  list: readonly CipoInjectableStyleArtifact[],
+  options: CipoInjectStyleOptions,
+): HTMLStyleElement {
+  const runtimeSnapshot = runtime.generatedCssText.trim()
+
+  for (const style of list) {
+    if (style.kind === 'cipo.css') {
+      registerAtomicArtifact(style)
+      continue
+    }
+
+    const cssText = style.cssText.trim()
+    // installDevtoolsStyles() intentionally passes getCssText() as a safety
+    // snapshot. It is already represented by this sink, so do not feed it back
+    // into the static section and duplicate the entire stylesheet.
+    if (!cssText || cssText === runtimeSnapshot) continue
+    insertCss(cssText)
+  }
+
+  const element = ensureStyleElement()
+  if (options.nonce) element.nonce = options.nonce
+  const parent = target instanceof Document ? target.head : target
+  if (options.position === 'prepend' && element.parentNode === parent) parent.prepend(element)
+  return element
 }
 
 function rebuildRuntimeCss(style: HTMLStyleElement | null): void {
