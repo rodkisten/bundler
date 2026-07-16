@@ -26,13 +26,12 @@ export function createAtomicRule(declaration: CipoDeclarationNode, context: Cipo
   return atom
 }
 
-
 /**
- * Applies the configured atomic promotion threshold.
+ * Applies the legacy streaming atomic promotion threshold.
  *
- * Declarations below `atomic.minUses` stay inside the artifact scope class so
- * one-off rules do not pollute the shared atomic sheet. Once a declaration is
- * seen often enough, future artifacts reuse the shared atom.
+ * @deprecated Runtime styled/component output now uses the global artifact
+ * collector, which can retroactively promote earlier components when reuse reaches
+ * the configured threshold. Kept for compatibility with direct compiler callers.
  */
 export function partitionPromotedAtoms(
   atoms: readonly CipoAtomicRule[],
@@ -84,11 +83,11 @@ import type { CipoAstNode, CipoCssArtifact, CipoCssInterpolation, CipoCssResult,
 import { transformCss } from '@rodkisten/cipo/transform'
 import { buildSafeSource } from '@rodkisten/cipo/safe-source'
 import { parseStylesheet } from '@rodkisten/cipo/parser'
-import { insertCss } from '@rodkisten/cipo/injection'
+import { insertCss, registerAtomicArtifact } from '@rodkisten/cipo/injection'
 import { collectRules } from '@rodkisten/cipo/compiler-at-rules'
 import { compileCss, createArtifactCacheKey, getCachedArtifact, setCachedArtifact } from '@rodkisten/cipo/compiler-sheet-compile'
 
-/** Compiles explicit atomic CSS and injects its generated rules. */
+/** Compiles explicit atomic CSS and registers its generated rules. */
 export function compileAtomicCss(strings: TemplateStringsArray, values: readonly CipoCssInterpolation[], important: boolean): CipoCssArtifact {
   const rawCss = buildSafeSource(strings, values)
   const cacheKey = createArtifactCacheKey(rawCss, important ? 'atomic-important' : 'atomic')
@@ -105,23 +104,44 @@ export function compileAtomicCss(strings: TemplateStringsArray, values: readonly
   const ast = parseStylesheet(transformedCss, warnings)
   const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
 
-  insertCss(artifact.compiledCss)
+  if (runtime.config.atomic.minUses <= 1) insertCss(artifact.compiledCss)
+  else registerAtomicArtifact(artifact)
   if (cacheable) setCachedArtifact(cacheKey, artifact)
   return artifact
 }
 
-/** Creates the legacy atomic/component artifact. */
+/**
+ * Creates a component artifact while preserving every atomic candidate.
+ *
+ * With thresholded atomization, the class list includes the stable scope class
+ * and all candidate atomic classes from the first render. The shared runtime
+ * stylesheet initially emits scoped fallbacks; when a later component reaches
+ * the reuse threshold, it swaps those fallbacks for one shared atomic rule without
+ * requiring existing DOM nodes to be rewritten.
+ */
 export function createAtomicArtifact(rawCss: string, transformedCss: string, ast: readonly CipoAstNode[], warnings: readonly CipoWarning[], forceImportant = false): CipoCssArtifact {
   const mutableWarnings = [...warnings]
   const scopeClassName = `${runtime.config.prefix}-s-${hashString(transformedCss)}`
   const previousImportant = runtime.config.important
   runtime.config.important = previousImportant || forceImportant
   const collected = collectRules(ast, scopeClassName, mutableWarnings)
-  const promoted = partitionPromotedAtoms(collected.atoms, scopeClassName)
-  const atoms = promoted.atoms
-  const scopedRules = [...promoted.scopedRules, ...collected.scopedRules]
-  const className = joinClassNames(atoms, scopedRules.length > 0 ? scopeClassName : '')
-  const compiledCss = compileCss(atoms, scopedRules)
+  const atoms = collected.atoms
+  const thresholded = runtime.config.atomic.minUses > 1
+  const scopedRules = collected.scopedRules
+  const className = joinClassNames(atoms, thresholded || scopedRules.length > 0 ? scopeClassName : '')
+  const fallbackRules: CipoScopedRule[] = thresholded
+    ? atoms.map((atom) => ({
+        selector: resolveScopedSelector(scopeClassName, ''),
+        declarations: [{
+          type: 'declaration' as const,
+          property: atom.property,
+          value: atom.value,
+          source: atom.source,
+        }],
+        context: atom.context,
+      }))
+    : []
+  const compiledCss = compileCss(thresholded ? [] : atoms, [...fallbackRules, ...scopedRules])
   runtime.config.important = previousImportant
   const artifactId = `${runtime.config.prefix}-artifact-${hashString(rawCss)}`
 
