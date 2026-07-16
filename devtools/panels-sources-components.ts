@@ -21,7 +21,11 @@ export const SourcesRoot = styled.div("RodSourcesRoot").css`
 `;
 
 
-export const SourcesIconButton = styled.button("RodSourcesIconButton").css`
+export const SourcesIconButton = styled.button("RodSourcesIconButton", {
+  attrs: (props) => ({
+    type: 'button',
+    'aria-label': props.label,
+  })).css`
   appearance: none;
   display: inline-grid;
   place-items: center;
@@ -213,12 +217,12 @@ component("RodSourcesView", function RodSourcesView(_props, ctx) {
   return html`
     <RodSourcesRoot>
       <RodSharedControlBar>
-        <RodSourcesIconButton type="button" title="Document source" @click=${event.click(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
+        <RodSourcesIconButton title="Document source" @click=${event.click(() => view.action("source-home"))}>⌂</RodSourcesIconButton>
         <RodSourcesIconButton type="button" title="All sources" @click=${event.click(() => view.action("source-list"))}>☰</RodSourcesIconButton>
         <RodSourcesTitle :sourceTitle>${title}</RodSourcesTitle>
-        <RodSourcesIconButton type="button" title="Copy" @click=${event.click(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
-        <RodSourcesIconButton type="button" title="Download" @click=${event.click(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
-        <RodSourcesIconButton type="button" title="Refresh" @click=${event.click(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
+        <RodSourcesIconButton title="Copy" @click=${event.click(() => view.action("source-copy"))}>${icon("copy")}</RodSourcesIconButton>
+        <RodSourcesIconButton title="Download" @click=${event.click(() => view.action("source-download"))}>${icon("download")}</RodSourcesIconButton>
+        <RodSourcesIconButton title="Refresh" @click=${event.click(() => view.action("source-refresh"))}>${icon("refresh")}</RodSourcesIconButton>
       </RodSharedControlBar>
       <RodSourcesBody :sourcesBody ref=${(node: HTMLElement) => {
         view.setBody(node);
