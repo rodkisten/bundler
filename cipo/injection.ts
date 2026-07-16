@@ -190,7 +190,10 @@ function rebuildRuntimeCss(style: HTMLStyleElement | null): void {
  */
 function ensureSharedStateFresh(): void {
   if (runtime.generatedCssText || runtime.insertedCss.size > 0) return
-  if (!staticCssText && !atomicCssText && atomicArtifacts.size === 0) return
+  // A just-created first artifact may already be in atomicArtifacts while no CSS
+  // has been materialized yet. Only old materialized text proves this is a stale
+  // epoch left behind by reset().
+  if (!staticCssText && !atomicCssText) return
   staticCssText = ''
   atomicCssText = ''
   atomicArtifacts.clear()
