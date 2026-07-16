@@ -1,5 +1,5 @@
-import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledRegistryCollision, type StyledTagFactory } from '@rodkisten/fabrica-elements'
-import type { CipoComponent, CipoCssInterpolation, CipoCssResult, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from '@rodkisten/cipo/types'
+import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledFactoryRegistry, type StyledRegistryCollision, type StyledTagFactory } from '@rodkisten/fabrica-elements'
+import type { CipoComponent, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from '@rodkisten/cipo/types'
 import { assertAtomicCssArtifact, css } from '@rodkisten/cipo/css'
 import { runtime } from '@rodkisten/cipo/runtime'
 import { insertCss } from '@rodkisten/cipo/injection'
@@ -30,7 +30,14 @@ import { insertCss } from '@rodkisten/cipo/injection'
  * // true
  * ```
  */
-export type CipoCallableRuntime = StyledFactory<CipoCssResult>
+export type CipoStyledRegistry = StyledFactoryRegistry<CipoCssResult> & {
+  /** Atomic/component CSS artifacts collected from every styled component created by this factory. */
+  readonly cssArtifacts: readonly CipoCssArtifact[]
+}
+
+export type CipoCallableRuntime = StyledFactory<CipoCssResult> & {
+  readonly registry: CipoStyledRegistry
+}
 
 /** Options for a styled factory bound to one Fabrica instance/registry. */
 export type CipoStyledFactoryOptions = {
@@ -64,6 +71,21 @@ export function createCipoCallable(options: CipoStyledFactoryOptions = {}): Cipo
     },
     resolveStyle(input) {
       return resolveCipoStyleInput(input)
+    },
+  })
+
+  let lastArtifacts: readonly CipoCssResult[] | undefined
+  let lastCssArtifacts: readonly CipoCssArtifact[] = Object.freeze([])
+  Object.defineProperty(factory.registry, 'cssArtifacts', {
+    configurable: false,
+    enumerable: true,
+    get() {
+      const artifacts = factory.registry.artifacts
+      if (artifacts !== lastArtifacts) {
+        lastArtifacts = artifacts
+        lastCssArtifacts = Object.freeze(artifacts.filter(isCipoCssArtifact))
+      }
+      return lastCssArtifacts
     },
   })
 
@@ -107,6 +129,10 @@ function resolveCipoStyleInput(input: unknown): ElementsResolvedStyle<CipoCssRes
   }
 
   throw new TypeError('[Cipó] styled() received an unknown style artifact.')
+}
+
+function isCipoCssArtifact(artifact: CipoCssResult): artifact is CipoCssArtifact {
+  return Boolean(artifact && typeof artifact === 'object' && 'kind' in artifact && artifact.kind === 'cipo.css')
 }
 
 function needsObjectStyleAdapter(): boolean {

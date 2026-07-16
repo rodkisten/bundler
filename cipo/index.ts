@@ -31,6 +31,7 @@ import { resetWarningDedupe } from '@rodkisten/cipo/utils'
 Object.assign(css, { configure: configureCss })
 
 export * from '@rodkisten/cipo/types'
+export type { CipoCallableRuntime, CipoStyledFactoryOptions, CipoStyledRegistry } from '@rodkisten/cipo/adapters'
 export { configure, setup } from '@rodkisten/cipo/config'
 export { compileCssConfigPayload, configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from '@rodkisten/cipo/config-css'
 export { configureCompiledCssConfig } from '@rodkisten/cipo/compiled-config'

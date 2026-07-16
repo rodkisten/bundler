@@ -1549,6 +1549,25 @@ Static artifacts are exposed through `component.artifact` and
 `withComponent()`, collision policies and delayed Fabrica connection continue to
 use the same named-component lifecycle.
 
+Every `styled` factory now also owns a live artifact registry. Components are
+collected automatically when they are created, so callers no longer need to
+maintain parallel `FOO_STYLED_COMPONENTS` arrays just to assemble CSS output:
+
+```ts
+const Root = styled.div('Root').css`display:grid;`
+const Button = styled.button('Button').css`display:inline-flex;`
+
+styled.registry.components   // [Root, Button]
+styled.registry.artifacts    // every static Cipó artifact, deduplicated
+styled.registry.cssArtifacts // only `cipo.css` artifacts, ready for injectStyle()
+```
+
+The collector is local to each `styled`/`createStyled()` factory and includes
+anonymous styled components too. In build mode, `attachCompiledCss()` recreates
+a lightweight `CipoCssArtifact` around already-compiled CSS, which means the
+same registry API works in runtime and production without shipping parser/AST
+metadata. The PURE compiler wrapper remains tree-shakeable with its component.
+
 ## Instance-scoped styled factories
 
 When an application uses more than one Fabrica instance, create one Cipó styled
