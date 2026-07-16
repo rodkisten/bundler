@@ -2,13 +2,12 @@ import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } 
 import { html, render } from "@rodkisten/devtools/core-runtime";
 import { Tool } from "@rodkisten/devtools/tool";
 import type { SnippetItem, ToolContext } from "@rodkisten/devtools/types";
-import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel,
+import { type SnippetsModel, type SnippetsViewModel,
   SnippetsViewContext,
 } from "@rodkisten/devtools/panels-snippets-components";
 import { openWindow, addBorderOverlay, startMonitor, startTouchVisualizer, featureRows } from "@rodkisten/devtools/panels-snippets.functions";
 
 
-export { snippetsStyleArtifacts };
 
 export interface OverlayController {
   stop(): void;

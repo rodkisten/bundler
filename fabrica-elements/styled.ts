@@ -17,6 +17,7 @@ import type {
   StyledDomResult,
   StyledFactory,
   StyledFactoryOptions,
+  StyledFactoryRegistry,
   StyledNamedComponentOptions,
   StyledRegistryCollision,
   StyledRegistryOptions,
@@ -41,6 +42,56 @@ type StylePlan<Props extends ElementsRecord, Artifact> = {
 
 const EMPTY_PROPS: ElementsRecord = Object.freeze({})
 const MAX_STYLE_RESOLUTION_DEPTH = 24
+const STYLED_ARTIFACT_REGISTRY = Symbol('fabrica-elements.styled-artifact-registry')
+
+type InternalStyledFactoryOptions<Artifact> = StyledFactoryOptions<Artifact> & {
+  readonly [STYLED_ARTIFACT_REGISTRY]?: StyledArtifactRegistry<Artifact>
+}
+
+class StyledArtifactRegistry<Artifact> implements StyledFactoryRegistry<Artifact> {
+  readonly #components = new Set<StyledComponent<ElementsRecord, Artifact>>()
+  #version = 0
+  #componentSnapshotVersion = -1
+  #artifactSnapshotVersion = -1
+  #componentSnapshot: readonly StyledComponent<ElementsRecord, Artifact>[] = Object.freeze([])
+  #artifactSnapshot: readonly Artifact[] = Object.freeze([])
+
+  get size(): number {
+    return this.#components.size
+  }
+
+  get components(): readonly StyledComponent<ElementsRecord, Artifact>[] {
+    if (this.#componentSnapshotVersion !== this.#version) {
+      this.#componentSnapshot = Object.freeze(Array.from(this.#components))
+      this.#componentSnapshotVersion = this.#version
+    }
+    return this.#componentSnapshot
+  }
+
+  get artifacts(): readonly Artifact[] {
+    if (this.#artifactSnapshotVersion !== this.#version) {
+      const artifacts = new Set<Artifact>()
+      for (const component of this.#components) {
+        for (const artifact of component.artifacts) artifacts.add(artifact)
+      }
+      this.#artifactSnapshot = Object.freeze(Array.from(artifacts))
+      this.#artifactSnapshotVersion = this.#version
+    }
+    return this.#artifactSnapshot
+  }
+
+  add(component: StyledComponent<ElementsRecord, Artifact>): void {
+    const size = this.#components.size
+    this.#components.add(component)
+    if (this.#components.size !== size) this.#version += 1
+  }
+
+  clear(): void {
+    if (this.#components.size === 0) return
+    this.#components.clear()
+    this.#version += 1
+  }
+}
 
 /**
  * Creates a styled-component-like factory from an external style compiler.
@@ -53,23 +104,28 @@ const MAX_STYLE_RESOLUTION_DEPTH = 24
  */
 export function createStyledFactory<Artifact = unknown>(options: StyledFactoryOptions<Artifact>): StyledFactory<Artifact> {
   const registry = new StyledRegistryBridge(options)
+  const artifactRegistry = new StyledArtifactRegistry<Artifact>()
+  const internalOptions = Object.assign({}, options, {
+    [STYLED_ARTIFACT_REGISTRY]: artifactRegistry,
+  }) as InternalStyledFactoryOptions<Artifact>
   const styledTagCache = Object.create(null) as Record<string, StyledTagFactory<Artifact> | undefined>
   const getStyledTagFactory = (tag: string): StyledTagFactory<Artifact> => (
-    styledTagCache[tag] ?? (styledTagCache[tag] = createStyledTagFactory(tag, options, registry))
+    styledTagCache[tag] ?? (styledTagCache[tag] = createStyledTagFactory(tag, internalOptions, registry))
   )
 
   const base = ((target: unknown, name?: string) => (
-    styledCore(target, name, options, registry, getStyledTagFactory)
+    styledCore(target, name, internalOptions, registry, getStyledTagFactory)
   )) as StyledFactory<Artifact>
 
   Object.defineProperties(base, {
+    registry: { enumerable: false, value: artifactRegistry },
     component: {
       enumerable: false,
       value(name: string, componentOptions: StyledNamedComponentOptions = {}) {
         const target = componentOptions.as ?? 'div'
         return typeof target === 'string'
           ? getStyledTagFactory(target)(name, componentOptions)
-          : createNamedBuilder(target, name, componentOptions, options, registry)
+          : createNamedBuilder(target, name, componentOptions, internalOptions, registry)
       },
     },
     connectRegistry: { enumerable: false, value: registry.connect.bind(registry) },
@@ -296,6 +352,9 @@ function createStyledComponent<Props extends ElementsRecord, Artifact>(
     },
     toString: { configurable: false, enumerable: false, value: () => plan.staticStyle.className },
   })
+
+  const artifactRegistry = (options as InternalStyledFactoryOptions<Artifact>)[STYLED_ARTIFACT_REGISTRY]
+  artifactRegistry?.add(styledComponent as StyledComponent<ElementsRecord, Artifact>)
 
   if (registeredName) registerStyledComponentNames(registry, registeredName, styledComponent as ElementsComponent, collision)
   return styledComponent

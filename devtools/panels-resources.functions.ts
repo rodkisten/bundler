@@ -21,7 +21,6 @@ import {
   ResourcesJsonHeader,
   ResourcesJsonEditorHost,
   ResourcesJsonActions,
-  resourcesStyleArtifacts,
   type ResourcesViewModel,
 } from "@rodkisten/devtools/panels-resources-components";
 import { RESOURCE_ELEMENT_SELECTOR, StorageType, CapabilityModel } from "@rodkisten/devtools/panels-resources";

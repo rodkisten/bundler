@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { RenderValue } from "@rodkisten/fabrica/runtime";
 import { describeNode, icon, nodePath, truncate } from "@rodkisten/devtools/utils";
 import { plainText } from "@rodkisten/devtools/core-serialize";
@@ -513,52 +512,6 @@ const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
   }
 `;
 
-const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
-  ElementsTreeSide,
-  ElementsIconButton,
-  ElementsTreeWrap,
-  DomTree,
-  DomList,
-  DomItem,
-  DomMoreItem,
-  DomRow,
-  DomToggle,
-  DomTag,
-  DomAttrName,
-  DomAttrValue,
-  DomText,
-  ElementsCrumbs,
-  CrumbButton,
-  DetailPanel,
-  DetailSection,
-  SectionTitle,
-  SectionActions,
-  SectionContent,
-  AttributesGrid,
-  AttributeRow,
-  AttributeInput,
-  TableWrap,
-  KvTable,
-  BoxModel,
-  BoxLayer,
-  StyleRule,
-  StyleSelector,
-  StyleSource,
-  StyleDeclaration,
-  StyleDeclarationText,
-  StyleDeclarationInput,
-  ListenerBox,
-  ListenerTitle,
-  ListenerPre,
-  EmptyState,
-  ElementsMenu,
-  ElementsMenuButton,
-]);
-
-export const elementsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  ELEMENTS_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodElementsView", function RodElementsView(_props, ctx) {
   const view = ctx.useRequiredContext(ElementsViewContext);

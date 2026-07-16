@@ -19,12 +19,10 @@ import {
   SettingsSelect,
   SettingsSeparator,
   SettingsText,
-  settingsStyleArtifacts,
   type SettingsViewModel,
   SettingsViewContext,
 } from "@rodkisten/devtools/panels-settings-components";
 
-export { settingsStyleArtifacts };
 
 type BaseSettingEntry = {
   id: string;

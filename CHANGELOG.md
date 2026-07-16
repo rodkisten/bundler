@@ -1,4 +1,5 @@
 ## Unreleased
+- Unified styled CSS collection across Fábrica Elements, Cipó and DevTools with an automatic factory-local registry. DevTools panels no longer maintain manual style component arrays, and compiled Cipó components retain lightweight artifact metadata for the same runtime/build registry output.
 - Replaced duplicated Vite/Vitest workspace alias tables with `vite-tsconfig-paths`, kept Cipó/Fábrica imports on `@rodkisten/*` aliases, and load standalone TypeScript Vite configs through `tsx` plus `--configLoader native` so aliases also resolve during config bootstrap.
 - Fixed Cipó production theme bootstrapping to keep the readable CSS-first config as the single source of truth while lowering runtime `configureFromCss()` calls to compact parser-free payloads during Vite builds.
 

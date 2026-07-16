@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { component, html,  styled } from "@rodkisten/devtools/core-runtime";
 import "@rodkisten/devtools/panels-shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica/runtime";
@@ -94,21 +93,6 @@ export const SettingsSelect = styled.select("RodSettingsSelect").css`
   font-size: 12px;
 `;
 
-const SETTINGS_STYLED_COMPONENTS = Object.freeze([
-  SettingsSection,
-  SettingsSectionTitle,
-  SettingsRow,
-  SettingsText,
-  SettingsSeparator,
-  SettingsButton,
-  SettingsInput,
-  SettingsSelect,
-]);
-
-export const settingsStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  SETTINGS_STYLED_COMPONENTS.flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 component("RodSettingsView", function RodSettingsView(_props, ctx) {
   const view = ctx.useRequiredContext(SettingsViewContext);

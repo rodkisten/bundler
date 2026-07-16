@@ -1,4 +1,3 @@
-import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { ShellRefs } from "@rodkisten/devtools/core-shell";
 import type { DevtoolsContextValue } from "@rodkisten/devtools/core-context";
 import { asElement, event, html,  styled, uiState } from "@rodkisten/devtools/core-runtime";
@@ -237,26 +236,6 @@ const TextButton = styled.button("RodDevtoolsTextButton").css`
   }
 `;
 
-const CONTROLLER_STYLED_COMPONENTS = Object.freeze([
-  ToolPanel,
-  TabButton,
-  TabIcon,
-  TabLabel,
-  NotificationToast,
-  ModalSurface,
-  ModalBox,
-  ModalTitle,
-  ModalBody,
-  ModalInput,
-  ModalActions,
-  TextButton,
-]);
-
-export const devtoolsControllerStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  CONTROLLER_STYLED_COMPONENTS
-    .flatMap((styledComponent) => styledComponent.artifacts)
-    .filter((artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
 
 function renderToolIcon(value: Node | string | undefined, name: string): Node | string {
   if (typeof value === "string") return value;

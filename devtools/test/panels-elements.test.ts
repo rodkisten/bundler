@@ -63,10 +63,8 @@ vi.mock("@rodkisten/devtools/core-highlighter", () => ({
   },
 }));
 
-import {
-  Elements,
-  elementsStyleArtifacts,
-} from "@rodkisten/devtools/panels-elements";
+import { Elements } from "@rodkisten/devtools/panels-elements";
+import { styledRegistry } from "@rodkisten/devtools/core-runtime";
 
 type Fixture = {
   tool: Elements;
@@ -775,10 +773,14 @@ describe("Elements panel", () => {
     fixture = null;
   });
 
-  it("exports compiled Cipó artifacts without raw theme tokens", () => {
-    expect(elementsStyleArtifacts.length).toBeGreaterThan(0);
+  it("collects panel Cipó artifacts without manual component lists or raw theme tokens", () => {
+    const elementsArtifacts = styledRegistry.cssArtifacts.filter((artifact) =>
+      styledRegistry.components.some((component) => component.displayName?.startsWith("RodElements") && component.artifacts.includes(artifact)),
+    );
 
-    const cssText = elementsStyleArtifacts
+    expect(elementsArtifacts.length).toBeGreaterThan(0);
+
+    const cssText = elementsArtifacts
       .map((artifact) => {
         const value = artifact as CipoArtifactLike;
 

@@ -8,7 +8,6 @@ import {
   InfoKey,
   InfoKv,
   InfoValue,
-  infoStyleArtifacts,
   type InfoModel,
   type InfoViewModel,
   InfoViewContext,
@@ -16,7 +15,6 @@ import {
 import { getConnectionInfo, getMemoryInfo, getNavigationInfo, defaultItems } from "@rodkisten/devtools/panels-info.functions";
 
 
-export { infoStyleArtifacts };
 
 export class Info extends Tool {
   readonly name = "info";

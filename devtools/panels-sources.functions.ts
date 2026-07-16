@@ -31,7 +31,6 @@ import type {
   ToolLike,
 } from "@rodkisten/devtools/types";
 import {
-  sourcesStyleArtifacts,
   type SourcesViewModel,
 } from "@rodkisten/devtools/panels-sources-components";
 import { UserscriptApi, UserscriptRequest, UserscriptResponse, MAX_FORMAT_SOURCE_LENGTH } from "@rodkisten/devtools/panels-sources";

@@ -2,7 +2,7 @@ import { copyText, escapeHtml, icon, isDevtoolsNode, safeStringify, setStyles } 
 import { html, render } from "@rodkisten/devtools/core-runtime";
 import { Tool } from "@rodkisten/devtools/tool";
 import type { SnippetItem, ToolContext } from "@rodkisten/devtools/types";
-import { snippetsStyleArtifacts, type SnippetsModel, type SnippetsViewModel } from "@rodkisten/devtools/panels-snippets-components";
+import { type SnippetsModel, type SnippetsViewModel } from "@rodkisten/devtools/panels-snippets-components";
 import { OverlayController } from "@rodkisten/devtools/panels-snippets";
 
 export function openWindow(title: string, body: string): Window | null {

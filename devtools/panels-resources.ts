@@ -21,14 +21,12 @@ import {
   ResourcesJsonHeader,
   ResourcesJsonEditorHost,
   ResourcesJsonActions,
-  resourcesStyleArtifacts,
   type ResourcesViewModel,
   ResourcesViewContext,
 } from "@rodkisten/devtools/panels-resources-components";
 import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, canUseStorage, isJsonValue, formatJsonValue, unique } from "@rodkisten/devtools/panels-resources.functions";
 
 
-export { resourcesStyleArtifacts };
 
 export type StorageType = "local" | "session";
 

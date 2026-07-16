@@ -1,6 +1,7 @@
 # Fabrica Elements Changelog
 
 ## Unreleased - Fábrica payload bridge
+- Added `StyledFactoryRegistry` on every styled factory. It automatically tracks named and anonymous styled components, deduplicates static artifacts, caches immutable snapshots, and can be cleared independently from the named component registry.
 
 ### Fixed
 
