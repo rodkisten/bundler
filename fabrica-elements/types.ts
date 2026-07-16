@@ -234,7 +234,20 @@ export interface StyledNamedComponentOptions extends StyledComponentOptions {
 }
 
 /** Base callable styled factory contract. */
+export interface StyledFactoryRegistry<Artifact = unknown> {
+  /** Number of styled component instances created by this factory. */
+  readonly size: number
+  /** Every styled component created by this factory, including anonymous components. */
+  readonly components: readonly StyledComponent<ElementsRecord, Artifact>[]
+  /** Deduplicated static artifacts attached to the registered styled components. */
+  readonly artifacts: readonly Artifact[]
+  /** Clears the collector without mutating the Fabrica named-component registry. */
+  clear(): void
+}
+
 export interface StyledFactoryBase<Artifact = unknown> {
+  /** Factory-local collector for every component and static style artifact created through this styled instance. */
+  readonly registry: StyledFactoryRegistry<Artifact>
   <ElementType extends Element>(target: ElementType): StyledBuilder<ElementsRecord, Artifact, StyledDomResult<ElementType, Artifact>>
   <Props extends ElementsRecord>(target: ElementsComponent<Props>, name?: string): StyledBuilder<Props, Artifact, StyledComponent<Props, Artifact>>
   (target: string): StyledTagFactory<Artifact>

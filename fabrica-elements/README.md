@@ -184,6 +184,20 @@ Button.unregister()
 Button.register('Button', 'replace')
 ```
 
+The factory itself also exposes a local collector for every styled component and
+its static artifacts:
+
+```ts
+styled.registry.components
+styled.registry.artifacts
+styled.registry.size
+```
+
+This registry is independent from the named Fábrica component registry. It also
+tracks anonymous components, deduplicates shared artifact objects, caches
+snapshots until the factory changes, and can be cleared without unregistering
+named components.
+
 ### Delayed Fabrica loading
 
 ```ts
