@@ -7,6 +7,7 @@ export * from '@rodkisten/cipo/compiler-atomic-compile'
 export * from '@rodkisten/cipo/compiler-sheet-compile'
 export * from '@rodkisten/cipo/compiler-inline-compile'
 export * from '@rodkisten/cipo/compiler-detect-mode'
+export * from '@rodkisten/cipo/compiler-global-atomic'
 
 export * from '@rodkisten/cipo/compiler-compiled-build'
 

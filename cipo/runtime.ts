@@ -9,6 +9,11 @@ import type { RuntimeState } from '@rodkisten/cipo/types'
  * invalidation explicit: config/theme updates bump versions and generated atoms
  * can include those versions in their keys when needed.
  *
+ * Atomic promotion is enabled by default with a two-use threshold. The first
+ * occurrence remains component-scoped; once the same declaration/context is
+ * reused, subsequent runtime artifacts can share the atomic rule. Build mode can
+ * do better by seeing the whole graph and rewriting every participant at once.
+ *
  * @example
  * ```ts
  * import { runtime } from '@rodkisten/cipo/runtime'
@@ -54,7 +59,7 @@ export const runtime: RuntimeState = {
       debug: false,
     },
     atomic: {
-      minUses: 1,
+      minUses: 2,
     },
     scope: {
       strategy: 'none',

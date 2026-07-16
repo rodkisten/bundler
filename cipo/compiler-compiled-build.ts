@@ -2,6 +2,8 @@ import { hashString } from '@rodkisten/cipo/utils'
 import { optimizeCompiledCss } from '@rodkisten/cipo/compiler-compiled-css-optimizer'
 import { compileScopedSheetCss, compileSheetCss } from '@rodkisten/cipo/compiler-sheet-compile'
 import { applyEdits, ensureNamedImport, findBareCssTemplates, findStyledCssTemplates, hasTemplateInterpolation, type SourceEdit } from '@rodkisten/cipo/compiler-source'
+import { configureFromCss } from '@rodkisten/cipo/config-css'
+import { runtime } from '@rodkisten/cipo/runtime'
 
 export interface CipoCompiledBuildOptions {
   readonly filename?: string
@@ -21,7 +23,12 @@ export interface CipoCompiledBuildOptions {
   readonly privateCustomPropertyPattern?: RegExp
   /** Couples each styled component to its CSS so unused JS and CSS can tree-shake together. */
   readonly coupleStyledCss?: boolean
-  /** Import used by coupled styled CSS mode. */
+  /**
+   * Emits class-only styled artifacts and defers CSS emission to whole-build atomic promotion.
+   * Vite uses this to count declaration reuse across every transformed module.
+   */
+  readonly deferAtomicCss?: boolean
+  /** Import used by coupled/class-only styled CSS mode. */
   readonly styledCssHelperImportPath?: string
 }
 
@@ -54,11 +61,23 @@ const DEFAULT_CSS_IMPORT_ID = '\0cipo:compiled.css'
  * compiler only owns source extraction, deterministic class naming and source
  * rewriting; aliases, helpers, nesting, variants, tokens and formatting still
  * come from the runtime compiler that already powers Cipó today.
+ *
+ * When `deferAtomicCss` is enabled, static component CSS is not embedded in the
+ * transformed module. Manifest entries become inputs to the Vite whole-build
+ * atomic pass, which emits one consolidated stylesheet after global reuse counts
+ * are known.
  */
 export function compileCipoSourceBuild(source: string, options: CipoCompiledBuildOptions = {}): CipoCompiledBuildResult {
+  if (options.configCss) configureFromCss(options.configCss)
+
   const edits: SourceEdit[] = []
   const entries: CipoCompiledBuildManifestEntry[] = []
-  const prefix = sanitizeClassPrefix(options.classPrefix ?? DEFAULT_CLASS_PREFIX)
+  const cssFirstMode = options.configCss
+    ? (!runtime.config.debug || !runtime.config.debugOptions.readableClassNames ? 'compact' : 'readable')
+    : undefined
+  const classNameMode = cssFirstMode ?? options.classNameMode
+  const prefix = sanitizeClassPrefix(options.configCss ? runtime.config.prefix : options.classPrefix ?? DEFAULT_CLASS_PREFIX)
+  const minifyCss = options.configCss ? runtime.config.minify : options.minifyCss
 
   for (const hit of findStyledCssTemplates(source)) {
     if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
@@ -67,18 +86,20 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
 
     if (receiverName === 'sheet') {
       const cssText = compileRawSheetCss(rawCss, options.configCss)
-      const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver, options.classNameMode)
+      const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver, classNameMode)
       entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
       edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
       continue
     }
 
-    const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver, options.classNameMode)
+    const className = createCompiledClassName(prefix, options.filename, rawCss, hit.receiver, classNameMode)
     const cssText = compileRawCssForClass(className, rawCss, options.configCss)
     entries.push(createManifestEntry('styled-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
-    const value = options.coupleStyledCss
-      ? `/*#__PURE__*/attachCompiledCss(${hit.receiver},${JSON.stringify(className)},${JSON.stringify(optimizeCompiledCss(cssText, { minify: options.minifyCss ?? options.classNameMode === 'compact', mergeEquivalentRules: options.mergeEquivalentRules ?? options.classNameMode === 'compact', privateCustomPropertyPattern: options.privateCustomPropertyPattern }))})`
-      : `/*#__PURE__*/${hit.receiver}(${JSON.stringify(className)})`
+    const value = options.deferAtomicCss
+      ? `/*#__PURE__*/attachCompiledClass(${hit.receiver},${JSON.stringify(className)})`
+      : options.coupleStyledCss
+        ? `/*#__PURE__*/attachCompiledCss(${hit.receiver},${JSON.stringify(className)},${JSON.stringify(optimizeCompiledCss(cssText, { minify: minifyCss ?? classNameMode === 'compact', mergeEquivalentRules: options.mergeEquivalentRules ?? classNameMode === 'compact', privateCustomPropertyPattern: options.privateCustomPropertyPattern }))})`
+        : `/*#__PURE__*/${hit.receiver}(${JSON.stringify(className)})`
     edits.push({ start: hit.start, end: hit.templateEnd + 1, value })
   }
 
@@ -89,13 +110,13 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
 
       if (shouldCompileAsSheetConfig(rawCss)) {
         const cssText = compileRawSheetCss(rawCss, options.configCss)
-        const className = createCompiledClassName(prefix, options.filename, rawCss, 'css', options.classNameMode)
+        const className = createCompiledClassName(prefix, options.filename, rawCss, 'css', classNameMode)
         entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
         edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
         continue
       }
 
-      const className = createCompiledClassName(prefix, options.filename, rawCss, 'css', options.classNameMode)
+      const className = createCompiledClassName(prefix, options.filename, rawCss, 'css', classNameMode)
       const cssText = compileRawCssForClass(className, rawCss, options.configCss)
       entries.push(createManifestEntry('css-tag', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
       edits.push({ start: hit.start, end: hit.templateEnd + 1, value: JSON.stringify(className) })
@@ -106,19 +127,25 @@ export function compileCipoSourceBuild(source: string, options: CipoCompiledBuil
 
   const sorted = edits.slice().sort((left, right) => left.start - right.start)
   let code = applyEdits(source, sorted)
-  if (options.coupleStyledCss && entries.some((entry) => entry.kind === 'styled-css')) {
+  if (options.deferAtomicCss && entries.some((entry) => entry.kind === 'styled-css')) {
+    code = ensureNamedImport(code, 'attachCompiledClass', options.styledCssHelperImportPath ?? './compiled-style-runtime')
+  } else if (options.coupleStyledCss && entries.some((entry) => entry.kind === 'styled-css')) {
     code = ensureNamedImport(code, 'attachCompiledCss', options.styledCssHelperImportPath ?? './compiled-style-runtime')
   }
   if (options.injectCssImport !== false) code = ensureCssImport(code, options.cssImportId ?? DEFAULT_CSS_IMPORT_ID)
 
   const rawOutputCss = entries
-    .filter((entry) => !options.coupleStyledCss || entry.kind !== 'styled-css')
+    .filter((entry) => {
+      if (options.deferAtomicCss && (entry.kind === 'styled-css' || entry.kind === 'css-tag')) return false
+      if (options.coupleStyledCss && entry.kind === 'styled-css') return false
+      return true
+    })
     .map((entry) => entry.cssText)
     .filter(Boolean)
     .join('\n')
-  const compact = options.classNameMode === 'compact'
+  const compact = classNameMode === 'compact'
   const css = optimizeCompiledCss(rawOutputCss, {
-    minify: options.minifyCss ?? compact,
+    minify: minifyCss ?? compact,
     mergeEquivalentRules: options.mergeEquivalentRules ?? compact,
     privateCustomPropertyPattern: options.privateCustomPropertyPattern,
   })

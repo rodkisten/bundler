@@ -1,5 +1,8 @@
 ## Unreleased
-- Added a factory-local `styled.registry` collector with cached `components`/`artifacts` snapshots and `cssArtifacts` for Cipó. Build-compiled styled components now preserve lightweight `CipoCssArtifact` metadata through `attachCompiledCss()`, keeping registry output identical across runtime and production while retaining PURE tree shaking.
+- Changed atomic promotion to a two-use default. Runtime styled components keep first-use declarations scoped and promote reused declaration/context pairs, while CSS-first Vite builds now analyze the complete module graph and can rewrite every participating component.
+- Added whole-build atomic stylesheet compilation for CSS-first Vite builds. Static `styled`/Fábrica Elements components now carry class-only compiled artifacts instead of one embedded CSS string per component, and production emits one consolidated stylesheet containing shared atomic classes plus scoped single-use fallbacks.
+- Production class naming is now driven by CSS-first configuration: readable/debug builds keep semantic labels, while `debug: false` uses compact `a<hash>` atomic and `s<hash>` scope classes in the global build output. `atomic-min-uses` and `minify` are read from the same `@cipo` sheet.
+- Added a factory-local `styled.registry` collector with cached `components`/`artifacts` snapshots and `cssArtifacts` for Cipó. Build-compiled styled components now preserve lightweight `CipoCssArtifact` metadata through compiled style helpers, keeping registry output identical across runtime and production while retaining PURE tree shaking.
 - Added compiled runtime configuration payloads: Vite build mode can lower eligible `configureFromCss(config)` calls to `configureCompiledCssConfig()` without shipping raw `@theme` DSL or the parser graph. Runtime presets/plugins safely stay on the parser path.
 - Restored canonical `@rodkisten/*` imports in the Cipó Vite adapter and moved workspace path resolution to `vite-tsconfig-paths`; standalone Vite configs now bootstrap through `tsx` plus the native config loader instead of requiring relative `.js` compiler imports.
 - Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
@@ -9,14 +12,16 @@
 
 ### Performance
 
-- Added `classNameMode: 'compact'` for deterministic hash-only production class names without repeated component display names.
+- Added whole-build declaration reuse analysis so repeated styles are emitted once instead of being duplicated in every styled component CSS string.
+- Added `classNameMode: 'compact'` for legacy integrations; CSS-first builds now derive naming from their `@cipo` debug/readability configuration.
 - Added conservative compiled CSS minification, leading-zero compaction, safe flat-rule merging, and opt-in private custom-property mangling.
 - Marked statically compiled styled factory expressions as `/*#__PURE__*/` so unused styled components can be removed by bundlers.
-- Updated the Vite build path to inject optimized CSS and couple styled-component CSS to the component expression, allowing unused JavaScript and CSS to tree-shake together.
+- Updated the Vite build path to inject a single global compiled sheet and attach only final class lists to styled component artifacts.
 - Enabled compact Cipó class names and stronger Rollup/esbuild tree shaking for the DevTools production build.
 
 ### Tests
 
+- Added coverage for two-use global atomic promotion, single-use scoped fallback rules, class-only compiled styled artifacts and semantic class-name mode.
 - Added coverage for compact class names, pure annotations, minified CSS, and private-only custom-property mangling.
 
 ## Unreleased
@@ -180,5 +185,6 @@
 ## Reliable benchmark protocol
 
 - Added same-runner baseline/current comparison, alternating rounds, median aggregation and full runner metadata.
+- Persisted the warm/cold benchmark measurements used by CI in `bench/cipo.json`.
 - Synthetic `String.raw` controls remain visible but no longer influence Cipó's overall geometric mean.
 - Noisy runs are marked unstable using Tinybench RME plus cross-round variation.

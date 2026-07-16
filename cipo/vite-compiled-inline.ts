@@ -1,31 +1,36 @@
 import type { Plugin } from 'vite'
-import { compileCipoSourceBuild, type CipoCompiledBuildResult } from '@rodkisten/cipo/compiler-compiled-build'
+import { compileCipoSourceBuild, type CipoCompiledBuildManifestEntry, type CipoCompiledBuildResult } from '@rodkisten/cipo/compiler-compiled-build'
 import { compileCipoSourceInline, type CipoCompiledInlineSourceResult } from '@rodkisten/cipo/compiler-compiled-inline'
+import { compileGlobalAtomicStyles } from '@rodkisten/cipo/compiler-global-atomic'
+import { optimizeCompiledCss } from '@rodkisten/cipo/compiler-compiled-css-optimizer'
 import { compileFabricaSource, type FabricaCompileSourceResult } from '@rodkisten/fabrica/compiler'
 import { installBuiltInAliases } from '@rodkisten/cipo/aliases'
 import { installBuiltInHelpers } from '@rodkisten/cipo/helpers'
 import { installNativePropertyGuards } from '@rodkisten/cipo/native-property-guards'
 import { compileCssConfigPayload } from '@rodkisten/cipo/config-css'
+import { runtime } from '@rodkisten/cipo/runtime'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
   readonly exclude?: RegExp | readonly RegExp[]
   readonly root?: string
   readonly mode?: 'build' | 'inline'
+  /** @deprecated Prefer CSS-first `@cipo { prefix: ... }` configuration. */
   readonly classPrefix?: string
-  /** Production builds can emit compact hash-only class names instead of display-name labels. */
+  /** @deprecated Prefer CSS-first `@cipo { debug: true|false }` configuration. */
   readonly classNameMode?: 'readable' | 'compact'
+  /** @deprecated Prefer CSS-first `@cipo { minify: true|false }` configuration. */
   readonly minifyCss?: boolean
   readonly mergeEquivalentRules?: boolean
   readonly privateCustomPropertyPattern?: RegExp
   readonly cssFileName?: string
-  /** Default keeps compiled CSS inside the JS bundle and injects it through Cipó's runtime style tag. */
+  /** Default keeps one compiled stylesheet inside the JS bundle and injects it through Cipó's runtime style tag. */
   readonly cssDelivery?: 'style-tag' | 'asset'
   readonly transformCssTag?: boolean
   readonly compileFabrica?: boolean
   readonly enabled?: boolean
   readonly evaluateStaticCss?: boolean
-  /** Optional Cipó configuration CSS applied before build-mode static CSS compilation. */
+  /** Authoritative CSS-first Cipó configuration applied before static compilation. */
   readonly configCss?: string
 }
 
@@ -51,32 +56,41 @@ const DEFAULT_INCLUDE = /\.[cm]?[jt]sx?$/
 const DEFAULT_EXCLUDE = /(?:^|[/\\])node_modules(?:[/\\]|$)/
 const VIRTUAL_CSS_ID = '\0cipo:compiled-style-tag.js'
 const VIRTUAL_CSS_ASSET_ID = '\0cipo:compiled.css'
+const GLOBAL_STYLESHEET_SENTINEL = '__CIPO_COMPILED_GLOBAL_STYLESHEET__'
 
 /** Vite adapter for Cipó/Fábrica compiled mode. */
 export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
   const root = options.root ?? safeCwd()
   const mode = options.mode ?? 'build'
+  // Whole-build promotion is driven by a CSS-first config sheet. Integrations
+  // without one keep the isolated legacy path for backwards compatibility.
+  const wholeBuildAtomic = mode === 'build' && Boolean(options.configCss)
   const cssChunks: string[] = []
   const manifests: unknown[] = []
+  const atomicEntries: CipoCompiledBuildManifestEntry[] = []
   const compiledConfigPayload = options.configCss ? compileCssConfigPayload(options.configCss) : null
+  let finalized: ReturnType<typeof finalizeBuildStyles> | undefined
+
+  const getFinalized = () => (
+    finalized ?? (finalized = finalizeBuildStyles(atomicEntries, cssChunks, options))
+  )
 
   return {
     name: mode === 'build' ? 'cipo:compiled-build' : 'cipo:compiled-inline',
     enforce: 'pre',
 
     resolveId(id) {
-      if (id === VIRTUAL_CSS_ID) return VIRTUAL_CSS_ID
-      if (id === VIRTUAL_CSS_ASSET_ID) return VIRTUAL_CSS_ASSET_ID
+      if (id === VIRTUAL_CSS_ID) return { id: VIRTUAL_CSS_ID, moduleSideEffects: true }
+      if (id === VIRTUAL_CSS_ASSET_ID) return { id: VIRTUAL_CSS_ASSET_ID, moduleSideEffects: true }
       return null
     },
 
     load(id) {
       if (id === VIRTUAL_CSS_ID) {
-        const css = dedupeCss(cssChunks.join('\n'))
         const injectionPath = normalizePath(joinPath(root, 'cipo/injection.ts'))
-        return `import { insertCss } from ${JSON.stringify(injectionPath)};\ninsertCss(${JSON.stringify(css)});\n`
+        return `import { insertCss } from ${JSON.stringify(injectionPath)};\ninsertCss(${JSON.stringify(GLOBAL_STYLESHEET_SENTINEL)});\n`
       }
-      if (id === VIRTUAL_CSS_ASSET_ID) return dedupeCss(cssChunks.join('\n'))
+      if (id === VIRTUAL_CSS_ASSET_ID) return wholeBuildAtomic ? '' : dedupeCss(cssChunks.join('\n'))
       return null
     },
 
@@ -112,22 +126,24 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         minifyCss: options.minifyCss,
         mergeEquivalentRules: options.mergeEquivalentRules,
         privateCustomPropertyPattern: options.privateCustomPropertyPattern,
-        coupleStyledCss: options.cssDelivery !== 'asset',
+        deferAtomicCss: wholeBuildAtomic,
+        coupleStyledCss: !wholeBuildAtomic && options.cssDelivery !== 'asset',
         styledCssHelperImportPath: createImportPath(filename, joinPath(root, 'cipo/compiler-compiled-style-runtime.ts')),
-        cssImportId: VIRTUAL_CSS_ASSET_ID,
-        injectCssImport: options.cssDelivery === 'asset',
+        cssImportId: wholeBuildAtomic ? VIRTUAL_CSS_ID : VIRTUAL_CSS_ASSET_ID,
+        injectCssImport: wholeBuildAtomic ? options.cssDelivery !== 'asset' : options.cssDelivery === 'asset',
         transformCssTag: options.transformCssTag ?? true,
         configCss: options.configCss,
       })
 
       let nextCode = cipo.code
-      if (cipo.css && options.cssDelivery !== 'asset') {
+      if (!wholeBuildAtomic && cipo.css && options.cssDelivery !== 'asset') {
         nextCode = prependStyleTagInjection(
           nextCode,
           cipo.css,
           createImportPath(filename, joinPath(root, 'cipo/injection.ts')),
         )
       }
+
       let fabrica: FabricaCompileSourceResult | undefined
       if (options.compileFabrica !== false) {
         fabrica = compileFabricaSource(nextCode, {
@@ -139,23 +155,106 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       }
 
       if (cipo.css) cssChunks.push(cipo.css)
-      if (cipo.changed) manifests.push(...cipo.manifest)
+      if (cipo.changed) {
+        manifests.push(...cipo.manifest)
+        if (wholeBuildAtomic) {
+          for (let index = 0; index < cipo.manifest.length; index += 1) {
+            const entry = cipo.manifest[index]!
+            if (entry.kind === 'styled-css' || entry.kind === 'css-tag') atomicEntries.push(entry)
+          }
+          finalized = undefined
+        }
+      }
       if (fabrica?.changed) manifests.push(...fabrica.manifest)
 
       if (!runtimeConfig.changed && !cipo.changed && !fabrica?.changed) return null
       return { code: nextCode, map: null, meta: { cipo, ...(fabrica ? { fabrica } : {}) } } satisfies CipoViteTransformResult
     },
 
-    generateBundle() {
-      const css = dedupeCss(cssChunks.join('\n'))
-      if (options.cssDelivery === 'asset' && css.trim()) {
-        this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${css.trim()}\n` })
+    renderChunk(code) {
+      if (!wholeBuildAtomic) return null
+      const result = getFinalized()
+      let nextCode = code
+
+      for (const [temporaryClassName, finalClassName] of result.classNames) {
+        if (temporaryClassName === finalClassName || !nextCode.includes(temporaryClassName)) continue
+        nextCode = nextCode.split(temporaryClassName).join(finalClassName)
+      }
+
+      if (nextCode.includes(GLOBAL_STYLESHEET_SENTINEL)) {
+        nextCode = replaceStylesheetSentinel(nextCode, result.css)
+      }
+
+      return nextCode === code ? null : { code: nextCode, map: null }
+    },
+
+    generateBundle(_outputOptions, bundle) {
+      if (!wholeBuildAtomic) {
+        const css = dedupeCss(cssChunks.join('\n'))
+        if (options.cssDelivery === 'asset' && css.trim()) {
+          this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${css.trim()}\n` })
+        }
+        if (manifests.length > 0) {
+          this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries: manifests }, null, 2)}\n` })
+        }
+        return
+      }
+
+      const result = getFinalized()
+
+      // Safety net for output plugins that bypass renderChunk on synthetic chunks.
+      for (const fileName in bundle) {
+        const item = bundle[fileName]
+        if (!item || item.type !== 'chunk') continue
+        let code = item.code
+        for (const [temporaryClassName, finalClassName] of result.classNames) {
+          if (temporaryClassName !== finalClassName && code.includes(temporaryClassName)) {
+            code = code.split(temporaryClassName).join(finalClassName)
+          }
+        }
+        if (code.includes(GLOBAL_STYLESHEET_SENTINEL)) code = replaceStylesheetSentinel(code, result.css)
+        item.code = code
+      }
+
+      if (options.cssDelivery === 'asset' && result.css.trim()) {
+        this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${result.css.trim()}\n` })
       }
       if (manifests.length > 0) {
-        this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries: manifests }, null, 2)}\n` })
+        const entries = manifests.map((entry) => rewriteManifestClassName(entry, result.classNames))
+        this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries }, null, 2)}\n` })
       }
     },
   }
+}
+
+function finalizeBuildStyles(
+  atomicEntries: readonly CipoCompiledBuildManifestEntry[],
+  cssChunks: readonly string[],
+  options: CipoViteCompiledInlineOptions,
+) {
+  const atomic = compileGlobalAtomicStyles(
+    atomicEntries.map((entry) => ({
+      key: entry.id,
+      className: entry.className,
+      rawCss: entry.rawCss,
+      filename: entry.filename,
+      receiver: entry.receiver,
+    })),
+    { configCss: options.configCss },
+  )
+
+  const css = optimizeCompiledCss(
+    [atomic.css, ...cssChunks].filter(Boolean).join('\n'),
+    {
+      // When configCss exists it is authoritative. Legacy plugin flags remain a
+      // fallback only for integrations that have not migrated to CSS-first config.
+      minify: options.configCss ? runtime.config.minify : options.minifyCss ?? runtime.config.minify,
+      mergeEquivalentRules: options.mergeEquivalentRules ?? true,
+      privateCustomPropertyPattern: options.privateCustomPropertyPattern,
+    },
+  )
+
+  return { css, classNames: atomic.classNames }
 }
 
 function prependStyleTagInjection(
@@ -168,6 +267,24 @@ function prependStyleTagInjection(
     `__cipoInsertCompiledCss(${JSON.stringify(cssText)});`,
     code,
   ].join('\n')
+}
+
+function replaceStylesheetSentinel(code: string, css: string): string {
+  const doubleQuoted = JSON.stringify(GLOBAL_STYLESHEET_SENTINEL)
+  if (code.includes(doubleQuoted)) return code.split(doubleQuoted).join(JSON.stringify(css))
+
+  const singleQuoted = `'${GLOBAL_STYLESHEET_SENTINEL}'`
+  if (code.includes(singleQuoted)) return code.split(singleQuoted).join(JSON.stringify(css))
+
+  return code
+}
+
+function rewriteManifestClassName(entry: unknown, classNames: ReadonlyMap<string, string>): unknown {
+  if (!entry || typeof entry !== 'object') return entry
+  const record = entry as Record<string, unknown>
+  const className = typeof record.className === 'string' ? record.className : undefined
+  const finalClassName = className ? classNames.get(className) : undefined
+  return finalClassName ? { ...record, className: finalClassName } : entry
 }
 
 function dedupeCss(css: string): string {
@@ -245,7 +362,6 @@ function normalizePath(value: string): string {
 function safeCwd(): string {
   try { return (globalThis as unknown as { process?: { cwd?: () => string } }).process?.cwd?.() ?? '.' } catch { return '.' }
 }
-
 
 function compileRuntimeConfigCalls(
   source: string,

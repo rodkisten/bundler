@@ -73,7 +73,11 @@ function normalizeAtomicConfig(
   current: Required<CipoAtomicPromotionConfig>,
 ): Required<CipoAtomicPromotionConfig> {
   if (atomic === undefined) return current
-  const minUses = typeof atomic === 'boolean' ? (atomic ? 1 : Number.POSITIVE_INFINITY) : atomic.minUses ?? current.minUses
+  // Atomic mode is on by default. `true` preserves the configured/default
+  // promotion threshold instead of silently reverting to always-atomic mode.
+  const minUses = typeof atomic === 'boolean'
+    ? (atomic ? (Number.isFinite(current.minUses) ? current.minUses : 2) : Number.POSITIVE_INFINITY)
+    : atomic.minUses ?? current.minUses
   const normalized = Number.isFinite(minUses) ? Math.max(1, Math.trunc(minUses)) : Number.POSITIVE_INFINITY
   return normalized === current.minUses ? current : { minUses: normalized }
 }
