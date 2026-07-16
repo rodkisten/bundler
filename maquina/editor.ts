@@ -26,7 +26,7 @@ const MIN_TAB_SIZE = 1;
 const MAX_TAB_SIZE = 16;
 const SUGGESTIONS_BLUR_DELAY_MS = 80;
 
-interface EditorState {
+interface EditorState extends Record<string, unknown> {
   value: string;
   language: MaquinaLanguage;
   theme: MaquinaThemeName;
@@ -48,7 +48,7 @@ type Dispose = () => void;
 export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const initialTheme = resolveMaquinaTheme(options.theme, options.dark);
 
-  const state = createDeepStore({
+  const state = createDeepStore<EditorState>({
     value: options.value,
     language: (options.language ?? "text") as MaquinaLanguage,
     theme: initialTheme.name as MaquinaThemeName,
@@ -79,7 +79,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   function onInput(): void {
     if (destroyed) return;
 
-    const value = editorTextarea.value;
+    const textarea = textareaRef;
+    if (!textarea) return;
+
+    const value = textarea.value;
 
     if (state.value.peek() !== value) {
       state.value.set(value);
@@ -215,10 +218,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         clamp(options.tabSize ?? DEFAULT_TAB_SIZE, MIN_TAB_SIZE, MAX_TAB_SIZE),
       );
 
-      editorTextarea.setRangeText(
+      const textarea = textareaRef;
+      if (!textarea) return;
+
+      textarea.setRangeText(
         indent,
-        editorTextarea.selectionStart,
-        editorTextarea.selectionEnd,
+        textarea.selectionStart,
+        textarea.selectionEnd,
         "end",
       );
 
@@ -270,22 +276,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             @focus=${event.focus(onFocus)}
             @blur=${event.blur(onBlur)}
           />
-          <MaquinaSuggestion
-           type="button"
-           role="option"
-           :active=${active}
-           aria-selected=${String(active)}
-           @pointerdown=${event
-                          .pointerdown(
-                            (pointerEvent) => {
-             pointerEvent.preventDefault();
-            applySuggestion(index);
-           })}>
-            <span>${item.label}</span>
-            <small>${item.detail || item.type || ""}</small>
-          <hr/>
-          <!-- @todo remove below -->
-          </MaquinaSuggestion>
           <MaquinaSuggestions
             hidden
             role="listbox"
@@ -304,10 +294,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
    * Keeping these as stable non-null references makes every hot-path function
    * simpler and avoids repeated optional checks after successful mounting.
    */
-  const editorRoot = rootRef;
-  const editorTextarea = textareaRef;
-  const editorHighlight = highlightRef;
-  const editorSuggestions = suggestionsRef;
+  const editorRoot = rootRef as HTMLElement | null;
+  const editorTextarea = textareaRef as HTMLTextAreaElement | null;
+  const editorHighlight = highlightRef as HTMLElement | null;
+  const editorSuggestions = suggestionsRef as HTMLElement | null;
 
   if (
     !editorRoot ||
@@ -319,21 +309,29 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     throw new Error("[Maquina] Editor failed to mount");
   }
 
+  // Callback refs are guaranteed by the synchronous Fabrica mount above.
+  // Copy the narrowed values into immutable aliases so nested hot-path closures
+  // retain their non-null types without repeated runtime guards.
+  const mountedRoot = editorRoot;
+  const mountedTextarea = editorTextarea;
+  const mountedHighlight = editorHighlight;
+  const mountedSuggestions = editorSuggestions;
+
   /*
    * Explicitly mirror the initial value because consumers may query getValue()
    * immediately after mounting, before any browser painting occurs.
    */
-  editorTextarea.value = options.value;
-  editorTextarea.setSelectionRange(
+  mountedTextarea.value = options.value;
+  mountedTextarea.setSelectionRange(
     options.value.length,
     options.value.length,
   );
 
-  applyTheme(editorRoot, initialTheme.name);
+  applyTheme(mountedRoot, initialTheme.name);
   applyEditorMetrics(
-    editorRoot,
-    editorTextarea,
-    editorHighlight,
+    mountedRoot,
+    mountedTextarea,
+    mountedHighlight,
     options,
   );
 
@@ -356,10 +354,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     disposeHighlightContent?.();
     disposeHighlightContent = undefined;
 
-    editorHighlight.replaceChildren();
+    mountedHighlight.replaceChildren();
 
     disposeHighlightContent = maquinaFabrica.render(
-      editorHighlight,
+      mountedHighlight,
       html`
         ${tokens.map((token) => html`
           <span :token=${token.kind}>${token.value}</span>
@@ -378,8 +376,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   function syncScroll(): void {
     if (destroyed) return;
 
-    editorHighlight.style.transform =
-      `translate(${-editorTextarea.scrollLeft}px, ${-editorTextarea.scrollTop}px)`;
+    mountedHighlight.style.transform =
+      `translate(${-mountedTextarea.scrollLeft}px, ${-mountedTextarea.scrollTop}px)`;
   }
 
   /**
@@ -411,8 +409,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     disposeSuggestionsContent?.();
     disposeSuggestionsContent = undefined;
 
-    editorSuggestions.replaceChildren();
-    editorSuggestions.hidden = true;
+    mountedSuggestions.replaceChildren();
+    mountedSuggestions.hidden = true;
   }
 
   /**
@@ -427,7 +425,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const items = state.suggestions.peek();
 
     if (!state.open.peek() || items.length === 0) {
-      editorSuggestions.hidden = true;
+      mountedSuggestions.hidden = true;
       return;
     }
 
@@ -436,10 +434,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     disposeSuggestionsContent?.();
     disposeSuggestionsContent = undefined;
 
-    editorSuggestions.replaceChildren();
+    mountedSuggestions.replaceChildren();
 
     disposeSuggestionsContent = maquinaFabrica.render(
-      editorSuggestions,
+      mountedSuggestions,
       html`
         ${items.map((item, index) => {
           const active = index === activeSuggestion;
@@ -467,7 +465,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       `,
     );
 
-    editorSuggestions.hidden = false;
+    mountedSuggestions.hidden = false;
 
     positionSuggestions();
   }
@@ -478,16 +476,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
    * aligned while the editor viewport moves.
    */
   function positionSuggestions(): void {
-    const beforeCursor = editorTextarea.value.slice(
+    const beforeCursor = mountedTextarea.value.slice(
       0,
-      editorTextarea.selectionStart,
+      mountedTextarea.selectionStart,
     );
 
     const lines = beforeCursor.split("\n");
     const line = lines.length - 1;
     const column = lines.at(-1)?.length ?? 0;
 
-    const computedStyle = window.getComputedStyle(editorTextarea);
+    const computedStyle = window.getComputedStyle(mountedTextarea);
     const fontSize =
       Number.parseFloat(computedStyle.fontSize) || DEFAULT_FONT_SIZE;
 
@@ -505,30 +503,30 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const desiredLeft =
       16 +
       column * characterWidth -
-      editorTextarea.scrollLeft;
+      mountedTextarea.scrollLeft;
 
     const desiredTop =
       18 +
       (line + 1) * lineHeight -
-      editorTextarea.scrollTop;
+      mountedTextarea.scrollTop;
 
-    const popupWidth = editorSuggestions.offsetWidth || 230;
-    const popupHeight = editorSuggestions.offsetHeight || 180;
+    const popupWidth = mountedSuggestions.offsetWidth || 230;
+    const popupHeight = mountedSuggestions.offsetHeight || 180;
 
     const maxLeft = Math.max(
       8,
-      editorRoot.clientWidth - popupWidth - 8,
+      mountedRoot.clientWidth - popupWidth - 8,
     );
 
     const maxTop = Math.max(
       8,
-      editorRoot.clientHeight - popupHeight - 8,
+      mountedRoot.clientHeight - popupHeight - 8,
     );
 
-    editorSuggestions.style.left =
+    mountedSuggestions.style.left =
       `${clamp(desiredLeft, 8, maxLeft)}px`;
 
-    editorSuggestions.style.top =
+    mountedSuggestions.style.top =
       `${clamp(desiredTop, 8, maxTop)}px`;
   }
 
@@ -548,8 +546,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     }
 
     const version = ++completionVersion;
-    const cursor = editorTextarea.selectionStart;
-    const value = editorTextarea.value;
+    const cursor = mountedTextarea.selectionStart;
+    const value = mountedTextarea.value;
     const context = createCompletionContext(value, cursor);
 
     try {
@@ -620,20 +618,20 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const from = clamp(
       state.suggestionFrom.peek(),
       0,
-      editorTextarea.selectionStart,
+      mountedTextarea.selectionStart,
     );
 
-    const to = editorTextarea.selectionStart;
+    const to = mountedTextarea.selectionStart;
     const insert = item.apply ?? item.label;
 
-    editorTextarea.setRangeText(
+    mountedTextarea.setRangeText(
       insert,
       from,
       to,
       "end",
     );
 
-    const value = editorTextarea.value;
+    const value = mountedTextarea.value;
 
     state.value.set(value);
     options.onChange?.(value);
@@ -642,27 +640,27 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     closeSuggestions();
     syncScroll();
 
-    editorTextarea.focus();
+    mountedTextarea.focus();
   }
 
   return {
     getValue(): string {
       return destroyed
         ? state.value.peek()
-        : editorTextarea.value;
+        : mountedTextarea.value;
     },
 
     setValue(value: string): void {
       if (
         destroyed ||
-        editorTextarea.value === value
+        mountedTextarea.value === value
       ) {
         return;
       }
 
       completionVersion += 1;
 
-      editorTextarea.value = value;
+      mountedTextarea.value = value;
       state.value.set(value);
 
       closeSuggestions(false);
@@ -672,7 +670,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     focus(): void {
       if (!destroyed) {
-        editorTextarea.focus();
+        mountedTextarea.focus();
       }
     },
 
@@ -703,7 +701,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       );
 
       state.theme.set(resolvedTheme.name);
-      applyTheme(editorRoot, resolvedTheme.name);
+      applyTheme(mountedRoot, resolvedTheme.name);
     },
 
     destroy(): void {
