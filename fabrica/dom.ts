@@ -11,7 +11,7 @@ import {
   registerCleanup,
   removeRange,
 } from "@rodkisten/fabrica/dom-cleanup";
-import { bindEvent } from "@rodkisten/fabrica/events";
+import { bindEvent, connectDelegatedEventRoot, transferDelegatedEventRoot } from "@rodkisten/fabrica/events";
 import { bindModelPart, createDirectiveController } from "@rodkisten/fabrica/dom-directives";
 import { bindSpreadPart } from "@rodkisten/fabrica/dom-spread";
 import { bindSpecialAttribute, toDataAttributeName } from "@rodkisten/fabrica/dom-special-attributes";
@@ -155,6 +155,7 @@ export function createHtmlResult(
   metadata: MaterializedHtmlResultMetadata,
 ): HtmlResult {
   const result = extractHtmlResultRoot(fragment);
+  transferDelegatedEventRoot(fragment, result);
 
   Object.defineProperty(result, FABRICA_HTML_ARTIFACT, {
     configurable: false,
@@ -371,6 +372,7 @@ export function render(
        * dispose the collected nodes only, preserving listener/effect cleanup
        * without traversing unrelated static markup.
        */
+      connectDelegatedEventRoot(container, resolvedValue);
       container.replaceChildren(resolvedValue);
       debugState.reconciliations += 1;
 
@@ -488,6 +490,7 @@ export function appendValue(
     return;
   }
 
+
   if (isDirective(value) || isSignal(value)) {
     const marker = document.createComment("fabrica:dynamic");
     parentNode.insertBefore(marker, beforeNode);
@@ -506,18 +509,16 @@ export function appendValue(
   }
 
   if (isComponent(resolvedValue)) {
-    parentNode.insertBefore(
-      materializeComponent(resolvedValue()),
-      beforeNode,
-    );
+    const componentNode = materializeComponent(resolvedValue());
+    connectDelegatedEventRoot(parentNode, componentNode);
+    parentNode.insertBefore(componentNode, beforeNode);
     return;
   }
 
   if (isComponentRenderRequest(resolvedValue)) {
-    parentNode.insertBefore(
-      materializeComponent(resolvedValue as ComponentRenderRequest),
-      beforeNode,
-    );
+    const componentNode = materializeComponent(resolvedValue as ComponentRenderRequest);
+    connectDelegatedEventRoot(parentNode, componentNode);
+    parentNode.insertBefore(componentNode, beforeNode);
     return;
   }
 
@@ -535,7 +536,9 @@ export function appendValue(
     const elements = resolvedValue.elements;
 
     for (let index = 0; index < elements.length; index += 1) {
-      parentNode.insertBefore(elements[index] as Node, beforeNode);
+      const element = elements[index] as Node;
+      connectDelegatedEventRoot(parentNode, element);
+      parentNode.insertBefore(element, beforeNode);
     }
 
     return;
@@ -565,11 +568,13 @@ export function appendValue(
       });
     }
 
+    connectDelegatedEventRoot(parentNode, resolvedValue);
     parentNode.insertBefore(resolvedValue, beforeNode);
     return;
   }
 
   if (isDomNode(resolvedValue)) {
+    connectDelegatedEventRoot(parentNode, resolvedValue);
     parentNode.insertBefore(resolvedValue, beforeNode);
     return;
   }

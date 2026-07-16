@@ -91,10 +91,40 @@ export type DebugSnapshot = {
   flushes: number;
   updates: number;
   components: number;
+  /** Number of root-level delegated DOM listeners installed by event type/root. */
   delegatedEvents: number;
+  /** Number of delegated element binding registrations over the runtime lifetime. */
+  delegatedBindings: number;
+  /** Number of direct element bindings used for non-delegatable event semantics. */
+  directEventBindings: number;
+  /** Number of delegated root dispatches observed. */
+  delegatedDispatches: number;
+  /** Number of user event handlers invoked through Fábrica. */
+  eventHandlerCalls: number;
   reconciliations: number;
   virtualWindows: number;
 };
+
+/** Event transport used by the runtime for a debug record. */
+export type DebugEventMode = "delegated" | "direct";
+
+/** Lightweight debug event record suitable for a future DevTools panel. */
+export type DebugEventRecord = {
+  readonly sequence: number;
+  readonly timestamp: number;
+  readonly kind: "event-binding" | "event-dispatch" | "event-handler";
+  readonly eventName: string;
+  readonly mode: DebugEventMode;
+  /** String-only target description avoids retaining detached DOM nodes. */
+  readonly target?: string;
+  readonly currentTarget?: string;
+};
+
+/** Runtime debug records currently emitted by Fábrica. */
+export type DebugRecord = DebugEventRecord;
+
+/** Subscriber invoked synchronously when debug mode emits a record. */
+export type DebugListener = (record: DebugRecord) => void;
 
 /** A trusted raw HTML wrapper. */
 export type RawHtml = {
@@ -510,7 +540,10 @@ export type EventBindingConfig = {
   name: string;
   prevent: boolean;
   stop: boolean;
+  /** Explicit `.delegate` preference. Delegation is automatic for safe bubbling events. */
   delegate: boolean;
+  /** Explicit `.direct` opt-out from automatic delegation. */
+  direct: boolean;
   options: AddEventListenerOptions;
 };
 

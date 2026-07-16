@@ -1,9 +1,16 @@
 import { applyClassMap, applyStyleMap } from "@rodkisten/fabrica/maps";
 import { readValue, stringifyValue } from "@rodkisten/fabrica/value";
 import { applySpecialAttribute, createSpecialAttributeState } from "@rodkisten/fabrica/dom-special-attributes";
+import { bindEvent } from "@rodkisten/fabrica/events";
+import type { RenderValue } from "@rodkisten/fabrica/types";
+
+type PropsEventBinding = {
+  listener: EventListener;
+  cleanup: () => void;
+};
 
 /** Element event cache used by object props. */
-const elementEvents = new WeakMap<Element, Map<string, EventListener>>();
+const elementEvents = new WeakMap<Element, Map<string, PropsEventBinding>>();
 
 /**
  * Applies object props to an element.
@@ -198,7 +205,7 @@ function applyEvents(element: Element, value: unknown): void {
   let map = elementEvents.get(element);
 
   if (!map) {
-    map = new Map<string, EventListener>();
+    map = new Map<string, PropsEventBinding>();
     elementEvents.set(element, map);
   }
 
@@ -206,18 +213,21 @@ function applyEvents(element: Element, value: unknown): void {
 
   for (const eventName in events) {
     const handler = events[eventName];
+    const previous = map.get(eventName);
 
     if (typeof handler !== "function") {
+      previous?.cleanup();
+      map.delete(eventName);
       continue;
     }
 
-    const previous = map.get(eventName);
+    if (previous?.listener === handler) continue;
+    previous?.cleanup();
 
-    if (previous) {
-      element.removeEventListener(eventName, previous);
-    }
-
-    element.addEventListener(eventName, handler as EventListener);
-    map.set(eventName, handler as EventListener);
+    const listener = handler as EventListener;
+    map.set(eventName, {
+      listener,
+      cleanup: bindEvent(element, eventName, listener as unknown as RenderValue),
+    });
   }
 }

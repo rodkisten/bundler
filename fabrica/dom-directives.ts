@@ -1,6 +1,7 @@
 import { batch, effect, signal } from "@rodkisten/broto/reactivity";
 import { appendRangeToFragment, clearRange, disposeRange, disposeTree, moveRangeBefore, registerCleanup, removeRange } from "@rodkisten/fabrica/dom-cleanup";
 import { debugState } from "@rodkisten/fabrica/debug";
+import { bindEvent } from "@rodkisten/fabrica/events";
 import { appendValue, mount } from "@rodkisten/fabrica/dom";
 import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
 import type { BindDirective, Directive, DirectiveController, KeyedDirective, PortalDirective, RenderValue, RepeatDirective, RepeatRecord, SuspenseDirective, VirtualRepeatDirective, WhenDirective } from "@rodkisten/fabrica/types";
@@ -71,10 +72,10 @@ export function bindModelPart(element: Element, rawName: string, directive: Bind
 
   const dispose = effect(update, { name: `fabrica.bind.${propertyName}` });
   const listener = () => directive.signal.set(readElement(element));
-  element.addEventListener(eventName, listener);
+  const disposeEvent = bindEvent(element, eventName, listener as unknown as RenderValue, false);
   registerCleanup(element, () => {
     dispose();
-    element.removeEventListener(eventName, listener);
+    disposeEvent();
   });
 }
 

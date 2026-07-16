@@ -1,5 +1,6 @@
 import { effect } from "@rodkisten/broto/reactivity";
 import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
+import { bindEvent } from "@rodkisten/fabrica/events";
 import { isDomElement } from "@rodkisten/fabrica/guards";
 import { setPropertyOrAttribute } from "@rodkisten/fabrica/props";
 import { stringifyAttributeValue } from "@rodkisten/fabrica/dom-payload";
@@ -18,6 +19,8 @@ export type SpreadBindingState = {
    */
   values?: Map<string, unknown>;
   events: Map<string, EventListener>;
+  /** Cleanup handles returned by the shared automatic delegation runtime. */
+  eventCleanups?: Map<string, () => void>;
   /**
    * Per-event diff version. Optional for compatibility with older manually
    * created states. `ensureSpreadBindingState` upgrades it in-place.
@@ -102,8 +105,11 @@ export function applySpreadValue(element: Element, value: unknown, previous: Spr
 
   for (const [eventName, listener] of previous.events) {
     if (previous.eventVersions!.get(eventName) === eventVersion) continue;
-    element.removeEventListener(eventName, listener);
+    const cleanup = previous.eventCleanups!.get(eventName);
+    if (cleanup) cleanup();
+    else element.removeEventListener(eventName, listener);
     previous.events.delete(eventName);
+    previous.eventCleanups!.delete(eventName);
     previous.eventVersions?.delete(eventName);
   }
 
@@ -114,10 +120,13 @@ export function cleanupSpreadState(element: Element, state: SpreadBindingState):
   state = ensureSpreadBindingState(state);
 
   for (const [eventName, listener] of state.events) {
-    element.removeEventListener(eventName, listener);
+    const cleanup = state.eventCleanups!.get(eventName);
+    if (cleanup) cleanup();
+    else element.removeEventListener(eventName, listener);
   }
 
   state.events.clear();
+  state.eventCleanups!.clear();
   state.eventVersions!.clear();
   state.values!.clear();
   state.keys.clear();
@@ -216,8 +225,11 @@ export function setSpreadEvent(
   const previousListener = previous.events.get(eventName);
 
   if (typeof listener !== "function") {
-    if (previousListener) element.removeEventListener(eventName, previousListener);
+    const cleanup = previous.eventCleanups!.get(eventName);
+    if (cleanup) cleanup();
+    else if (previousListener) element.removeEventListener(eventName, previousListener);
     next.events.delete(eventName);
+    next.eventCleanups!.delete(eventName);
     next.eventVersions!.delete(eventName);
     return;
   }
@@ -225,8 +237,13 @@ export function setSpreadEvent(
   const nextListener = listener as EventListener;
 
   if (previousListener !== nextListener) {
-    if (previousListener) element.removeEventListener(eventName, previousListener);
-    element.addEventListener(eventName, nextListener);
+    const cleanup = previous.eventCleanups!.get(eventName);
+    if (cleanup) cleanup();
+    else if (previousListener) element.removeEventListener(eventName, previousListener);
+    next.eventCleanups!.set(
+      eventName,
+      bindEvent(element, rawEventName, nextListener as unknown as RenderValue, false),
+    );
   }
 
   next.events.set(eventName, nextListener);
@@ -238,6 +255,7 @@ function createSpreadBindingState(): SpreadBindingState {
     keys: new Set<string>(),
     values: new Map<string, unknown>(),
     events: new Map<string, EventListener>(),
+    eventCleanups: new Map<string, () => void>(),
     eventVersions: new Map<string, number>(),
     refCleanup: null,
   };
@@ -245,6 +263,7 @@ function createSpreadBindingState(): SpreadBindingState {
 
 function ensureSpreadBindingState(state: SpreadBindingState): SpreadBindingState {
   state.values ??= new Map<string, unknown>();
+  state.eventCleanups ??= new Map<string, () => void>();
   state.eventVersions ??= new Map<string, number>();
   return state;
 }
@@ -270,11 +289,16 @@ export function removeSpreadProperty(element: Element, key: string, previous: Sp
     return;
   }
 
-  if (key.startsWith("on")) {
-    const eventName = key.slice(2).toLowerCase();
+  if (key.startsWith("on") || key.startsWith("@")) {
+    const rawEventName = key.startsWith("@") ? key.slice(1) : key.slice(2).toLowerCase();
+    const dotIndex = rawEventName.indexOf(".");
+    const eventName = dotIndex < 0 ? rawEventName : rawEventName.slice(0, dotIndex);
     const listener = previous.events.get(eventName);
-    if (listener) element.removeEventListener(eventName, listener);
+    const cleanup = previous.eventCleanups?.get(eventName);
+    if (cleanup) cleanup();
+    else if (listener) element.removeEventListener(eventName, listener);
     previous.events.delete(eventName);
+    previous.eventCleanups?.delete(eventName);
     previous.eventVersions?.delete(eventName);
     return;
   }

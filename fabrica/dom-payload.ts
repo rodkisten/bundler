@@ -1,4 +1,5 @@
 import { registerCleanup } from '@rodkisten/fabrica/dom-cleanup'
+import { bindEvent } from '@rodkisten/fabrica/events'
 import { setPropertyOrAttribute } from '@rodkisten/fabrica/props'
 import type { ComponentPayload, ElementPayload, RenderValue } from '@rodkisten/fabrica/types'
 import { applySpecialAttribute, createSpecialAttributeState } from "@rodkisten/fabrica/dom-special-attributes";
@@ -139,13 +140,13 @@ export function applyPayloadProps(element: Element, props: Record<string, unknow
       const events = propValue as Record<string, unknown>
       for (const eventName in events) {
         const listener = events[eventName]
-        if (typeof listener === 'function') element.addEventListener(eventName, listener as EventListener)
+        if (typeof listener === 'function') bindEvent(element, eventName, listener as unknown as RenderValue)
       }
       continue
     }
 
     if (key.startsWith('on') && typeof propValue === 'function') {
-      element.addEventListener(key.slice(2).toLowerCase(), propValue as EventListener)
+      bindEvent(element, key.slice(2).toLowerCase(), propValue as unknown as RenderValue)
       continue
     }
 

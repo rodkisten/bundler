@@ -1,6 +1,24 @@
 # Fábrica Changelog
 
 
+## Unreleased - Automatic event delegation and debug telemetry
+
+### Added
+
+- Added automatic root-level delegation for safe bubbling template events such as `@click`, `@pointerup`, `@input`, `@change`, and custom bubbling events while preserving the existing declarative event API.
+- Added `.direct` as an explicit opt-out. Capture listeners, passive listeners, and known non-bubbling events automatically keep native per-element listeners to preserve platform semantics.
+- Added delegated `once` handling, native-like `event.currentTarget` lifetime, transient detached-tree roots that migrate on mount, ShadowRoot reconnection, and duplicate-dispatch protection across nested delegation roots.
+- Routed spread event props through the shared event runtime so `onClick`, `on: { click }`, and `@click` use the same delegation model.
+- Added debug event telemetry with `debugRecords()`, `clearDebugRecords()`, and `subscribeDebug()`, plus counters for delegated bindings, direct fallbacks, delegated dispatches, and handler calls. The bounded debug history stores string target descriptions instead of DOM references.
+
+### Tests
+
+- Added focused coverage for zero per-element listeners on delegated events, bubbling/modifier semantics, delegated `once`, direct fallbacks, ShadowRoot custom events, spread event props, and debug telemetry.
+
+### Documentation
+
+- Documented automatic delegation, `.direct`, fallback rules, unified spread/object event props, and the debug telemetry API.
+
 ## Unreleased
 - Recursively lowers nested `html` / `jsx.html` templates inside interpolation expressions, preventing runtime template islands from surviving compiled DevTools panel builds and keeping each manifest entry's `dynamicValues` scoped to its own template.
 - Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.

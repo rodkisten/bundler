@@ -879,15 +879,49 @@ onDispose(() => stopFeature())
 onError((error) => true)
 ```
 
-## New non-breaking UI helpers
+## Event handling and automatic delegation
+
+Fábrica keeps event handlers colocated with the element that owns the behavior:
 
 ```ts
-const name = signal('Rod')
-html`<input .value=${bind(name)} />`
+html`<button @click=${save}>Save</button>`
 ```
 
+At runtime, safe bubbling events such as `click`, `pointerup`, `input`, `change`, `keydown`, and custom bubbling events are delegated automatically. Fábrica stores the handler in an element-local `WeakMap` registry and installs only one native listener per event type on the active delegation root. While an `html` result is detached, that root is the temporary tree root so the returned DOM remains immediately interactive. When Fábrica mounts the tree, the transient listener is removed and delegation moves to the owning `Document` or `ShadowRoot`. Dynamic children can therefore be replaced without reattaching one native listener per element.
+
+The public syntax does not expose delegation bookkeeping:
+
 ```ts
-html`<button @click=${eventOptions(onClick, { once: true })}>Save</button>`
+html`
+  <section>
+    <button @click=${save}>Save</button>
+    <button @click.prevent.stop=${remove}>Delete</button>
+    <input @input=${onInput} />
+  </section>
+`
+```
+
+Delegated handlers preserve bubbling order, `this`, `event.currentTarget`, `.prevent`, `.stop`, and `.once`. Fábrica automatically falls back to a direct native listener when delegation would change platform semantics, including capture listeners, passive listeners, and known non-bubbling events such as `focus`, `blur`, `mouseenter`, and `scroll`. Use `.direct` to opt out explicitly:
+
+```ts
+html`
+  <button @click.direct=${nativeClick}>Direct listener</button>
+  <div @click.capture=${captureClick}>Capture listener</div>
+  <input @focus=${onFocus} />
+`
+```
+
+The existing `.delegate` modifier remains accepted for explicit intent and backwards compatibility, although delegation is now automatic when safe. `eventOptions()` participates in the same decision:
+
+```ts
+html`<button @click=${eventOptions(onClick, { once: true })}>Save once</button>`
+```
+
+Object/spread event props use the same event runtime, so `onClick`, `on: { click }`, and `@click` do not create a separate listener model:
+
+```ts
+html`<button ...${{ onClick: save }}>Save</button>`
+```
 
 Named event helpers provide contextual DOM event types without manual callback annotations:
 
@@ -902,6 +936,43 @@ html`
 ```
 
 Every key from `GlobalEventHandlersEventMap` is available, including `keydown`, `submit`, `change`, `focus`, and the complete pointer-event family. The callable `event(handler)` form remains available for compatibility and custom explicit event types.
+
+## Runtime event debug telemetry
+
+Debug mode exposes lightweight event diagnostics for a future DevTools panel without coupling the runtime to a UI package. Per-event trace records are allocated only while debug mode is enabled. Records contain string descriptions of targets rather than DOM references, so the bounded history does not keep detached trees alive.
+
+```ts
+import {
+  clearDebugRecords,
+  debug,
+  debugRecords,
+  setDebug,
+  subscribeDebug,
+} from '@rodkisten/fabrica'
+
+clearDebugRecords()
+setDebug(true)
+
+const unsubscribe = subscribeDebug((record) => {
+  console.log(record.kind, record.eventName, record.mode)
+})
+
+// ...interact with the application...
+
+console.table(debug())
+console.table(debugRecords())
+
+unsubscribe()
+setDebug(false)
+```
+
+`debug()` includes lifetime counters for delegated root-listener installations, delegated binding registrations, direct fallback bindings, delegated dispatches, and invoked event handlers. `debugRecords()` returns the current bounded history of `event-binding`, `event-dispatch`, and `event-handler` records.
+
+## New non-breaking UI helpers
+
+```ts
+const name = signal('Rod')
+html`<input .value=${bind(name)} />`
 ```
 
 ```ts

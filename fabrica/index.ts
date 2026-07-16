@@ -19,6 +19,10 @@ export type {
   BoundaryOptions,
   ComponentContext,
   DebugSnapshot,
+  DebugRecord,
+  DebugEventRecord,
+  DebugEventMode,
+  DebugListener,
   Directive,
   DomBag,
   FabricaInstanceOptions,
@@ -60,7 +64,7 @@ export { boundary } from "@rodkisten/fabrica/boundary";
 export { onDispose, onError, onMount, onUnmount } from "@rodkisten/fabrica/lifecycle";
 export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "@rodkisten/fabrica/context";
 export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "@rodkisten/fabrica/context";
-export { debug, setDebug } from "@rodkisten/fabrica/debug";
+export { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "@rodkisten/fabrica/debug";
 export {
   bind,
   childrenToArray,

@@ -20,7 +20,7 @@ import { warnDeprecated } from "@rodkisten/fabrica/deprecations";
 import { boundary } from "@rodkisten/fabrica/boundary";
 import { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "@rodkisten/fabrica/context";
 import { css } from "@rodkisten/fabrica/css";
-import { debug, setDebug } from "@rodkisten/fabrica/debug";
+import { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "@rodkisten/fabrica/debug";
 import { createEventHelper, event as defaultEvent } from "@rodkisten/fabrica/event-typing";
 import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "@rodkisten/fabrica/directives";
 import { getHtmlArtifact, html as baseHtml, hydrate as baseHydrate, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "@rodkisten/fabrica/dom";
@@ -43,6 +43,8 @@ import type {
   ComponentRegistry,
   ComponentUseOptions,
   DebugSnapshot,
+  DebugRecord,
+  DebugListener,
   DomBag,
   FabricaInstanceOptions,
   FabricaRuntimeContext,
@@ -154,6 +156,9 @@ export type FabricaApi = {
   noConflict(): FabricaApi;
   setDebug(enabled: boolean): void;
   debug(): Readonly<DebugSnapshot>;
+  debugRecords(): readonly DebugRecord[];
+  clearDebugRecords(): void;
+  subscribeDebug(listener: DebugListener): () => void;
 };
 
 /** Creates a portable named pack without registering it anywhere. */
@@ -454,6 +459,9 @@ export function createFabricaApi(
     },
     setDebug,
     debug,
+    debugRecords,
+    clearDebugRecords,
+    subscribeDebug,
   };
 
   runtime.api = api;
