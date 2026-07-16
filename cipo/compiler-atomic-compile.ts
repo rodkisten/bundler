@@ -112,10 +112,10 @@ export function compileAtomicCss(strings: TemplateStringsArray, values: readonly
   const ast = parseStylesheet(transformedCss, warnings)
   const artifact = createAtomicArtifact(rawCss, transformedCss, ast, warnings, important)
 
-  // Classic minUses:1 artifacts are already final and can use the append-only
-  // fast path. Thresholded artifacts are registered by createAtomicArtifact()
-  // and rebuild the single shared atomic sheet when promotion changes.
-  if (runtime.config.atomic.minUses <= 1) insertCss(artifact.compiledCss)
+  // Thresholded artifacts expose their local fallback CSS for diagnostics and
+  // compatibility, but registerAtomicArtifact() marks this exact next insertion
+  // as suppressed so it never becomes a second per-component stylesheet source.
+  insertCss(artifact.compiledCss)
   if (cacheable) setCachedArtifact(cacheKey, artifact)
   return artifact
 }
@@ -151,12 +151,14 @@ export function createAtomicArtifact(
     thresholded || scopedRules.length > 0 ? scopeClassName : '',
   )
 
-  // Per-artifact CSS is intentionally empty in thresholded mode. Emitting the
-  // first-use fallback here would make every styled component own a stylesheet
-  // fragment and would make retroactive promotion impossible. The shared registry
-  // owns final CSS instead.
   const compiledCss = thresholded
-    ? ''
+    ? compileAtomicStylesheet(
+      [],
+      [
+        ...atoms.map((atom) => createAtomicFallbackRule(atom, scopeClassName)),
+        ...scopedRules,
+      ],
+    )
     : compileAtomicStylesheet(atoms, scopedRules)
   runtime.config.important = previousImportant
   const artifactId = `${runtime.config.prefix}-artifact-${hashString(`${scopeClassName}|${rawCss}`)}`
