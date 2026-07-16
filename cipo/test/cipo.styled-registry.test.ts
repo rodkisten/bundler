@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Fabrica, { clearComponents, createFabrica, html, render, resolveComponent } from '@rodkisten/fabrica'
 import { createStyled, reset, setup, styled } from '@rodkisten/cipo'
+import { attachCompiledCss } from '@rodkisten/cipo/compiler-compiled-style-runtime'
 
 let host: HTMLDivElement
 
@@ -68,6 +69,27 @@ describe('Cipó styled components and Fabrica registry', () => {
     expect(firstHost.querySelector('button')?.textContent).toBe('one')
     expect(secondHost.querySelector('button')?.textContent).toBe('two')
   })
+  it('exposes live CSS artifacts from the styled factory registry in runtime and compiled build paths', () => {
+    const local = createFabrica({ name: 'styled-artifacts', isolated: true })
+    const localStyled = createStyled({ fabrica: local })
+    const RuntimeCard = localStyled.article('RuntimeCard').css`display:grid;`
+    const CompiledCard = attachCompiledCss(
+      localStyled.section('CompiledCard'),
+      'ccompiled',
+      '.ccompiled{display:flex}',
+    )
+
+    expect(localStyled.registry.components).toEqual([RuntimeCard, CompiledCard])
+    expect(localStyled.registry.cssArtifacts).toEqual([
+      ...RuntimeCard.artifacts,
+      ...CompiledCard.artifacts,
+    ])
+    expect(localStyled.registry.cssArtifacts).toBe(localStyled.registry.cssArtifacts)
+    const compiledArtifact = localStyled.registry.cssArtifacts.find((artifact) => artifact.className === 'ccompiled')
+    expect(compiledArtifact?.className).toBe('ccompiled')
+    expect(compiledArtifact?.compiledCss).toBe('.ccompiled{display:flex}')
+  })
+
   it('unwraps Fabrica ref directives when rendering named styled components', () => {
     const local = createFabrica({ name: 'styled-ref', isolated: true })
     const localStyled = createStyled({ fabrica: local })
