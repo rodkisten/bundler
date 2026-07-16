@@ -22,7 +22,6 @@ import {
 } from "@rodkisten/fabrica/compiler-parse";
 import {
   applyEdits,
-  countTemplateValues,
   findTemplateEnd,
   isTagBoundary,
   isVoidTag,
@@ -61,17 +60,83 @@ export interface FabricaCompiledTemplateManifestEntry {
   readonly fallback: boolean;
 }
 
-/** Compiles Fábrica `html` / `jsx.html` template tags into runtime-backed expressions. */
+interface InternalManifestEntry {
+  readonly filename?: string;
+  readonly start: number;
+  readonly end: number;
+  readonly tag: string;
+  readonly dynamicValues: number;
+  readonly fallback: boolean;
+}
+
+interface CompileFragmentResult {
+  readonly code: string;
+  readonly changed: boolean;
+}
+
+interface TemplateExpressionPart {
+  readonly value: string;
+  /** Start offset relative to the source fragment passed to `readTemplateParts`. */
+  readonly start: number;
+}
+
+interface TemplateParts {
+  readonly strings: string[];
+  readonly expressions: TemplateExpressionPart[];
+}
+
+/**
+ * Compiles Fábrica `html` / `jsx.html` template tags into runtime-backed expressions.
+ *
+ * Nested tagged templates inside `${...}` expressions are compiled recursively before
+ * their parent expression is emitted. This keeps map/ternary/component sub-templates
+ * on the same compiled path instead of leaving runtime `html``...`` ` islands behind.
+ */
 export function compileFabricaSource(
   source: string,
   options: FabricaCompileSourceOptions = {},
 ): FabricaCompileSourceResult {
+  const manifestEntries: InternalManifestEntry[] = [];
+  const tags = Array.from(
+    new Set([
+      ...(options.htmlTags ?? COMPILER_HTML_TAGS),
+      ...(options.jsxHtmlTags ?? COMPILER_JSX_HTML_TAGS),
+    ]),
+  );
+  const compiled = compileSourceFragment(
+    source,
+    options,
+    tags,
+    manifestEntries,
+    0,
+  );
+
+  if (!compiled.changed) {
+    return { code: source, changed: false, manifest: [] };
+  }
+
+  const manifest = manifestEntries
+    .slice()
+    .sort((a, b) => a.start - b.start || b.end - a.end)
+    .map((entry, index) => ({
+      id: `fabrica-compiled-${index + 1}`,
+      ...entry,
+    }));
+  const code = ensureCompiledImport(
+    compiled.code,
+    options.importPath ?? COMPILER_DEFAULT_IMPORT_PATH,
+  );
+  return { code, changed: true, manifest };
+}
+
+function compileSourceFragment(
+  source: string,
+  options: FabricaCompileSourceOptions,
+  tags: readonly string[],
+  manifest: InternalManifestEntry[],
+  sourceOffset: number,
+): CompileFragmentResult {
   const edits: SourceEdit[] = [];
-  const manifest: FabricaCompiledTemplateManifestEntry[] = [];
-  const tags = [
-    ...(options.htmlTags ?? COMPILER_HTML_TAGS),
-    ...(options.jsxHtmlTags ?? COMPILER_JSX_HTML_TAGS),
-  ];
 
   for (const tag of tags) {
     let searchFrom = 0;
@@ -91,23 +156,24 @@ export function compileFabricaSource(
       }
 
       const raw = source.slice(templateStart + 1, templateEnd);
-      const dynamicValues = countTemplateValues(
-        source,
-        templateStart,
-        templateEnd,
+      const templateParts = readTemplateParts(source, templateStart, templateEnd);
+      const expressions = templateParts.expressions.map((part) =>
+        compileSourceFragment(
+          part.value,
+          options,
+          tags,
+          manifest,
+          sourceOffset + part.start,
+        ).code,
       );
-      const templateParts = readTemplateParts(
-        source,
-        templateStart,
-        templateEnd,
-      );
+      const dynamicValues = expressions.length;
       const compiled =
         dynamicValues === 0 ? compileStaticTemplateToExpression(raw) : null;
       const dynamicCompiled = compiled
         ? null
         : compileDynamicTemplateToExpression(
             templateParts.strings,
-            templateParts.expressions,
+            expressions,
             options.directComponentReferences ?? false,
           );
       const expression =
@@ -115,15 +181,14 @@ export function compileFabricaSource(
         dynamicCompiled ??
         emitCompiledTemplateFallbackExpression(
           templateParts.strings,
-          templateParts.expressions,
+          expressions,
         );
 
       edits.push({ start, end: templateEnd + 1, value: expression });
       manifest.push({
-        id: `fabrica-compiled-${manifest.length + 1}`,
         ...(options.filename ? { filename: options.filename } : {}),
-        start,
-        end: templateEnd + 1,
+        start: sourceOffset + start,
+        end: sourceOffset + templateEnd + 1,
         tag: compiled?.rootTag ?? "template",
         dynamicValues,
         fallback: dynamicCompiled == null && compiled == null,
@@ -132,15 +197,14 @@ export function compileFabricaSource(
     }
   }
 
-  if (edits.length === 0) return { code: source, changed: false, manifest };
-  const code = ensureCompiledImport(
-    applyEdits(
+  if (edits.length === 0) return { code: source, changed: false };
+  return {
+    code: applyEdits(
       source,
       edits.sort((a, b) => a.start - b.start),
     ),
-    options.importPath ?? COMPILER_DEFAULT_IMPORT_PATH,
-  );
-  return { code, changed: true, manifest };
+    changed: true,
+  };
 }
 
 interface CompiledTemplateExpression {
@@ -327,10 +391,11 @@ function readTemplateParts(
   source: string,
   templateStart: number,
   templateEnd: number,
-): { strings: string[]; expressions: string[] } {
+): TemplateParts {
   const raw = source.slice(templateStart + 1, templateEnd);
   const strings: string[] = [];
-  const expressions: string[] = [];
+  const expressions: TemplateExpressionPart[] = [];
+  const rawOffset = templateStart + 1;
   let cursor = 0;
   let index = 0;
 
@@ -340,7 +405,12 @@ function readTemplateParts(
       const expressionStart = index + 2;
       const expressionEnd = findExpressionEnd(raw, expressionStart);
       if (expressionEnd < 0) break;
-      expressions.push(raw.slice(expressionStart, expressionEnd).trim());
+      const rawExpression = raw.slice(expressionStart, expressionEnd);
+      const leadingWhitespace = rawExpression.length - rawExpression.trimStart().length;
+      expressions.push({
+        value: rawExpression.trim(),
+        start: rawOffset + expressionStart + leadingWhitespace,
+      });
       cursor = expressionEnd + 1;
       index = cursor;
       continue;

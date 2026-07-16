@@ -117,21 +117,72 @@ function isImplicitSpreadSlot(
   return IMPLICIT_SPREAD_NEXT_RE.test(nextChunk);
 }
 
-/** Splits text containing value markers into text/value nodes. */
-export function splitMarkerText(value: string): CompiledNode[] {
+export interface SplitMarkerTextOptions {
+  /** Keeps multiline whitespace verbatim for whitespace-sensitive elements. */
+  readonly preserveWhitespace?: boolean;
+  /** Mirrors runtime marker spacing by collapsing indentation touching a value slot to one space. */
+  readonly normalizeFormattingWhitespaceAroundValues?: boolean;
+}
+
+/**
+ * Splits text containing value markers into text/value nodes.
+ *
+ * Multiline whitespace that exists only to format an indented template is omitted
+ * from the compiled instruction stream. When indentation touches a dynamic value
+ * inside a concrete element it becomes one space, matching runtime DOM pruning.
+ */
+export function splitMarkerText(
+  value: string,
+  options: SplitMarkerTextOptions = {},
+): CompiledNode[] {
   const output: CompiledNode[] = [];
+  const preserveWhitespace = options.preserveWhitespace === true;
+  const normalizeAroundValues =
+    options.normalizeFormattingWhitespaceAroundValues === true;
   let cursor = 0;
+  let sawValueMarker = false;
   VALUE_MARKER_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
+
   while ((match = VALUE_MARKER_RE.exec(value))) {
-    const before = value.slice(cursor, match.index);
-    if (before) output.push({ type: "text", value: before });
+    pushLiteralText(
+      output,
+      value.slice(cursor, match.index),
+      preserveWhitespace,
+      normalizeAroundValues,
+    );
     output.push({ type: "value", index: Number(match[1]) });
+    sawValueMarker = true;
     cursor = VALUE_MARKER_RE.lastIndex;
   }
-  const tail = value.slice(cursor);
-  if (tail) output.push({ type: "text", value: tail });
+
+  pushLiteralText(
+    output,
+    value.slice(cursor),
+    preserveWhitespace,
+    normalizeAroundValues && sawValueMarker,
+  );
   return output;
+}
+
+function pushLiteralText(
+  output: CompiledNode[],
+  value: string,
+  preserveWhitespace: boolean,
+  normalizeFormattingWhitespace: boolean,
+): void {
+  if (!value) return;
+  if (!preserveWhitespace && isFormattingWhitespace(value)) {
+    if (normalizeFormattingWhitespace) {
+      output.push({ type: "text", value: " " });
+    }
+    return;
+  }
+  output.push({ type: "text", value });
+}
+
+function isFormattingWhitespace(value: string): boolean {
+  return /^[\t\r\n ]+$/.test(value) && /[\t\r\n]/.test(value);
 }
 
 /** Parses a value that interleaves literals with value markers. */
@@ -213,7 +264,14 @@ export function parseCompiledNodes<Tag = string>(
   function pushText(value: string): void {
     if (!value) return;
     const current = stack[stack.length - 1]!;
-    current.children.push(...(splitMarkerText(value) as CompiledNode<Tag>[]));
+    const tag = String(current.tag).toLowerCase();
+    const preserveWhitespace = /^(?:pre|textarea|script|style)$/.test(tag);
+    current.children.push(
+      ...(splitMarkerText(value, {
+        preserveWhitespace,
+        normalizeFormattingWhitespaceAroundValues: current !== root,
+      }) as CompiledNode<Tag>[]),
+    );
   }
 }
 

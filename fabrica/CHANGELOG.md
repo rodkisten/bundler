@@ -2,6 +2,7 @@
 
 
 ## Unreleased
+- Recursively lowers nested `html` / `jsx.html` templates inside interpolation expressions, preventing runtime template islands from surviving compiled DevTools panel builds and keeping each manifest entry's `dynamicValues` scoped to its own template.
 - Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
 
 - DevTools compiled builds now keep Cipó configuration parsing out of the browser runtime while preserving Fábrica compiled-template mounting.
@@ -17,6 +18,7 @@
 ### Tests
 
 - Added compact tuple materialization coverage and updated compiled-build assertions for direct component references.
+- Added recursive compiler and Vite integration coverage for nested `html` templates, manifest slot counts, indentation whitespace pruning, intentional inline spaces, and whitespace-sensitive elements.
 
 ## Unreleased - Literal and valueless data attributes
 
