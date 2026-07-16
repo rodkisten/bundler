@@ -263,13 +263,29 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             ?readonly=${options.readOnly === true}
             @input=${event.input(onInput)}
             @scroll=${event.scroll(onScroll)}
-            @keydown=${event.keydown(onKeyDown)}
+            @keydown=${event
+                       .keydown(onKeyDown)}
             @keyup=${event.keyup(onKeyUp)}
             @click=${event.click(onClick)}
             @focus=${event.focus(onFocus)}
             @blur=${event.blur(onBlur)}
           />
-
+          <MaquinaSuggestion
+           type="button"
+           role="option"
+           :active=${active}
+           aria-selected=${String(active)}
+           @pointerdown=${event
+                          .pointerdown(
+                            (pointerEvent) => {
+             pointerEvent.preventDefault();
+            applySuggestion(index);
+           })}>
+            <span>${item.label}</span>
+            <small>${item.detail || item.type || ""}</small>
+          <hr/>
+          <!-- @todo remove below -->
+          </MaquinaSuggestion>
           <MaquinaSuggestions
             hidden
             role="listbox"
