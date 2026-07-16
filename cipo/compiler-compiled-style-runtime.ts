@@ -1,55 +1,146 @@
-import { insertCss } from '@rodkisten/cipo/injection'
-import type { CipoCssArtifact } from '@rodkisten/cipo/types'
+import { insertCss, registerAtomicArtifact } from '@rodkisten/cipo/injection'
+import type { CipoAtomicRule, CipoCssArtifact, CipoRuleContext, CipoScopedRule } from '@rodkisten/cipo/types'
 
 const EMPTY_LIST = Object.freeze([]) as readonly never[]
 
-/**
- * Creates the lightweight runtime artifact used by build-compiled styled components.
- *
- * @remarks
- * Build mode has already done the expensive parsing, AST construction and rule
- * compilation. Recreating those structures in the browser would erase the size
- * and startup gains of compilation, so the runtime artifact keeps only the
- * metadata required by styled registries, style injection and public artifact
- * consumers.
- */
-export function createCompiledCssArtifact(className: string, cssText: string): CipoCssArtifact {
-  const debug = Object.freeze({
-    id: `cipo-compiled-${className}`,
-    ast: EMPTY_LIST,
-    atoms: EMPTY_LIST,
-    scopedRules: EMPTY_LIST,
-    warnings: EMPTY_LIST,
-  })
+/** Compact build payload for one compiled atomic rule. */
+export type CipoCompiledAtomicRule = readonly [
+  id: string,
+  className: string,
+  property: string,
+  value: string,
+  context: CipoRuleContext,
+]
 
-  return Object.freeze({
+/** Compact build payload for one scoped declaration. */
+export type CipoCompiledDeclaration = readonly [property: string, value: string]
+
+/** Compact build payload for one scoped rule. */
+export type CipoCompiledScopedRule = readonly [
+  selector: string,
+  declarations: readonly CipoCompiledDeclaration[],
+  context: CipoRuleContext,
+]
+
+/** Parser-free payload emitted for a build-compiled styled component. */
+export type CipoCompiledStylePayload = readonly [
+  className: string,
+  scopeClassName: string,
+  atoms: readonly CipoCompiledAtomicRule[],
+  scopedRules: readonly CipoCompiledScopedRule[],
+]
+
+/**
+ * Rehydrates the lightweight atomic metadata produced by the build compiler.
+ *
+ * No CSS parser, AST or source stylesheet is shipped. The metadata is just enough
+ * for the shared runtime atomic program to count cross-component reuse and emit
+ * one final stylesheet.
+ */
+export function createCompiledCssArtifact(payload: CipoCompiledStylePayload): CipoCssArtifact
+/** @deprecated Compatibility overload for older pre-shared compiled output. */
+export function createCompiledCssArtifact(className: string, cssText: string): CipoCssArtifact
+export function createCompiledCssArtifact(
+  payloadOrClassName: CipoCompiledStylePayload | string,
+  cssText = '',
+): CipoCssArtifact {
+  if (typeof payloadOrClassName === 'string') {
+    const className = payloadOrClassName
+    return Object.freeze({
+      kind: 'cipo.css' as const,
+      className,
+      scopeClassName: className,
+      atoms: EMPTY_LIST,
+      scopedRules: EMPTY_LIST,
+      rawCss: '',
+      transformedCss: '',
+      compiledCss: cssText,
+      debug: Object.freeze({
+        id: `cipo-compiled-${className}`,
+        ast: EMPTY_LIST,
+        atoms: EMPTY_LIST,
+        scopedRules: EMPTY_LIST,
+        warnings: EMPTY_LIST,
+      }),
+      toString: () => className,
+      [Symbol.toPrimitive]: () => className,
+      [Symbol.toStringTag]: 'CipoCssArtifact',
+    })
+  }
+
+  const [className, scopeClassName, atomTuples, scopedTuples] = payloadOrClassName
+  const atoms: CipoAtomicRule[] = atomTuples.map(([id, atomClassName, property, value, context]) => ({
+    id,
+    className: atomClassName,
+    property,
+    value,
+    context,
+    source: '',
+  }))
+  const scopedRules: CipoScopedRule[] = scopedTuples.map(([selector, declarations, context]) => ({
+    selector,
+    declarations: declarations.map(([property, value]) => ({
+      type: 'declaration' as const,
+      property,
+      value,
+      source: '',
+    })),
+    context,
+  }))
+
+  const artifact: CipoCssArtifact = Object.freeze({
     kind: 'cipo.css' as const,
     className,
-    scopeClassName: className,
-    atoms: EMPTY_LIST,
-    scopedRules: EMPTY_LIST,
+    scopeClassName,
+    atoms: Object.freeze(atoms),
+    scopedRules: Object.freeze(scopedRules),
     rawCss: '',
     transformedCss: '',
-    compiledCss: cssText,
-    debug,
+    compiledCss: '',
+    debug: Object.freeze({
+      id: `cipo-compiled-${scopeClassName}`,
+      ast: EMPTY_LIST,
+      atoms: Object.freeze(atoms),
+      scopedRules: Object.freeze(scopedRules),
+      warnings: EMPTY_LIST,
+    }),
     toString: () => className,
     [Symbol.toPrimitive]: () => className,
     [Symbol.toStringTag]: 'CipoCssArtifact',
   })
+
+  return artifact
 }
 
 /**
- * Couples a statically compiled styled component to its CSS side effect and
- * preserves the compiled artifact on the component metadata/registry.
+ * Couples a statically compiled styled component to the shared atomic registry.
  *
- * A PURE-annotated call can be removed together with an unused component,
- * while retained components still install their stylesheet exactly once.
+ * A PURE-annotated call can still be removed together with unused component JS.
+ * Retained components register only compact rule metadata; the runtime emits one
+ * stylesheet and promotes atoms according to the CSS-first `atomic-min-uses`
+ * configuration.
  */
+export function attachCompiledCss<T>(
+  builder: (artifact: CipoCssArtifact) => T,
+  payload: CipoCompiledStylePayload,
+): T
+/** @deprecated Compatibility overload for older generated bundles. */
 export function attachCompiledCss<T>(
   builder: (artifact: CipoCssArtifact) => T,
   className: string,
   cssText: string,
+): T
+export function attachCompiledCss<T>(
+  builder: (artifact: CipoCssArtifact) => T,
+  payloadOrClassName: CipoCompiledStylePayload | string,
+  cssText = '',
 ): T {
-  insertCss(cssText)
-  return builder(createCompiledCssArtifact(className, cssText))
+  if (typeof payloadOrClassName === 'string') {
+    insertCss(cssText)
+    return builder(createCompiledCssArtifact(payloadOrClassName, cssText))
+  }
+
+  const artifact = createCompiledCssArtifact(payloadOrClassName)
+  registerAtomicArtifact(artifact)
+  return builder(artifact)
 }
