@@ -30,9 +30,21 @@ export {
   useRequiredContext,
 } from "@rodkisten/fabrica/context";
 export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "@rodkisten/fabrica/context";
+export {
+  clearDebugRecords,
+  debug,
+  debugRecords,
+  setDebug,
+  subscribeDebug,
+} from "@rodkisten/fabrica/debug";
 export type {
   Cleanup,
   Component,
+  DebugEventMode,
+  DebugEventRecord,
+  DebugListener,
+  DebugRecord,
+  DebugSnapshot,
   RefDirective,
   RenderValue,
   RefCallback,
