@@ -1,4 +1,8 @@
 ## Unreleased
+- Fixed startup when the callable styled factory already owns the read-only
+  `html` tag helper. `cipo.html` remains the styled `<html>` factory, while the
+  compatibility template `html` helper stays available as a named export and
+  on the browser global API.
 - Added order-safe compiled CSS coalescing for adjacent equivalent `@media`, `@supports`, and `@container` blocks, including nested rule-list wrappers such as `@layer` and `@scope`, without moving rules across cascade boundaries.
 - Updated Vite integration coverage for Vite 8 native `resolve.tsconfigPaths: true` and removed the obsolete `vite-tsconfig-paths` dependency expectation.
 

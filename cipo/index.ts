@@ -141,7 +141,9 @@ assignPublicApi(cipo, {
   assertAtomicCssArtifact,
   isAtomicCssArtifact,
   isStylesheetArtifact,
-  html,
+  // Keep cipo.html as the styled <html> tag factory. The compatibility
+  // template helper remains a named export and is exposed by
+  // createBrowserGlobal().
   inline,
   compiledInlineCss,
   compileCipoSourceInline,
