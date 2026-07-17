@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { cipo, html, reset, setup, sheet } from "@rodkisten/cipo";
+import {
+  cipo,
+  createBrowserGlobal,
+  html,
+  reset,
+  setup,
+  sheet,
+} from "@rodkisten/cipo";
 
 describe("Cipó modern runtime features", () => {
-  it("keeps the callable html tag factory while exposing template html separately", () => {
-    expect(typeof cipo.html).toBe("function");
-    expect(cipo.html).not.toBe(html);
-    expect(html`<span>${"ok"}</span>`).toBe("<span>ok</span>");
-  });
+  it(
+    "keeps the callable html tag factory while exposing template html separately",
+    () => {
+      expect(typeof cipo.html).toBe("function");
+      expect(cipo.html).not.toBe(html);
+      expect(createBrowserGlobal().html).toBe(html);
+      expect(html`<span>${"ok"}</span>`).toBe("<span>ok</span>");
+    },
+  );
 
   it("compiles reactive CSS values, dark blocks and context variables", () => {
     reset();
