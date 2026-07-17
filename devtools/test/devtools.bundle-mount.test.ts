@@ -5,6 +5,8 @@ import path from "node:path";
 import { TextDecoder, TextEncoder } from "node:util";
 import devtools from "@rodkisten/devtools";
 
+process.env.DEBUG = 'vite:*';
+
 const bundlePath = path.resolve(process.cwd(), "dist/devtools.iife.js");
 
 
