@@ -14,6 +14,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   position: fixed;
   inset: 0;
   z-index: var(--rd-z-container, 2147483510);
+  -webkit-transform: translate3d(0, 0, 0);
   transform: translateZ(1px);
   isolation: isolate;
   contain: layout style paint;
@@ -520,7 +521,10 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
           refs.entryButton = node;
         }}
       >
-        ${icon("bug")}
+        ${icon("bug", {
+           width: 24,
+           height: 24,
+        })}
       </RodDevtoolsEntryButton>
 
       <RodDevtoolsDock
