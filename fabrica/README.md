@@ -975,6 +975,11 @@ const name = signal('Rod')
 html`<input .value=${bind(name)} />`
 ```
 
+`bind()` and `model()` intentionally keep direct element listeners even though
+normal bubbling template events are delegated. Two-way form synchronization is
+therefore independent from delegated-root propagation and also works with
+synthetic non-bubbling `input` / `change` events.
+
 ```ts
 html`${keyed(userId, () => UserCard({ id: userId() }))}`
 ```
