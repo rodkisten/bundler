@@ -1,4 +1,6 @@
 ## Unreleased
+- Switched the DevTools Vite build to Vite 8 native `resolve.tsconfigPaths: true`, removing the redundant `vite-tsconfig-paths` plugin while preserving canonical `@rodkisten/*` imports.
+
 - Removed manual per-panel `*_STYLED_COMPONENTS` and `*StyleArtifacts` bookkeeping. All panels now feed the shared `styledRegistry` automatically, and DevTools installs `styledRegistry.cssArtifacts` at mount time, including shared panel UI styles that were previously easy to omit.
 - Replaced the hand-maintained DevTools `resolve.alias` table with `vite-tsconfig-paths` and switched the standalone Vite CLI to `tsx` plus `--configLoader native`, preserving `@rodkisten/*` aliases while config dependencies are loaded.
 - Replaced the duplicated generated runtime-theme CSS string with production lowering of the canonical `devtoolsCipoConfigCss`; development keeps `configureFromCss()`, while production receives a compact compiled runtime payload.

@@ -231,4 +231,4 @@ During a production Vite build, the Cipó plugin lowers that same `configureFrom
 
 ### Alias-driven Vite configuration
 
-The standalone DevTools Vite build resolves `@rodkisten/*` imports from `tsconfig.base.json` through `vite-tsconfig-paths`; it no longer duplicates those mappings in `resolve.alias`. Because `vite.config.ts` itself imports Cipó through an alias, the CLI is launched with Node's `tsx` loader and `--configLoader native`, allowing the TypeScript runtime to resolve config-time aliases first and then handing the application module graph to Vite plus `vite-tsconfig-paths`.
+The standalone DevTools Vite build resolves `@rodkisten/*` imports from `tsconfig.base.json` through Vite 8's native `resolve.tsconfigPaths: true`; it does not duplicate those mappings in `resolve.alias`. Because `vite.config.ts` itself imports Cipó through an alias, the CLI is launched with Node's `tsx` loader and `--configLoader native`, allowing the TypeScript runtime to resolve config-time aliases before Vite resolves the application module graph natively.
