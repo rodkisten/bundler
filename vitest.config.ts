@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import VitestDebugReporter from "./scripts/vitest-debug-reporter"; 
 
 const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
 
@@ -24,6 +25,7 @@ export default defineConfig({
           "./scripts/vitest-debug-reporter.ts",
           "verbose",
           "github-actions",
+          new VitestDebugReporter(),
           "hanging-process",
         ]
       : [
