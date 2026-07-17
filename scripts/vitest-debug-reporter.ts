@@ -21,7 +21,7 @@ export default class VitestDebugReporter implements Reporter {
   private readonly startedTests = new Map<string, number>();
   private heartbeat: NodeJS.Timeout | null = null;
 
-  onTestRunStart(specifications: TestSpecification[]): void {
+  onTestRunStart(specifications: readonly TestSpecification[]): void {
     this.log("run:start", `files=${specifications.length}`);
     this.startHeartbeat();
   }
