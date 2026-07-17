@@ -31,6 +31,7 @@ import { discoverRootEntries } from "./discover-entries";
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
 const BUILD_DEBUG = readBooleanEnv("BUILD_DEBUG", true);
+const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
 
 const REQUESTED_BUILD_ENTRIES = new Set(
   readEnv("BUILD_ENTRIES", "")
@@ -80,7 +81,50 @@ function serializeDebugDetails(details?: DebugDetails): string {
         return `${key}=${String(value)}`;
       }
     })
-    .join(" ")} ::endgroup::`;
+    .join(" ")}`;
+}
+
+/**
+ * Escapes values that are written inside GitHub Actions workflow commands.
+ *
+ * @remarks
+ * GitHub interprets workflow commands directly from stdout. Escaping line
+ * breaks prevents arbitrary values from accidentally creating extra commands.
+ */
+function escapeGitHubWorkflowCommand(value: string): string {
+  return value
+    .replace(/%/g, "%25")
+    .replace(/\r/g, "%0D")
+    .replace(/\n/g, "%0A");
+}
+
+/**
+ * Opens a collapsible log group when running inside GitHub Actions.
+ *
+ * Local builds intentionally skip workflow commands and keep normal terminal
+ * output, so the same build script remains readable in both environments.
+ */
+function openDebugGroup(name: string, details?: DebugDetails): void {
+  if (!BUILD_DEBUG || !IS_GITHUB_ACTIONS) return;
+
+  const label =
+    `${name}${serializeDebugDetails(details)}`;
+
+  console.log(
+    `::group::${escapeGitHubWorkflowCommand(label)}`,
+  );
+}
+
+/**
+ * Closes the active GitHub Actions log group.
+ *
+ * This must always be called from a finally block so failed build steps do not
+ * accidentally swallow every subsequent log inside an unclosed group.
+ */
+function closeDebugGroup(): void {
+  if (!BUILD_DEBUG || !IS_GITHUB_ACTIONS) return;
+
+  console.log("::endgroup::");
 }
 
 /**
@@ -93,7 +137,9 @@ function debugLog(
 ): void {
   if (!BUILD_DEBUG && level !== "error") return;
 
-  const elapsed = formatDuration(performance.now() - BUILD_STARTED_AT);
+  const elapsed = formatDuration(
+    performance.now() - BUILD_STARTED_AT,
+  );
 
   const prefix: Record<DebugLevel, string> = {
     info: "▶",
@@ -103,7 +149,7 @@ function debugLog(
   };
 
   const output =
-    `::group::[build +${elapsed}] ${prefix[level]} ${message}`
+    `[build +${elapsed}] ${prefix[level]} ${message}`
     + serializeDebugDetails(details);
 
   if (level === "error") {
@@ -120,7 +166,8 @@ function debugLog(
 }
 
 /**
- * Runs one asynchronous build step with automatic timing and failure diagnostics.
+ * Runs one asynchronous build step with automatic GitHub Actions grouping,
+ * timing, structured diagnostics, and guaranteed group cleanup.
  */
 async function debugStep<T>(
   name: string,
@@ -129,28 +176,55 @@ async function debugStep<T>(
 ): Promise<T> {
   const startedAt = performance.now();
 
-  debugLog("info", `${name} started`, details);
+  openDebugGroup(
+    `🔨 ${name}`,
+    details,
+  );
+
+  debugLog(
+    "info",
+    `${name} started`,
+    details,
+  );
 
   try {
     const result = await operation();
 
-    debugLog("success", `${name} completed`, {
-      duration: formatDuration(performance.now() - startedAt),
-    });
+    debugLog(
+      "success",
+      `${name} completed`,
+      {
+        duration: formatDuration(
+          performance.now() - startedAt,
+        ),
+      },
+    );
 
     return result;
   } catch (error) {
-    debugLog("error", `${name} failed`, {
-      duration: formatDuration(performance.now() - startedAt),
-      error: error instanceof Error ? error.message : String(error),
-    });
+    debugLog(
+      "error",
+      `${name} failed`,
+      {
+        duration: formatDuration(
+          performance.now() - startedAt,
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      },
+    );
 
     throw error;
+  } finally {
+    closeDebugGroup();
   }
 }
 
 /**
- * Wraps synchronous work with the same timing diagnostics used by async steps.
+ * Wraps synchronous work with the same GitHub Actions grouping and timing
+ * diagnostics used by asynchronous build steps.
  */
 function debugSyncStep<T>(
   name: string,
@@ -159,23 +233,49 @@ function debugSyncStep<T>(
 ): T {
   const startedAt = performance.now();
 
-  debugLog("info", `${name} started`, details);
+  openDebugGroup(
+    `⚙️ ${name}`,
+    details,
+  );
+
+  debugLog(
+    "info",
+    `${name} started`,
+    details,
+  );
 
   try {
     const result = operation();
 
-    debugLog("success", `${name} completed`, {
-      duration: formatDuration(performance.now() - startedAt),
-    });
+    debugLog(
+      "success",
+      `${name} completed`,
+      {
+        duration: formatDuration(
+          performance.now() - startedAt,
+        ),
+      },
+    );
 
     return result;
   } catch (error) {
-    debugLog("error", `${name} failed`, {
-      duration: formatDuration(performance.now() - startedAt),
-      error: error instanceof Error ? error.message : String(error),
-    });
+    debugLog(
+      "error",
+      `${name} failed`,
+      {
+        duration: formatDuration(
+          performance.now() - startedAt,
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      },
+    );
 
     throw error;
+  } finally {
+    closeDebugGroup();
   }
 }
 
@@ -184,112 +284,215 @@ function workspaceAliasPlugin(): Plugin {
     name: "workspace-alias",
 
     setup(buildApi) {
-      debugLog("info", "Registering workspace alias resolver");
+      debugLog(
+        "info",
+        "Registering workspace alias resolver",
+      );
 
-      buildApi.onResolve({ filter: /^@rodkisten\// }, async (args) => {
-        const rest = args.path.slice("@rodkisten/".length);
-        const slash = rest.indexOf("/");
-        const pkg = slash === -1 ? rest : rest.slice(0, slash);
-        const subpath = slash === -1 ? "index" : rest.slice(slash + 1);
+      buildApi.onResolve(
+        { filter: /^@rodkisten\// },
+        async (args) => {
+          const rest =
+            args.path.slice(
+              "@rodkisten/".length,
+            );
 
-        if (!(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)) {
-          debugLog("warning", "Workspace alias skipped unknown package", {
-            import: args.path,
-            package: pkg,
-          });
+          const slash =
+            rest.indexOf("/");
 
-          return undefined;
-        }
+          const pkg =
+            slash === -1
+              ? rest
+              : rest.slice(0, slash);
 
-        const candidates = workspaceSourceCandidates(
-          pkg as (typeof WORKSPACE_PACKAGES)[number],
-          subpath,
-        );
+          const subpath =
+            slash === -1
+              ? "index"
+              : rest.slice(slash + 1);
 
-        for (const candidate of candidates) {
-          try {
-            await fs.access(candidate);
+          if (
+            !(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)
+          ) {
+            debugLog(
+              "warning",
+              "Workspace alias skipped unknown package",
+              {
+                import: args.path,
+                package: pkg,
+              },
+            );
 
-            debugLog("success", "Workspace alias resolved", {
-              import: args.path,
-              path: toPosix(path.relative(ROOT_DIR, candidate)),
-            });
-
-            return { path: candidate };
-          } catch {
-            debugLog("info", "Workspace alias candidate not found", {
-              import: args.path,
-              path: toPosix(path.relative(ROOT_DIR, candidate)),
-            });
+            return undefined;
           }
-        }
 
-        debugLog("warning", "Workspace alias using fallback candidate", {
-          import: args.path,
-          path: candidates[0]
-            ? toPosix(path.relative(ROOT_DIR, candidates[0]))
-            : "unknown",
-        });
+          const candidates =
+            workspaceSourceCandidates(
+              pkg as (typeof WORKSPACE_PACKAGES)[number],
+              subpath,
+            );
 
-        return { path: candidates[0]! };
-      });
+          for (const candidate of candidates) {
+            try {
+              await fs.access(candidate);
+
+              debugLog(
+                "success",
+                "Workspace alias resolved",
+                {
+                  import: args.path,
+                  path: toPosix(
+                    path.relative(
+                      ROOT_DIR,
+                      candidate,
+                    ),
+                  ),
+                },
+              );
+
+              return {
+                path: candidate,
+              };
+            } catch {
+              debugLog(
+                "info",
+                "Workspace alias candidate not found",
+                {
+                  import: args.path,
+                  path: toPosix(
+                    path.relative(
+                      ROOT_DIR,
+                      candidate,
+                    ),
+                  ),
+                },
+              );
+            }
+          }
+
+          debugLog(
+            "warning",
+            "Workspace alias using fallback candidate",
+            {
+              import: args.path,
+              path: candidates[0]
+                ? toPosix(
+                    path.relative(
+                      ROOT_DIR,
+                      candidates[0],
+                    ),
+                  )
+                : "unknown",
+            },
+          );
+
+          return {
+            path: candidates[0]!,
+          };
+        },
+      );
     },
   };
 }
 
 export async function main(): Promise<void> {
-  debugLog("info", "Root build pipeline initialized", {
-    root: ROOT_DIR,
-    dist: DIST_DIR,
-    namespace: GLOBAL_NAMESPACE,
-    writeMeta: SHOULD_WRITE_META,
-    requestedEntries:
-      REQUESTED_BUILD_ENTRIES.size > 0
-        ? [...REQUESTED_BUILD_ENTRIES]
-        : ["all"],
-  });
-
-  await debugStep("Cleaning distribution directory", async () => {
-    await fs.rm(DIST_DIR, { recursive: true, force: true });
-  });
-
-  await debugStep("Creating distribution directory", async () => {
-    await fs.mkdir(DIST_DIR, { recursive: true });
-  });
-
-  const discoveredEntries = await debugStep(
-    "Discovering root entries",
-    discoverRootEntries,
-  );
-
-  debugLog("success", "Root entries discovered", {
-    count: discoveredEntries.length,
-    entries: discoveredEntries.map((entry) => entry.name),
-  });
-
-  const buildableEntries = debugSyncStep(
-    "Filtering buildable root entries",
-    () => filterBuildableRootEntries(discoveredEntries),
+  debugLog(
+    "info",
+    "Root build pipeline initialized",
     {
-      discovered: discoveredEntries.length,
-    },
-  );
-
-  debugLog("success", "Buildable root entries selected", {
-    count: buildableEntries.length,
-    entries: buildableEntries.map((entry) => entry.name),
-  });
-
-  const entries = debugSyncStep(
-    "Applying BUILD_ENTRIES filter",
-    () => filterRequestedEntries(buildableEntries),
-    {
-      requested:
+      root: ROOT_DIR,
+      dist: DIST_DIR,
+      namespace: GLOBAL_NAMESPACE,
+      writeMeta: SHOULD_WRITE_META,
+      githubActions: IS_GITHUB_ACTIONS,
+      requestedEntries:
         REQUESTED_BUILD_ENTRIES.size > 0
           ? [...REQUESTED_BUILD_ENTRIES]
           : ["all"],
     },
   );
+
+  await debugStep(
+    "Cleaning distribution directory",
+    async () => {
+      await fs.rm(
+        DIST_DIR,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+    },
+  );
+
+  await debugStep(
+    "Creating distribution directory",
+    async () => {
+      await fs.mkdir(
+        DIST_DIR,
+        {
+          recursive: true,
+        },
+      );
+    },
+  );
+
+  const discoveredEntries =
+    await debugStep(
+      "Discovering root entries",
+      discoverRootEntries,
+    );
+
+  debugLog(
+    "success",
+    "Root entries discovered",
+    {
+      count: discoveredEntries.length,
+      entries: discoveredEntries.map(
+        (entry) => entry.name,
+      ),
+    },
+  );
+
+  const buildableEntries =
+    debugSyncStep(
+      "Filtering buildable root entries",
+      () =>
+        filterBuildableRootEntries(
+          discoveredEntries,
+        ),
+      {
+        discovered:
+          discoveredEntries.length,
+      },
+    );
+
+  debugLog(
+    "success",
+    "Buildable root entries selected",
+    {
+      count:
+        buildableEntries.length,
+      entries:
+        buildableEntries.map(
+          (entry) => entry.name,
+        ),
+    },
+  );
+
+  const entries =
+    debugSyncStep(
+      "Applying BUILD_ENTRIES filter",
+      () =>
+        filterRequestedEntries(
+          buildableEntries,
+        ),
+      {
+        requested:
+          REQUESTED_BUILD_ENTRIES.size > 0
+            ? [...REQUESTED_BUILD_ENTRIES]
+            : ["all"],
+      },
+    );
 
   if (entries.length === 0) {
     throw new Error(
@@ -297,37 +500,48 @@ export async function main(): Promise<void> {
     );
   }
 
-  debugLog("success", "Final build entry set ready", {
-    count: entries.length,
-    entries: entries.map((entry) => entry.name),
-  });
+  debugLog(
+    "success",
+    "Final build entry set ready",
+    {
+      count: entries.length,
+      entries: entries.map(
+        (entry) => entry.name,
+      ),
+    },
+  );
 
   const outputs: string[] = [];
 
   await debugStep(
     "Building root browser bundles",
     async () => {
-      for (const [index, entry] of entries.entries()) {
-        debugLog("info", "Building entry", {
-          index: index + 1,
-          total: entries.length,
-          entry: entry.name,
-          source: entry.relativePath,
-          builder:
-            entry.name === DEVTOOLS_ENTRY_NAME ? "vite" : "esbuild",
-        });
-
+      for (
+        const [index, entry]
+        of entries.entries()
+      ) {
         const entryOutputs =
-          entry.name === DEVTOOLS_ENTRY_NAME
-            ? await buildDevtoolsEntryWithVite(entry)
-            : await buildEntry(entry);
+          await debugStep(
+            `Building entry ${entry.name}`,
+            () =>
+              entry.name === DEVTOOLS_ENTRY_NAME
+                ? buildDevtoolsEntryWithVite(entry)
+                : buildEntry(entry),
+            {
+              index: index + 1,
+              total: entries.length,
+              entry: entry.name,
+              source: entry.relativePath,
+              builder:
+                entry.name === DEVTOOLS_ENTRY_NAME
+                  ? "vite"
+                  : "esbuild",
+            },
+          );
 
-        outputs.push(...entryOutputs);
-
-        debugLog("success", "Entry build finished", {
-          entry: entry.name,
-          outputs: entryOutputs,
-        });
+        outputs.push(
+          ...entryOutputs,
+        );
       }
     },
     {
@@ -335,197 +549,231 @@ export async function main(): Promise<void> {
     },
   );
 
-  debugLog("success", "All browser bundles built", {
-    outputs: outputs.length,
-  });
-
-  const examples = await debugStep(
-    "Collecting examples",
-    () => collectExamplesByEntry(entries),
+  debugLog(
+    "success",
+    "All browser bundles built",
     {
-      entries: entries.length,
+      outputs: outputs.length,
     },
   );
 
-  debugLog("success", "Examples collected", {
-    entries: Object.keys(examples).length,
-  });
+  const examples =
+    await debugStep(
+      "Collecting examples",
+      () =>
+        collectExamplesByEntry(
+          entries,
+        ),
+      {
+        entries:
+          entries.length,
+      },
+    );
 
-  const benchmarkFiles = await debugStep(
-    "Collecting benchmark files",
-    collectBenchmarkFiles,
-  );
-
-  debugLog("success", "Benchmark files collected", {
-    count: benchmarkFiles.length,
-  });
-
-  const benchmarkPages = await debugStep(
-    "Generating benchmark code pages",
-    () =>
-      writeCodePages(
-        "benchmark",
-        benchmarkFiles,
-        BENCHMARK_DIR,
-        [],
-      ),
+  debugLog(
+    "success",
+    "Examples collected",
     {
-      files: benchmarkFiles.length,
+      entries:
+        Object.keys(
+          examples,
+        ).length,
     },
   );
 
-  const benchmarkReports = debugSyncStep(
-    "Parsing benchmark reports",
-    () => readBenchmarkReports(benchmarkFiles),
-    {
-      files: benchmarkFiles.length,
-    },
-  );
+  const benchmarkFiles =
+    await debugStep(
+      "Collecting benchmark files",
+      collectBenchmarkFiles,
+    );
 
-  debugLog("success", "Benchmark reports parsed", {
-    reports: benchmarkReports.length,
-  });
+  const benchmarkPages =
+    await debugStep(
+      "Generating benchmark code pages",
+      () =>
+        writeCodePages(
+          "benchmark",
+          benchmarkFiles,
+          BENCHMARK_DIR,
+          [],
+        ),
+      {
+        files:
+          benchmarkFiles.length,
+      },
+    );
+
+  const benchmarkReports =
+    debugSyncStep(
+      "Parsing benchmark reports",
+      () =>
+        readBenchmarkReports(
+          benchmarkFiles,
+        ),
+      {
+        files:
+          benchmarkFiles.length,
+      },
+    );
 
   await debugStep(
     "Writing benchmark dashboard",
-    () => writeBenchmarkDashboard(benchmarkReports),
-    {
-      reports: benchmarkReports.length,
-    },
-  );
-
-  const benchmarks = await debugStep(
-    "Creating benchmark summaries",
     () =>
-      createBenchmarkSummaries(
-        benchmarkFiles,
-        benchmarkPages,
+      writeBenchmarkDashboard(
         benchmarkReports,
       ),
     {
-      files: benchmarkFiles.length,
-      pages: benchmarkPages.length,
-      reports: benchmarkReports.length,
+      reports:
+        benchmarkReports.length,
     },
   );
 
-  debugLog("success", "Benchmark summaries ready", {
-    count: benchmarks.length,
-  });
-
-  const docs = await debugStep(
-    "Generating Markdown documentation pages",
-    () => writeMarkdownDocs(benchmarks),
-  );
-
-  debugLog("success", "Markdown documentation generated", {
-    pages: docs.length,
-  });
-
-  const sourceFiles = await debugStep(
-    "Collecting source files",
-    collectSourceFiles,
-  );
-
-  debugLog("success", "Source files collected", {
-    count: sourceFiles.length,
-  });
-
-  const sources = await debugStep(
-    "Generating source code pages",
-    () =>
-      writeCodePages(
-        "source",
-        sourceFiles,
-        SOURCE_DIR,
-        benchmarks,
-      ),
-    {
-      files: sourceFiles.length,
-    },
-  );
-
-  const testFiles = await debugStep(
-    "Collecting test files",
-    collectTestFiles,
-  );
-
-  debugLog("success", "Test files collected", {
-    count: testFiles.length,
-  });
-
-  const tests = await debugStep(
-    "Generating test code pages",
-    () =>
-      writeCodePages(
-        "test",
-        testFiles,
-        TESTS_DIR,
-        benchmarks,
-      ),
-    {
-      files: testFiles.length,
-    },
-  );
-
-  const pipelineFiles = await debugStep(
-    "Collecting pipeline files",
-    collectPipelineFiles,
-  );
-
-  debugLog("success", "Pipeline files collected", {
-    count: pipelineFiles.length,
-  });
-
-  const pipelines = await debugStep(
-    "Generating pipeline code pages",
-    () =>
-      writeCodePages(
-        "pipeline",
-        pipelineFiles,
-        PIPELINE_DIR,
-        benchmarks,
-      ),
-    {
-      files: pipelineFiles.length,
-    },
-  );
-
-  const manifest = debugSyncStep(
-    "Creating build manifest",
-    () =>
-      createManifest(entries, outputs, {
-        docs,
-        sources,
-        tests,
-        pipelines,
-        benchmarks,
-      }),
-  );
-
-  await debugStep("Writing manifest.json", async () => {
-    await fs.writeFile(
-      path.join(DIST_DIR, "manifest.json"),
-      `${JSON.stringify({ ...manifest, examples }, null, 2)}\n`,
+  const benchmarks =
+    await debugStep(
+      "Creating benchmark summaries",
+      () =>
+        createBenchmarkSummaries(
+          benchmarkFiles,
+          benchmarkPages,
+          benchmarkReports,
+        ),
     );
-  });
 
-  await debugStep("Writing documentation index.html", async () => {
-    await fs.writeFile(
-      path.join(DIST_DIR, "index.html"),
-      createIndexHtml({
-        entries,
-        outputs,
-        namespace: GLOBAL_NAMESPACE,
-        examples,
-        docs,
-        sources,
-        tests,
-        pipelines,
-        benchmarks,
-      }),
+  const docs =
+    await debugStep(
+      "Generating Markdown documentation pages",
+      () =>
+        writeMarkdownDocs(
+          benchmarks,
+        ),
     );
-  });
+
+  const sourceFiles =
+    await debugStep(
+      "Collecting source files",
+      collectSourceFiles,
+    );
+
+  const sources =
+    await debugStep(
+      "Generating source code pages",
+      () =>
+        writeCodePages(
+          "source",
+          sourceFiles,
+          SOURCE_DIR,
+          benchmarks,
+        ),
+      {
+        files:
+          sourceFiles.length,
+      },
+    );
+
+  const testFiles =
+    await debugStep(
+      "Collecting test files",
+      collectTestFiles,
+    );
+
+  const tests =
+    await debugStep(
+      "Generating test code pages",
+      () =>
+        writeCodePages(
+          "test",
+          testFiles,
+          TESTS_DIR,
+          benchmarks,
+        ),
+      {
+        files:
+          testFiles.length,
+      },
+    );
+
+  const pipelineFiles =
+    await debugStep(
+      "Collecting pipeline files",
+      collectPipelineFiles,
+    );
+
+  const pipelines =
+    await debugStep(
+      "Generating pipeline code pages",
+      () =>
+        writeCodePages(
+          "pipeline",
+          pipelineFiles,
+          PIPELINE_DIR,
+          benchmarks,
+        ),
+      {
+        files:
+          pipelineFiles.length,
+      },
+    );
+
+  const manifest =
+    debugSyncStep(
+      "Creating build manifest",
+      () =>
+        createManifest(
+          entries,
+          outputs,
+          {
+            docs,
+            sources,
+            tests,
+            pipelines,
+            benchmarks,
+          },
+        ),
+    );
+
+  await debugStep(
+    "Writing manifest.json",
+    async () => {
+      await fs.writeFile(
+        path.join(
+          DIST_DIR,
+          "manifest.json",
+        ),
+        `${JSON.stringify(
+          {
+            ...manifest,
+            examples,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    },
+  );
+
+  await debugStep(
+    "Writing documentation index.html",
+    async () => {
+      await fs.writeFile(
+        path.join(
+          DIST_DIR,
+          "index.html",
+        ),
+        createIndexHtml({
+          entries,
+          outputs,
+          namespace:
+            GLOBAL_NAMESPACE,
+          examples,
+          docs,
+          sources,
+          tests,
+          pipelines,
+          benchmarks,
+        }),
+      );
+    },
+  );
 
   await debugStep(
     "Copying documentation assets",
@@ -534,7 +782,10 @@ export async function main(): Promise<void> {
 
   await debugStep(
     "Copying Fábrica landing page",
-    () => copyLanding("fabrica"),
+    () =>
+      copyLanding(
+        "fabrica",
+      ),
   );
 
   await debugStep(
@@ -549,26 +800,50 @@ export async function main(): Promise<void> {
 
   await debugStep(
     "Copying Máquina landing page",
-    () => copyLanding("maquina"),
+    () =>
+      copyLanding(
+        "maquina",
+      ),
   );
 
-  debugLog("success", "Root build pipeline completed", {
-    duration: formatDuration(performance.now() - BUILD_STARTED_AT),
-    entries: entries.length,
-    outputs: outputs.length,
-    docs: docs.length,
-    sources: sources.length,
-    tests: tests.length,
-    pipelines: pipelines.length,
-    benchmarks: benchmarks.length,
-  });
+  debugLog(
+    "success",
+    "Root build pipeline completed",
+    {
+      duration:
+        formatDuration(
+          performance.now()
+          - BUILD_STARTED_AT,
+        ),
+      entries:
+        entries.length,
+      outputs:
+        outputs.length,
+      docs:
+        docs.length,
+      sources:
+        sources.length,
+      tests:
+        tests.length,
+      pipelines:
+        pipelines.length,
+      benchmarks:
+        benchmarks.length,
+    },
+  );
 }
 
-function filterBuildableRootEntries(entries: RootEntry[]): RootEntry[] {
-  return entries.filter(isBuildableRootEntry);
+function filterBuildableRootEntries(
+  entries: RootEntry[],
+): RootEntry[] {
+  return entries.filter(
+    isBuildableRootEntry,
+  );
 }
 
-function filterRequestedEntries(entries: RootEntry[]): RootEntry[] {
+function filterRequestedEntries(
+  entries: RootEntry[],
+): RootEntry[] {
   if (
     REQUESTED_BUILD_ENTRIES.size === 0
     || REQUESTED_BUILD_ENTRIES.has("all")
@@ -576,15 +851,25 @@ function filterRequestedEntries(entries: RootEntry[]): RootEntry[] {
     return entries;
   }
 
-  const availableNames = new Set(
-    entries.map((entry) => entry.name),
-  );
+  const availableNames =
+    new Set(
+      entries.map(
+        (entry) => entry.name,
+      ),
+    );
 
-  const unknownEntries = [...REQUESTED_BUILD_ENTRIES].filter(
-    (entryName) => !availableNames.has(entryName),
-  );
+  const unknownEntries =
+    [...REQUESTED_BUILD_ENTRIES]
+      .filter(
+        (entryName) =>
+          !availableNames.has(
+            entryName,
+          ),
+      );
 
-  if (unknownEntries.length > 0) {
+  if (
+    unknownEntries.length > 0
+  ) {
     throw new Error(
       `Unknown BUILD_ENTRIES value(s): ${unknownEntries.join(", ")}. `
       + `Available entries: ${[...availableNames].sort().join(", ")}.`,
@@ -592,22 +877,39 @@ function filterRequestedEntries(entries: RootEntry[]): RootEntry[] {
   }
 
   return entries.filter(
-    (entry) => REQUESTED_BUILD_ENTRIES.has(entry.name),
+    (entry) =>
+      REQUESTED_BUILD_ENTRIES.has(
+        entry.name,
+      ),
   );
 }
 
-function isBuildableRootEntry(entry: RootEntry): boolean {
-  const relativePath = toPosix(entry.relativePath);
+function isBuildableRootEntry(
+  entry: RootEntry,
+): boolean {
+  const relativePath =
+    toPosix(
+      entry.relativePath,
+    );
 
-  if (relativePath.endsWith(".d.ts")) return false;
+  if (
+    relativePath.endsWith(
+      ".d.ts",
+    )
+  ) {
+    return false;
+  }
 
-  const segments = relativePath
-    .split("/")
-    .filter(Boolean);
+  const segments =
+    relativePath
+      .split("/")
+      .filter(Boolean);
 
   if (
     segments.length === 2
-    && isSupportedScriptEntryFile(segments[1]!)
+    && isSupportedScriptEntryFile(
+      segments[1]!,
+    )
   ) {
     return true;
   }
@@ -615,133 +917,196 @@ function isBuildableRootEntry(entry: RootEntry): boolean {
   return false;
 }
 
-function isSupportedScriptEntryFile(fileName: string): boolean {
+function isSupportedScriptEntryFile(
+  fileName: string,
+): boolean {
   return (
-    /\.(ts|tsx|js|jsx|mjs)$/.test(fileName)
-    && !fileName.endsWith(".d.ts")
+    /\.(ts|tsx|js|jsx|mjs)$/.test(
+      fileName,
+    )
+    && !fileName.endsWith(
+      ".d.ts",
+    )
   );
 }
 
-async function copyLanding(project: string): Promise<void> {
-  const source = path.join(
-    ROOT_DIR,
-    project,
-    "index.html",
+async function copyLanding(
+  project: string,
+): Promise<void> {
+  const source =
+    path.join(
+      ROOT_DIR,
+      project,
+      "index.html",
+    );
+
+  const targetDir =
+    path.join(
+      DIST_DIR,
+      project,
+    );
+
+  debugLog(
+    "info",
+    "Preparing landing page copy",
+    {
+      project,
+      source:
+        toPosix(
+          path.relative(
+            ROOT_DIR,
+            source,
+          ),
+        ),
+      target:
+        toPosix(
+          path.relative(
+            ROOT_DIR,
+            targetDir,
+          ),
+        ),
+    },
   );
 
-  const targetDir = path.join(
-    DIST_DIR,
-    project,
+  await fs.mkdir(
+    targetDir,
+    {
+      recursive: true,
+    },
   );
-
-  debugLog("info", "Preparing landing page copy", {
-    project,
-    source: toPosix(path.relative(ROOT_DIR, source)),
-    target: toPosix(path.relative(ROOT_DIR, targetDir)),
-  });
-
-  await fs.mkdir(targetDir, {
-    recursive: true,
-  });
 
   await copyFileIfExists(
     source,
-    path.join(targetDir, "index.html"),
+    path.join(
+      targetDir,
+      "index.html",
+    ),
   );
 }
 
 async function buildDevtoolsEntryWithVite(
   entry: RootEntry,
 ): Promise<string[]> {
-  debugLog("info", "Loading Vite and Cipó Vite compiler", {
-    entry: entry.name,
-  });
+  const [
+    { build: viteBuild },
+    { cipoVite },
+  ] =
+    await debugStep(
+      `Loading Vite dependencies for ${entry.name}`,
+      () =>
+        Promise.all([
+          import("vite"),
+          import("@rodkisten/cipo/vite-index"),
+        ]),
+    );
 
-  const [{ build: viteBuild }, { cipoVite }] = await debugStep(
-    `Loading Vite dependencies for ${entry.name}`,
-    () =>
-      Promise.all([
-        import("vite"),
-        import("@rodkisten/cipo/vite-index"),
-      ]),
-  );
+  const banner =
+    createBanner(entry);
 
-  const banner = createBanner(entry);
+  const normalIife =
+    path.join(
+      DIST_DIR,
+      `${entry.name}.iife.js`,
+    );
 
-  const normalIife = path.join(
-    DIST_DIR,
-    `${entry.name}.iife.js`,
-  );
+  const minIife =
+    path.join(
+      DIST_DIR,
+      `${entry.name}.iife.min.js`,
+    );
 
-  const minIife = path.join(
-    DIST_DIR,
-    `${entry.name}.iife.min.js`,
-  );
+  const createBaseConfig =
+    () => ({
+      configFile:
+        false as const,
 
-  const createBaseConfig = () => ({
-    configFile: false as const,
-    root: ROOT_DIR,
+      root:
+        ROOT_DIR,
 
-    resolve: {
-      // Keep programmatic Vite builds on the same native tsconfig path resolution as CLI builds.
-      tsconfigPaths: true,
-    },
-
-    plugins: [
-      cipoVite({
-        root: ROOT_DIR,
-        mode: "build",
-        enabled: true,
-        cssDelivery: "style-tag",
-        classNameMode: "compact",
-        classPrefix: "c",
-        minifyCss: true,
-        mergeEquivalentRules: true,
-        cssFileName: `${entry.name}.compiled.css`,
-        compileFabrica: true,
-        transformCssTag: true,
-        include: [
-          new RegExp(
-            "[/\\\\]devtools(?:[/\\\\]|\\.ts$)",
-          ),
-        ],
-      }),
-    ],
-
-    define: {
-      "process.env.NODE_ENV":
-        JSON.stringify("production"),
-    },
-
-    build: {
-      emptyOutDir: false,
-      sourcemap: true,
-      target: "es2022",
-
-      lib: {
-        entry: entry.absolutePath,
-        name: entry.globalName,
-        formats: ["iife" as const],
+      resolve: {
+        tsconfigPaths:
+          true,
       },
 
-      rollupOptions: {
-        output: {
-          banner,
-          extend: true,
+      plugins: [
+        cipoVite({
+          root:
+            ROOT_DIR,
+          mode:
+            "build",
+          enabled:
+            true,
+          cssDelivery:
+            "style-tag",
+          classNameMode:
+            "compact",
+          classPrefix:
+            "c",
+          minifyCss:
+            true,
+          mergeEquivalentRules:
+            true,
+          cssFileName:
+            `${entry.name}.compiled.css`,
+          compileFabrica:
+            true,
+          transformCssTag:
+            true,
+          include: [
+            new RegExp(
+              "[/\\\\]devtools(?:[/\\\\]|\\.ts$)",
+            ),
+          ],
+        }),
+      ],
 
-          assetFileNames: (
-            assetInfo: { name?: string },
-          ) =>
-            assetInfo.name
-            === `${entry.name}.compiled.css`
-              ? `${entry.name}.compiled.css`
-              : "[name][extname]",
+      define: {
+        "process.env.NODE_ENV":
+          JSON.stringify(
+            "production",
+          ),
+      },
+
+      build: {
+        emptyOutDir:
+          false,
+        sourcemap:
+          true,
+        target:
+          "es2022",
+
+        lib: {
+          entry:
+            entry.absolutePath,
+          name:
+            entry.globalName,
+          formats: [
+            "iife" as const,
+          ],
+        },
+
+        rollupOptions: {
+          output: {
+            banner,
+            extend:
+              true,
+
+            assetFileNames: (
+              assetInfo: {
+                name?: string;
+              },
+            ) =>
+              assetInfo.name ===
+              `${entry.name}.compiled.css`
+                ? `${entry.name}.compiled.css`
+                : "[name][extname]",
+          },
         },
       },
-    },
-  });
+    });
 
-  const normalConfig = createBaseConfig();
+  const normalConfig =
+    createBaseConfig();
 
   await debugStep(
     `Building ${entry.name} development IIFE with Vite`,
@@ -751,8 +1116,10 @@ async function buildDevtoolsEntryWithVite(
 
         build: {
           ...normalConfig.build,
-          minify: false,
-          outDir: DIST_DIR,
+          minify:
+            false,
+          outDir:
+            DIST_DIR,
 
           lib: {
             ...normalConfig.build.lib,
@@ -763,12 +1130,17 @@ async function buildDevtoolsEntryWithVite(
       });
     },
     {
-      output: path.basename(normalIife),
-      minify: false,
+      output:
+        path.basename(
+          normalIife,
+        ),
+      minify:
+        false,
     },
   );
 
-  const minConfig = createBaseConfig();
+  const minConfig =
+    createBaseConfig();
 
   await debugStep(
     `Building ${entry.name} minified IIFE with Vite`,
@@ -778,8 +1150,10 @@ async function buildDevtoolsEntryWithVite(
 
         build: {
           ...minConfig.build,
-          minify: true,
-          outDir: DIST_DIR,
+          minify:
+            true,
+          outDir:
+            DIST_DIR,
 
           lib: {
             ...minConfig.build.lib,
@@ -790,8 +1164,12 @@ async function buildDevtoolsEntryWithVite(
       });
     },
     {
-      output: path.basename(minIife),
-      minify: true,
+      output:
+        path.basename(
+          minIife,
+        ),
+      minify:
+        true,
     },
   );
 
@@ -804,79 +1182,102 @@ async function buildDevtoolsEntryWithVite(
     ),
   ];
 
-  const existing = await debugStep(
-    `Verifying ${entry.name} emitted files`,
-    () =>
-      Promise.all(
-        emitted.map(async (file) => {
-          try {
-            await fs.access(file);
+  const existing =
+    await debugStep(
+      `Verifying ${entry.name} emitted files`,
+      () =>
+        Promise.all(
+          emitted.map(
+            async (file) => {
+              try {
+                await fs.access(
+                  file,
+                );
 
-            debugLog(
-              "success",
-              "Build artifact verified",
-              {
-                entry: entry.name,
-                file: path.basename(file),
-              },
-            );
+                debugLog(
+                  "success",
+                  "Build artifact verified",
+                  {
+                    entry:
+                      entry.name,
+                    file:
+                      path.basename(
+                        file,
+                      ),
+                  },
+                );
 
-            return file;
-          } catch {
-            debugLog(
-              "warning",
-              "Expected build artifact was not emitted",
-              {
-                entry: entry.name,
-                file: path.basename(file),
-              },
-            );
+                return file;
+              } catch {
+                debugLog(
+                  "warning",
+                  "Expected build artifact was not emitted",
+                  {
+                    entry:
+                      entry.name,
+                    file:
+                      path.basename(
+                        file,
+                      ),
+                  },
+                );
 
-            return null;
-          }
-        }),
-      ),
-  );
-
-  const outputs = existing
-    .filter(
-      (file): file is string => Boolean(file),
-    )
-    .map((file) =>
-      path.relative(DIST_DIR, file),
+                return null;
+              }
+            },
+          ),
+        ),
     );
 
-  debugLog(
-    "success",
-    "Vite entry build completed",
-    {
-      entry: entry.name,
-      outputs,
-    },
-  );
-
-  return outputs;
+  return existing
+    .filter(
+      (
+        file,
+      ): file is string =>
+        Boolean(file),
+    )
+    .map(
+      (file) =>
+        path.relative(
+          DIST_DIR,
+          file,
+        ),
+    );
 }
 
 async function buildEntry(
   entry: RootEntry,
 ): Promise<string[]> {
-  const banner = createBanner(entry);
+  const banner =
+    createBanner(entry);
 
   const baseOptions: BuildOptions = {
-    entryPoints: [entry.absolutePath],
-    bundle: true,
-    platform: "browser",
-    target: ["es2022"],
-    jsx: "automatic",
-    legalComments: "inline",
-    sourcemap: true,
-    charset: "utf8",
-    logLevel: "info",
-    metafile: SHOULD_WRITE_META,
+    entryPoints: [
+      entry.absolutePath,
+    ],
+    bundle:
+      true,
+    platform:
+      "browser",
+    target: [
+      "es2022",
+    ],
+    jsx:
+      "automatic",
+    legalComments:
+      "inline",
+    sourcemap:
+      true,
+    charset:
+      "utf8",
+    logLevel:
+      "info",
+    metafile:
+      SHOULD_WRITE_META,
 
     banner: {
-      js: banner,
+      js:
+        banner,
     },
 
     plugins: [
@@ -885,74 +1286,96 @@ async function buildEntry(
 
     define: {
       "process.env.NODE_ENV":
-        JSON.stringify("production"),
+        JSON.stringify(
+          "production",
+        ),
     },
   };
 
-  const normalIife = path.join(
-    DIST_DIR,
-    `${entry.name}.iife.js`,
-  );
+  const normalIife =
+    path.join(
+      DIST_DIR,
+      `${entry.name}.iife.js`,
+    );
 
-  const minIife = path.join(
-    DIST_DIR,
-    `${entry.name}.iife.min.js`,
-  );
+  const minIife =
+    path.join(
+      DIST_DIR,
+      `${entry.name}.iife.min.js`,
+    );
 
   const builds = [
     {
-      file: normalIife,
+      file:
+        normalIife,
 
       options: {
         ...baseOptions,
-        format: "iife" as const,
-        globalName: entry.globalName,
-        outfile: normalIife,
-        minify: false,
+        format:
+          "iife" as const,
+        globalName:
+          entry.globalName,
+        outfile:
+          normalIife,
+        minify:
+          false,
       },
     },
 
     {
-      file: minIife,
+      file:
+        minIife,
 
       options: {
         ...baseOptions,
-        format: "iife" as const,
-        globalName: entry.globalName,
-        outfile: minIife,
-        minify: true,
+        format:
+          "iife" as const,
+        globalName:
+          entry.globalName,
+        outfile:
+          minIife,
+        minify:
+          true,
       },
     },
   ];
 
-  const results = await debugStep(
-    `Building ${entry.name} IIFE bundles with esbuild`,
-    () =>
-      Promise.all(
-        builds.map(async (item) =>
-          debugStep(
-            `esbuild ${path.basename(item.file)}`,
-            () => build(item.options),
-            {
-              entry: entry.name,
-              minify: item.options.minify,
-            },
+  const results =
+    await debugStep(
+      `Building ${entry.name} IIFE bundles with esbuild`,
+      () =>
+        Promise.all(
+          builds.map(
+            (item) =>
+              debugStep(
+                `esbuild ${path.basename(item.file)}`,
+                () =>
+                  build(
+                    item.options,
+                  ),
+                {
+                  entry:
+                    entry.name,
+                  minify:
+                    item.options.minify,
+                },
+              ),
           ),
         ),
-      ),
-    {
-      entry: entry.name,
-      builds: builds.length,
-    },
-  );
+    );
 
-  if (SHOULD_WRITE_META) {
+  if (
+    SHOULD_WRITE_META
+  ) {
     await debugStep(
       `Writing ${entry.name} esbuild metafiles`,
       () =>
         Promise.all(
           results.map(
-            (result, index) =>
+            (
+              result,
+              index,
+            ) =>
               fs.writeFile(
                 path.join(
                   DIST_DIR,
@@ -966,26 +1389,15 @@ async function buildEntry(
               ),
           ),
         ),
-      {
-        count: results.length,
-      },
-    );
-  } else {
-    debugLog(
-      "info",
-      "Skipping esbuild metafiles",
-      {
-        entry: entry.name,
-        reason: "BUILD_META=false",
-      },
     );
   }
 
-  return builds.map((item) =>
-    path.relative(
-      DIST_DIR,
-      item.file,
-    ),
+  return builds.map(
+    (item) =>
+      path.relative(
+        DIST_DIR,
+        item.file,
+      ),
   );
 }
 
@@ -993,7 +1405,8 @@ async function copyDocsAssets(): Promise<void> {
   await fs.mkdir(
     ASSETS_DIR,
     {
-      recursive: true,
+      recursive:
+        true,
     },
   );
 
@@ -1042,18 +1455,21 @@ async function copyFileIfExists(
       "success",
       "File copied",
       {
-        source: toPosix(
-          path.relative(
-            ROOT_DIR,
-            source,
+        source:
+          toPosix(
+            path.relative(
+              ROOT_DIR,
+              source,
+            ),
           ),
-        ),
-        target: toPosix(
-          path.relative(
-            ROOT_DIR,
-            target,
+
+        target:
+          toPosix(
+            path.relative(
+              ROOT_DIR,
+              target,
+            ),
           ),
-        ),
       },
     );
   } catch (error) {
@@ -1065,12 +1481,13 @@ async function copyFileIfExists(
         "warning",
         "Optional file not found, copy skipped",
         {
-          source: toPosix(
-            path.relative(
-              ROOT_DIR,
-              source,
+          source:
+            toPosix(
+              path.relative(
+                ROOT_DIR,
+                source,
+              ),
             ),
-          ),
         },
       );
 
@@ -1084,35 +1501,30 @@ async function copyFileIfExists(
 async function writeMarkdownDocs(
   benchmarks: BenchmarkSummary[],
 ): Promise<GeneratedDoc[]> {
-  const markdownFiles = await debugStep(
-    "Collecting Markdown documentation files",
-    collectMarkdownFiles,
-  );
+  const markdownFiles =
+    await debugStep(
+      "Collecting Markdown documentation files",
+      collectMarkdownFiles,
+    );
 
-  debugLog(
-    "success",
-    "Markdown files selected for rendering",
-    {
-      count: markdownFiles.length,
-    },
-  );
-
-  const docs = debugSyncStep(
-    "Creating Markdown documentation descriptors",
-    () =>
-      markdownFiles.map(
-        (file) =>
-          createGeneratedDoc(file),
-      ),
-    {
-      files: markdownFiles.length,
-    },
-  );
+  const docs =
+    debugSyncStep(
+      "Creating Markdown documentation descriptors",
+      () =>
+        markdownFiles.map(
+          createGeneratedDoc,
+        ),
+      {
+        files:
+          markdownFiles.length,
+      },
+    );
 
   await fs.mkdir(
     DOCS_DIR,
     {
-      recursive: true,
+      recursive:
+        true,
     },
   );
 
@@ -1121,17 +1533,21 @@ async function writeMarkdownDocs(
     () =>
       Promise.all(
         markdownFiles.map(
-          async (file, index) => {
-            const doc = docs[index]!;
+          async (
+            file,
+            index,
+          ) => {
+            const doc =
+              docs[index]!;
 
             await fs.writeFile(
               path.join(
                 DOCS_DIR,
                 `${doc.slug}.html`,
               ),
-
               createMarkdownPageHtml({
-                title: doc.title,
+                title:
+                  doc.title,
                 sourcePath:
                   file.relativePath,
                 displayPath:
@@ -1147,22 +1563,12 @@ async function writeMarkdownDocs(
                   doc.description,
               }),
             );
-
-            debugLog(
-              "success",
-              "Markdown page written",
-              {
-                page:
-                  doc.href,
-                source:
-                  file.relativePath,
-              },
-            );
           },
         ),
       ),
     {
-      pages: docs.length,
+      pages:
+        docs.length,
     },
   );
 
@@ -1173,20 +1579,25 @@ function createGeneratedDoc(
   file: TextFile,
 ): GeneratedDoc {
   const title =
-    titleFromMarkdown(file.content)
-    || titleFromPath(file.relativePath);
+    titleFromMarkdown(
+      file.content,
+    )
+    || titleFromPath(
+      file.relativePath,
+    );
 
   const normalized =
     normalizeContentPath(
       file.relativePath,
     );
 
-  const slug = slugFromPath(
-    normalized.replace(
-      /README\.md$/i,
-      "index.md",
-    ),
-  );
+  const slug =
+    slugFromPath(
+      normalized.replace(
+        /README\.md$/i,
+        "index.md",
+      ),
+    );
 
   return {
     title,
@@ -1222,33 +1633,20 @@ async function writeCodePages(
   directory: string,
   benchmarks: BenchmarkSummary[],
 ): Promise<GeneratedCodePage[]> {
-  debugLog(
-    "info",
-    "Preparing code pages",
-    {
-      kind,
-      files: files.length,
-      directory: toPosix(
-        path.relative(
-          DIST_DIR,
-          directory,
+  const pages =
+    files.map(
+      (file) =>
+        createGeneratedCodePage(
+          kind,
+          file,
         ),
-      ),
-    },
-  );
-
-  const pages = files.map(
-    (file) =>
-      createGeneratedCodePage(
-        kind,
-        file,
-      ),
-  );
+    );
 
   await fs.mkdir(
     directory,
     {
-      recursive: true,
+      recursive:
+        true,
     },
   );
 
@@ -1257,7 +1655,10 @@ async function writeCodePages(
     () =>
       Promise.all(
         files.map(
-          async (file, index) => {
+          async (
+            file,
+            index,
+          ) => {
             const page =
               pages[index]!;
 
@@ -1266,7 +1667,6 @@ async function writeCodePages(
                 directory,
                 `${page.slug}.html`,
               ),
-
               createCodePageHtml({
                 title:
                   page.title,
@@ -1293,16 +1693,8 @@ async function writeCodePages(
       ),
     {
       kind,
-      pages: pages.length,
-    },
-  );
-
-  debugLog(
-    "success",
-    "Code pages generated",
-    {
-      kind,
-      pages: pages.length,
+      pages:
+        pages.length,
     },
   );
 
@@ -1376,57 +1768,45 @@ type TextFile = {
 };
 
 async function collectMarkdownFiles(): Promise<TextFile[]> {
-  const files = await walkTextFiles(
-    ROOT_DIR,
-    (relativePath) => {
-      if (
-        !relativePath.endsWith(
-          ".md",
-        )
-      ) {
-        return false;
-      }
+  const files =
+    await walkTextFiles(
+      ROOT_DIR,
+      (relativePath) => {
+        if (
+          !relativePath.endsWith(
+            ".md",
+          )
+        ) {
+          return false;
+        }
 
-      if (
-        relativePath.startsWith(
-          "dist/",
-        )
-      ) {
-        return false;
-      }
+        if (
+          relativePath.startsWith(
+            "dist/",
+          )
+        ) {
+          return false;
+        }
 
-      if (
-        relativePath.includes(
-          "node_modules/",
-        )
-      ) {
-        return false;
-      }
+        if (
+          relativePath.includes(
+            "node_modules/",
+          )
+        ) {
+          return false;
+        }
 
-      return true;
-    },
-  );
-
-  const filtered =
-    files.filter(
-      (file) =>
-        shouldRenderMarkdownFile(
-          file,
-          files,
-        ),
+        return true;
+      },
     );
 
-  debugLog(
-    "success",
-    "Markdown collection filtered",
-    {
-      discovered: files.length,
-      renderable:
-        filtered.length,
-    },
+  return files.filter(
+    (file) =>
+      shouldRenderMarkdownFile(
+        file,
+        files,
+      ),
   );
-
-  return filtered;
 }
 
 function shouldRenderMarkdownFile(
@@ -1434,8 +1814,7 @@ function shouldRenderMarkdownFile(
   allFiles: TextFile[],
 ): boolean {
   if (
-    file.content.trim().length
-    === 0
+    file.content.trim().length === 0
   ) {
     return false;
   }
@@ -1453,7 +1832,9 @@ function shouldRenderMarkdownFile(
       file.relativePath,
     );
 
-  if (directory === ".") {
+  if (
+    directory === "."
+  ) {
     return true;
   }
 
@@ -1484,64 +1865,42 @@ async function collectSourceFiles(): Promise<TextFile[]> {
     const pkg
     of WORKSPACE_PACKAGES
   ) {
-    debugLog(
-      "info",
-      "Collecting package source files",
-      {
-        package: pkg,
-      },
-    );
-
     const packageFiles =
-      await walkTextFiles(
-        path.join(
-          ROOT_DIR,
-          pkg,
-        ),
+      await debugStep(
+        `Collecting ${pkg} source files`,
+        () =>
+          walkTextFiles(
+            path.join(
+              ROOT_DIR,
+              pkg,
+            ),
+            (relativePath) => {
+              if (
+                relativePath.endsWith(
+                  ".d.ts",
+                )
+              ) {
+                return false;
+              }
 
-        (relativePath) => {
-          if (
-            relativePath.endsWith(
-              ".d.ts",
-            )
-          ) {
-            return false;
-          }
+              if (
+                /\/tests?\//.test(
+                  relativePath,
+                )
+              ) {
+                return false;
+              }
 
-          if (
-            /\/tests?\//.test(
-              relativePath,
-            )
-          ) {
-            return false;
-          }
-
-          if (
-            !/\.(ts|tsx|js|jsx|mjs|css|json)$/.test(
-              relativePath,
-            )
-          ) {
-            return false;
-          }
-
-          return true;
-        },
-
-        pkg,
+              return /\.(ts|tsx|js|jsx|mjs|css|json)$/.test(
+                relativePath,
+              );
+            },
+            pkg,
+          ),
       );
 
     files.push(
       ...packageFiles,
-    );
-
-    debugLog(
-      "success",
-      "Package source files collected",
-      {
-        package: pkg,
-        files:
-          packageFiles.length,
-      },
     );
   }
 
@@ -1591,10 +1950,10 @@ async function collectPipelineFiles(): Promise<TextFile[]> {
         relativePath.startsWith(
           ".github/workflows/",
         )
-        || relativePath
-          === "package.json"
-        || relativePath
-          === "pnpm-workspace.yaml"
+        || relativePath ===
+          "package.json"
+        || relativePath ===
+          "pnpm-workspace.yaml"
       );
     },
   );
@@ -1653,10 +2012,7 @@ async function createBenchmarkSummaries(
     const parsed =
       safeJson(
         file.content,
-      ) as Record<
-        string,
-        unknown
-      > | null;
+      ) as Record<string, unknown> | null;
 
     const comparison =
       isRecord(
@@ -1672,55 +2028,40 @@ async function createBenchmarkSummaries(
             file.relativePath,
           ),
         ),
-
       title:
         page.title,
-
       href:
         page.href,
-
       sourcePath:
         page.sourcePath,
-
       displayPath:
         page.displayPath,
-
       packageId:
         page.packageId,
-
       generatedAt:
-        typeof parsed?.generatedAt
-          === "string"
+        typeof parsed?.generatedAt === "string"
           ? parsed.generatedAt
           : undefined,
-
       geometricMeanPercent:
         numberOrUndefined(
-          comparison
-            ?.geometricMeanPercent,
+          comparison?.geometricMeanPercent,
         ),
-
       absoluteGeometricMeanPercent:
         numberOrUndefined(
-          comparison
-            ?.absoluteGeometricMeanPercent,
+          comparison?.absoluteGeometricMeanPercent,
         ),
-
       faster:
         numberOrUndefined(
           comparison?.faster,
         ),
-
       slower:
         numberOrUndefined(
           comparison?.slower,
         ),
-
       stable:
         numberOrUndefined(
           comparison?.stable,
         ),
-
       unstable:
         numberOrUndefined(
           comparison?.unstable,
@@ -1728,96 +2069,74 @@ async function createBenchmarkSummaries(
     });
   }
 
-  if (reports.length > 0) {
+  if (
+    reports.length > 0
+  ) {
     summaries.unshift({
       id:
         "benchmark-dashboard",
-
       title:
         "Benchmark Dashboard",
-
       href:
         "benchmarks/index.html",
-
       sourcePath:
         "bench/index.html",
-
       displayPath:
         "Benchmarks / Dashboard",
-
       packageId:
         "benchmark",
-
       generatedAt:
         reports[0]?.generatedAt,
-
       geometricMeanPercent:
         geometricMean(
           reports
             .map(
               (report) =>
-                report.comparison
-                  .geometricMeanPercent,
+                report.comparison.geometricMeanPercent,
             )
             .filter(
               (
                 value,
               ): value is number =>
-                typeof value
-                  === "number",
+                typeof value === "number",
             ),
         ),
-
       absoluteGeometricMeanPercent:
         geometricMean(
           reports
             .map(
               (report) =>
-                report.comparison
-                  .absoluteGeometricMeanPercent,
+                report.comparison.absoluteGeometricMeanPercent,
             )
             .filter(
               (
                 value,
               ): value is number =>
-                typeof value
-                  === "number",
+                typeof value === "number",
             ),
         ),
-
       faster:
         reports.reduce(
           (sum, report) =>
-            sum
-            + report.comparison
-              .faster,
+            sum + report.comparison.faster,
           0,
         ),
-
       slower:
         reports.reduce(
           (sum, report) =>
-            sum
-            + report.comparison
-              .slower,
+            sum + report.comparison.slower,
           0,
         ),
-
       stable:
         reports.reduce(
           (sum, report) =>
-            sum
-            + report.comparison
-              .stable,
+            sum + report.comparison.stable,
           0,
         ),
-
       unstable:
         reports.reduce(
           (sum, report) =>
-            sum
-            + report.comparison
-              .unstable,
+            sum + report.comparison.unstable,
           0,
         ),
     });
@@ -1841,18 +2160,15 @@ function readBenchmarkReports(
           file.relativePath,
         ),
     )
-
     .map(
       (file) =>
         safeJson(
           file.content,
         ),
     )
-
     .filter(
       isBenchmarkReportFile,
     )
-
     .sort(
       (left, right) =>
         left.suite.id.localeCompare(
@@ -1882,7 +2198,8 @@ async function writeBenchmarkDashboard(
   await fs.mkdir(
     BENCHMARK_DIR,
     {
-      recursive: true,
+      recursive:
+        true,
     },
   );
 
@@ -1891,21 +2208,9 @@ async function writeBenchmarkDashboard(
       BENCHMARK_DIR,
       "index.html",
     ),
-
     createBenchmarkDashboardHtml(
       reports,
     ),
-  );
-
-  debugLog(
-    "success",
-    "Benchmark dashboard written",
-    {
-      reports:
-        reports.length,
-      output:
-        "benchmarks/index.html",
-    },
   );
 }
 
@@ -1920,9 +2225,15 @@ function isBenchmarkReportFile(
 
   return (
     value.schemaVersion === 2
-    && isRecord(value.suite)
-    && isRecord(value.current)
-    && isRecord(value.comparison)
+    && isRecord(
+      value.suite,
+    )
+    && isRecord(
+      value.current,
+    )
+    && isRecord(
+      value.comparison,
+    )
   );
 }
 
@@ -1937,12 +2248,10 @@ function geometricMean(
             value,
           ),
       )
-
       .map(
         (value) =>
           1 + value / 100,
       )
-
       .filter(
         (value) =>
           value > 0,
@@ -1972,9 +2281,6 @@ async function walkTextFiles(
   ) => boolean,
   relativeRoot = ".",
 ): Promise<TextFile[]> {
-  const startedAt =
-    performance.now();
-
   const base =
     relativeRoot === "."
       ? ROOT_DIR
@@ -1985,37 +2291,15 @@ async function walkTextFiles(
 
   const files: TextFile[] = [];
 
-  let visitedDirectories = 0;
-  let visitedFiles = 0;
-  let acceptedFiles = 0;
-  let skippedLargeFiles = 0;
-
-  debugLog(
-    "info",
-    "Walking text files",
-    {
-      root:
-        toPosix(
-          path.relative(
-            ROOT_DIR,
-            root,
-          ),
-        ) || ".",
-
-      relativeRoot,
-    },
-  );
-
   async function visit(
     directory: string,
   ): Promise<void> {
-    visitedDirectories += 1;
-
     const dirents =
       await fs.readdir(
         directory,
         {
-          withFileTypes: true,
+          withFileTypes:
+            true,
         },
       );
 
@@ -2024,12 +2308,9 @@ async function walkTextFiles(
       of dirents
     ) {
       if (
-        dirent.name
-          === "node_modules"
-        || dirent.name
-          === ".git"
-        || dirent.name
-          === "dist"
+        dirent.name === "node_modules"
+        || dirent.name === ".git"
+        || dirent.name === "dist"
       ) {
         continue;
       }
@@ -2074,8 +2355,6 @@ async function walkTextFiles(
         continue;
       }
 
-      visitedFiles += 1;
-
       if (
         !accept(
           projectRelativePath,
@@ -2090,21 +2369,17 @@ async function walkTextFiles(
         );
 
       if (
-        stat.size
-        > TEXT_PAGE_MAX_BYTES
+        stat.size >
+        TEXT_PAGE_MAX_BYTES
       ) {
-        skippedLargeFiles += 1;
-
         debugLog(
           "warning",
           "Text file skipped because it exceeds page size limit",
           {
             file:
               projectRelativePath,
-
             bytes:
               stat.size,
-
             limit:
               TEXT_PAGE_MAX_BYTES,
           },
@@ -2113,14 +2388,10 @@ async function walkTextFiles(
         continue;
       }
 
-      acceptedFiles += 1;
-
       files.push({
         absolutePath,
-
         relativePath:
           projectRelativePath,
-
         content:
           await fs.readFile(
             absolutePath,
@@ -2132,47 +2403,12 @@ async function walkTextFiles(
 
   await visit(root);
 
-  const sorted =
-    files.sort(
-      (left, right) =>
-        left.relativePath.localeCompare(
-          right.relativePath,
-        ),
-    );
-
-  debugLog(
-    "success",
-    "Text file walk completed",
-    {
-      root:
-        toPosix(
-          path.relative(
-            ROOT_DIR,
-            root,
-          ),
-        ) || ".",
-
-      duration:
-        formatDuration(
-          performance.now()
-          - startedAt,
-        ),
-
-      directories:
-        visitedDirectories,
-
-      files:
-        visitedFiles,
-
-      accepted:
-        acceptedFiles,
-
-      skippedLarge:
-        skippedLargeFiles,
-    },
+  return files.sort(
+    (left, right) =>
+      left.relativePath.localeCompare(
+        right.relativePath,
+      ),
   );
-
-  return sorted;
 }
 
 function createBanner(
@@ -2287,11 +2523,9 @@ function descriptionFromMarkdown(
         /^#\s+.+$/m,
         "",
       )
-
       .split(
         /\n\s*\n/g,
       )
-
       .map(
         (part) =>
           part
@@ -2301,7 +2535,6 @@ function descriptionFromMarkdown(
             )
             .trim(),
       )
-
       .find(
         (part) =>
           part.length > 0
@@ -2390,16 +2623,13 @@ function displayPathFromPath(
       /(^|\/)README\.md$/i,
       "$1README.md",
     )
-
     .split("/")
-
     .map(
       (segment) =>
         segment === "src"
           ? "source"
           : segment,
     )
-
     .join(
       " / ",
     );
@@ -2415,22 +2645,18 @@ function normalizeContentPath(
       /^\.\//,
       "",
     )
-
     .replace(
       /^src\//,
       "",
     )
-
     .replace(
       /^scripts\//,
       "",
     )
-
     .replace(
       /^bench\//,
       "benchmark/",
     )
-
     .replace(
       /^\.github\/workflows\//,
       "workflow/",
@@ -2445,22 +2671,18 @@ function slugFromPath(
       relativePath,
     )
       .toLowerCase()
-
       .replace(
         /\.[^.]+$/,
         "",
       )
-
       .replace(
         /(^|\/)index$/g,
         "$1overview",
       )
-
       .replace(
         /[^a-z0-9]+/g,
         "-",
       )
-
       .replace(
         /^-+|-+$/g,
         "",
@@ -2534,8 +2756,7 @@ function packageFromPath(
     value.endsWith(
       "index.ts",
     )
-    || value
-      === "rod/index.ts"
+    || value === "rod/index.ts"
   ) {
     return "index";
   }
@@ -2589,7 +2810,9 @@ function packageFromBenchmarkPath(
 function displayPackageName(
   packageId: PackageTheme,
 ): string {
-  switch (packageId) {
+  switch (
+    packageId
+  ) {
     case "broto":
       return "Broto";
 
@@ -2626,9 +2849,7 @@ function humanizeSegment(
     .split(
       /[\/._-]+/g,
     )
-
     .filter(Boolean)
-
     .map(
       (part) => {
         const lower =
@@ -2675,7 +2896,6 @@ function humanizeSegment(
         }`;
       },
     )
-
     .join(
       " ",
     );
@@ -2786,8 +3006,7 @@ function isRecord(
   unknown
 > {
   return (
-    typeof value
-      === "object"
+    typeof value === "object"
     && value !== null
     && !Array.isArray(
       value,
@@ -2799,8 +3018,7 @@ function numberOrUndefined(
   value: unknown,
 ): number | undefined {
   return (
-    typeof value
-      === "number"
+    typeof value === "number"
     && Number.isFinite(
       value,
     )
