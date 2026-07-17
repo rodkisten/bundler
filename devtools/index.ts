@@ -963,7 +963,6 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     if (!host.id) host.id = "roderuda";
 
     host.classList.add(
-      "__chobitsu-hide__",
       "__roderuda-host__",
     );
 
