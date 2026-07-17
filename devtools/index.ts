@@ -88,6 +88,25 @@ import {
 
 export const VERSION = "4.0.0-native";
 
+/**
+ * Maximum rendered width for compact boot values such as Location and URL
+ * instances.
+ *
+ * This intentionally stays at 80 characters. Boot records often contain source
+ * URLs, and reducing the limit further removes too much useful debugging
+ * context, especially the script filename and cache-busting query.
+ */
+const MAX_BOOT_TEXT_WIDTH = 80;
+
+const GLOBAL_BOOT_EVENTS_KEY =
+  "__GLOBAL_EVENTS_BAG__";
+
+const PRE_CAPTURE_BRIDGE_KEY =
+  "__ROD_PRE_CAPTURE__";
+
+const PRE_CAPTURE_HANDOFF_EVENT =
+  "rod-devtools:pre-capture-handoff";
+
 const RESPONSIVE_VIEWPORT_CONTENT =
   "width=device-width, initial-scale=1, viewport-fit=cover";
 
@@ -160,6 +179,7 @@ export interface RodDevtoolsApi {
   hide(): RodDevtoolsApi;
 
   scale(): number;
+
   scale(
     value: number,
   ): RodDevtoolsApi;
@@ -175,6 +195,31 @@ export interface RodDevtoolsApi {
   isInitialized(): boolean;
 }
 
+/**
+ * Shape exposed by the PRE CAPTURE userscript.
+ *
+ * `records` is optional because older versions may expose only the global
+ * `__GLOBAL_EVENTS_BAG__` array.
+ */
+type PreCaptureBridge = {
+  readonly records?: unknown[];
+  readonly restore?: () => void;
+};
+
+type BootCaptureSnapshot = {
+  readonly globalRecords:
+    | unknown[]
+    | null;
+
+  readonly bridgeRecords:
+    | unknown[]
+    | null;
+
+  readonly bridge:
+    | PreCaptureBridge
+    | null;
+};
+
 type ResponsiveViewportResult = {
   readonly checked: boolean;
   readonly responsive: boolean;
@@ -183,10 +228,21 @@ type ResponsiveViewportResult = {
   readonly cleanup: (() => void) | null;
 };
 
+declare global {
+  interface Window {
+    __GLOBAL_EVENTS_BAG__?: unknown[];
+
+    __ROD_PRE_CAPTURE__?: PreCaptureBridge;
+
+    __ROD_DEVTOOLS__?: RodDevtoolsApi;
+  }
+}
+
 const util = Object.freeze({
   isErudaEl: isDevtoolsNode,
   isDevtoolsNode,
   isDarkTheme,
+
   getTheme: () =>
     resolveTheme(
       String(
@@ -198,6 +254,7 @@ const util = Object.freeze({
         ?? "System preference",
       ),
     ).name,
+
   getDebugConfig,
   themes,
   applyTheme,
@@ -227,6 +284,588 @@ const toolConstructors: Record<
   settings: Settings,
 };
 
+/**
+ * Reads the temporary startup capture surfaces exposed before RodEruda loads.
+ *
+ * Both sources are retained because PRE CAPTURE versions may expose either the
+ * global bag, the controller records property, or both.
+ */
+function resolveBootCaptureSnapshot(): BootCaptureSnapshot {
+  if (
+    typeof window
+    === "undefined"
+  ) {
+    return {
+      globalRecords:
+        null,
+
+      bridgeRecords:
+        null,
+
+      bridge:
+        null,
+    };
+  }
+
+  const globalRecords =
+    Array.isArray(
+      window[
+        GLOBAL_BOOT_EVENTS_KEY
+      ],
+    )
+      ? window[
+          GLOBAL_BOOT_EVENTS_KEY
+        ]
+      : null;
+
+  const candidateBridge =
+    window[
+      PRE_CAPTURE_BRIDGE_KEY
+    ];
+
+  const bridge =
+    candidateBridge
+    && typeof candidateBridge
+    === "object"
+      ? candidateBridge
+      : null;
+
+  const bridgeRecords =
+    Array.isArray(
+      bridge
+        ?.records,
+    )
+      ? bridge.records
+      : null;
+
+  return {
+    globalRecords,
+    bridgeRecords,
+    bridge,
+  };
+}
+
+/**
+ * Releases the temporary PRE CAPTURE console instrumentation before RodEruda
+ * installs its permanent capture layer.
+ *
+ * Calling the bridge directly is preferred. The custom event remains as a
+ * fallback for PRE CAPTURE implementations that intentionally avoid exposing
+ * the restore callback.
+ */
+function handoffBootCapture(
+  snapshot: BootCaptureSnapshot,
+): void {
+  if (
+    typeof window
+    === "undefined"
+  ) {
+    return;
+  }
+
+  let restored =
+    false;
+
+  if (
+    typeof snapshot
+      .bridge
+      ?.restore
+    === "function"
+  ) {
+    try {
+      snapshot
+        .bridge
+        .restore();
+
+      restored =
+        true;
+    } catch (error) {
+      console.warn(
+        "[RodEruda] Unable to restore PRE CAPTURE bridge",
+        error,
+      );
+    }
+  }
+
+  if (
+    restored
+  ) {
+    return;
+  }
+
+  try {
+    window.dispatchEvent(
+      new CustomEvent(
+        PRE_CAPTURE_HANDOFF_EVENT,
+      ),
+    );
+  } catch {
+    /*
+     * Some constrained environments may not allow custom event construction.
+     * RodEruda can still initialize; only the explicit PRE CAPTURE handoff is
+     * unavailable.
+     */
+  }
+}
+
+/**
+ * Detects Location objects without relying exclusively on instanceof.
+ *
+ * Cross-realm Location objects may fail instanceof checks, so the intrinsic
+ * object tag is also accepted.
+ */
+function isLocationObject(
+  value: unknown,
+): value is Location {
+  if (
+    value == null
+    || typeof value
+    !== "object"
+  ) {
+    return false;
+  }
+
+  if (
+    typeof Location
+    !== "undefined"
+    && value
+    instanceof Location
+  ) {
+    return true;
+  }
+
+  try {
+    return Object
+      .prototype
+      .toString
+      .call(
+        value,
+      )
+      === "[object Location]";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detects URL objects without assuming that the value belongs to the current
+ * JavaScript realm.
+ */
+function isUrlObject(
+  value: unknown,
+): value is URL {
+  if (
+    value == null
+    || typeof value
+    !== "object"
+  ) {
+    return false;
+  }
+
+  if (
+    typeof URL
+    !== "undefined"
+    && value
+    instanceof URL
+  ) {
+    return true;
+  }
+
+  try {
+    return Object
+      .prototype
+      .toString
+      .call(
+        value,
+      )
+      === "[object URL]";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Trims the middle of a text value while preserving both identifying edges.
+ *
+ * The default and minimum effective width are intentionally 80 characters.
+ * Passing a smaller width cannot make boot source labels narrower than the
+ * configured debugging contract.
+ */
+function trimBootText(
+  value: string,
+  maxWidth = MAX_BOOT_TEXT_WIDTH,
+): string {
+  const text =
+    String(
+      value,
+    );
+
+  const effectiveMaxWidth =
+    Math.max(
+      MAX_BOOT_TEXT_WIDTH,
+      maxWidth,
+    );
+
+  if (
+    text.length
+    <= effectiveMaxWidth
+  ) {
+    return text;
+  }
+
+  const available =
+    effectiveMaxWidth
+    - 1;
+
+  /*
+   * Keep slightly more space on the right because source URLs typically end in
+   * the most useful portion: filename, query parameters, hashes and line data.
+   */
+  const leftLength =
+    Math.floor(
+      available
+      * 0.38,
+    );
+
+  const rightLength =
+    available
+    - leftLength;
+
+  return `${text.slice(0, leftLength)}…${text.slice(-rightLength)}`;
+}
+
+/**
+ * Compresses a hostname while preserving the first and last labels.
+ *
+ * Example:
+ * `rod.migos.club` becomes `rod…club`.
+ */
+function compactHostname(
+  hostname: string,
+): string {
+  const labels =
+    hostname
+      .split(".")
+      .filter(
+        Boolean,
+      );
+
+  if (
+    labels.length
+    <= 2
+  ) {
+    return trimBootText(
+      hostname,
+    );
+  }
+
+  return `${labels[0]}…${labels[labels.length - 1]}`;
+}
+
+/**
+ * Compresses a non-terminal pathname segment.
+ *
+ * Filenames are intentionally handled separately because they carry much more
+ * debugging value than intermediate directories.
+ */
+function compactPathSegment(
+  segment: string,
+): string {
+  if (
+    segment.length
+    <= 6
+  ) {
+    return segment;
+  }
+
+  return `${segment.slice(0, 2)}…${segment.slice(-3)}`;
+}
+
+/**
+ * Converts Location and URL values into compact source labels.
+ *
+ * The protocol is omitted because it rarely adds useful information in a
+ * console source label. Hostname and intermediate directories are compressed,
+ * while the final filename, search and hash are preserved for as long as the
+ * 80-character budget allows.
+ *
+ * Example:
+ *
+ * https://rod.migos.club/bundler/devtools.canary.iife.min.js?000000000000049
+ *
+ * becomes:
+ *
+ * :rod…club/bu…ler/devtools.canary.iife.min.js?000000000000049
+ */
+function formatBootLocation(
+  value:
+    | Location
+    | URL,
+): string {
+  try {
+    const href =
+      value.href;
+
+    const parsed =
+      value
+      instanceof URL
+        ? value
+        : new URL(
+            href,
+          );
+
+    const host =
+      compactHostname(
+        parsed.hostname,
+      );
+
+    const port =
+      parsed.port
+        ? `:${parsed.port}`
+        : "";
+
+    const segments =
+      parsed.pathname
+        .split("/")
+        .filter(
+          Boolean,
+        );
+
+    const lastIndex =
+      segments.length
+      - 1;
+
+    const pathname =
+      segments.length
+        ? `/${
+            segments
+              .map(
+                (
+                  segment,
+                  index,
+                ) =>
+                  index
+                  === lastIndex
+                    ? segment
+                    : compactPathSegment(
+                        segment,
+                      ),
+              )
+              .join("/")
+          }`
+        : "";
+
+    const compact =
+      [
+        ":",
+        host,
+        port,
+        pathname,
+        parsed.search,
+        parsed.hash,
+      ].join("");
+
+    return trimBootText(
+      compact,
+    );
+  } catch {
+    try {
+      return trimBootText(
+        String(
+          value,
+        ),
+      );
+    } catch {
+      return "[Location]";
+    }
+  }
+}
+
+/**
+ * Normalizes values captured during startup without eagerly serializing normal
+ * objects.
+ *
+ * Keeping ordinary objects intact allows the Console panel to inspect them
+ * interactively. Only Location and URL are converted because their default
+ * object representation is noisy while their href is the useful information.
+ */
+function normalizeBootValue(
+  value: unknown,
+): unknown {
+  if (
+    isLocationObject(
+      value,
+    )
+    || isUrlObject(
+      value,
+    )
+  ) {
+    return formatBootLocation(
+      value,
+    );
+  }
+
+  return value;
+}
+
+/**
+ * Normalizes the conventional startup record shape produced by PRE CAPTURE.
+ *
+ * Only the args array is cloned. The original boot bag is never mutated.
+ */
+function normalizeBootEntry(
+  entry: unknown,
+): unknown {
+  if (
+    entry == null
+    || typeof entry
+    !== "object"
+    || Array.isArray(
+      entry,
+    )
+  ) {
+    return normalizeBootValue(
+      entry,
+    );
+  }
+
+  const record =
+    entry as Record<
+      string,
+      unknown
+    >;
+
+  const args =
+    record.args;
+
+  if (
+    !Array.isArray(
+      args,
+    )
+  ) {
+    return entry;
+  }
+
+  let changed =
+    false;
+
+  const normalizedArgs =
+    args.map(
+      (value) => {
+        const normalized =
+          normalizeBootValue(
+            value,
+          );
+
+        if (
+          normalized
+          !== value
+        ) {
+          changed =
+            true;
+        }
+
+        return normalized;
+      },
+    );
+
+  if (
+    !changed
+  ) {
+    return entry;
+  }
+
+  return {
+    ...record,
+
+    args:
+      normalizedArgs,
+  };
+}
+
+/**
+ * Merges boot records and explicit init records without replaying the same
+ * object twice when callers manually pass `window.__GLOBAL_EVENTS_BAG__`.
+ *
+ * Object identity is used for deduplication. Primitive entries are preserved
+ * because two equal strings can represent two legitimate independent logs.
+ */
+function collectStartupEntries(
+  snapshot: BootCaptureSnapshot,
+  options: NormalizedInitOptions,
+): unknown[] {
+  const sources: Array<
+    readonly unknown[]
+    | null
+    | undefined
+  > = [
+    snapshot.globalRecords,
+    snapshot.bridgeRecords,
+    options.initialLogs,
+    options.initialErrors,
+  ];
+
+  const seenSources =
+    new Set<
+      readonly unknown[]
+    >();
+
+  const seenObjects =
+    new WeakSet<object>();
+
+  const entries: unknown[] =
+    [];
+
+  for (
+    const source
+    of sources
+  ) {
+    if (
+      !source
+      || seenSources.has(
+        source,
+      )
+    ) {
+      continue;
+    }
+
+    seenSources.add(
+      source,
+    );
+
+    for (
+      const entry
+      of source
+    ) {
+      if (
+        entry
+        && typeof entry
+        === "object"
+      ) {
+        if (
+          seenObjects.has(
+            entry,
+          )
+        ) {
+          continue;
+        }
+
+        seenObjects.add(
+          entry,
+        );
+      }
+
+      entries.push(
+        normalizeBootEntry(
+          entry,
+        ),
+      );
+    }
+  }
+
+  return entries;
+}
+
 class RodDevtoolsRuntime implements RodDevtoolsApi {
   readonly version = VERSION;
   readonly util = util;
@@ -240,41 +879,57 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   readonly Info = Info;
   readonly Snippets = Snippets;
   readonly Settings = Settings;
+
   private initialized = false;
+
   private host:
     | HTMLElement
     | null = null;
+
   private rootTarget:
     | HTMLElement
     | ShadowRoot
     | null = null;
+
   private shadowRoot:
     | ShadowRoot
     | null = null;
+
   private refs:
     | ShellRefs
     | null = null;
+
   private devtools:
     | DevTools
     | null = null;
+
   private entryBtn:
     | EntryBtn
     | null = null;
+
   private style:
     | HTMLStyleElement
     | null = null;
+
   private currentScale = 1;
+
   private ownsHost = false;
+
   private reattachTimer = 0;
-  private readonly mountRetryTimers = new Set<number>();
+
+  private readonly mountRetryTimers =
+    new Set<number>();
+
   private sharedContext:
     | DevtoolsContextValue
     | null =
     null;
+
   private disposeRoot:
     | (() => void)
     | null =
     null;
+
   private hostObserver:
     | MutationObserver
     | null =
@@ -292,15 +947,23 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
   private readonly reattachHost =
     (): void => {
-      if (typeof document === "undefined") {
-        return;
-      }
-      
-      if (!this.host || !this.ownsHost) {
+      if (
+        typeof document
+        === "undefined"
+      ) {
         return;
       }
 
-      if (this.host.isConnected) {
+      if (
+        !this.host
+        || !this.ownsHost
+      ) {
+        return;
+      }
+
+      if (
+        this.host.isConnected
+      ) {
         return;
       }
 
@@ -314,7 +977,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
        * whole document with subtree:true otherwise re-enters on every page
        * update and can starve the main thread.
        */
-      if (!this.host || this.host.isConnected) {
+      if (
+        !this.host
+        || this.host.isConnected
+      ) {
         return;
       }
 
@@ -324,42 +990,100 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   init(
     options: RodDevtoolsInitOptions = {},
   ): this {
-    configureDebug(options.debug);
-
-    const normalizedOptions = normalizeInitOptions(
-        options,
+    if (
+      this.initialized
+    ) {
+      configureDebug(
+        options.debug,
       );
 
-    const finishDebug =
-      debugGroup("runtime", "init",
-        {
-          version: VERSION,
-          inline: normalizedOptions.inline,
-          useShadowDom: normalizedOptions.useShadowDom,
-          autoScale: normalizedOptions.autoScale,
-          ensureResponsiveViewport: normalizedOptions.ensureResponsiveViewport,
-          tool: normalizedOptions.tools,
-        },
-      );
-
-    if (this.initialized) {
       debugWarn(
         "runtime",
         "init skipped: already initialized",
       );
 
-      finishDebug();
-
       return this;
     }
 
-    if (typeof document === "undefined") {
-      finishDebug();
-
+    if (
+      typeof document
+      === "undefined"
+    ) {
       throw new Error(
         "RodEruda requires a browser document",
       );
     }
+
+    /*
+     * Snapshot the boot buffer before touching console instrumentation. PRE
+     * CAPTURE is then released so RodEruda can install its own permanent
+     * wrappers without a later restore removing them.
+     */
+    const bootCapture =
+      resolveBootCaptureSnapshot();
+
+    handoffBootCapture(
+      bootCapture,
+    );
+
+    configureDebug(
+      options.debug,
+    );
+
+    const normalizedOptions =
+      normalizeInitOptions(
+        options,
+      );
+
+    const finishDebug =
+      debugGroup(
+        "runtime",
+        "init",
+        {
+          version:
+            VERSION,
+
+          inline:
+            normalizedOptions
+              .inline,
+
+          useShadowDom:
+            normalizedOptions
+              .useShadowDom,
+
+          autoScale:
+            normalizedOptions
+              .autoScale,
+
+          ensureResponsiveViewport:
+            normalizedOptions
+              .ensureResponsiveViewport,
+
+          tool:
+            normalizedOptions
+              .tools,
+
+          bootCapture: {
+            globalRecords:
+              bootCapture
+                .globalRecords
+                ?.length
+              ?? 0,
+
+            bridgeRecords:
+              bootCapture
+                .bridgeRecords
+                ?.length
+              ?? 0,
+
+            bridge:
+              Boolean(
+                bootCapture
+                  .bridge,
+              ),
+          },
+        },
+      );
 
     try {
       /*
@@ -375,27 +1099,47 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
               "disabled",
             );
 
-      this.viewportMetaCleanup = viewportResult.cleanup;
+      this.viewportMetaCleanup =
+        viewportResult.cleanup;
 
-      debugInfo("runtime", "responsive viewport check",
+      debugInfo(
+        "runtime",
+        "responsive viewport check",
         {
-          checked: viewportResult.checked,
-          responsive: viewportResult.responsive,
-          mutated: viewportResult.mutated,
-          reason: viewportResult.reason,
-          layoutWidth: getLayoutViewportWidth(),
-          screenWidth: getPhysicalScreenWidth(),
+          checked:
+            viewportResult
+              .checked,
+
+          responsive:
+            viewportResult
+              .responsive,
+
+          mutated:
+            viewportResult
+              .mutated,
+
+          reason:
+            viewportResult
+              .reason,
+
+          layoutWidth:
+            getLayoutViewportWidth(),
+
+          screenWidth:
+            getPhysicalScreenWidth(),
         },
       );
 
       this.host =
-        normalizedOptions.container
+        normalizedOptions
+          .container
         ?? document.createElement(
           "div",
         );
 
       this.ownsHost =
-        !normalizedOptions.container;
+        !normalizedOptions
+          .container;
 
       debugLog(
         "runtime",
@@ -496,26 +1240,32 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
           this.sharedContext,
         );
 
-      this.sharedContext.controller.set(
-        this.devtools,
-      );
+      this.sharedContext
+        .controller
+        .set(
+          this.devtools,
+        );
 
       if (
         normalizedOptions
           .config
           ?.devtools
       ) {
-        this.devtools.config.patch(
-          normalizedOptions
-            .config
-            .devtools,
-        );
+        this.devtools
+          .config
+          .patch(
+            normalizedOptions
+              .config
+              .devtools,
+          );
       }
 
       this.entryBtn =
         new EntryBtn(
-          this.refs.entryButton,
-          this.refs.root,
+          this.refs
+            .entryButton,
+          this.refs
+            .root,
         );
 
       this.mountSettings(
@@ -533,31 +1283,74 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         )
         ?? "settings";
 
-      this.devtools.showTool(
-        first,
-      );
+      this.devtools
+        .showTool(
+          first,
+        );
 
+      /*
+       * PRE CAPTURE records are discovered automatically.
+       *
+       * Explicit initialLogs and initialErrors remain supported and are merged
+       * with the boot bag. Object identity prevents the common case where the
+       * caller passes __GLOBAL_EVENTS_BAG__ manually from being replayed twice.
+       */
       const startupEntries =
-        concatArrays(
-          normalizedOptions.initialLogs
-          ?? [],
-          normalizedOptions.initialErrors
-          ?? [],
+        collectStartupEntries(
+          bootCapture,
+          normalizedOptions,
         );
 
       const consoleTool =
-        this.devtools.get<Console>(
-          "console",
-        );
+        this.devtools
+          .get<Console>(
+            "console",
+          );
 
       if (
         startupEntries.length
       ) {
         consoleTool
           ?.ingestInitial(
-            startupEntries,
+            startupEntries as Parameters<
+              Console["ingestInitial"]
+            >[0],
           );
       }
+
+      debugInfo(
+        "runtime",
+        "startup records ingested",
+        {
+          count:
+            startupEntries
+              .length,
+
+          bootGlobal:
+            bootCapture
+              .globalRecords
+              ?.length
+            ?? 0,
+
+          bootBridge:
+            bootCapture
+              .bridgeRecords
+              ?.length
+            ?? 0,
+
+          explicitLogs:
+            normalizedOptions
+              .initialLogs
+              ?.length
+            ?? 0,
+
+          explicitErrors:
+            normalizedOptions
+              .initialErrors
+              ?.length
+            ?? 0,
+        },
+      );
 
       const shouldDisplayStartupErrors =
         Boolean(
@@ -572,15 +1365,17 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         !normalizedOptions.inline
         && !shouldDisplayStartupErrors
       ) {
-        this.devtools.hide();
+        this.devtools
+          .hide();
       }
 
       if (
         shouldDisplayStartupErrors
       ) {
-        this.devtools.showTool(
-          "console",
-        );
+        this.devtools
+          .showTool(
+            "console",
+          );
       }
 
       this.initialized =
@@ -598,11 +1393,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
        * stale inverse scale and shrinking the DevTools again.
        */
       if (
-        normalizedOptions.autoScale
+        normalizedOptions
+          .autoScale
         && detectMobile()
       ) {
         if (
-          viewportResult.mutated
+          viewportResult
+            .mutated
         ) {
           this.scale(
             1,
@@ -620,8 +1417,11 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       if (
         normalizedOptions.inline
       ) {
-        this.entryBtn.hide();
-        this.devtools.show();
+        this.entryBtn
+          .hide();
+
+        this.devtools
+          .show();
       }
 
       finishDebug();
@@ -747,7 +1547,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     }
 
     if (
-      name === "entryBtn"
+      name
+      === "entryBtn"
     ) {
       return this.entryBtn
         as T;
@@ -1108,7 +1909,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       of selected
     ) {
       if (
-        name === "settings"
+        name
+        === "settings"
       ) {
         continue;
       }
@@ -1476,18 +2278,20 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     const id =
       window.setTimeout(
         () => {
-          this.mountRetryTimers.delete(
-            id,
-          );
+          this.mountRetryTimers
+            .delete(
+              id,
+            );
 
           callback();
         },
         timeout,
       );
 
-    this.mountRetryTimers.add(
-      id,
-    );
+    this.mountRetryTimers
+      .add(
+        id,
+      );
   }
 
   private clearMountRetry(): void {
@@ -1500,7 +2304,8 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       );
     }
 
-    this.mountRetryTimers.clear();
+    this.mountRetryTimers
+      .clear();
   }
 
   private installHostWatchdog(): void {
@@ -2118,14 +2923,16 @@ function ensureResponsiveViewport(): ResponsiveViewportResult {
             originalContent
             == null
           ) {
-            existing.removeAttribute(
-              "content",
-            );
+            existing
+              .removeAttribute(
+                "content",
+              );
           } else {
-            existing.setAttribute(
-              "content",
-              originalContent,
-            );
+            existing
+              .setAttribute(
+                "content",
+                originalContent,
+              );
           }
         },
     };
@@ -2142,7 +2949,8 @@ function ensureResponsiveViewport(): ResponsiveViewportResult {
   meta.content =
     RESPONSIVE_VIEWPORT_CONTENT;
 
-  meta.dataset.roderudaViewport =
+  meta.dataset
+    .roderudaViewport =
     "true";
 
   const head =
@@ -2404,14 +3212,24 @@ function createSkippedViewportResult(
   };
 }
 
-export const api = new RodDevtoolsRuntime();
+export const api =
+  new RodDevtoolsRuntime();
 
-if (typeof window !== "undefined") {
-  console.log("DevTools installed", window.__ROD_DEVTOOLS__);
-  window.__ROD_DEVTOOLS__ = api;
+if (
+  typeof window
+  !== "undefined"
+) {
+  window.__ROD_DEVTOOLS__ =
+    api;
+
+  console.log(
+    "DevTools installed",
+    window.__ROD_DEVTOOLS__,
+  );
 }
 
-export const devtools = api;
+export const devtools =
+  api;
 
 export const eruda =
   api;
