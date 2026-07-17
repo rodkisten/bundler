@@ -17,11 +17,6 @@ import { collectExamplesByEntry } from "./example-extractor";
 import { buildDevtoolsLanding } from "./build-devtools-landing";
 import { buildNascenteDocs } from "./build-nascente-docs";
 import {
-  createBuildMetadata,
-  createIifeBuildBanner,
-  readPackageVersion,
-} from "./build-metadata";
-import {
   DIST_DIR,
   ROOT_DIR,
   SRC_DIR,
@@ -33,17 +28,12 @@ import {
 } from "./config";
 import { discoverRootEntries } from "./discover-entries";
 import { devtoolsCipoConfigCss } from "../devtools/cipo-config";
+import { maquinaCipoConfigCss } from "../maquina/cipo-config";
 
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
 const BUILD_DEBUG = readBooleanEnv("BUILD_DEBUG", true);
 const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
-
-const BUILD_METADATA = createBuildMetadata({
-  root: ROOT_DIR,
-  version: readPackageVersion(ROOT_DIR),
-  mode: "production",
-});
 
 const REQUESTED_BUILD_ENTRIES = new Set(
   readEnv("BUILD_ENTRIES", "")
@@ -61,6 +51,7 @@ const ASSETS_DIR = path.join(DIST_DIR, "assets");
 
 const TEXT_PAGE_MAX_BYTES = 320_000;
 const DEVTOOLS_ENTRY_NAME = "devtools";
+const MAQUINA_ENTRY_NAME = "maquina";
 
 const BUILD_STARTED_AT = performance.now();
 
@@ -566,13 +557,19 @@ export async function main(): Promise<void> {
         const [index, entry]
         of entries.entries()
       ) {
+        const cipoConfigCss =
+          getEntryCipoConfigCss(
+            entry.name,
+          );
+
         const entryOutputs =
           await debugStep(
             `Building entry ${entry.name}`,
             () =>
-              entry.name === DEVTOOLS_ENTRY_NAME
-                ? buildDevtoolsEntryWithVite(
+              cipoConfigCss
+                ? buildCipoEntryWithVite(
                     entry,
+                    cipoConfigCss,
                   )
                 : buildEntry(
                     entry,
@@ -587,7 +584,7 @@ export async function main(): Promise<void> {
               source:
                 entry.relativePath,
               builder:
-                entry.name === DEVTOOLS_ENTRY_NAME
+                cipoConfigCss
                   ? "vite"
                   : "esbuild",
             },
@@ -1038,8 +1035,32 @@ async function copyLanding(
   );
 }
 
-async function buildDevtoolsEntryWithVite(
+function getEntryCipoConfigCss(
+  entryName: string,
+): string | null {
+  if (
+    entryName === DEVTOOLS_ENTRY_NAME
+  ) {
+    return devtoolsCipoConfigCss;
+  }
+
+  if (
+    entryName === MAQUINA_ENTRY_NAME
+  ) {
+    return maquinaCipoConfigCss;
+  }
+
+  return null;
+}
+
+/**
+ * Builds Cipó/Fábrica-heavy browser entries through the same compiler path used
+ * by their dedicated Vite configs. This keeps whole-build atomic compilation,
+ * stylesheet optimization, and runtime lowering identical in root publishing.
+ */
+async function buildCipoEntryWithVite(
   entry: RootEntry,
+  configCss: string,
 ): Promise<string[]> {
   const [
     { build: viteBuild },
@@ -1072,11 +1093,10 @@ async function buildDevtoolsEntryWithVite(
     );
 
   /**
-   * The programmatic DevTools build must use the same Cipó compiler contract
-   * as the dedicated Vite build. In particular, configCss enables the
-   * whole-build atomic compilation policy and the plugin is intentionally
-   * left without an include filter so it can process every reachable module
-   * in the DevTools dependency graph.
+   * Keep root publication builds on the same Cipó compiler contract as their
+   * dedicated Vite configs. `configCss` enables whole-build atomic promotion,
+   * and omitting an include filter lets the compiler follow the complete
+   * reachable workspace graph for each published entry.
    */
   const createBaseConfig =
     () => ({
@@ -1105,11 +1125,13 @@ async function buildDevtoolsEntryWithVite(
           cssDelivery:
             "style-tag",
 
-          configCss:
-            devtoolsCipoConfigCss,
+          configCss,
 
           cssFileName:
             `${entry.name}.compiled.css`,
+
+          manifestFileName:
+            `${entry.name}.cipo.compiled.manifest.json`,
 
           compileFabrica:
             true,
@@ -1120,8 +1142,6 @@ async function buildDevtoolsEntryWithVite(
       ],
 
       define: {
-        __RODERUDA_BUILD__: JSON.stringify(BUILD_METADATA),
-        __DEV__: "false",
         "process.env.NODE_ENV":
           JSON.stringify(
             "production",
@@ -1254,7 +1274,7 @@ async function buildDevtoolsEntryWithVite(
     minIife,
     path.join(
       DIST_DIR,
-      "cipo.compiled.manifest.json",
+      `${entry.name}.cipo.compiled.manifest.json`,
     ),
   ];
 
@@ -2585,16 +2605,20 @@ async function walkTextFiles(
 function createBanner(
   entry: RootEntry,
 ): string {
-  return createIifeBuildBanner(
-    BUILD_METADATA,
-    {
-      tool: entry.tool.name,
-      globalName: entry.globalName,
-      entry: entry.relativePath,
-      description: entry.tool.description,
-      generatedBy: "Rod root IIFE build system",
-    },
-  );
+  const description =
+    entry.tool.description.replace(
+      /\*\//g,
+      "*",
+    );
+
+  return `/**
+ * ${(new Date()).toUTCString()}
+ * @tool ${entry.tool.name}
+ * @global ${entry.globalName}
+ * @entry ${entry.relativePath}
+ * @description ${description}
+ * @generated by Rod root IIFE build system
+ */`;
 }
 
 function createManifest(
