@@ -1,4 +1,6 @@
 ## Unreleased
+- Switched Vite 8 and Vitest workspace alias resolution from `vite-tsconfig-paths` to native `resolve.tsconfigPaths: true`, removed the redundant plugin dependency, and restored a corrupted Fabrica `dom.ts` TSDoc section that produced invalid Unicode escape syntax during Rolldown transforms.
+
 - Unified styled CSS collection across Fábrica Elements, Cipó and DevTools with an automatic factory-local registry. DevTools panels no longer maintain manual style component arrays, and compiled Cipó components retain lightweight artifact metadata for the same runtime/build registry output.
 - Replaced duplicated Vite/Vitest workspace alias tables with `vite-tsconfig-paths`, kept Cipó/Fábrica imports on `@rodkisten/*` aliases, and load standalone TypeScript Vite configs through `tsx` plus `--configLoader native` so aliases also resolve during config bootstrap.
 - Fixed Cipó production theme bootstrapping to keep the readable CSS-first config as the single source of truth while lowering runtime `configureFromCss()` calls to compact parser-free payloads during Vite builds.
