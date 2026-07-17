@@ -1,4 +1,5 @@
 ## Unreleased
+- Added order-safe compiled CSS coalescing for adjacent equivalent `@media`, `@supports`, and `@container` blocks, including nested rule-list wrappers such as `@layer` and `@scope`, without moving rules across cascade boundaries.
 - Updated Vite integration coverage for Vite 8 native `resolve.tsconfigPaths: true` and removed the obsolete `vite-tsconfig-paths` dependency expectation.
 
 - Changed atomic promotion to a two-use default. Runtime styled components keep first-use declarations scoped and promote reused declaration/context pairs, while CSS-first Vite builds now analyze the complete module graph and can rewrite every participating component.

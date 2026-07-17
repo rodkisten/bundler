@@ -165,6 +165,26 @@ Output CSS shape:
 }
 ```
 
+## Production at-rule coalescing
+
+Compiled production CSS now coalesces consecutive equivalent grouping at-rules. Cipó keeps cascade order intact and only merges blocks that are already adjacent, so repeated responsive output such as:
+
+```css
+@media (min-width: 768px) { .a { display: flex } }
+@media (min-width: 768px) { .b { display: grid } }
+```
+
+is emitted as one shared block:
+
+```css
+@media (min-width: 768px) {
+  .a { display: flex }
+  .b { display: grid }
+}
+```
+
+The same optimization applies to adjacent equivalent `@supports` and `@container` blocks. Rule-list wrappers such as `@layer` and `@scope` are traversed recursively, while intervening rules remain hard cascade boundaries and are never reordered.
+
 ## Full stylesheet mode
 
 A top-level selector returns stylesheet text instead of a class list.
