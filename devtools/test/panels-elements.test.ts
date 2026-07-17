@@ -63,8 +63,8 @@ vi.mock("@rodkisten/devtools/core-highlighter", () => ({
   },
 }));
 
-import { Elements } from "@rodkisten/devtools/panels-elements";
-import { styledRegistry } from "@rodkisten/devtools/core-runtime";
+import { Elements } from "@rodkisten/devtools/panels/elements";
+import { styledRegistry } from "@rodkisten/devtools/core/runtime";
 
 type Fixture = {
   tool: Elements;

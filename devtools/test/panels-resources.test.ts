@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourcePayload, ToolContext } from "@rodkisten/devtools/types";
-import { Resources } from "@rodkisten/devtools/panels-resources";
+import { Resources } from "@rodkisten/devtools/panels/resources";
 
 function createFixture(): {
   tool: Resources;

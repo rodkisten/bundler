@@ -1,5 +1,5 @@
 import type { Cleanup } from "@rodkisten/devtools/types";
-import { uiElement } from "@rodkisten/devtools/core-runtime";
+import { uiElement } from "@rodkisten/devtools/core/runtime";
 import { debugLog, debugTrace, debugWarn } from "@rodkisten/devtools/core-debug";
 import {
   describeTarget,

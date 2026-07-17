@@ -1,6 +1,6 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import { filterArray, flatMap } from "@rodkisten/nascente";
-import { styled } from "@rodkisten/devtools/core-runtime";
+import { styled } from "@rodkisten/devtools/core/runtime";
 
 /* ******************** */
 /* Shared panel layout  */

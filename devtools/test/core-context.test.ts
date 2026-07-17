@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it } from "vitest";
-import { component, html } from "@rodkisten/devtools/core-runtime";
-import { render, setDevtoolsContextOwner } from "@rodkisten/devtools/core-runtime";
-import { createDevtoolsContextScope, DevtoolsContext } from "@rodkisten/devtools/core-context";
+import { component, html } from "@rodkisten/devtools/core/runtime";
+import { render, setDevtoolsContextOwner } from "@rodkisten/devtools/core/runtime";
+import { createDevtoolsContextScope, DevtoolsContext } from "@rodkisten/devtools/core/context";
 
 describe("DevTools shared context", () => {
   afterEach(() => {
