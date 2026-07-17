@@ -2404,11 +2404,14 @@ function createSkippedViewportResult(
   };
 }
 
-export const api =
-  new RodDevtoolsRuntime();
+export const api = new RodDevtoolsRuntime();
 
-export const devtools =
-  api;
+if (typeof window !== "undefined") {
+  console.log("DevTools installed", window.__ROD_DEVTOOLS__);
+  window.__ROD_DEVTOOLS__ = api;
+}
+
+export const devtools = api;
 
 export const eruda =
   api;
