@@ -24,6 +24,7 @@ export interface CipoViteCompiledInlineOptions {
   readonly mergeEquivalentRules?: boolean
   readonly privateCustomPropertyPattern?: RegExp
   readonly cssFileName?: string
+  readonly manifestFileName?: string
   /** Default keeps one compiled stylesheet inside the JS bundle and injects it through Cipó's runtime style tag. */
   readonly cssDelivery?: 'style-tag' | 'asset'
   readonly transformCssTag?: boolean
@@ -211,7 +212,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
           this.emitFile({ type: 'asset', fileName: options.cssFileName ?? 'cipo.compiled.css', source: `${css.trim()}\n` })
         }
         if (manifests.length > 0) {
-          this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries: manifests }, null, 2)}\n` })
+          this.emitFile({ type: 'asset', fileName: options.manifestFileName ?? 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries: manifests }, null, 2)}\n` })
         }
         return
       }
@@ -237,7 +238,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       }
       if (manifests.length > 0) {
         const entries = manifests.map((entry) => rewriteManifestClassName(entry, result.classNames))
-        this.emitFile({ type: 'asset', fileName: 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries }, null, 2)}\n` })
+        this.emitFile({ type: 'asset', fileName: options.manifestFileName ?? 'cipo.compiled.manifest.json', source: `${JSON.stringify({ mode, entries }, null, 2)}\n` })
       }
     },
   }

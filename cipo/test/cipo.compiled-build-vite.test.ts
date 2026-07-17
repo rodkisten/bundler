@@ -136,6 +136,38 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(runtimeModule).toContain('insertCss')
     expect(runtimeModule).not.toContain('color:red')
   })
+  it('allows root publication builds to isolate compiled manifest filenames', () => {
+    const emitted: Array<{ type: string; fileName?: string; source?: unknown }> = []
+    const plugin = cipoVite({
+      root: '/project',
+      mode: 'build',
+      manifestFileName: 'maquina.cipo.compiled.manifest.json',
+    })
+    const context = {
+      emitFile(asset: { type: string; fileName?: string; source?: unknown }) {
+        emitted.push(asset)
+        return 'asset'
+      },
+    } as never
+
+    plugin.transform?.call(
+      context,
+      "const Card = styled.div('Card').css`color: red;`",
+      '/project/src/maquina/card.ts',
+    )
+    const generateBundle = plugin.generateBundle
+    if (typeof generateBundle === 'function') {
+      generateBundle.call(context, {} as never, {} as never, false)
+    } else {
+      generateBundle?.handler.call(context, {} as never, {} as never, false)
+    }
+
+    expect(emitted).toContainEqual(expect.objectContaining({
+      type: 'asset',
+      fileName: 'maquina.cipo.compiled.manifest.json',
+    }))
+  })
+
   it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
     const source = `
       const view = html` + '`' + `<RodProbe @click=${'${'}onClick} class="tone ${'${'}tone}" ref=${'${'}refCallback}>
