@@ -1,4 +1,6 @@
 ## Unreleased
+- Updated Vite integration coverage for Vite 8 native `resolve.tsconfigPaths: true` and removed the obsolete `vite-tsconfig-paths` dependency expectation.
+
 - Changed atomic promotion to a two-use default. Runtime styled components keep first-use declarations scoped and promote reused declaration/context pairs, while CSS-first Vite builds now analyze the complete module graph and can rewrite every participating component.
 - Added whole-build atomic stylesheet compilation for CSS-first Vite builds. Static `styled`/Fábrica Elements components now carry class-only compiled artifacts instead of one embedded CSS string per component, and production emits one consolidated stylesheet containing shared atomic classes plus scoped single-use fallbacks.
 - Production class naming is now driven by CSS-first configuration: readable/debug builds keep semantic labels, while `debug: false` uses compact `a<hash>` atomic and `s<hash>` scope classes in the global build output. `atomic-min-uses` and `minify` are read from the same `@cipo` sheet.

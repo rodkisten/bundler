@@ -1707,7 +1707,7 @@ existing esbuild pipeline. See [`COMPILED_INLINE.md`](./COMPILED_INLINE.md).
 
 ### Vite workspace aliases
 
-The monorepo keeps Cipó compiler imports on `@rodkisten/*` TypeScript path aliases. Vite application graphs use `vite-tsconfig-paths`, while standalone Vite CLI scripts load TypeScript configs through `tsx` plus Vite's native config loader so aliases referenced by `vite.config.ts` dependencies are already resolvable before normal Vite plugins are initialized. This avoids maintaining a second manual `resolve.alias` table and avoids rewriting Cipó internals to relative `.js` imports solely for config bootstrapping.
+The monorepo keeps Cipó compiler imports on `@rodkisten/*` TypeScript path aliases. Vite 8 application graphs use native `resolve.tsconfigPaths: true`, while standalone Vite CLI scripts load TypeScript configs through `tsx` plus Vite's native config loader so aliases referenced by `vite.config.ts` dependencies are already resolvable during config evaluation. This avoids maintaining a second manual `resolve.alias` table, avoids an extra path-resolution plugin, and avoids rewriting Cipó internals to relative `.js` imports solely for config bootstrapping.
 
 ## Production CSS compaction
 
