@@ -127,7 +127,7 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   transition: opacity var(--rd-animation-duration, 300ms);
   overflow: hidden;
   contain: layout style paint;
- backdrop-filter: blur(var(--rd-blur, 0px));
+  backdrop-filter: blur(var(--rd-blur, 0px));
 
   &[data-active="true"] {
     visibility: visible;
