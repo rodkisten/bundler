@@ -2,66 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "@rodkisten/devtools/types";
-
-const mocks = vi.hoisted(() => {
-  const copyText = vi.fn<(...args: unknown[]) => Promise<void>>(
-    async () => undefined,
-  );
-
-  const restoreEventRegistry = vi.fn();
-  const installEventListenerRegistry = vi.fn(
-    () => restoreEventRegistry,
-  );
-
-  const getEventListeners = vi.fn(() => ({
-    click: [
-      {
-        listener: (() => undefined) as EventListener,
-        options: false,
-      },
-    ],
-  }));
-
-  const highlighterInstances: Array<{
-    highlight: ReturnType<typeof vi.fn>;
-    hide: ReturnType<typeof vi.fn>;
-    destroy: ReturnType<typeof vi.fn>;
-  }> = [];
-
-  return {
-    copyText,
-    restoreEventRegistry,
-    installEventListenerRegistry,
-    getEventListeners,
-    highlighterInstances,
-  };
-});
-
-vi.mock("@rodkisten/devtools/utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@rodkisten/devtools/utils")>();
-
-  return {
-    ...actual,
-    copyText: mocks.copyText,
-  };
-});
-
-vi.mock("@rodkisten/devtools/core-event-listeners", () => ({
-  getEventListeners: mocks.getEventListeners,
-  installEventListenerRegistry: mocks.installEventListenerRegistry,
-}));
-
-vi.mock("@rodkisten/devtools/core-highlighter", () => ({
-  ElementHighlighter: class ElementHighlighter {
-    readonly highlight = vi.fn();
-    readonly hide = vi.fn();
-    readonly destroy = vi.fn(() => this.hide());
-
-    constructor(_host?: HTMLElement) {
-      mocks.highlighterInstances.push(this);
-    }
-  },
-}));
+import { mocks, polyfillBrowserApis } from "./_tests.setup";
 
 import { Elements } from "@rodkisten/devtools/panels/elements";
 import { styledRegistry } from "@rodkisten/devtools/core/runtime";
@@ -86,36 +27,6 @@ type Fixture = {
     get: ReturnType<typeof vi.fn>;
   };
 };
-
-function polyfillBrowserApis(): void {
-  Object.defineProperty(window, "PointerEvent", {
-    configurable: true,
-    value: MouseEvent,
-  });
-
-  Object.defineProperty(globalThis, "requestAnimationFrame", {
-    configurable: true,
-    writable: true,
-    value: (callback: FrameRequestCallback) =>
-      window.setTimeout(
-        () => callback(performance.now()),
-        0,
-      ),
-  });
-
-  Object.defineProperty(globalThis, "cancelAnimationFrame", {
-    configurable: true,
-    writable: true,
-    value: (id: number) => window.clearTimeout(id),
-  });
-
-  Element.prototype.scrollIntoView = vi.fn();
-
-  Object.defineProperty(document, "elementFromPoint", {
-    configurable: true,
-    value: vi.fn(() => document.querySelector("#page-target")),
-  });
-}
 
 function createFixture(show = true): Fixture {
   document.body.innerHTML = `
