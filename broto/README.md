@@ -338,6 +338,11 @@ state.view.user.profile.name.set('Fabrica')
 state.view.user.profile.name.update((name) => name.toUpperCase())
 ```
 
+Store-view computed signals are safe to consume from synchronous effects.
+Invalidation snapshots subscribers before dispatch, so a sync consumer can
+clean up and resubscribe during recomputation without creating a live-`Set`
+iteration loop.
+
 `state.$()` creates computed selector signals for path strings, path arrays or snapshot selectors:
 
 ```ts

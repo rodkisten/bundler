@@ -8,16 +8,23 @@ import type {
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
+type ModulePhase = "queued" | "collected" | "running";
+
+type ModuleState = {
+  readonly module: TestModule;
+  phase: ModulePhase;
+  since: number;
+};
+
 /**
  * Reporter focused on diagnosing tests, files and collection phases that hang.
  *
  * All output is written directly to stdout. GitHub Actions hides `::debug::`
- * workflow commands by default, so using regular output is essential when the
- * process is eventually killed by a job or step timeout.
+ * workflow commands by default, so regular output is essential when a worker
+ * or the surrounding job is eventually killed by a timeout.
  */
 export default class VitestDebugReporter implements Reporter {
-  private readonly queuedModules = new Set<string>();
-  private readonly activeModules = new Set<string>();
+  private readonly modules = new Map<string, ModuleState>();
   private readonly startedTests = new Map<string, number>();
   private heartbeat: NodeJS.Timeout | null = null;
 
@@ -27,18 +34,17 @@ export default class VitestDebugReporter implements Reporter {
   }
 
   onTestModuleQueued(testModule: TestModule): void {
-    this.queuedModules.add(testModule.moduleId);
+    this.setModulePhase(testModule, "queued");
     this.log("file:queued", testModule.moduleId);
   }
 
   onTestModuleCollected(testModule: TestModule): void {
-    this.queuedModules.delete(testModule.moduleId);
+    this.setModulePhase(testModule, "collected");
     this.log("file:collected", testModule.moduleId);
   }
 
   onTestModuleStart(testModule: TestModule): void {
-    this.queuedModules.delete(testModule.moduleId);
-    this.activeModules.add(testModule.moduleId);
+    this.setModulePhase(testModule, "running");
     this.log("file:start", testModule.moduleId);
   }
 
@@ -65,7 +71,7 @@ export default class VitestDebugReporter implements Reporter {
   }
 
   onTestModuleEnd(testModule: TestModule): void {
-    this.activeModules.delete(testModule.moduleId);
+    this.modules.delete(testModule.moduleId);
     this.log("file:done", testModule.moduleId);
   }
 
@@ -77,6 +83,14 @@ export default class VitestDebugReporter implements Reporter {
     this.stopHeartbeat();
     this.log("run:done", `reason=${reason}`);
     this.reportActiveWork("final");
+  }
+
+  private setModulePhase(testModule: TestModule, phase: ModulePhase): void {
+    this.modules.set(testModule.moduleId, {
+      module: testModule,
+      phase,
+      since: performance.now(),
+    });
   }
 
   private startHeartbeat(): void {
@@ -97,24 +111,56 @@ export default class VitestDebugReporter implements Reporter {
   }
 
   private reportActiveWork(kind: "heartbeat" | "final"): void {
-    if (this.startedTests.size > 0) {
-      for (const [key, startedAt] of this.startedTests) {
-        this.log(
-          `${kind}:test`,
-          `${key} running=${this.formatDuration(performance.now() - startedAt)}`,
-        );
+    const now = performance.now();
+
+    for (const [key, startedAt] of this.startedTests) {
+      this.log(
+        `${kind}:test`,
+        `${key} running=${this.formatDuration(now - startedAt)}`,
+      );
+    }
+
+    for (const [moduleId, state] of this.modules) {
+      const result = this.moduleProgress(state.module);
+      this.log(
+        `${kind}:file`,
+        [
+          `phase=${state.phase}`,
+          `age=${this.formatDuration(now - state.since)}`,
+          `tests=${result.completed}/${result.total}`,
+          `pending=${result.pending}`,
+          moduleId,
+        ].join(" "),
+      );
+    }
+
+    if (this.startedTests.size === 0 && this.modules.size === 0) {
+      this.log(`${kind}:idle`, "no tracked test or module work");
+    }
+  }
+
+  private moduleProgress(testModule: TestModule): {
+    completed: number;
+    pending: number;
+    total: number;
+  } {
+    let total = 0;
+    let pending = 0;
+
+    try {
+      for (const test of testModule.children.allTests()) {
+        total += 1;
+        if (test.result().state === "pending") pending += 1;
       }
-      return;
+    } catch {
+      // Collection can still be incomplete while a module is queued.
     }
 
-    if (this.activeModules.size > 0) {
-      this.log(`${kind}:files`, [...this.activeModules].join(" | "));
-      return;
-    }
-
-    if (this.queuedModules.size > 0) {
-      this.log(`${kind}:queued`, [...this.queuedModules].join(" | "));
-    }
+    return {
+      completed: total - pending,
+      pending,
+      total,
+    };
   }
 
   private testKey(testCase: TestCase): string {

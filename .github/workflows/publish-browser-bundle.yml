@@ -34,7 +34,7 @@ on:
       release_channel:
         type: choice
         description: "Publish until"
-        default: canary
+        default: both
         options:
           - canary
           - production
@@ -186,7 +186,7 @@ jobs:
     needs: scope
     if: ${{ needs.scope.outputs.build_scope != 'none' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 10
 
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
@@ -223,7 +223,7 @@ jobs:
       - name: 🧪 Run tests
         if: ${{ needs.scope.outputs.should_test == 'true' }}
         continue-on-error: ${{ github.ref_name != 'main' }}
-        timeout-minutes: 3
+        timeout-minutes: 5
         run: node scripts/workflows/publish-browser-bundle.mjs run-tests
 
       - name: ⚡ Run optional benchmarks

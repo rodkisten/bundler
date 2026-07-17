@@ -694,6 +694,7 @@ export function nodePath(node: Node): string {
 
   while (current && depth < MAX_NODE_PATH_DEPTH) {
     const part = describePathElement(current);
+
     parts.unshift(part);
     depth += 1;
 
@@ -702,14 +703,21 @@ export function nodePath(node: Node): string {
     }
 
     const root = current.getRootNode();
-    const parent = current.parentElement;
+    const parentElement: Element | null = current.parentElement;
 
-    if (parent) {
-      current = parent;
+    if (parentElement) {
+      current = parentElement;
       continue;
     }
 
-    if (typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot) {
+    /*
+     * parentElement is null for elements directly inside a ShadowRoot.
+     * Include the host and mark the Shadow DOM boundary explicitly.
+     */
+    if (
+      typeof ShadowRoot !== "undefined" &&
+      root instanceof ShadowRoot
+    ) {
       parts.unshift("::shadow");
       current = root.host;
       continue;

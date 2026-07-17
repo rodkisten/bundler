@@ -104,6 +104,28 @@ describe("Broto kitchen sink", () => {
     expect(full()).toBe("Cipó Kisten");
   });
 
+  it("invalidates computed values safely for synchronous subscribers", () => {
+    const source = signal(1);
+    const doubled = computed(() => source() * 2);
+    const spy = vi.fn();
+
+    const dispose = effect(
+      () => {
+        spy(doubled());
+      },
+      { scheduler: "sync" },
+    );
+
+    expect(spy).toHaveBeenLastCalledWith(2);
+
+    source.set(2);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenLastCalledWith(4);
+
+    dispose();
+  });
+
   it("supports memo as computed alias", () => {
     const count = signal(2);
     const doubled = memo(() => count() * 2);

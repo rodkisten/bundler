@@ -59,7 +59,7 @@
         }
 
         const script = document.createElement("script");
-        script.src = new URL("../maquina.iife.js", location.href).href;
+        script.src = new URL("./maquina.iife.js", location.href).href;
         script.async = true;
         script.dataset.maquinaLandingRuntime = "true";
         script.onload = () => {
@@ -207,10 +207,10 @@ console.log(machine.write("ready"));`,
         "overflow:auto",
         "white-space:pre-wrap",
         "color:#ffb4b4",
-        "font:13px/1.5 ui-monospace,monospace",
+        "font:11px/1.5 ui-monospace,monospace",
       ].join(";");
       message.textContent = `Máquina failed to initialize.\n\n${
-        error instanceof Error ? error.stack || error.message : String(error)
+        error instanceof Error ? `${error}\n${error.stack}` || error.message : String(error)
       }`;
 
       assertHost(editorHost, "#editor").replaceChildren(message);

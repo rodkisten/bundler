@@ -3,6 +3,14 @@
 
 ## Unreleased - Automatic event delegation and debug telemetry
 
+### Fixed
+
+- Kept `bind()` / `model()` form synchronization on direct element listeners.
+  Two-way bindings no longer depend on delegated bubbling and now handle
+  synthetic non-bubbling `input` / `change` events consistently.
+- Re-enabled Fábrica store-view integration coverage after fixing Broto computed
+  invalidation for synchronous DOM subscribers.
+
 ### Added
 
 - Added automatic root-level delegation for safe bubbling template events such as `@click`, `@pointerup`, `@input`, `@change`, and custom bubbling events while preserving the existing declarative event API.

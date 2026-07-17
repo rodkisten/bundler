@@ -72,7 +72,16 @@ export function bindModelPart(element: Element, rawName: string, directive: Bind
 
   const dispose = effect(update, { name: `fabrica.bind.${propertyName}` });
   const listener = () => directive.signal.set(readElement(element));
-  const disposeEvent = bindEvent(element, eventName, listener as unknown as RenderValue, false);
+
+  // Two-way bindings are element-local by definition. Keep their listener
+  // direct so detached templates and synthetic non-bubbling input/change
+  // events update the model without depending on delegated-root propagation.
+  const disposeEvent = bindEvent(
+    element,
+    `${eventName}.direct`,
+    listener as unknown as RenderValue,
+    false,
+  );
   registerCleanup(element, () => {
     dispose();
     disposeEvent();
