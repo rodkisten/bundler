@@ -14,22 +14,20 @@ describe('Cipó Vite adapter source loading', () => {
       devDependencies: Record<string, string>
     }
 
-    // Config-time imports are resolved by tsx before Vite plugins exist. Once Vite
-    // is running, vite-tsconfig-paths owns application/test graph resolution from
-    // tsconfig paths, so package internals can keep their canonical aliases.
+    // Config-time imports are resolved by tsx before Vite starts. Vite 8 then
+    // resolves application and test graph aliases natively from compilerOptions.paths.
     expect(adapter).toContain("from '@rodkisten/cipo/compiler-compiled-build'")
     expect(adapter).toContain("from '@rodkisten/fabrica/compiler'")
     expect(adapter).not.toMatch(/from ['"]\.\.?\//)
 
     for (const config of [devtoolsConfig, maquinaConfig, vitestConfig]) {
-      expect(config).toContain('vite-tsconfig-paths')
-      expect(config).toContain('tsconfigPaths({ root')
-      expect(config).toContain('projects: ["tsconfig.base.json"]')
+      expect(config).toContain('tsconfigPaths: true')
+      expect(config).not.toContain('vite-tsconfig-paths')
     }
 
     expect(devtoolsConfig).not.toContain('alias: [')
     expect(maquinaConfig).not.toContain('alias: [')
-    expect(packageJson.devDependencies['vite-tsconfig-paths']).toBe('6.1.0')
+    expect(packageJson.devDependencies['vite-tsconfig-paths']).toBeUndefined()
 
     for (const scriptName of ['dev:devtools', 'build:devtools', 'dev:maquina', 'build:maquina']) {
       expect(packageJson.scripts[scriptName]).toContain('node --import tsx')
