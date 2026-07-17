@@ -5,7 +5,7 @@ import type {
   PropertyModel,
   StyleRuleInfo,
   StyleRuleModel,
-} from "@rodkisten/devtools/panels-elements-components";
+} from "@rodkisten/devtools/panels/elements-components";
 import { appendArray, concatArrays, mapArray, mapJoinArray, mapObject, reverseArray, take, toArray } from "@rodkisten/nascente";
 
 export function styleRuleModels(element: Element, rules: StyleRuleInfo[]): StyleRuleModel[] {
