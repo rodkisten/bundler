@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 export function polyfillBrowserApis(): void {
   Object.defineProperty(globalThis, "TextEncoder", { configurable: true, value: TextEncoder });
