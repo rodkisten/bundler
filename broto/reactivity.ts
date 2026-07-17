@@ -314,8 +314,15 @@ export function computed<Value>(getter: () => Value, options: SignalOptions<Valu
 
     dirty = true;
 
-    for (const subscriber of subscribers) {
-      scheduleEffect(subscriber);
+    // Snapshot subscribers before dispatching. A synchronous subscriber can
+    // remove and re-add itself while it runs; iterating the live Set would then
+    // revisit the same effect indefinitely. This mirrors writable-signal
+    // invalidation and is critical for computed values consumed by Fabrica's
+    // synchronous DOM bindings.
+    const pending: EffectRunner[] = [];
+    for (const subscriber of subscribers) pending[pending.length] = subscriber;
+    for (let index = 0; index < pending.length; index += 1) {
+      scheduleEffect(pending[index]);
     }
   } as EffectRunner;
 
