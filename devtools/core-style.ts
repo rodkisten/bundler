@@ -1,6 +1,9 @@
 import { sheet } from "@rodkisten/cipo";
 import { STYLE_ELEMENT_ID } from "@rodkisten/cipo/constants";
-import { getCssText, injectStyle, setRuntimeStyleTarget } from "@rodkisten/cipo/injection";
+import {
+  injectStyle,
+  setRuntimeStyleTarget,
+} from "@rodkisten/cipo/injection";
 import type {
   CipoCssArtifact,
   CipoInlineCssArtifact,
@@ -20,7 +23,7 @@ export const devtoolsStyles = sheet.css`
   @cipo {
     prefix: rd;
     layers: false;
-    minify: false;
+    minify: true;
     rem: 16px;
     color-mode: oklch;
     theme-root: :host;
@@ -235,7 +238,7 @@ export const devtoolsStyles = sheet.css`
     --rd-font-ui: -apple-system, system-ui, BlinkMacSystemFont, ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", "Segoe UI", Tahoma, sans-serif
     --rd-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace
   }
-  
+
   .roderuda-container {
     minw: 200px
     pointer-events: none
@@ -249,7 +252,6 @@ export const devtoolsStyles = sheet.css`
     line-height: 1.35
     direction: ltr
     text-align: left
-    
 
     & *:not(input,pre,code,textarea) {
       !user-select: none
@@ -261,9 +263,7 @@ export const devtoolsStyles = sheet.css`
       h: 100%
       minh: 320px
     }
-
   }
-
 
   .roderuda-container * {
     box-sizing: border-box
@@ -874,8 +874,20 @@ export const devtoolsStyles = sheet.css`
     &.roderuda-active { display: block }
   }
 
-  .roderuda-detail-title { minw: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px }
-  .roderuda-detail-body { h: 100%; overflow: auto; pb: $$safeBottom }
+  .roderuda-detail-title {
+    minw: 0
+    flex: 1
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    font-size: 12px
+  }
+
+  .roderuda-detail-body {
+    h: 100%
+    overflow: auto
+    pb: $$safeBottom
+  }
 
   .roderuda-detail-tabs {
     sticky
@@ -971,7 +983,6 @@ export const devtoolsStyles = sheet.css`
   .roderuda-search-highlight-block { display: inline }
   .roderuda-search-highlight-block .roderuda-keyword { bg: $warningBg; color: $warningFg }
 
-
   x:not(xs) {
     .roderuda-tab {
       minw: 58px
@@ -1010,49 +1021,114 @@ export const devtoolsStyles = sheet.css`
   }
 `;
 
-/** Side-effect import used by panels to ensure the devtools theme sheet is evaluated. */
+/** Side-effect import used by panels to ensure the DevTools theme sheet is evaluated. */
 export const devtoolsTokens = devtoolsStyles;
 
-export type DevtoolsStyleArtifact = CipoCssArtifact | CipoInlineCssArtifact | CipoStylesheetArtifact;
+export type DevtoolsStyleArtifact =
+  | CipoCssArtifact
+  | CipoInlineCssArtifact
+  | CipoStylesheetArtifact;
 
+/**
+ * Installs the DevTools stylesheet and any additional panel styles into the
+ * requested mount target.
+ *
+ * @remarks
+ * The target is first registered as Cipó's runtime style sink. This ensures
+ * styled components and runtime-generated atomic rules share the same style
+ * element as the DevTools shell instead of producing a second stylesheet in
+ * document.head.
+ *
+ * The runtime stylesheet is deliberately not copied back through getCssText().
+ * Doing so would feed the already-registered rules into injectStyle() again,
+ * duplicating the complete stylesheet.
+ */
 export function installDevtoolsStyles(
   target: ShadowRoot | HTMLElement | Document,
   additionalStyles: readonly DevtoolsStyleArtifact[] = [],
 ): HTMLStyleElement {
   bootstrapDevtoolsCipo();
 
-  // Point Cipó's runtime sink at the mount target so atomic/styled CSS compiled
-  // during module evaluation (and any later inserts) land inside the shadow
-  // root instead of document.head.
+  /**
+   * Move Cipó's canonical runtime sink to the final mount target before
+   * injecting any DevTools-specific artifacts. Runtime and styled-component
+   * rules generated afterwards will continue using this same sink.
+   */
   setRuntimeStyleTarget(target);
 
-  const parent = target instanceof Document ? target.head : target;
-  forEachArray(parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]'), (node) => node.remove());
+  const parent =
+    target instanceof Document
+      ? target.head
+      : target;
 
-  const runtimeCssText = getCssText().trim();
-  const artifacts: CipoInjectableStyleArtifact[] = [];
+  /**
+   * Remove only legacy DevTools installation tags. The canonical Cipó runtime
+   * sink is managed by setRuntimeStyleTarget() and must not be removed here.
+   */
+  forEachArray(
+    parent.querySelectorAll?.(
+      'style[data-roderuda-devtools-style="true"]',
+    ),
+    (node) => node.remove(),
+  );
 
-  // Always fold the runtime stylesheet into the installed tag when present.
-  // Skipping it when raw `$token`s appear left styled-component classes without
-  // rules in the shadow root. Prefer shipping the CSS (browser ignores invalid
-  // declarations) over dropping the whole runtime sheet.
-  if (runtimeCssText) {
-    artifacts.push({ kind: "cipo.stylesheet", cssText: runtimeCssText });
+  const artifacts: CipoInjectableStyleArtifact[] = [
+    devtoolsStyles,
+  ];
+
+  appendArrayValues(
+    artifacts,
+    additionalStyles,
+  );
+
+  /**
+   * Let Cipó perform its normal artifact/rule deduplication. Passing
+   * `dedupe: false` here previously forced the same stylesheet rules to be
+   * appended repeatedly whenever DevTools was mounted or styles were
+   * reinstalled.
+   */
+  const style =
+    injectStyle(
+      target,
+      artifacts,
+      {
+        position:
+          "prepend",
+      },
+    );
+
+  style.dataset.roderudaDevtoolsStyle =
+    "true";
+
+  /**
+   * A runtime sink may have been created in document.head before the DevTools
+   * shadow root existed. After retargeting, remove only an actual leftover
+   * document-level copy. Never remove the style returned above.
+   */
+  if (
+    !(target instanceof Document)
+  ) {
+    const orphan =
+      document.getElementById(
+        STYLE_ELEMENT_ID,
+      );
+
+    if (
+      orphan
+      && orphan !== style
+      && orphan.parentElement === document.head
+    ) {
+      orphan.remove();
+    }
   }
 
-  artifacts.push(devtoolsStyles);
-  appendArrayValues(artifacts, additionalStyles);
-
-  const style = injectStyle(target, artifacts, { dedupe: false, position: "prepend" });
-  style.dataset.roderudaDevtoolsStyle = "true";
-
-  // Keep a single runtime sink inside the target; drop any leftover document
-  // head copy that may have been created before the shadow target was known.
-  if (!(target instanceof Document)) {
-    const orphan = document.getElementById(STYLE_ELEMENT_ID);
-    if (orphan && orphan.parentElement === document.head) orphan.remove();
+  if (
+    !style.textContent?.trim()
+  ) {
+    throw new Error(
+      "[RodEruda] Unable to install styles",
+    );
   }
 
-  if (!style.textContent?.trim()) throw new Error("[RodEruda] Unable to install styles");
   return style;
 }
