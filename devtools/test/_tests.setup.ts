@@ -111,6 +111,15 @@ vi.mock("@rodkisten/devtools/core-event-listeners", () => ({
   installEventListenerRegistry: mocks.installEventListenerRegistry,
 }));
 
+
+vi.mock("@rodkisten/devtools/core-code-editor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rodkisten/devtools/core-code-editor")>();
+  return {
+    ...actual,
+    mountCodeEditor: mocks.mountCodeEditor,
+  };
+});
+
 vi.mock("@rodkisten/devtools/core-highlighter", () => ({
   ElementHighlighter: class ElementHighlighter {
     readonly highlight = vi.fn();
