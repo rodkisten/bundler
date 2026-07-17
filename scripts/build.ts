@@ -27,7 +27,7 @@ import {
   type RootEntry,
 } from "./config";
 import { discoverRootEntries } from "./discover-entries";
-import { devtoolsCipoConfigCss } from "../devtools/vite.config";
+import { devtoolsCipoConfigCss } from "../devtools/cipo-config";
 
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
