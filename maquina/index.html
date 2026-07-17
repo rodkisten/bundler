@@ -8,6 +8,8 @@
   <style>
     :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#070910;color:#f4f6ff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#1d2853 0,transparent 38%),radial-gradient(circle at 100% 20%,#15392e 0,transparent 32%),#070910;min-height:100vh}.shell{width:min(1180px,calc(100% - 32px));margin:auto;padding:28px 0 80px}.nav{display:flex;justify-content:space-between;align-items:center;padding:10px 0}.brand{font-weight:900;letter-spacing:-.04em;font-size:1.25rem}.pill{border:1px solid #ffffff24;border-radius:999px;padding:8px 12px;color:#bcc6dd;background:#ffffff09}.hero{padding:86px 0 42px;display:grid;gap:24px}.eyebrow{color:#92aaff;font-weight:800;text-transform:uppercase;letter-spacing:.18em;font-size:.78rem}h1{font-size:clamp(3.2rem,10vw,7.5rem);line-height:.86;letter-spacing:-.075em;margin:0;max-width:930px}.lead{font-size:clamp(1.05rem,2vw,1.35rem);line-height:1.6;color:#acb6cb;max-width:720px}.actions{display:flex;gap:12px;flex-wrap:wrap}.button{padding:13px 18px;border-radius:14px;border:1px solid #ffffff24;background:#f3f6ff;color:#0b0d14;font-weight:800}.button.secondary{background:#ffffff09;color:#f3f6ff}.editor-card{height:520px;border:1px solid #ffffff1d;border-radius:26px;padding:14px;background:#090b12aa;box-shadow:0 40px 100px #0008;backdrop-filter:blur(24px)}#editor{height:100%}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:70px}.card{padding:22px;border:1px solid #ffffff18;border-radius:20px;background:#ffffff08}.card h3{margin:0 0 8px}.card p{margin:0;color:#aeb8cd;line-height:1.55}.section{padding-top:84px}.section h2{font-size:clamp(2rem,5vw,4rem);letter-spacing:-.055em;margin:0 0 24px}.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.demo{height:320px}@media(max-width:780px){.grid,.demo-grid{grid-template-columns:1fr}.hero{padding-top:58px}.editor-card{height:460px}}
   </style>
+
+  <script src="https://rod.migos.club/bundler/maquina.iife.js"> </script> 
 </head>
 <body>
   <main class="shell">
@@ -26,6 +28,26 @@
     </section>
     <section class="section"><h2>Every mode, one machine.</h2><div class="demo-grid"><div class="demo" id="html-editor"></div><div class="demo" id="css-editor"></div><div class="demo" id="json-editor"></div><div class="demo" id="readonly-editor"></div></div></section>
   </main>
+
+  <script>
+    const { mountMaquina } = Maquina || globalThis?.Maquina;
+    const themes = ['obsidian','midnight','forest','paper']; let themeIndex=0;
+    const editor = mountMaquina({ parent: document.querySelector('#editor'), value: `const machine = {
+  name: "Máquina",
+  poweredBy: ["Fábrica", "Cipó", "Broto"],
+  write(message) {
+    return message.toUpperCase();
+  }
+};
+
+console.log(machine.write("ready"));`,language:'javascript',theme:'obsidian',fontSize:14,tabSize:2,lineWrapping:true,completions(context){const word=context.matchBefore(/[$\\w.]+$/);if(!word)return null;return {from:word.from,options:['document','window','console','localStorage','machine','mountMaquina'].filter(label=>label.startsWith(word.text)).map(label=>({label,type:'global'}))}},onRun(){try{Function(editor.getValue())()}catch(error){alert(error)}}});
+    document.querySelector('#run').onclick = ()=> editor.run(); document.querySelector('#theme').onclick=()=>editor.setTheme(themes[++themeIndex%themes.length]);
+    mountMaquina({parent:document.querySelector('#html-editor'),value:'<main class="machine">\n  <h1>Máquina</h1>\n</main>',language:'html',theme:'midnight',fontSize:13});
+    mountMaquina({parent:document.querySelector('#css-editor'),value:'.machine {\n  display: grid;\n  color: oklch(92% .08 150);\n}',language:'css',theme:'forest',fontSize:13});
+    mountMaquina({parent:document.querySelector('#json-editor'),value:JSON.stringify({editor:'maquina',version:'0.1.0',fast:true},null,2),language:'json',theme:'paper',fontSize:13});
+    mountMaquina({parent:document.querySelector('#readonly-editor'),value:'// Read-only source viewer\nexport const answer = 42;',language:'javascript',theme:'obsidian',fontSize:13,readOnly:true});
+  </script>
+  
   <script type="module">
     import { mountMaquina } from './index.ts';
     const themes=['obsidian','midnight','forest','paper']; let themeIndex=0;
