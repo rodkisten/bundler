@@ -88,6 +88,12 @@ export const mocks = vi.hoisted(() => {
     installEventListenerRegistry,
     getEventListeners,
     highlighterInstances,
+    mountCodeEditor: vi.fn(() => ({
+      getValue: vi.fn(() => ""),
+      setValue: vi.fn(),
+      focus: vi.fn(),
+      destroy: vi.fn(),
+    })),
   };
 });
 
