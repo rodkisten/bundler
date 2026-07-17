@@ -1,0 +1,81 @@
+name: 🔒 Update pnpm lockfile
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_message:
+        description: "Commit message for the updated lockfile"
+        required: false
+        default: "chore(deps): update pnpm lockfile"
+        type: string
+
+# The workflow commits directly to the branch selected in the Actions UI.
+permissions:
+  contents: write
+
+concurrency:
+  group: update-pnpm-lock-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-lockfile:
+    name: 📦 Install and commit lockfile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          # Pinning the version keeps the generated lockfile deterministic.
+          version: 10.28.0
+          run_install: false
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: 🧩 Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 🔎 Check lockfile changes
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet -- pnpm-lock.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ pnpm-lock.yaml is already up to date."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "📝 pnpm-lock.yaml was updated."
+            git diff --stat -- pnpm-lock.yaml
+          fi
+
+      - name: 💾 Commit updated lockfile
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        env:
+          COMMIT_MESSAGE: ${{ inputs.commit_message }}
+        run: |
+          # Use GitHub's bot identity so the commit remains clearly automated.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add pnpm-lock.yaml
+          git commit -m "$COMMIT_MESSAGE"
+
+      - name: 🚀 Push commit
+        if: steps.changes.outputs.changed == 'true'
+        run: git push origin "HEAD:${{ github.ref_name }}"
+
+      - name: ✨ Nothing to update
+        if: steps.changes.outputs.changed != 'true'
+        run: echo "The lockfile was already synchronized with package manifests."
