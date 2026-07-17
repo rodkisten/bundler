@@ -80,7 +80,7 @@ function serializeDebugDetails(details?: DebugDetails): string {
         return `${key}=${String(value)}`;
       }
     })
-    .join(" ")}`;
+    .join(" ")} ::endgroup::`;
 }
 
 /**
@@ -103,7 +103,7 @@ function debugLog(
   };
 
   const output =
-    `[build +${elapsed}] ${prefix[level]} ${message}`
+    `::group::[build +${elapsed}] ${prefix[level]} ${message}`
     + serializeDebugDetails(details);
 
   if (level === "error") {
