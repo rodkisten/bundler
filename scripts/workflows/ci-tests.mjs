@@ -1,5 +1,6 @@
 import { dirname } from "node:path";
 import { ensureDir, env, json, output, readText, run, runLogged, summary, tail } from "./lib.mjs";
+import { runLogged as runLoggedLive } from "./utils.mjs";
 import { writeFileSync } from "node:fs";
 
 const command = process.argv[2];
@@ -95,12 +96,18 @@ ${env("AFFECTED_DIRS_TEXT") || "(none)"}
 \`\`\``);
 }
 
-function runTests() {
+async function runTests() {
   const dirs = JSON.parse(env("AFFECTED_DIRS_JSON", "[]"));
   const args = env("TEST_SCOPE") === "all" || !dirs.length
     ? ["test"]
     : ["exec", "vitest", "run", ...dirs, "--passWithNoTests"];
-  runLogged("pnpm", args, "artifacts/test/test-output.log");
+
+  // Stream Vitest output while teeing it to disk. The previous spawnSync-based
+  // logger only printed after Vitest exited, making reporter diagnostics useless
+  // when a worker hung and GitHub Actions eventually killed the step.
+  await runLoggedLive("pnpm", args, "artifacts/test/test-output.log", {
+    env: { LANG: "C.UTF-8", LC_ALL: "C.UTF-8" },
+  });
 }
 
 function writeTestSummary() {

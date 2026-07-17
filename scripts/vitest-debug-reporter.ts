@@ -1,18 +1,44 @@
-import type { Reporter, TestCase, TestModule } from "vitest/node";
+import type {
+  Reporter,
+  TestCase,
+  TestModule,
+  TestRunEndReason,
+  TestSpecification,
+} from "vitest/node";
 
-const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
+const HEARTBEAT_INTERVAL_MS = 10_000;
 
 /**
- * Reporter focused on diagnosing tests that never finish.
+ * Reporter focused on diagnosing tests, files and collection phases that hang.
  *
- * Vitest calls `onTestCaseReady` immediately before a test starts, including its
- * beforeEach/afterEach lifecycle. A START line without a matching DONE line is
- * therefore the exact test that was active when a worker timed out or stalled.
+ * All output is written directly to stdout. GitHub Actions hides `::debug::`
+ * workflow commands by default, so using regular output is essential when the
+ * process is eventually killed by a job or step timeout.
  */
 export default class VitestDebugReporter implements Reporter {
+  private readonly queuedModules = new Set<string>();
+  private readonly activeModules = new Set<string>();
   private readonly startedTests = new Map<string, number>();
+  private heartbeat: NodeJS.Timeout | null = null;
+
+  onTestRunStart(specifications: readonly TestSpecification[]): void {
+    this.log("run:start", `files=${specifications.length}`);
+    this.startHeartbeat();
+  }
+
+  onTestModuleQueued(testModule: TestModule): void {
+    this.queuedModules.add(testModule.moduleId);
+    this.log("file:queued", testModule.moduleId);
+  }
+
+  onTestModuleCollected(testModule: TestModule): void {
+    this.queuedModules.delete(testModule.moduleId);
+    this.log("file:collected", testModule.moduleId);
+  }
 
   onTestModuleStart(testModule: TestModule): void {
+    this.queuedModules.delete(testModule.moduleId);
+    this.activeModules.add(testModule.moduleId);
     this.log("file:start", testModule.moduleId);
   }
 
@@ -39,7 +65,56 @@ export default class VitestDebugReporter implements Reporter {
   }
 
   onTestModuleEnd(testModule: TestModule): void {
+    this.activeModules.delete(testModule.moduleId);
     this.log("file:done", testModule.moduleId);
+  }
+
+  onTestRunEnd(
+    _testModules: ReadonlyArray<TestModule>,
+    _unhandledErrors: ReadonlyArray<unknown>,
+    reason: TestRunEndReason,
+  ): void {
+    this.stopHeartbeat();
+    this.log("run:done", `reason=${reason}`);
+    this.reportActiveWork("final");
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+
+    this.heartbeat = setInterval(() => {
+      this.reportActiveWork("heartbeat");
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Diagnostics must never become the reason Vitest itself cannot exit.
+    this.heartbeat.unref();
+  }
+
+  private stopHeartbeat(): void {
+    if (!this.heartbeat) return;
+    clearInterval(this.heartbeat);
+    this.heartbeat = null;
+  }
+
+  private reportActiveWork(kind: "heartbeat" | "final"): void {
+    if (this.startedTests.size > 0) {
+      for (const [key, startedAt] of this.startedTests) {
+        this.log(
+          `${kind}:test`,
+          `${key} running=${this.formatDuration(performance.now() - startedAt)}`,
+        );
+      }
+      return;
+    }
+
+    if (this.activeModules.size > 0) {
+      this.log(`${kind}:files`, [...this.activeModules].join(" | "));
+      return;
+    }
+
+    if (this.queuedModules.size > 0) {
+      this.log(`${kind}:queued`, [...this.queuedModules].join(" | "));
+    }
   }
 
   private testKey(testCase: TestCase): string {
@@ -56,18 +131,6 @@ export default class VitestDebugReporter implements Reporter {
   }
 
   private log(kind: string, message: string): void {
-    const output = `[vitest:${kind}] ${message}`;
-
-    // Keep progress as regular log output. GitHub annotations are reserved for
-    // actual failures by the built-in github-actions reporter to avoid flooding
-    // the workflow summary with one annotation per successful test.
-    console.log(IS_GITHUB_ACTIONS ? `::debug::${this.escapeWorkflowCommand(output)}` : output);
-  }
-
-  private escapeWorkflowCommand(value: string): string {
-    return value
-      .replace(/%/g, "%25")
-      .replace(/\r/g, "%0D")
-      .replace(/\n/g, "%0A");
+    process.stdout.write(`[vitest:${kind}] ${message}\n`);
   }
 }

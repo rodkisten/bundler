@@ -3,9 +3,26 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { maquinaCipoConfigCss } from "@rodkisten/maquina/cipo-config";
+import {
+  createBuildMetadata,
+  createIifeBuildBanner,
+  readPackageVersion,
+} from "../scripts/build-metadata";
 
 const maquinaDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(maquinaDir, "..");
+const buildInfo = createBuildMetadata({
+  root: repoRoot,
+  version: readPackageVersion(repoRoot),
+  mode: process.env.NODE_ENV ?? "prod",
+});
+const iifeBanner = createIifeBuildBanner(buildInfo, {
+  tool: "Máquina",
+  globalName: "Maquina",
+  entry: "maquina/index.ts",
+  description: "Máquina browser IIFE bundle",
+  generatedBy: "Rod Máquina Vite build",
+});
 
 export default defineConfig({
   root: maquinaDir,
@@ -16,6 +33,12 @@ export default defineConfig({
   server: { open: "/index.html" },
   build: {
     outDir: "dist",
+    rollupOptions: {
+      output: {
+        banner: (chunk) =>
+          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
+      },
+    },
     lib: {
       entry: resolve(maquinaDir, "index.ts"),
       name: "Maquina",
