@@ -144,7 +144,7 @@ function compileSourceFragment(
     while (searchFrom < source.length) {
       const start = source.indexOf(marker, searchFrom);
       if (start < 0) break;
-      if (!isTagBoundary(source, start)) {
+      if (!isTagBoundary(source, start) || !isExecutableSourcePosition(source, start)) {
         searchFrom = start + marker.length;
         continue;
       }
@@ -205,6 +205,84 @@ function compileSourceFragment(
     ),
     changed: true,
   };
+}
+
+
+/**
+ * Returns whether an offset belongs to executable source instead of documentation
+ * or a quoted literal. The compiler intentionally performs lightweight lexical
+ * filtering here before its template-specific parser takes over.
+ *
+ * This prevents examples such as `html``...``` inside TSDoc, comments, strings,
+ * and unrelated template literals from being mistaken for real Fábrica tags.
+ * Nested Fábrica templates inside `${...}` expressions are still handled by the
+ * recursive expression compilation performed after the outer template is parsed.
+ */
+function isExecutableSourcePosition(source: string, target: number): boolean {
+  type LexicalState = "code" | "line-comment" | "block-comment" | "single-quote" | "double-quote" | "template";
+
+  let state: LexicalState = "code";
+  let escaped = false;
+
+  for (let index = 0; index < target; index += 1) {
+    const char = source[index]!;
+    const next = source[index + 1];
+
+    if (state === "line-comment") {
+      if (char === "\n" || char === "\r") state = "code";
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (char === "*" && next === "/") {
+        state = "code";
+        index += 1;
+      }
+      continue;
+    }
+
+    if (state === "single-quote" || state === "double-quote" || state === "template") {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      const quote = state === "single-quote" ? "'" : state === "double-quote" ? '"' : "`";
+      if (char === quote) state = "code";
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      state = "line-comment";
+      index += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      state = "block-comment";
+      index += 1;
+      continue;
+    }
+
+    if (char === "'") {
+      state = "single-quote";
+      continue;
+    }
+
+    if (char === '"') {
+      state = "double-quote";
+      continue;
+    }
+
+    if (char === "`") state = "template";
+  }
+
+  return state === "code";
 }
 
 interface CompiledTemplateExpression {

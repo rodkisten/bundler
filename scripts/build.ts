@@ -27,6 +27,7 @@ import {
   type RootEntry,
 } from "./config";
 import { discoverRootEntries } from "./discover-entries";
+import { devtoolsCipoConfigCss } from "../devtools/cipo-config";
 
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
@@ -53,7 +54,6 @@ const DEVTOOLS_ENTRY_NAME = "devtools";
 const BUILD_STARTED_AT = performance.now();
 
 type DebugLevel = "info" | "success" | "warning" | "error";
-
 type DebugDetails = Record<string, unknown>;
 
 /**
@@ -85,11 +85,7 @@ function serializeDebugDetails(details?: DebugDetails): string {
 }
 
 /**
- * Escapes values that are written inside GitHub Actions workflow commands.
- *
- * @remarks
- * GitHub interprets workflow commands directly from stdout. Escaping line
- * breaks prevents arbitrary values from accidentally creating extra commands.
+ * Escapes values written inside GitHub Actions workflow commands.
  */
 function escapeGitHubWorkflowCommand(value: string): string {
   return value
@@ -99,12 +95,12 @@ function escapeGitHubWorkflowCommand(value: string): string {
 }
 
 /**
- * Opens a collapsible log group when running inside GitHub Actions.
- *
- * Local builds intentionally skip workflow commands and keep normal terminal
- * output, so the same build script remains readable in both environments.
+ * Opens a collapsible group when running inside GitHub Actions.
  */
-function openDebugGroup(name: string, details?: DebugDetails): void {
+function openDebugGroup(
+  name: string,
+  details?: DebugDetails,
+): void {
   if (!BUILD_DEBUG || !IS_GITHUB_ACTIONS) return;
 
   const label =
@@ -117,9 +113,6 @@ function openDebugGroup(name: string, details?: DebugDetails): void {
 
 /**
  * Closes the active GitHub Actions log group.
- *
- * This must always be called from a finally block so failed build steps do not
- * accidentally swallow every subsequent log inside an unclosed group.
  */
 function closeDebugGroup(): void {
   if (!BUILD_DEBUG || !IS_GITHUB_ACTIONS) return;
@@ -128,7 +121,7 @@ function closeDebugGroup(): void {
 }
 
 /**
- * Emits consistent build diagnostics with elapsed time since the pipeline started.
+ * Emits consistent build diagnostics with elapsed pipeline time.
  */
 function debugLog(
   level: DebugLevel,
@@ -137,9 +130,10 @@ function debugLog(
 ): void {
   if (!BUILD_DEBUG && level !== "error") return;
 
-  const elapsed = formatDuration(
-    performance.now() - BUILD_STARTED_AT,
-  );
+  const elapsed =
+    formatDuration(
+      performance.now() - BUILD_STARTED_AT,
+    );
 
   const prefix: Record<DebugLevel, string> = {
     info: "▶",
@@ -166,7 +160,7 @@ function debugLog(
 }
 
 /**
- * Runs one asynchronous build step with automatic GitHub Actions grouping,
+ * Runs one asynchronous build step with GitHub Actions grouping,
  * timing, structured diagnostics, and guaranteed group cleanup.
  */
 async function debugStep<T>(
@@ -174,7 +168,8 @@ async function debugStep<T>(
   operation: () => Promise<T>,
   details?: DebugDetails,
 ): Promise<T> {
-  const startedAt = performance.now();
+  const startedAt =
+    performance.now();
 
   openDebugGroup(
     `🔨 ${name}`,
@@ -188,15 +183,17 @@ async function debugStep<T>(
   );
 
   try {
-    const result = await operation();
+    const result =
+      await operation();
 
     debugLog(
       "success",
       `${name} completed`,
       {
-        duration: formatDuration(
-          performance.now() - startedAt,
-        ),
+        duration:
+          formatDuration(
+            performance.now() - startedAt,
+          ),
       },
     );
 
@@ -206,9 +203,10 @@ async function debugStep<T>(
       "error",
       `${name} failed`,
       {
-        duration: formatDuration(
-          performance.now() - startedAt,
-        ),
+        duration:
+          formatDuration(
+            performance.now() - startedAt,
+          ),
         error:
           error instanceof Error
             ? error.message
@@ -223,15 +221,15 @@ async function debugStep<T>(
 }
 
 /**
- * Wraps synchronous work with the same GitHub Actions grouping and timing
- * diagnostics used by asynchronous build steps.
+ * Wraps synchronous work with the same diagnostics used by async steps.
  */
 function debugSyncStep<T>(
   name: string,
   operation: () => T,
   details?: DebugDetails,
 ): T {
-  const startedAt = performance.now();
+  const startedAt =
+    performance.now();
 
   openDebugGroup(
     `⚙️ ${name}`,
@@ -245,15 +243,17 @@ function debugSyncStep<T>(
   );
 
   try {
-    const result = operation();
+    const result =
+      operation();
 
     debugLog(
       "success",
       `${name} completed`,
       {
-        duration: formatDuration(
-          performance.now() - startedAt,
-        ),
+        duration:
+          formatDuration(
+            performance.now() - startedAt,
+          ),
       },
     );
 
@@ -263,9 +263,10 @@ function debugSyncStep<T>(
       "error",
       `${name} failed`,
       {
-        duration: formatDuration(
-          performance.now() - startedAt,
-        ),
+        duration:
+          formatDuration(
+            performance.now() - startedAt,
+          ),
         error:
           error instanceof Error
             ? error.message
@@ -290,7 +291,9 @@ function workspaceAliasPlugin(): Plugin {
       );
 
       buildApi.onResolve(
-        { filter: /^@rodkisten\// },
+        {
+          filter: /^@rodkisten\//,
+        },
         async (args) => {
           const rest =
             args.path.slice(
@@ -303,22 +306,30 @@ function workspaceAliasPlugin(): Plugin {
           const pkg =
             slash === -1
               ? rest
-              : rest.slice(0, slash);
+              : rest.slice(
+                  0,
+                  slash,
+                );
 
           const subpath =
             slash === -1
               ? "index"
-              : rest.slice(slash + 1);
+              : rest.slice(
+                  slash + 1,
+                );
 
           if (
-            !(WORKSPACE_PACKAGES as readonly string[]).includes(pkg)
+            !(WORKSPACE_PACKAGES as readonly string[])
+              .includes(pkg)
           ) {
             debugLog(
               "warning",
               "Workspace alias skipped unknown package",
               {
-                import: args.path,
-                package: pkg,
+                import:
+                  args.path,
+                package:
+                  pkg,
               },
             );
 
@@ -331,39 +342,49 @@ function workspaceAliasPlugin(): Plugin {
               subpath,
             );
 
-          for (const candidate of candidates) {
+          for (
+            const candidate
+            of candidates
+          ) {
             try {
-              await fs.access(candidate);
+              await fs.access(
+                candidate,
+              );
 
               debugLog(
                 "success",
                 "Workspace alias resolved",
                 {
-                  import: args.path,
-                  path: toPosix(
-                    path.relative(
-                      ROOT_DIR,
-                      candidate,
+                  import:
+                    args.path,
+                  path:
+                    toPosix(
+                      path.relative(
+                        ROOT_DIR,
+                        candidate,
+                      ),
                     ),
-                  ),
                 },
               );
 
               return {
-                path: candidate,
+                path:
+                  candidate,
               };
             } catch {
               debugLog(
                 "info",
                 "Workspace alias candidate not found",
                 {
-                  import: args.path,
-                  path: toPosix(
-                    path.relative(
-                      ROOT_DIR,
-                      candidate,
+                  import:
+                    args.path,
+                  path:
+                    toPosix(
+                      path.relative(
+                        ROOT_DIR,
+                        candidate,
+                      ),
                     ),
-                  ),
                 },
               );
             }
@@ -373,20 +394,23 @@ function workspaceAliasPlugin(): Plugin {
             "warning",
             "Workspace alias using fallback candidate",
             {
-              import: args.path,
-              path: candidates[0]
-                ? toPosix(
-                    path.relative(
-                      ROOT_DIR,
-                      candidates[0],
-                    ),
-                  )
-                : "unknown",
+              import:
+                args.path,
+              path:
+                candidates[0]
+                  ? toPosix(
+                      path.relative(
+                        ROOT_DIR,
+                        candidates[0],
+                      ),
+                    )
+                  : "unknown",
             },
           );
 
           return {
-            path: candidates[0]!,
+            path:
+              candidates[0]!,
           };
         },
       );
@@ -399,11 +423,16 @@ export async function main(): Promise<void> {
     "info",
     "Root build pipeline initialized",
     {
-      root: ROOT_DIR,
-      dist: DIST_DIR,
-      namespace: GLOBAL_NAMESPACE,
-      writeMeta: SHOULD_WRITE_META,
-      githubActions: IS_GITHUB_ACTIONS,
+      root:
+        ROOT_DIR,
+      dist:
+        DIST_DIR,
+      namespace:
+        GLOBAL_NAMESPACE,
+      writeMeta:
+        SHOULD_WRITE_META,
+      githubActions:
+        IS_GITHUB_ACTIONS,
       requestedEntries:
         REQUESTED_BUILD_ENTRIES.size > 0
           ? [...REQUESTED_BUILD_ENTRIES]
@@ -446,10 +475,12 @@ export async function main(): Promise<void> {
     "success",
     "Root entries discovered",
     {
-      count: discoveredEntries.length,
-      entries: discoveredEntries.map(
-        (entry) => entry.name,
-      ),
+      count:
+        discoveredEntries.length,
+      entries:
+        discoveredEntries.map(
+          (entry) => entry.name,
+        ),
     },
   );
 
@@ -494,7 +525,9 @@ export async function main(): Promise<void> {
       },
     );
 
-  if (entries.length === 0) {
+  if (
+    entries.length === 0
+  ) {
     throw new Error(
       "No buildable root entrypoints found. Expected package browser-entry.ts or index.ts files.",
     );
@@ -504,10 +537,12 @@ export async function main(): Promise<void> {
     "success",
     "Final build entry set ready",
     {
-      count: entries.length,
-      entries: entries.map(
-        (entry) => entry.name,
-      ),
+      count:
+        entries.length,
+      entries:
+        entries.map(
+          (entry) => entry.name,
+        ),
     },
   );
 
@@ -525,13 +560,21 @@ export async function main(): Promise<void> {
             `Building entry ${entry.name}`,
             () =>
               entry.name === DEVTOOLS_ENTRY_NAME
-                ? buildDevtoolsEntryWithVite(entry)
-                : buildEntry(entry),
+                ? buildDevtoolsEntryWithVite(
+                    entry,
+                  )
+                : buildEntry(
+                    entry,
+                  ),
             {
-              index: index + 1,
-              total: entries.length,
-              entry: entry.name,
-              source: entry.relativePath,
+              index:
+                index + 1,
+              total:
+                entries.length,
+              entry:
+                entry.name,
+              source:
+                entry.relativePath,
               builder:
                 entry.name === DEVTOOLS_ENTRY_NAME
                   ? "vite"
@@ -545,7 +588,8 @@ export async function main(): Promise<void> {
       }
     },
     {
-      entries: entries.length,
+      entries:
+        entries.length,
     },
   );
 
@@ -553,7 +597,8 @@ export async function main(): Promise<void> {
     "success",
     "All browser bundles built",
     {
-      outputs: outputs.length,
+      outputs:
+        outputs.length,
     },
   );
 
@@ -846,7 +891,9 @@ function filterRequestedEntries(
 ): RootEntry[] {
   if (
     REQUESTED_BUILD_ENTRIES.size === 0
-    || REQUESTED_BUILD_ENTRIES.has("all")
+    || REQUESTED_BUILD_ENTRIES.has(
+      "all",
+    )
   ) {
     return entries;
   }
@@ -905,16 +952,12 @@ function isBuildableRootEntry(
       .split("/")
       .filter(Boolean);
 
-  if (
+  return (
     segments.length === 2
     && isSupportedScriptEntryFile(
       segments[1]!,
     )
-  ) {
-    return true;
-  }
-
-  return false;
+  );
 }
 
 function isSupportedScriptEntryFile(
@@ -1001,7 +1044,9 @@ async function buildDevtoolsEntryWithVite(
     );
 
   const banner =
-    createBanner(entry);
+    createBanner(
+      entry,
+    );
 
   const normalIife =
     path.join(
@@ -1015,6 +1060,13 @@ async function buildDevtoolsEntryWithVite(
       `${entry.name}.iife.min.js`,
     );
 
+  /**
+   * The programmatic DevTools build must use the same Cipó compiler contract
+   * as the dedicated Vite build. In particular, configCss enables the
+   * whole-build atomic compilation policy and the plugin is intentionally
+   * left without an include filter so it can process every reachable module
+   * in the DevTools dependency graph.
+   */
   const createBaseConfig =
     () => ({
       configFile:
@@ -1032,31 +1084,27 @@ async function buildDevtoolsEntryWithVite(
         cipoVite({
           root:
             ROOT_DIR,
+
           mode:
             "build",
+
           enabled:
             true,
+
           cssDelivery:
             "style-tag",
-          classNameMode:
-            "compact",
-          classPrefix:
-            "c",
-          minifyCss:
-            true,
-          mergeEquivalentRules:
-            true,
+
+          configCss:
+            devtoolsCipoConfigCss,
+
           cssFileName:
             `${entry.name}.compiled.css`,
+
           compileFabrica:
             true,
+
           transformCssTag:
             true,
-          include: [
-            new RegExp(
-              "[/\\\\]devtools(?:[/\\\\]|\\.ts$)",
-            ),
-          ],
         }),
       ],
 
@@ -1070,16 +1118,20 @@ async function buildDevtoolsEntryWithVite(
       build: {
         emptyOutDir:
           false,
+
         sourcemap:
           true,
+
         target:
           "es2022",
 
         lib: {
           entry:
             entry.absolutePath,
+
           name:
             entry.globalName,
+
           formats: [
             "iife" as const,
           ],
@@ -1088,6 +1140,7 @@ async function buildDevtoolsEntryWithVite(
         rollupOptions: {
           output: {
             banner,
+
             extend:
               true,
 
@@ -1096,8 +1149,8 @@ async function buildDevtoolsEntryWithVite(
                 name?: string;
               },
             ) =>
-              assetInfo.name ===
-              `${entry.name}.compiled.css`
+              assetInfo.name
+              === `${entry.name}.compiled.css`
                 ? `${entry.name}.compiled.css`
                 : "[name][extname]",
           },
@@ -1116,15 +1169,19 @@ async function buildDevtoolsEntryWithVite(
 
         build: {
           ...normalConfig.build,
+
           minify:
             false,
+
           outDir:
             DIST_DIR,
 
           lib: {
             ...normalConfig.build.lib,
-            fileName: () =>
-              `${entry.name}.iife.js`,
+
+            fileName:
+              () =>
+                `${entry.name}.iife.js`,
           },
         },
       });
@@ -1134,6 +1191,7 @@ async function buildDevtoolsEntryWithVite(
         path.basename(
           normalIife,
         ),
+
       minify:
         false,
     },
@@ -1150,15 +1208,19 @@ async function buildDevtoolsEntryWithVite(
 
         build: {
           ...minConfig.build,
+
           minify:
             true,
+
           outDir:
             DIST_DIR,
 
           lib: {
             ...minConfig.build.lib,
-            fileName: () =>
-              `${entry.name}.iife.min.js`,
+
+            fileName:
+              () =>
+                `${entry.name}.iife.min.js`,
           },
         },
       });
@@ -1168,6 +1230,7 @@ async function buildDevtoolsEntryWithVite(
         path.basename(
           minIife,
         ),
+
       minify:
         true,
     },
@@ -1200,6 +1263,7 @@ async function buildDevtoolsEntryWithVite(
                   {
                     entry:
                       entry.name,
+
                     file:
                       path.basename(
                         file,
@@ -1215,6 +1279,7 @@ async function buildDevtoolsEntryWithVite(
                   {
                     entry:
                       entry.name,
+
                     file:
                       path.basename(
                         file,
@@ -1249,29 +1314,40 @@ async function buildEntry(
   entry: RootEntry,
 ): Promise<string[]> {
   const banner =
-    createBanner(entry);
+    createBanner(
+      entry,
+    );
 
   const baseOptions: BuildOptions = {
     entryPoints: [
       entry.absolutePath,
     ],
+
     bundle:
       true,
+
     platform:
       "browser",
+
     target: [
       "es2022",
     ],
+
     jsx:
       "automatic",
+
     legalComments:
       "inline",
+
     sourcemap:
       true,
+
     charset:
       "utf8",
+
     logLevel:
       "info",
+
     metafile:
       SHOULD_WRITE_META,
 
@@ -1311,12 +1387,16 @@ async function buildEntry(
 
       options: {
         ...baseOptions,
+
         format:
           "iife" as const,
+
         globalName:
           entry.globalName,
+
         outfile:
           normalIife,
+
         minify:
           false,
       },
@@ -1328,12 +1408,16 @@ async function buildEntry(
 
       options: {
         ...baseOptions,
+
         format:
           "iife" as const,
+
         globalName:
           entry.globalName,
+
         outfile:
           minIife,
+
         minify:
           true,
       },
@@ -1356,6 +1440,7 @@ async function buildEntry(
                 {
                   entry:
                     entry.name,
+
                   minify:
                     item.options.minify,
                 },
@@ -1405,8 +1490,7 @@ async function copyDocsAssets(): Promise<void> {
   await fs.mkdir(
     ASSETS_DIR,
     {
-      recursive:
-        true,
+      recursive: true,
     },
   );
 
@@ -1474,7 +1558,9 @@ async function copyFileIfExists(
     );
   } catch (error) {
     if (
-      isNodeError(error)
+      isNodeError(
+        error,
+      )
       && error.code === "ENOENT"
     ) {
       debugLog(
@@ -1548,17 +1634,24 @@ async function writeMarkdownDocs(
               createMarkdownPageHtml({
                 title:
                   doc.title,
+
                 sourcePath:
                   file.relativePath,
+
                 displayPath:
                   doc.displayPath,
+
                 markdown:
                   file.content,
+
                 navItems:
                   docs,
+
                 benchmarks,
+
                 packageId:
                   doc.packageId,
+
                 description:
                   doc.description,
               }),
@@ -1602,24 +1695,30 @@ function createGeneratedDoc(
   return {
     title,
     slug,
+
     sourcePath:
       file.relativePath,
+
     displayPath:
       displayPathFromPath(
         file.relativePath,
       ),
+
     href:
       `docs/${slug}.html`,
+
     kind:
       /README\.md$/i.test(
         file.relativePath,
       )
         ? "readme"
         : "markdown",
+
     packageId:
       packageFromPath(
         file.relativePath,
       ),
+
     description:
       descriptionFromMarkdown(
         file.content,
@@ -1670,20 +1769,29 @@ async function writeCodePages(
               createCodePageHtml({
                 title:
                   page.title,
+
                 sourcePath:
                   file.relativePath,
+
                 displayPath:
                   page.displayPath,
+
                 code:
                   file.content,
+
                 language:
                   page.language,
+
                 navItems:
                   pages,
+
                 kind,
+
                 benchmarks,
+
                 packageId:
                   page.packageId,
+
                 description:
                   page.description,
               }),
@@ -1693,6 +1801,7 @@ async function writeCodePages(
       ),
     {
       kind,
+
       pages:
         pages.length,
     },
@@ -1738,21 +1847,29 @@ function createGeneratedCodePage(
       titleFromPath(
         file.relativePath,
       ),
+
     slug,
+
     sourcePath:
       file.relativePath,
+
     displayPath:
       displayPathFromPath(
         file.relativePath,
       ),
+
     href:
       `${directory}/${slug}.html`,
+
     language:
       languageFromPath(
         file.relativePath,
       ),
+
     kind,
+
     packageId,
+
     description:
       descriptionFromCodePath(
         file.relativePath,
@@ -1842,7 +1959,7 @@ function shouldRenderMarkdownFile(
     allFiles.some(
       (candidate) =>
         candidate.relativePath
-          !== file.relativePath
+        !== file.relativePath
         && path.dirname(
           candidate.relativePath,
         ) === directory,
@@ -1950,10 +2067,8 @@ async function collectPipelineFiles(): Promise<TextFile[]> {
         relativePath.startsWith(
           ".github/workflows/",
         )
-        || relativePath ===
-          "package.json"
-        || relativePath ===
-          "pnpm-workspace.yaml"
+        || relativePath === "package.json"
+        || relativePath === "pnpm-workspace.yaml"
       );
     },
   );
@@ -2012,7 +2127,10 @@ async function createBenchmarkSummaries(
     const parsed =
       safeJson(
         file.content,
-      ) as Record<string, unknown> | null;
+      ) as Record<
+        string,
+        unknown
+      > | null;
 
     const comparison =
       isRecord(
@@ -2028,40 +2146,52 @@ async function createBenchmarkSummaries(
             file.relativePath,
           ),
         ),
+
       title:
         page.title,
+
       href:
         page.href,
+
       sourcePath:
         page.sourcePath,
+
       displayPath:
         page.displayPath,
+
       packageId:
         page.packageId,
+
       generatedAt:
         typeof parsed?.generatedAt === "string"
           ? parsed.generatedAt
           : undefined,
+
       geometricMeanPercent:
         numberOrUndefined(
           comparison?.geometricMeanPercent,
         ),
+
       absoluteGeometricMeanPercent:
         numberOrUndefined(
           comparison?.absoluteGeometricMeanPercent,
         ),
+
       faster:
         numberOrUndefined(
           comparison?.faster,
         ),
+
       slower:
         numberOrUndefined(
           comparison?.slower,
         ),
+
       stable:
         numberOrUndefined(
           comparison?.stable,
         ),
+
       unstable:
         numberOrUndefined(
           comparison?.unstable,
@@ -2075,24 +2205,32 @@ async function createBenchmarkSummaries(
     summaries.unshift({
       id:
         "benchmark-dashboard",
+
       title:
         "Benchmark Dashboard",
+
       href:
         "benchmarks/index.html",
+
       sourcePath:
         "bench/index.html",
+
       displayPath:
         "Benchmarks / Dashboard",
+
       packageId:
         "benchmark",
+
       generatedAt:
         reports[0]?.generatedAt,
+
       geometricMeanPercent:
         geometricMean(
           reports
             .map(
               (report) =>
-                report.comparison.geometricMeanPercent,
+                report.comparison
+                  .geometricMeanPercent,
             )
             .filter(
               (
@@ -2101,12 +2239,14 @@ async function createBenchmarkSummaries(
                 typeof value === "number",
             ),
         ),
+
       absoluteGeometricMeanPercent:
         geometricMean(
           reports
             .map(
               (report) =>
-                report.comparison.absoluteGeometricMeanPercent,
+                report.comparison
+                  .absoluteGeometricMeanPercent,
             )
             .filter(
               (
@@ -2115,28 +2255,36 @@ async function createBenchmarkSummaries(
                 typeof value === "number",
             ),
         ),
+
       faster:
         reports.reduce(
           (sum, report) =>
-            sum + report.comparison.faster,
+            sum
+            + report.comparison.faster,
           0,
         ),
+
       slower:
         reports.reduce(
           (sum, report) =>
-            sum + report.comparison.slower,
+            sum
+            + report.comparison.slower,
           0,
         ),
+
       stable:
         reports.reduce(
           (sum, report) =>
-            sum + report.comparison.stable,
+            sum
+            + report.comparison.stable,
           0,
         ),
+
       unstable:
         reports.reduce(
           (sum, report) =>
-            sum + report.comparison.unstable,
+            sum
+            + report.comparison.unstable,
           0,
         ),
     });
@@ -2218,7 +2366,9 @@ function isBenchmarkReportFile(
   value: unknown,
 ): value is BenchmarkReportFile {
   if (
-    !isRecord(value)
+    !isRecord(
+      value,
+    )
   ) {
     return false;
   }
@@ -2267,7 +2417,9 @@ function geometricMean(
     Math.exp(
       valid.reduce(
         (sum, value) =>
-          sum + Math.log(value),
+          sum + Math.log(
+            value,
+          ),
         0,
       ) / valid.length,
     ) - 1
@@ -2369,8 +2521,8 @@ async function walkTextFiles(
         );
 
       if (
-        stat.size >
-        TEXT_PAGE_MAX_BYTES
+        stat.size
+        > TEXT_PAGE_MAX_BYTES
       ) {
         debugLog(
           "warning",
@@ -2378,8 +2530,10 @@ async function walkTextFiles(
           {
             file:
               projectRelativePath,
+
             bytes:
               stat.size,
+
             limit:
               TEXT_PAGE_MAX_BYTES,
           },
@@ -2390,8 +2544,10 @@ async function walkTextFiles(
 
       files.push({
         absolutePath,
+
         relativePath:
           projectRelativePath,
+
         content:
           await fs.readFile(
             absolutePath,
@@ -2401,7 +2557,9 @@ async function walkTextFiles(
     }
   }
 
-  await visit(root);
+  await visit(
+    root,
+  );
 
   return files.sort(
     (left, right) =>
@@ -2538,8 +2696,12 @@ function descriptionFromMarkdown(
       .find(
         (part) =>
           part.length > 0
-          && !part.startsWith("#")
-          && !part.startsWith("```"),
+          && !part.startsWith(
+            "#",
+          )
+          && !part.startsWith(
+            "```",
+          ),
       );
 
   return firstParagraph
@@ -2576,10 +2738,14 @@ function titleFromPath(
   const parts =
     withoutExtension
       .split("/")
-      .filter(Boolean);
+      .filter(
+        Boolean,
+      );
 
   const last =
-    parts.at(-1)
+    parts.at(
+      -1,
+    )
     || withoutExtension;
 
   const packageId =
@@ -2756,7 +2922,8 @@ function packageFromPath(
     value.endsWith(
       "index.ts",
     )
-    || value === "rod/index.ts"
+    || value
+      === "rod/index.ts"
   ) {
     return "index";
   }
@@ -2849,7 +3016,9 @@ function humanizeSegment(
     .split(
       /[\/._-]+/g,
     )
-    .filter(Boolean)
+    .filter(
+      Boolean,
+    )
     .map(
       (part) => {
         const lower =
@@ -2939,7 +3108,9 @@ function languageFromPath(
       .extname(
         relativePath,
       )
-      .slice(1)
+      .slice(
+        1,
+      )
       .toLowerCase();
 
   if (
