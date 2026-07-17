@@ -1,58 +1,31 @@
-import { execFileSync } from "node:child_process";
 import { copyFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
-import { findArray } from "@rodkisten/nascente";
+import {
+  createBuildMetadata,
+  createIifeBuildBanner,
+  readPackageVersion,
+} from "../scripts/build-metadata";
 
 const devtoolsDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(devtoolsDir, "..");
-const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as { version?: string };
+const buildInfo = createBuildMetadata({
+  root: repoRoot,
+  version: readPackageVersion(repoRoot),
+  mode: process.env.NODE_ENV ?? "prod",
+});
 
-function shortCommitSha(): { full: string; short: string } {
-  const full = process.env.RODERUDA_BUILD_SHA?.trim() || process.env.GITHUB_SHA?.trim() || (() => {
-    try {
-      return execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
-    } catch {
-      return "development";
-    }
-  })();
-
-  return { full, short: full === "development" ? "dev" : full.slice(0, 7) };
-}
-
-function buildMetadata() {
-  const now = new Date();
-  const commit = shortCommitSha();
-  const parts = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-  const value = (type: Intl.DateTimeFormatPartTypes) => findArray(parts, (part) => part.type === type)?.value ?? "";
-  const date = `${value("day")}/${value("month")}/${value("year")}`;
-  const time = `${value("hour")}:${value("minute")}`;
-
-  return {
-    sha: commit.full,
-    shortSha: commit.short,
-    builtAt: now.toISOString(),
-    builtAtGmtMinus3: `${date} ${time} GMT-3`,
-    buildDateShort: date,
-    buildTimeShort: time,
-    timezone: "GMT-3" as const,
-    mode: process.env.NODE_ENV ?? "prod",
-    version: packageJson.version ?? "0.0.0",
-  };
-}
+const iifeBanner = createIifeBuildBanner(buildInfo, {
+  tool: "RodEruda DevTools",
+  globalName: "DevTools",
+  entry: "devtools/index.ts",
+  description: "RodEruda browser DevTools IIFE bundle",
+  generatedBy: "Rod DevTools Vite build",
+});
 
 function devtoolsLandingPlugin(): Plugin {
   return {
@@ -74,7 +47,6 @@ function devtoolsLandingPlugin(): Plugin {
   };
 }
 
-const buildInfo = buildMetadata();
 
 export default defineConfig({
   root: devtoolsDir,
@@ -103,6 +75,10 @@ export default defineConfig({
       treeshake: {
         moduleSideEffects: false,
         propertyReadSideEffects: false,
+      },
+      output: {
+        banner: (chunk) =>
+          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
       },
     },
     lib: {

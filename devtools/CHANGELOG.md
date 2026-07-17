@@ -1,4 +1,7 @@
 ## Unreleased
+- Added preserved IIFE banner metadata with the full build commit SHA and GMT-3 build timestamp through the shared build metadata helper.
+- Made CI hang diagnostics observable in real time by removing hidden `::debug::` reporter output and adding queued-file, active-file, active-test and heartbeat progress logs.
+
 - Switched the DevTools Vite build to Vite 8 native `resolve.tsconfigPaths: true`, removing the redundant `vite-tsconfig-paths` plugin while preserving canonical `@rodkisten/*` imports.
 
 - Removed manual per-panel `*_STYLED_COMPONENTS` and `*StyleArtifacts` bookkeeping. All panels now feed the shared `styledRegistry` automatically, and DevTools installs `styledRegistry.cssArtifacts` at mount time, including shared panel UI styles that were previously easy to omit.
