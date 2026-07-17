@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import VitestDebugReporter from "./scripts/vitest-debug-reporter"; 
+import VitestDebugReporter from "./scripts/vitest-debug-reporter";
 
 const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
 
@@ -16,20 +16,20 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 20_000,
 
-    // The debug reporter emits a START line before each test lifecycle begins
-    // and a DONE line when it ends. The last unmatched START identifies a test
-    // that timed out or stalled. hanging-process diagnoses open handles that keep
-    // Vitest alive after the actual test run has already completed.
+    // Register the custom reporter once as an instance. Its output is regular
+    // stdout, so the last START/heartbeat line remains visible even when GitHub
+    // kills a genuinely hung Vitest process. hanging-process remains CI-only
+    // because it is comparatively expensive and diagnoses open handles rather
+    // than identifying the currently executing test.
     reporters: IS_GITHUB_ACTIONS
       ? [
-          "./scripts/vitest-debug-reporter.ts",
+          new VitestDebugReporter(),
           "verbose",
           "github-actions",
-          new VitestDebugReporter(),
           "hanging-process",
         ]
       : [
-          "./scripts/vitest-debug-reporter.ts",
+          new VitestDebugReporter(),
           "verbose",
         ],
   },
