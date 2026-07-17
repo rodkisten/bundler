@@ -1,7 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { maquinaCipoConfigCss } from "@rodkisten/maquina/cipo-config";
 
@@ -10,6 +9,10 @@ const repoRoot = resolve(maquinaDir, "..");
 
 export default defineConfig({
   root: maquinaDir,
+  resolve: {
+    // Vite 8 reads compilerOptions.paths directly from the matching tsconfig.
+    tsconfigPaths: true,
+  },
   server: { open: "/index.html" },
   build: {
     outDir: "dist",
@@ -21,8 +24,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    // The native+tsx config loader resolves config-time aliases; this plugin resolves the Vite module graph.
-    tsconfigPaths({ root: repoRoot, projects: ["tsconfig.base.json"] }),
     cipoVite({
       root: repoRoot,
       mode: "build",

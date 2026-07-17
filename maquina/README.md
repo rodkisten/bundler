@@ -86,4 +86,4 @@ When Máquina is imported by another Cipó Vite build, such as RodEruda DevTools
 
 ## Vite path aliases
 
-The development and production Vite commands resolve `@rodkisten/*` imports from the root TypeScript path mappings with `vite-tsconfig-paths`. The Vite config is loaded through `tsx` and Vite's native config loader so aliased Cipó imports also work while the config itself is being evaluated.
+The development and production Vite commands resolve `@rodkisten/*` imports from the root TypeScript path mappings with Vite 8's native `resolve.tsconfigPaths: true`. The Vite config is loaded through `tsx` and Vite's native config loader so aliased Cipó imports also work while the config itself is being evaluated.
