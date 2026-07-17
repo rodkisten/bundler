@@ -21,7 +21,7 @@ jobs:
   update-lockfile:
     name: 📦 Install and commit lockfile
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 3
 
     steps:
       - name: 📥 Checkout selected branch
@@ -34,7 +34,7 @@ jobs:
         uses: pnpm/action-setup@v6
         with:
           # Pinning the version keeps the generated lockfile deterministic.
-          version: 10.28.0
+          #version: 10.28.0
           run_install: false
 
       - name: 🟢 Setup Node.js
