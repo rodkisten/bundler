@@ -28,6 +28,18 @@ export interface CipoViteCompiledInlineOptions {
   readonly cssDelivery?: 'style-tag' | 'asset'
   readonly transformCssTag?: boolean
   readonly compileFabrica?: boolean
+  /**
+   * Emits PascalCase Fábrica tags as direct lexical references.
+   *
+   * @remarks
+   * Keep this disabled unless every compiled PascalCase tag is guaranteed to
+   * have a same-named JavaScript binding in the module. Named registry tags such
+   * as `<RodDevtoolsShell>` must remain strings so Fábrica can resolve them from
+   * its component registry.
+   *
+   * @defaultValue false
+   */
+  readonly directComponentReferences?: boolean
   readonly enabled?: boolean
   readonly evaluateStaticCss?: boolean
   /** Authoritative CSS-first Cipó configuration applied before static compilation. */
@@ -149,7 +161,11 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         fabrica = compileFabricaSource(nextCode, {
           filename,
           importPath: createImportPath(filename, joinPath(root, 'fabrica/compiler-runtime.ts')),
-          directComponentReferences: true,
+          // PascalCase html tags are registry names by default. Turning every
+          // name into a bare identifier breaks registered components whose
+          // registry name differs from the local variable, such as
+          // `component("RodDevtoolsShell", function RodDevtoolsShell() {})`.
+          directComponentReferences: options.directComponentReferences ?? false,
         })
         nextCode = fabrica.code
       }
