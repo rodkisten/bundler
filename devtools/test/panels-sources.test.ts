@@ -2,24 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NetworkRecord, ToolContext } from "@rodkisten/devtools/types";
-
-const mocks = vi.hoisted(() => ({
-  mountCodeEditor: vi.fn(() => ({
-    getValue: vi.fn(() => ""),
-    setValue: vi.fn(),
-    focus: vi.fn(),
-    destroy: vi.fn(),
-  })),
-}));
-
-vi.mock("@rodkisten/devtools/core-code-editor", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@rodkisten/devtools/core-code-editor")>();
-  return {
-    ...actual,
-    mountCodeEditor: mocks.mountCodeEditor,
-  };
-});
-
+import { mocks, polyfillBrowserApis } from "./_tests.setup";
 import { Sources, formatSource } from "@rodkisten/devtools/panels/sources";
 
 type GlobalWithUserscriptRequest = typeof globalThis & {
