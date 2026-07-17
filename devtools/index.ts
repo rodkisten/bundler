@@ -184,13 +184,9 @@ type ResponsiveViewportResult = {
 };
 
 const util = Object.freeze({
-  isErudaEl:
-    isDevtoolsNode,
-
+  isErudaEl: isDevtoolsNode,
   isDevtoolsNode,
-
   isDarkTheme,
-
   getTheme: () =>
     resolveTheme(
       String(
@@ -202,11 +198,8 @@ const util = Object.freeze({
         ?? "System preference",
       ),
     ).name,
-
   getDebugConfig,
-
   themes,
-
   applyTheme,
 });
 
@@ -224,130 +217,64 @@ const toolConstructors: Record<
   string,
   new () => ToolLike
 > = {
-  console:
-    Console,
-
-  elements:
-    Elements,
-
-  network:
-    Network,
-
-  resources:
-    Resources,
-
-  sources:
-    Sources,
-
-  info:
-    Info,
-
-  snippets:
-    Snippets,
-
-  settings:
-    Settings,
+  console: Console,
+  elements: Elements,
+  network: Network,
+  resources: Resources,
+  sources: Sources,
+  info: Info,
+  snippets: Snippets,
+  settings: Settings,
 };
 
-class RodDevtoolsRuntime
-  implements RodDevtoolsApi {
-  readonly version =
-    VERSION;
-
-  readonly util =
-    util;
-
-  readonly chobitsu =
-    new NativeProtocol();
-
-  readonly Tool =
-    Tool;
-
-  readonly Console =
-    Console;
-
-  readonly Elements =
-    Elements;
-
-  readonly Network =
-    Network;
-
-  readonly Sources =
-    Sources;
-
-  readonly Resources =
-    Resources;
-
-  readonly Info =
-    Info;
-
-  readonly Snippets =
-    Snippets;
-
-  readonly Settings =
-    Settings;
-
-  private initialized =
-    false;
-
+class RodDevtoolsRuntime implements RodDevtoolsApi {
+  readonly version = VERSION;
+  readonly util = util;
+  readonly chobitsu = new NativeProtocol();
+  readonly Tool = Tool;
+  readonly Console = Console;
+  readonly Elements = Elements;
+  readonly Network = Network;
+  readonly Sources = Sources;
+  readonly Resources = Resources;
+  readonly Info = Info;
+  readonly Snippets = Snippets;
+  readonly Settings = Settings;
+  private initialized = false;
   private host:
     | HTMLElement
-    | null =
-    null;
-
+    | null = null;
   private rootTarget:
     | HTMLElement
     | ShadowRoot
-    | null =
-    null;
-
+    | null = null;
   private shadowRoot:
     | ShadowRoot
-    | null =
-    null;
-
+    | null = null;
   private refs:
     | ShellRefs
-    | null =
-    null;
-
+    | null = null;
   private devtools:
     | DevTools
-    | null =
-    null;
-
+    | null = null;
   private entryBtn:
     | EntryBtn
-    | null =
-    null;
-
+    | null = null;
   private style:
     | HTMLStyleElement
-    | null =
-    null;
-
-  private currentScale =
-    1;
-
-  private ownsHost =
-    false;
-
-  private reattachTimer =
-    0;
-
-  private readonly mountRetryTimers =
-    new Set<number>();
-
+    | null = null;
+  private currentScale = 1;
+  private ownsHost = false;
+  private reattachTimer = 0;
+  private readonly mountRetryTimers = new Set<number>();
   private sharedContext:
     | DevtoolsContextValue
     | null =
     null;
-
   private disposeRoot:
     | (() => void)
     | null =
     null;
-
   private hostObserver:
     | MutationObserver
     | null =
@@ -361,28 +288,19 @@ class RodDevtoolsRuntime
    */
   private viewportMetaCleanup:
     | (() => void)
-    | null =
-    null;
+    | null = null;
 
   private readonly reattachHost =
     (): void => {
-      if (
-        typeof document
-        === "undefined"
-      ) {
+      if (typeof document === "undefined") {
+        return;
+      }
+      
+      if (!this.host || !this.ownsHost) {
         return;
       }
 
-      if (
-        !this.host
-        || !this.ownsHost
-      ) {
-        return;
-      }
-
-      if (
-        this.host.isConnected
-      ) {
+      if (this.host.isConnected) {
         return;
       }
 
@@ -396,10 +314,7 @@ class RodDevtoolsRuntime
        * whole document with subtree:true otherwise re-enters on every page
        * update and can starve the main thread.
        */
-      if (
-        !this.host
-        || this.host.isConnected
-      ) {
+      if (!this.host || this.host.isConnected) {
         return;
       }
 
@@ -409,44 +324,25 @@ class RodDevtoolsRuntime
   init(
     options: RodDevtoolsInitOptions = {},
   ): this {
-    configureDebug(
-      options.debug,
-    );
+    configureDebug(options.debug);
 
-    const normalizedOptions =
-      normalizeInitOptions(
+    const normalizedOptions = normalizeInitOptions(
         options,
       );
 
     const finishDebug =
-      debugGroup(
-        "runtime",
-        "init",
+      debugGroup("runtime", "init",
         {
-          version:
-            VERSION,
-
-          inline:
-            normalizedOptions.inline,
-
-          useShadowDom:
-            normalizedOptions.useShadowDom,
-
-          autoScale:
-            normalizedOptions.autoScale,
-
-          ensureResponsiveViewport:
-            normalizedOptions
-              .ensureResponsiveViewport,
-
-          tool:
-            normalizedOptions.tools,
+          version: VERSION,
+          inline: normalizedOptions.inline,
+          useShadowDom: normalizedOptions.useShadowDom,
+          autoScale: normalizedOptions.autoScale,
+          ensureResponsiveViewport: normalizedOptions.ensureResponsiveViewport,
+          tool: normalizedOptions.tools,
         },
       );
 
-    if (
-      this.initialized
-    ) {
+    if (this.initialized) {
       debugWarn(
         "runtime",
         "init skipped: already initialized",
@@ -457,10 +353,7 @@ class RodDevtoolsRuntime
       return this;
     }
 
-    if (
-      typeof document
-      === "undefined"
-    ) {
+    if (typeof document === "undefined") {
       finishDebug();
 
       throw new Error(
@@ -482,30 +375,16 @@ class RodDevtoolsRuntime
               "disabled",
             );
 
-      this.viewportMetaCleanup =
-        viewportResult.cleanup;
+      this.viewportMetaCleanup = viewportResult.cleanup;
 
-      debugInfo(
-        "runtime",
-        "responsive viewport check",
+      debugInfo("runtime", "responsive viewport check",
         {
-          checked:
-            viewportResult.checked,
-
-          responsive:
-            viewportResult.responsive,
-
-          mutated:
-            viewportResult.mutated,
-
-          reason:
-            viewportResult.reason,
-
-          layoutWidth:
-            getLayoutViewportWidth(),
-
-          screenWidth:
-            getPhysicalScreenWidth(),
+          checked: viewportResult.checked,
+          responsive: viewportResult.responsive,
+          mutated: viewportResult.mutated,
+          reason: viewportResult.reason,
+          layoutWidth: getLayoutViewportWidth(),
+          screenWidth: getPhysicalScreenWidth(),
         },
       );
 
