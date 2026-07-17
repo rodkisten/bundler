@@ -55,3 +55,64 @@ export function polyfillBrowserApis(): void {
     HTMLElement.prototype.releasePointerCapture = vi.fn();
   }
 }
+
+
+export const mocks = vi.hoisted(() => {
+  const copyText = vi.fn<(...args: unknown[]) => Promise<void>>(
+    async () => undefined,
+  );
+
+  const restoreEventRegistry = vi.fn();
+  const installEventListenerRegistry = vi.fn(
+    () => restoreEventRegistry,
+  );
+
+  const getEventListeners = vi.fn(() => ({
+    click: [
+      {
+        listener: (() => undefined) as EventListener,
+        options: false,
+      },
+    ],
+  }));
+
+  const highlighterInstances: Array<{
+    highlight: ReturnType<typeof vi.fn>;
+    hide: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+  }> = [];
+
+  return {
+    copyText,
+    restoreEventRegistry,
+    installEventListenerRegistry,
+    getEventListeners,
+    highlighterInstances,
+  };
+});
+
+vi.mock("@rodkisten/devtools/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rodkisten/devtools/utils")>();
+
+  return {
+    ...actual,
+    copyText: mocks.copyText,
+  };
+});
+
+vi.mock("@rodkisten/devtools/core-event-listeners", () => ({
+  getEventListeners: mocks.getEventListeners,
+  installEventListenerRegistry: mocks.installEventListenerRegistry,
+}));
+
+vi.mock("@rodkisten/devtools/core-highlighter", () => ({
+  ElementHighlighter: class ElementHighlighter {
+    readonly highlight = vi.fn();
+    readonly hide = vi.fn();
+    readonly destroy = vi.fn(() => this.hide());
+
+    constructor(_host?: HTMLElement) {
+      mocks.highlighterInstances.push(this);
+    }
+  },
+}));
