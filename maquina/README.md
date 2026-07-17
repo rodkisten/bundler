@@ -87,3 +87,13 @@ When Máquina is imported by another Cipó Vite build, such as RodEruda DevTools
 ## Vite path aliases
 
 The development and production Vite commands resolve `@rodkisten/*` imports from the root TypeScript path mappings with Vite 8's native `resolve.tsconfigPaths: true`. The Vite config is loaded through `tsx` and Vite's native config loader so aliased Cipó imports also work while the config itself is being evaluated.
+## Landing page runtime
+
+The checked-in `maquina/index.html` supports both development and published builds without mounting the editor twice:
+
+- On localhost, the page imports `./index.ts` through Vite so edits are reflected immediately.
+- In published output, it loads the sibling `maquina.iife.js` bundle and reads `globalThis.Maquina`.
+- Runtime loading and editor initialization errors are rendered inside the main editor card for visible diagnostics.
+
+The root publication pipeline also builds Máquina through Cipó's Vite compiler, matching the dedicated `build:maquina` atomic CSS path.
+
