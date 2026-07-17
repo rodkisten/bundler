@@ -12,5 +12,10 @@ export default defineConfig({
     // five-second unit-test default for those integration-heavy cases.
     testTimeout: 20_000,
     hookTimeout: 20_000,
+
+     // Keeps 'verbose' local, adds 'github-actions' automatically in CI
+    reporters: process.env.GITHUB_ACTIONS 
+      ? ['verbose', 'github-actions'] 
+      : ['verbose']
   },
 });
