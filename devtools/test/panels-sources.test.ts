@@ -20,7 +20,7 @@ vi.mock("@rodkisten/devtools/core-code-editor", async (importOriginal) => {
   };
 });
 
-import { Sources, formatSource } from "@rodkisten/devtools/panels-sources";
+import { Sources, formatSource } from "@rodkisten/devtools/panels/sources";
 
 type GlobalWithUserscriptRequest = typeof globalThis & {
   GM_xmlhttpRequest?: (details: {
