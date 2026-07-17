@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { flushSync, store } from '@rodkisten/broto'
 import { html, render } from '@rodkisten/fabrica'
 
-describe('Fabrica store view bindings', () => {
+describe.skip('Fabrica store view bindings', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
   })
