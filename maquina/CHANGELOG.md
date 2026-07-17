@@ -1,5 +1,7 @@
 # Changelog
 
+- Switched the Máquina Vite build to Vite 8 native `resolve.tsconfigPaths: true`, removing the redundant `vite-tsconfig-paths` plugin.
+
 ## Unreleased
 
 - Replaced the hand-maintained Vite alias table with `vite-tsconfig-paths` and native TypeScript config loading through `tsx`, keeping `@rodkisten/*` aliases as the single import style.

@@ -182,9 +182,8 @@ async function copyLanding(project: string): Promise<void> {
 
 
 async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
-  const [{ build: viteBuild }, { default: tsconfigPaths }, { cipoVite }] = await Promise.all([
+  const [{ build: viteBuild }, { cipoVite }] = await Promise.all([
     import("vite"),
-    import("vite-tsconfig-paths"),
     import("@rodkisten/cipo/vite-index"),
   ]);
 
@@ -195,9 +194,11 @@ async function buildDevtoolsEntryWithVite(entry: RootEntry): Promise<string[]> {
   const createBaseConfig = () => ({
     configFile: false as const,
     root: ROOT_DIR,
+    resolve: {
+      // Keep programmatic Vite builds on the same native tsconfig path resolution as CLI builds.
+      tsconfigPaths: true,
+    },
     plugins: [
-      // Keep programmatic Vite builds on the same tsconfig-backed workspace aliases as CLI builds.
-      tsconfigPaths({ root: ROOT_DIR, projects: ["tsconfig.base.json"] }),
       cipoVite({ root: ROOT_DIR, mode: 'build', enabled: true, cssDelivery: 'style-tag', classNameMode: 'compact', classPrefix: 'c', minifyCss: true, mergeEquivalentRules: true, cssFileName: `${entry.name}.compiled.css`, compileFabrica: true, transformCssTag: true, include: [new RegExp('[/\\\\]devtools(?:[/\\\\]|\\.ts$)')] }),
     ],
     define: {

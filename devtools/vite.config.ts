@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
 import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
@@ -80,6 +79,11 @@ const buildInfo = buildMetadata();
 export default defineConfig({
   root: devtoolsDir,
 
+  resolve: {
+    // Vite 8 resolves compilerOptions.paths natively; keep aliases centralized in tsconfig.
+    tsconfigPaths: true,
+  },
+
   define: {
     __RODERUDA_BUILD__: JSON.stringify(buildInfo),
     __DEV__: "false",
@@ -118,8 +122,6 @@ export default defineConfig({
   },
 
   plugins: [
-    // The native+tsx config loader resolves config-time aliases; this plugin resolves the Vite module graph.
-    tsconfigPaths({ root: repoRoot, projects: ["tsconfig.base.json"] }),
     devtoolsLandingPlugin(),
     cipoVite({
       root: repoRoot,
