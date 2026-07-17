@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === "true";
+
 export default defineConfig({
   // Vitest uses Vite 8, so workspace aliases come directly from compilerOptions.paths.
   resolve: {
@@ -13,9 +15,20 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 20_000,
 
-     // Keeps 'verbose' local, adds 'github-actions' automatically in CI
-    reporters: process.env.GITHUB_ACTIONS 
-      ? ['verbose', 'github-actions'] 
-      : ['verbose']
+    // The debug reporter emits a START line before each test lifecycle begins
+    // and a DONE line when it ends. The last unmatched START identifies a test
+    // that timed out or stalled. hanging-process diagnoses open handles that keep
+    // Vitest alive after the actual test run has already completed.
+    reporters: IS_GITHUB_ACTIONS
+      ? [
+          "./scripts/vitest-debug-reporter.ts",
+          "verbose",
+          "github-actions",
+          "hanging-process",
+        ]
+      : [
+          "./scripts/vitest-debug-reporter.ts",
+          "verbose",
+        ],
   },
 });
