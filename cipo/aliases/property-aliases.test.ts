@@ -1,65 +1,76 @@
 import {
+  beforeEach,
   describe,
   expect,
   it,
 } from 'vitest'
 import {
-  BUILT_IN_LAYOUT_ALIASES,
-  BUILT_IN_UTILITY_ALIASES,
-  resolveBuiltInUtilityAlias,
-} from './utility-aliases'
-describe('built-in utility aliases', () => {
-  describe('registry integrity', () => {
-    it('exposes an immutable utility registry', () => {
+  BUILT_IN_PROPERTY_ALIASES,
+  clearBuiltInPropertyAliasCache,
+  inferBuiltInScale,
+  resolveBuiltInPropertyAlias,
+  toCssPropertyName,
+} from './property-aliases'
+describe('built-in property aliases', () => {
+  beforeEach(() => {
+    clearBuiltInPropertyAliasCache()
+  })
+  describe('registry', () => {
+    it('exposes an immutable alias registry', () => {
       expect(
         Object.isFrozen(
-          BUILT_IN_UTILITY_ALIASES,
+          BUILT_IN_PROPERTY_ALIASES,
         ),
       ).toBe(true)
     })
-    it('exposes an immutable layout compatibility registry', () => {
-      expect(
-        Object.isFrozen(
-          BUILT_IN_LAYOUT_ALIASES,
-        ),
-      ).toBe(true)
-    })
-    it('contains only non-empty CSS expansions', () => {
+    it('contains only valid property-scale tuples', () => {
+      const validScales =
+        new Set([
+          'spacing',
+          'color',
+          'radius',
+          'shadow',
+          'text',
+          'none',
+        ])
       for (
         const [
           name,
-          css,
+          entry,
         ] of Object.entries(
-          BUILT_IN_UTILITY_ALIASES,
+          BUILT_IN_PROPERTY_ALIASES,
         )
       ) {
         expect(
           name.length,
         ).toBeGreaterThan(0)
         expect(
-          typeof css,
-        ).toBe('string')
+          Array.isArray(entry),
+        ).toBe(true)
         expect(
-          css.length,
+          entry,
+        ).toHaveLength(2)
+        expect(
+          entry[0].length,
         ).toBeGreaterThan(0)
+        expect(
+          validScales.has(
+            entry[1],
+          ),
+        ).toBe(true)
       }
     })
-    it('automatically generates kebab-case aliases for camel-case names', () => {
+    it('automatically registers kebab-case equivalents for camel-case aliases', () => {
       const cases = [
-        'flowRoot',
-        'normalCase',
-        'subpixelAntialiased',
-        'focusRing',
-        'buttonBase',
-        'iconButton',
-        'cardSurface',
-        'glassCard',
-        'panelSurface',
-        'softSurface',
-        'heroText',
-        'mutedText',
-        'linkText',
-        'autoGrid',
+        'insetX',
+        'bleedX',
+        'gridCols',
+        'textSize',
+        'bgColor',
+        'borderX',
+        'roundedTl',
+        'textShadow',
+        'mixBlend',
       ] as const
       for (const name of cases) {
         const kebab =
@@ -69,1360 +80,649 @@ describe('built-in utility aliases', () => {
           )
             .toLowerCase()
         expect(
-          BUILT_IN_UTILITY_ALIASES[
+          BUILT_IN_PROPERTY_ALIASES[
             kebab
           ],
-        ).toBe(
-          BUILT_IN_UTILITY_ALIASES[
+        ).toEqual(
+          BUILT_IN_PROPERTY_ALIASES[
             name
           ],
         )
       }
     })
-  })
-  describe('display utilities', () => {
     it.each([
       [
-        'hidden',
-        'display:none;',
+        'w',
+        'width',
+        'spacing',
       ],
       [
-        'block',
-        'display:block;',
+        'h',
+        'height',
+        'spacing',
       ],
       [
-        'inline',
-        'display:inline;',
+        'p',
+        'padding',
+        'spacing',
       ],
       [
-        'inline-block',
-        'display:inline-block;',
+        'px',
+        'padding-inline',
+        'spacing',
       ],
       [
-        'flex',
-        'display:flex;',
+        'mx',
+        'margin-inline',
+        'spacing',
       ],
       [
-        'inline-flex',
-        'display:inline-flex;',
+        'gapX',
+        'column-gap',
+        'spacing',
       ],
       [
-        'grid',
-        'display:grid;',
+        'bg',
+        'background',
+        'color',
       ],
       [
-        'inline-grid',
-        'display:inline-grid;',
+        'bgColor',
+        'background-color',
+        'color',
       ],
       [
-        'contents',
-        'display:contents;',
+        'text',
+        'font-size',
+        'text',
       ],
       [
-        'flow-root',
-        'display:flow-root;',
+        'fs',
+        'font-size',
+        'text',
       ],
       [
-        'table',
-        'display:table;',
+        'rounded',
+        'border-radius',
+        'radius',
       ],
       [
-        'table-cell',
-        'display:table-cell;',
+        'shadow',
+        'box-shadow',
+        'shadow',
       ],
       [
-        'list-item',
-        'display:list-item;',
+        'ring',
+        'box-shadow',
+        'shadow',
+      ],
+      [
+        'pos',
+        'position',
+        'none',
       ],
     ])(
-      'expands %s',
+      'registers %s as %s using the %s scale',
       (
-        utility,
-        css,
+        name,
+        property,
+        scale,
       ) => {
         expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it('supports both flowRoot and flow-root', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'flowRoot',
-        ),
-      ).toBe(
-        'display:flow-root;',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'flow-root',
-        ),
-      ).toBe(
-        'display:flow-root;',
-      )
-    })
-  })
-  describe('positioning utilities', () => {
-    it.each([
-      [
-        'static',
-        'position:static;',
-      ],
-      [
-        'relative',
-        'position:relative;',
-      ],
-      [
-        'absolute',
-        'position:absolute;',
-      ],
-      [
-        'fixed',
-        'position:fixed;',
-      ],
-      [
-        'sticky',
-        'position:sticky;',
-      ],
-    ])(
-      'expands %s positioning',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it('expands absolute-fill', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'absolute-fill',
-        ),
-      ).toBe(
-        'position:absolute;inset:0;',
-      )
-    })
-    it('expands fixed-fill', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'fixed-fill',
-        ),
-      ).toBe(
-        'position:fixed;inset:0;',
-      )
-    })
-    it('uses the individual translate property for absolute-center', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'absolute-center',
-        ),
-      ).toBe(
-        'position:absolute;left:50%;top:50%;translate:-50% -50%;',
-      )
-    })
-    it('uses the individual translate property for fixed-center', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'fixed-center',
-        ),
-      ).toBe(
-        'position:fixed;left:50%;top:50%;translate:-50% -50%;',
-      )
-    })
-  })
-  describe('layout utilities', () => {
-    it.each([
-      [
-        'row',
-        'display:flex;flex-direction:row;',
-      ],
-      [
-        'col',
-        'display:flex;flex-direction:column;',
-      ],
-      [
-        'column',
-        'display:flex;flex-direction:column;',
-      ],
-      [
-        'center',
-        'display:flex;align-items:center;justify-content:center;',
-      ],
-      [
-        'center-x',
-        'display:flex;justify-content:center;',
-      ],
-      [
-        'center-y',
-        'display:flex;align-items:center;',
-      ],
-      [
-        'between',
-        'justify-content:space-between;',
-      ],
-      [
-        'around',
-        'justify-content:space-around;',
-      ],
-      [
-        'evenly',
-        'justify-content:space-evenly;',
-      ],
-    ])(
-      'expands layout convenience %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it.each([
-      [
-        'items-start',
-        'align-items:flex-start;',
-      ],
-      [
-        'items-end',
-        'align-items:flex-end;',
-      ],
-      [
-        'items-center',
-        'align-items:center;',
-      ],
-      [
-        'items-baseline',
-        'align-items:baseline;',
-      ],
-      [
-        'items-stretch',
-        'align-items:stretch;',
-      ],
-      [
-        'justify-between',
-        'justify-content:space-between;',
-      ],
-      [
-        'justify-around',
-        'justify-content:space-around;',
-      ],
-      [
-        'justify-evenly',
-        'justify-content:space-evenly;',
-      ],
-      [
-        'place-items-center',
-        'place-items:center;',
-      ],
-      [
-        'place-self-center',
-        'place-self:center;',
-      ],
-    ])(
-      'expands framework-compatible alignment utility %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('flex utilities', () => {
-    it.each([
-      [
-        'flex-row',
-        'flex-direction:row;',
-      ],
-      [
-        'flex-row-reverse',
-        'flex-direction:row-reverse;',
-      ],
-      [
-        'flex-col',
-        'flex-direction:column;',
-      ],
-      [
-        'flex-col-reverse',
-        'flex-direction:column-reverse;',
-      ],
-      [
-        'flex-wrap',
-        'flex-wrap:wrap;',
-      ],
-      [
-        'flex-wrap-reverse',
-        'flex-wrap:wrap-reverse;',
-      ],
-      [
-        'flex-nowrap',
-        'flex-wrap:nowrap;',
-      ],
-      [
-        'flex-1',
-        'flex:1 1 0%;',
-      ],
-      [
-        'flex-auto',
-        'flex:1 1 auto;',
-      ],
-      [
-        'flex-initial',
-        'flex:0 1 auto;',
-      ],
-      [
-        'flex-none',
-        'flex:none;',
-      ],
-      [
-        'grow',
-        'flex-grow:1;',
-      ],
-      [
-        'grow-0',
-        'flex-grow:0;',
-      ],
-      [
-        'shrink',
-        'flex-shrink:1;',
-      ],
-      [
-        'shrink-0',
-        'flex-shrink:0;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('grid utilities', () => {
-    it.each([
-      [
-        'grid-flow-row',
-        'grid-auto-flow:row;',
-      ],
-      [
-        'grid-flow-col',
-        'grid-auto-flow:column;',
-      ],
-      [
-        'grid-flow-dense',
-        'grid-auto-flow:dense;',
-      ],
-      [
-        'grid-flow-row-dense',
-        'grid-auto-flow:row dense;',
-      ],
-      [
-        'grid-flow-col-dense',
-        'grid-auto-flow:column dense;',
-      ],
-      [
-        'grid-cols-none',
-        'grid-template-columns:none;',
-      ],
-      [
-        'grid-cols-subgrid',
-        'grid-template-columns:subgrid;',
-      ],
-      [
-        'grid-rows-none',
-        'grid-template-rows:none;',
-      ],
-      [
-        'grid-rows-subgrid',
-        'grid-template-rows:subgrid;',
-      ],
-      [
-        'col-auto',
-        'grid-column:auto;',
-      ],
-      [
-        'row-auto',
-        'grid-row:auto;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('sizing utilities', () => {
-    it.each([
-      [
-        'w-auto',
-        'width:auto;',
-      ],
-      [
-        'w-full',
-        'width:100%;',
-      ],
-      [
-        'w-min',
-        'width:min-content;',
-      ],
-      [
-        'w-max',
-        'width:max-content;',
-      ],
-      [
-        'w-fit',
-        'width:fit-content;',
-      ],
-      [
-        'w-screen',
-        'width:100vw;',
-      ],
-      [
-        'h-auto',
-        'height:auto;',
-      ],
-      [
-        'h-full',
-        'height:100%;',
-      ],
-      [
-        'h-min',
-        'height:min-content;',
-      ],
-      [
-        'h-max',
-        'height:max-content;',
-      ],
-      [
-        'h-fit',
-        'height:fit-content;',
-      ],
-      [
-        'h-screen',
-        'height:100vh;',
-      ],
-      [
-        'size-full',
-        'width:100%;height:100%;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('viewport and safe-area utilities', () => {
-    it.each([
-      [
-        'screen',
-        'min-height:100vh;',
-      ],
-      [
-        'dvh',
-        'min-height:100dvh;',
-      ],
-      [
-        'svh',
-        'min-height:100svh;',
-      ],
-      [
-        'lvh',
-        'min-height:100lvh;',
-      ],
-      [
-        'safe-top',
-        'padding-top:env(safe-area-inset-top);',
-      ],
-      [
-        'safe-right',
-        'padding-right:env(safe-area-inset-right);',
-      ],
-      [
-        'safe-bottom',
-        'padding-bottom:env(safe-area-inset-bottom);',
-      ],
-      [
-        'safe-left',
-        'padding-left:env(safe-area-inset-left);',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it('expands screen-safe to all safe-area edges', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'screen-safe',
-        ),
-      ).toBe(
-        [
-          'min-height:100dvh;',
-          'padding-top:env(safe-area-inset-top);',
-          'padding-right:env(safe-area-inset-right);',
-          'padding-bottom:env(safe-area-inset-bottom);',
-          'padding-left:env(safe-area-inset-left);',
-        ].join(''),
-      )
-    })
-  })
-  describe('typography utilities', () => {
-    it.each([
-      [
-        'truncate',
-        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
-      ],
-      [
-        'text-ellipsis',
-        'text-overflow:ellipsis;',
-      ],
-      [
-        'text-clip',
-        'text-overflow:clip;',
-      ],
-      [
-        'balance',
-        'text-wrap:balance;',
-      ],
-      [
-        'text-balance',
-        'text-wrap:balance;',
-      ],
-      [
-        'pretty',
-        'text-wrap:pretty;',
-      ],
-      [
-        'text-pretty',
-        'text-wrap:pretty;',
-      ],
-      [
-        'uppercase',
-        'text-transform:uppercase;',
-      ],
-      [
-        'lowercase',
-        'text-transform:lowercase;',
-      ],
-      [
-        'capitalize',
-        'text-transform:capitalize;',
-      ],
-      [
-        'normal-case',
-        'text-transform:none;',
-      ],
-      [
-        'underline',
-        'text-decoration-line:underline;',
-      ],
-      [
-        'overline',
-        'text-decoration-line:overline;',
-      ],
-      [
-        'line-through',
-        'text-decoration-line:line-through;',
-      ],
-      [
-        'no-underline',
-        'text-decoration-line:none;',
-      ],
-      [
-        'italic',
-        'font-style:italic;',
-      ],
-      [
-        'not-italic',
-        'font-style:normal;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it('supports camelCase and kebab-case normalCase', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'normalCase',
-        ),
-      ).toBe(
-        'text-transform:none;',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'normal-case',
-        ),
-      ).toBe(
-        'text-transform:none;',
-      )
-    })
-    it.each([
-      [
-        'break-normal',
-        'overflow-wrap:normal;word-break:normal;',
-      ],
-      [
-        'break-words',
-        'overflow-wrap:break-word;',
-      ],
-      [
-        'break-anywhere',
-        'overflow-wrap:anywhere;',
-      ],
-      [
-        'break-all',
-        'word-break:break-all;',
-      ],
-      [
-        'break-keep',
-        'word-break:keep-all;',
-      ],
-      [
-        'hyphens-none',
-        'hyphens:none;',
-      ],
-      [
-        'hyphens-manual',
-        'hyphens:manual;',
-      ],
-      [
-        'hyphens-auto',
-        'hyphens:auto;',
-      ],
-    ])(
-      'expands text-flow utility %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('rendering utilities', () => {
-    it('expands gpu rendering optimization', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'gpu',
-        ),
-      ).toBe(
-        'transform:translateZ(0);backface-visibility:hidden;will-change:transform;',
-      )
-    })
-    it.each([
-      [
-        'preserve-3d',
-        'transform-style:preserve-3d;',
-      ],
-      [
-        'flat-3d',
-        'transform-style:flat;',
-      ],
-      [
-        'backface-hidden',
-        'backface-visibility:hidden;',
-      ],
-      [
-        'backface-visible',
-        'backface-visibility:visible;',
-      ],
-      [
-        'invisible',
-        'visibility:hidden;',
-      ],
-      [
-        'visible',
-        'visibility:visible;',
-      ],
-      [
-        'collapse',
-        'visibility:collapse;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('interaction utilities', () => {
-    it.each([
-      [
-        'select-none',
-        'user-select:none;',
-      ],
-      [
-        'select-text',
-        'user-select:text;',
-      ],
-      [
-        'select-all',
-        'user-select:all;',
-      ],
-      [
-        'select-auto',
-        'user-select:auto;',
-      ],
-      [
-        'pointer-none',
-        'pointer-events:none;',
-      ],
-      [
-        'pointer-auto',
-        'pointer-events:auto;',
-      ],
-      [
-        'pointer-events-none',
-        'pointer-events:none;',
-      ],
-      [
-        'pointer-events-auto',
-        'pointer-events:auto;',
-      ],
-      [
-        'resize-none',
-        'resize:none;',
-      ],
-      [
-        'resize-both',
-        'resize:both;',
-      ],
-      [
-        'resize-x',
-        'resize:horizontal;',
-      ],
-      [
-        'resize-y',
-        'resize:vertical;',
-      ],
-      [
-        'touch-auto',
-        'touch-action:auto;',
-      ],
-      [
-        'touch-none',
-        'touch-action:none;',
-      ],
-      [
-        'touch-pan-x',
-        'touch-action:pan-x;',
-      ],
-      [
-        'touch-pan-y',
-        'touch-action:pan-y;',
-      ],
-      [
-        'touch-pinch-zoom',
-        'touch-action:pinch-zoom;',
-      ],
-      [
-        'cursor-pointer',
-        'cursor:pointer;',
-      ],
-      [
-        'cursor-grab',
-        'cursor:grab;',
-      ],
-      [
-        'cursor-grabbing',
-        'cursor:grabbing;',
-      ],
-      [
-        'cursor-not-allowed',
-        'cursor:not-allowed;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('scroll utilities', () => {
-    it.each([
-      [
-        'scroll-smooth',
-        'scroll-behavior:smooth;',
-      ],
-      [
-        'scroll-auto',
-        'scroll-behavior:auto;',
-      ],
-      [
-        'snap-none',
-        'scroll-snap-type:none;',
-      ],
-      [
-        'snap-start',
-        'scroll-snap-align:start;',
-      ],
-      [
-        'snap-center',
-        'scroll-snap-align:center;',
-      ],
-      [
-        'snap-end',
-        'scroll-snap-align:end;',
-      ],
-      [
-        'snap-always',
-        'scroll-snap-stop:always;',
-      ],
-      [
-        'snap-normal',
-        'scroll-snap-stop:normal;',
-      ],
-      [
-        'snap-mandatory',
-        '--cipo-snap-strictness:mandatory;',
-      ],
-      [
-        'snap-proximity',
-        '--cipo-snap-strictness:proximity;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-    it('uses the shared strictness custom property for snap axes', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'snap-x',
-        ),
-      ).toBe(
-        'scroll-snap-type:x var(--cipo-snap-strictness,mandatory);',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'snap-y',
-        ),
-      ).toBe(
-        'scroll-snap-type:y var(--cipo-snap-strictness,mandatory);',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'snap-both',
-        ),
-      ).toBe(
-        'scroll-snap-type:both var(--cipo-snap-strictness,mandatory);',
-      )
-    })
-  })
-  describe('background utilities', () => {
-    it.each([
-      [
-        'bg-fixed',
-        'background-attachment:fixed;',
-      ],
-      [
-        'bg-local',
-        'background-attachment:local;',
-      ],
-      [
-        'bg-scroll',
-        'background-attachment:scroll;',
-      ],
-      [
-        'bg-clip-border',
-        'background-clip:border-box;',
-      ],
-      [
-        'bg-clip-padding',
-        'background-clip:padding-box;',
-      ],
-      [
-        'bg-clip-content',
-        'background-clip:content-box;',
-      ],
-      [
-        'bg-clip-text',
-        'background-clip:text;',
-      ],
-      [
-        'bg-center',
-        'background-position:center;',
-      ],
-      [
-        'bg-left-top',
-        'background-position:left top;',
-      ],
-      [
-        'bg-no-repeat',
-        'background-repeat:no-repeat;',
-      ],
-      [
-        'bg-repeat-x',
-        'background-repeat:repeat-x;',
-      ],
-      [
-        'bg-cover',
-        'background-size:cover;',
-      ],
-      [
-        'bg-contain',
-        'background-size:contain;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('border and outline utilities', () => {
-    it.each([
-      [
-        'border-solid',
-        'border-style:solid;',
-      ],
-      [
-        'border-dashed',
-        'border-style:dashed;',
-      ],
-      [
-        'border-dotted',
-        'border-style:dotted;',
-      ],
-      [
-        'border-double',
-        'border-style:double;',
-      ],
-      [
-        'border-hidden',
-        'border-style:hidden;',
-      ],
-      [
-        'border-none',
-        'border-style:none;',
-      ],
-      [
-        'rounded-none',
-        'border-radius:0;',
-      ],
-      [
-        'rounded-full',
-        'border-radius:9999px;',
-      ],
-      [
-        'outline-none',
-        'outline-style:none;',
-      ],
-      [
-        'outline-solid',
-        'outline-style:solid;',
-      ],
-      [
-        'outline-dashed',
-        'outline-style:dashed;',
-      ],
-    ])(
-      'expands %s',
-      (
-        utility,
-        css,
-      ) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            utility,
-          ),
-        ).toBe(css)
-      },
-    )
-  })
-  describe('blend utilities', () => {
-    it.each([
-      'normal',
-      'multiply',
-      'screen',
-      'overlay',
-      'darken',
-      'lighten',
-      'color-dodge',
-      'color-burn',
-      'hard-light',
-      'soft-light',
-      'difference',
-      'exclusion',
-      'hue',
-      'saturation',
-      'color',
-      'luminosity',
-    ])(
-      'registers mix-blend-%s',
-      (mode) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            `mix-blend-${mode}`,
-          ),
-        ).toBe(
-          `mix-blend-mode:${mode};`,
-        )
-      },
-    )
-    it.each([
-      'normal',
-      'multiply',
-      'screen',
-      'overlay',
-      'darken',
-      'lighten',
-    ])(
-      'registers bg-blend-%s',
-      (mode) => {
-        expect(
-          resolveBuiltInUtilityAlias(
-            `bg-blend-${mode}`,
-          ),
-        ).toBe(
-          `background-blend-mode:${mode};`,
-        )
-      },
-    )
-  })
-  describe('accessibility utilities', () => {
-    it('expands sr-only', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'sr-only',
-        ),
-      ).toBe(
-        [
-          'position:absolute;',
-          'width:1px;',
-          'height:1px;',
-          'padding:0;',
-          'margin:-1px;',
-          'overflow:hidden;',
-          'clip:rect(0,0,0,0);',
-          'white-space:nowrap;',
-          'border-width:0;',
-        ].join(''),
-      )
-    })
-    it('expands not-sr-only', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'not-sr-only',
-        ),
-      ).toBe(
-        [
-          'position:static;',
-          'width:auto;',
-          'height:auto;',
-          'padding:0;',
-          'margin:0;',
-          'overflow:visible;',
-          'clip:auto;',
-          'white-space:normal;',
-        ].join(''),
-      )
-    })
-  })
-  describe('semantic layout registry', () => {
-    const layoutNames = [
-      'stack',
-      'hstack',
-      'vstack',
-      'cluster',
-      'bento',
-      'auto-grid',
-    ] as const
-    it('derives every compatibility layout alias from the main registry', () => {
-      for (
-        const name of layoutNames
-      ) {
-        expect(
-          BUILT_IN_LAYOUT_ALIASES[
+          BUILT_IN_PROPERTY_ALIASES[
             name
           ],
-        ).toBe(
-          BUILT_IN_UTILITY_ALIASES[
-            name
-          ],
-        )
-      }
-    })
-    it('contains only the declared compatibility layout aliases', () => {
-      expect(
-        Object.keys(
-          BUILT_IN_LAYOUT_ALIASES,
-        ).sort(),
-      ).toEqual(
-        [
-          ...layoutNames,
-        ].sort(),
-      )
-    })
-    it('keeps autoGrid and auto-grid synchronized', () => {
-      expect(
-        BUILT_IN_UTILITY_ALIASES
-          .autoGrid,
-      ).toBe(
-        BUILT_IN_UTILITY_ALIASES[
-          'auto-grid'
-        ],
-      )
-      expect(
-        BUILT_IN_LAYOUT_ALIASES[
-          'auto-grid'
-        ],
-      ).toBe(
-        BUILT_IN_UTILITY_ALIASES
-          .autoGrid,
-      )
-    })
+        ).toEqual([
+          property,
+          scale,
+        ])
+      },
+    )
   })
-  describe('Cipó semantic presets', () => {
-    it('registers glass variants', () => {
+  describe('toCssPropertyName', () => {
+    it.each([
+      [
+        'backgroundColor',
+        'background-color',
+      ],
+      [
+        'gridTemplateColumns',
+        'grid-template-columns',
+      ],
+      [
+        'scrollMarginInlineStart',
+        'scroll-margin-inline-start',
+      ],
+      [
+        'viewTransitionName',
+        'view-transition-name',
+      ],
+      [
+        'animationTimeline',
+        'animation-timeline',
+      ],
+      [
+        'positionAnchor',
+        'position-anchor',
+      ],
+      [
+        'font-size',
+        'font-size',
+      ],
+      [
+        'snake_case_property',
+        'snake-case-property',
+      ],
+    ])(
+      'canonicalizes %s to %s',
+      (
+        input,
+        expected,
+      ) => {
+        expect(
+          toCssPropertyName(
+            input,
+          ),
+        ).toBe(expected)
+      },
+    )
+    it.each([
+      [
+        'WebkitLineClamp',
+        '-webkit-line-clamp',
+      ],
+      [
+        'MozAppearance',
+        '-moz-appearance',
+      ],
+      [
+        'msOverflowStyle',
+        '-ms-overflow-style',
+      ],
+      [
+        'OTransition',
+        '-o-transition',
+      ],
+    ])(
+      'normalizes vendor-prefixed property %s',
+      (
+        input,
+        expected,
+      ) => {
+        expect(
+          toCssPropertyName(
+            input,
+          ),
+        ).toBe(expected)
+      },
+    )
+    it('preserves custom property case exactly', () => {
       expect(
-        resolveBuiltInUtilityAlias(
-          'glass',
-        ),
-      ).toContain(
-        'backdrop-filter:blur(18px) saturate(140%);',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'glass-strong',
-        ),
-      ).toContain(
-        'backdrop-filter:blur(26px) saturate(160%);',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'glass-soft',
-        ),
-      ).toContain(
-        'backdrop-filter:blur(12px) saturate(120%);',
-      )
-    })
-    it('registers interactive nested runtime contexts', () => {
-      const css =
-        resolveBuiltInUtilityAlias(
-          'interactive',
-        )
-      expect(css).toContain(
-        'transition:transform 160ms ease,background 160ms ease,border-color 160ms ease,box-shadow 160ms ease;',
-      )
-      expect(css).toContain(
-        'x:hover{transform:translateY(-1px);}',
-      )
-      expect(css).toContain(
-        'x:active{transform:scale(.985);}',
-      )
-    })
-    it('supports focusRing in camel and kebab case', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'focusRing',
+        toCssPropertyName(
+          '--MyDesignToken',
         ),
       ).toBe(
-        'x:focus-visible{outline:2px solid $brand;outline-offset:2px;}',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'focus-ring',
-        ),
-      ).toBe(
-        resolveBuiltInUtilityAlias(
-          'focusRing',
-        ),
+        '--MyDesignToken',
       )
     })
-    it('registers reusable component presets', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'buttonBase',
-        ),
-      ).toContain(
-        'display:inline-flex;',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'iconButton',
-        ),
-      ).toContain(
-        'size:10;',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'cardSurface',
-        ),
-      ).toBe(
-        'glass;rounded:$xl;shadow:$panel;',
-      )
-      expect(
-        resolveBuiltInUtilityAlias(
-          'glassCard',
-        ),
-      ).toBe(
-        'glass;rounded:$xl;shadow:$panel;',
-      )
-    })
-  })
-  describe('resolver', () => {
     it('trims surrounding whitespace', () => {
       expect(
-        resolveBuiltInUtilityAlias(
-          '  flex  ',
+        toCssPropertyName(
+          '  backgroundColor  ',
         ),
       ).toBe(
-        'display:flex;',
+        'background-color',
       )
     })
-    it('resolves camel-case aliases directly', () => {
+    it('returns an empty string for empty input', () => {
       expect(
-        resolveBuiltInUtilityAlias(
-          'buttonBase',
-        ),
-      ).toBe(
-        BUILT_IN_UTILITY_ALIASES
-          .buttonBase,
-      )
-    })
-    it('resolves kebab-case equivalents', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'button-base',
-        ),
-      ).toBe(
-        BUILT_IN_UTILITY_ALIASES
-          .buttonBase,
-      )
-    })
-    it('returns undefined for unknown utilities', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
-          'definitely-not-a-utility',
-        ),
-      ).toBeUndefined()
-    })
-    it('returns undefined for empty input', () => {
-      expect(
-        resolveBuiltInUtilityAlias(
+        toCssPropertyName(
           '   ',
         ),
+      ).toBe('')
+    })
+  })
+  describe('resolveBuiltInPropertyAlias', () => {
+    it('resolves explicit Cipó aliases before native-property fallback', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'bg',
+        ),
+      ).toEqual([
+        'background',
+        'color',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'size',
+        ),
+      ).toEqual([
+        'inline-size',
+        'spacing',
+      ])
+    })
+    it('resolves generated kebab-case aliases', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'bg-color',
+        ),
+      ).toEqual([
+        'background-color',
+        'color',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'grid-cols',
+        ),
+      ).toEqual([
+        'grid-template-columns',
+        'none',
+      ])
+    })
+    it('allows native camel-case CSS properties without registry entries', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'backgroundColor',
+        ),
+      ).toEqual([
+        'background-color',
+        'color',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'gridTemplateColumns',
+        ),
+      ).toEqual([
+        'grid-template-columns',
+        'none',
+      ])
+    })
+    it('allows future CSS properties without adding them to the registry', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'viewTransitionName',
+        ),
+      ).toEqual([
+        'view-transition-name',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'animationTimeline',
+        ),
+      ).toEqual([
+        'animation-timeline',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'positionAnchor',
+        ),
+      ).toEqual([
+        'position-anchor',
+        'none',
+      ])
+    })
+    it('preserves custom properties', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          '--MyDesignToken',
+        ),
+      ).toEqual([
+        '--MyDesignToken',
+        'none',
+      ])
+    })
+    it('keeps native CSS shorthands native instead of shadowing them with convenience aliases', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'font',
+        ),
+      ).toEqual([
+        'font',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'grid',
+        ),
+      ).toEqual([
+        'grid',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'content',
+        ),
+      ).toEqual([
+        'content',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'transform',
+        ),
+      ).toEqual([
+        'transform',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'direction',
+        ),
+      ).toEqual([
+        'direction',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'textDecoration',
+        ),
+      ).toEqual([
+        'text-decoration',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'listStyle',
+        ),
+      ).toEqual([
+        'list-style',
+        'none',
+      ])
+    })
+    it('provides explicit convenience aliases without changing native equivalents', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'ff',
+        ),
+      ).toEqual([
+        'font-family',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'fontFamily',
+        ),
+      ).toEqual([
+        'font-family',
+        'none',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'gridCols',
+        ),
+      ).toEqual([
+        'grid-template-columns',
+        'none',
+      ])
+    })
+    it('resolves physical and logical radius aliases independently', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          'roundedTl',
+        ),
+      ).toEqual([
+        'border-top-left-radius',
+        'radius',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'roundedBr',
+        ),
+      ).toEqual([
+        'border-bottom-right-radius',
+        'radius',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'roundedSs',
+        ),
+      ).toEqual([
+        'border-start-start-radius',
+        'radius',
+      ])
+      expect(
+        resolveBuiltInPropertyAlias(
+          'roundedEe',
+        ),
+      ).toEqual([
+        'border-end-end-radius',
+        'radius',
+      ])
+    })
+    it('returns undefined for empty or lexically invalid property names', () => {
+      expect(
+        resolveBuiltInPropertyAlias(
+          '',
+        ),
+      ).toBeUndefined()
+      expect(
+        resolveBuiltInPropertyAlias(
+          '123invalid',
+        ),
+      ).toBeUndefined()
+      expect(
+        resolveBuiltInPropertyAlias(
+          '@property',
+        ),
       ).toBeUndefined()
     })
-    it('is deterministic', () => {
+  })
+  describe('scale inference', () => {
+    it.each([
+      [
+        'font-size',
+        'text',
+      ],
+      [
+        'box-shadow',
+        'shadow',
+      ],
+      [
+        'text-shadow',
+        'shadow',
+      ],
+      [
+        'border-radius',
+        'radius',
+      ],
+      [
+        'border-top-left-radius',
+        'radius',
+      ],
+      [
+        'color',
+        'color',
+      ],
+      [
+        'background',
+        'color',
+      ],
+      [
+        'background-color',
+        'color',
+      ],
+      [
+        'border',
+        'color',
+      ],
+      [
+        'border-top',
+        'color',
+      ],
+      [
+        'outline-color',
+        'color',
+      ],
+      [
+        'fill',
+        'color',
+      ],
+      [
+        'stroke',
+        'color',
+      ],
+      [
+        'scrollbar-color',
+        'color',
+      ],
+    ])(
+      'infers %s as %s',
+      (
+        property,
+        scale,
+      ) => {
+        expect(
+          inferBuiltInScale(
+            property,
+          ),
+        ).toBe(scale)
+      },
+    )
+    it.each([
+      'padding',
+      'padding-inline',
+      'padding-block-start',
+      'margin',
+      'margin-inline-end',
+      'scroll-padding',
+      'scroll-margin-top',
+      'inset',
+      'inset-inline',
+      'width',
+      'min-width',
+      'max-height',
+      'inline-size',
+      'min-block-size',
+      'border-width',
+      'border-top-width',
+      'gap',
+      'row-gap',
+      'column-gap',
+      'flex-basis',
+      'outline-width',
+      'outline-offset',
+      'text-indent',
+      'text-underline-offset',
+      'translate',
+      'perspective',
+      'offset-distance',
+      'column-width',
+    ])(
+      'infers %s as spacing',
+      (property) => {
+        expect(
+          inferBuiltInScale(
+            property,
+          ),
+        ).toBe(
+          'spacing',
+        )
+      },
+    )
+    it.each([
+      'display',
+      'position',
+      'transform',
+      'grid-template-columns',
+      'background-image',
+      'animation',
+      'transition',
+      'view-transition-name',
+      'animation-timeline',
+      '--CustomToken',
+    ])(
+      'conservatively leaves %s on the none scale',
+      (property) => {
+        expect(
+          inferBuiltInScale(
+            property,
+          ),
+        ).toBe(
+          'none',
+        )
+      },
+    )
+  })
+  describe('resolution cache', () => {
+    it('returns the same tuple instance for repeated dynamically resolved properties', () => {
       const first =
-        resolveBuiltInUtilityAlias(
-          'items-center',
+        resolveBuiltInPropertyAlias(
+          'viewTransitionClass',
         )
       const second =
-        resolveBuiltInUtilityAlias(
-          'items-center',
+        resolveBuiltInPropertyAlias(
+          'viewTransitionClass',
+        )
+      expect(second).toBe(first)
+    })
+    it('clears dynamically cached resolutions', () => {
+      const first =
+        resolveBuiltInPropertyAlias(
+          'futureExperimentalProperty',
+        )
+      clearBuiltInPropertyAliasCache()
+      const second =
+        resolveBuiltInPropertyAlias(
+          'futureExperimentalProperty',
+        )
+      expect(second).toEqual(first)
+      expect(second).not.toBe(first)
+    })
+    it('evicts the oldest dynamic resolution after exceeding the 512-entry bound', () => {
+      const oldest =
+        resolveBuiltInPropertyAlias(
+          'future-property-0',
+        )
+      for (
+        let index = 1;
+        index <= 512;
+        index += 1
+      ) {
+        resolveBuiltInPropertyAlias(
+          `future-property-${index}`,
+        )
+      }
+      const resolvedAgain =
+        resolveBuiltInPropertyAlias(
+          'future-property-0',
+        )
+      expect(
+        resolvedAgain,
+      ).toEqual(oldest)
+      expect(
+        resolvedAgain,
+      ).not.toBe(oldest)
+    })
+    it('does not cache explicit aliases through the dynamic resolution cache', () => {
+      const first =
+        resolveBuiltInPropertyAlias(
+          'bg',
+        )
+      clearBuiltInPropertyAliasCache()
+      const second =
+        resolveBuiltInPropertyAlias(
+          'bg',
         )
       expect(second).toBe(first)
     })
   })
   describe('regression contracts', () => {
     it.todo(
-      'adds the canonical Tailwind min-w-0 alias instead of exposing only minw-0/min-w0 compatibility spellings',
+      'distinguishes lexically valid but nonexistent CSS properties from real native properties when strict validation is enabled',
     )
     it.todo(
-      'adds the canonical Tailwind min-h-0 alias instead of exposing only minh-0/min-h0 compatibility spellings',
+      'defines whether vendor-prefixed properties should receive inferred scales when their unprefixed equivalent has one',
     )
     it.todo(
-      'decides whether rounded-full should use the theme radius token instead of the hardcoded 9999px compatibility value',
+      'defines whether background should use the color scale despite accepting images, gradients and multiple mixed-grammar layers',
     )
     it.todo(
-      'defines whether antialiased and subpixel-antialiased should remain built-ins despite relying on non-standard vendor properties',
+      'defines whether border shorthand should use the color scale despite also accepting width and style tokens',
     )
     it.todo(
-      'moves gpu to a smart compositional utility when existing transform declarations must never be overwritten',
-    )
-    it.todo(
-      'keeps aliases requiring dynamic theme values, arbitrary values or filter/transform composition out of the static registry',
-    )
-    it.todo(
-      'validates generated static utility coverage against the supported Tailwind, UnoCSS and Panda compatibility manifest in CI',
+      'validates the complete native-property surface against WebRef during CI without shipping the WebRef dataset at runtime',
     )
   })
 })
