@@ -1,3 +1,5 @@
+/** @vitest-environment jsdom */
+
 import { beforeEach, describe, expect, it } from 'vitest'
 import { configureFromCss, createStyled, getCssText, injectStyle, reset, setRuntimeStyleTarget } from '@rodkisten/cipo'
 
