@@ -1,1831 +1,577 @@
-# Cipó CSS 🌿
+# Rod Browser Toolbox
+[see online](https://rodkisten.github.io/bundler)
 
-Cipó is the CSS owner in the Rod browser toolbox. It provides a semantic CSS DSL, atomic class generation, full stylesheet compilation, inline style compilation, JIT caching, theme tokens, helpers, aliases, recipes and browser-friendly debug tools.
+[![📦 Publish browser bundle](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml/badge.svg)](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml)
 
-Cipó does **not** own HTML rendering. Fábrica owns reactivity/templates. `fabrica-elements` owns element/component factories. Cipó consumes that bridge for `cipo.div.css``...`` ` and `cipo(Component).css``...`` `.
+Browser-first build system for the Rod ecosystem. The project emits one browser global per root entrypoint, plus ESM/IIFE builds, extracted examples, and a generated landing page.
 
-## Internal compiler layout
+## Packages
 
-The runtime compiler is split by responsibility so feature work does not keep inflating the main public entry file:
+| Root entry | Browser global | Ownership |
+|---|---:|---|
+| `src/broto.ts` | `window.Broto` | reactive runtime: signal, computed, effect, batch, store, graph, scheduler, async resources |
+| `src/fabrica.ts` | `window.Fabrica` | HTML/UI runtime: templates, parser, renderer, directives, DOM parts, components and hydration |
+| `src/fabrica-elements.ts` | `window.FabricaElements` | element/component factories: createElement, adapters, props, refs, children, wrappers |
+| `src/cipo.ts` | `window.Cipo` | CSS runtime: aliases, tokens, atomic engine, stylesheet compiler |
+| `src/index.ts` | `window.Rod` | umbrella namespace exporting Broto, Fabrica, FabricaElements and Cipo |
 
-- `css.ts` owns public APIs and artifact creation.
-- `css-mode.ts` owns the tiny top-level scanner that routes polymorphic `css` calls to inline, configure, atomic, or stylesheet mode.
-- `runtime-dsl.ts` owns runtime-safe design-language expansion such as token objects, mixins, palettes and smart helpers.
+## Architecture
 
-The mode scanner is intentionally string-first and bounded. It does not parse declarations or selectors; it only peeks at top-level directives so `Cipo.css` remains fast enough to be the universal entry point.
+```txt
+Broto
+ ├── signal
+ ├── computed
+ ├── effect
+ ├── batch
+ ├── store
+ ├── graph
+ ├── scheduler
+ ├── async
+ └── resources
 
-## Install / import
+Fabrica
+ ├── html
+ ├── template parser
+ ├── renderer
+ ├── directives
+ ├── DOM parts
+ ├── components
+ └── hydration
 
-```ts
-import {
-  assertAtomicCssArtifact,
-  cipo,
-  css,
-  explain,
-  inline,
-  injectGlobal,
-  injectStyle,
-  recipe,
-  registerAlias,
-  registerHelper,
-  registerProperty,
-  setup,
-  theme,
-} from "./src/cipo";
+Fabrica Elements
+ ├── createElement
+ ├── adapters
+ ├── props
+ ├── refs
+ ├── children
+ └── component wrappers
+
+Cipo
+ ├── css runtime
+ ├── aliases
+ ├── tokens
+ ├── atomic engine
+ └── stylesheet compiler
 ```
 
-Userscript:
+## Build outputs
 
-```js
-// @require https://OWNER.github.io/REPO/cipo.iife.js
-const { css, inline, setup } = window.Cipo;
+```txt
+src/broto.ts              -> dist/broto.iife.js              -> window.Broto
+src/fabrica.ts            -> dist/fabrica.iife.js            -> window.Fabrica
+src/fabrica-elements.ts   -> dist/fabrica-elements.iife.js   -> window.FabricaElements
+src/cipo.ts               -> dist/cipo.iife.js               -> window.Cipo
+src/index.ts              -> dist/index.iife.js              -> window.Rod
 ```
 
-## Setup with theme
+Every entry also gets `.iife.min.js`, `.esm.js`, `.esm.min.js`, source maps and build metadata when enabled.
+
+## Commands
+
+```bash
+pnpm typecheck
+pnpm build
+pnpm verify
+```
+
+## Example extraction
+
+The builder extracts `@example` blocks from TSDoc. When a single TSDoc comment has multiple examples, the shared summary/remarks text is rendered once for the group instead of being duplicated for every example.
+
+## Landing page
+
+`dist/index.html` uses a responsive forest/mata visual theme with layered gradients, noise, glass panels, modern CSS filters and mobile-safe layouts.
+
+
+## Cipó native CSS functions and stylesheet authoring
+
+Cipó now separates platform CSS functions from custom helpers. Native CSS such as
+`max()`, `min()`, `clamp()`, `calc()`, `env()`, `var()`, `light-dark()`,
+`color-mix()`, `oklch()`, gradients, filters, transforms, shapes and grid helpers
+passes through untouched while Cipó-only helpers such as `alpha()` and
+`outlineGlow()` are resolved by the helper registry.
 
 Input:
 
 ```ts
-setup({
-  prefix: "rod",
-  layers: true,
-  minify: false,
-  rem: { enabled: true, baseFontSize: 16 },
-  colorMode: "oklch",
-  jit: { enabled: true, cache: true, maxEntries: 3000 },
-  theme: {
-    colors: {
-      brand: "#f97316",
-      panel: "#0f172a",
-      ink: "#f8fafc",
-      danger: "#ef4444",
-    },
-    spacing: "0.25rem",
-    radius: { md: "12px", xl: "24px" },
-    shadow: { panel: "0 24px 80px rgb(0 0 0 / 0.35)" },
-    text: { sm: "0.875rem", lg: "1.25rem" },
-  },
-});
-```
-
-Output token layer shape:
-
-```css
-@layer cipo.tokens {
-  :root {
-    --rod-colors-brand: #f97316;
-    --rod-colors-panel: #0f172a;
-    --rod-radius-xl: 1.5rem;
-  }
-}
-```
-
-## Token inference
-
-Input:
-
-```css
-bg: $panel
-color: $ink
-rounded: $xl
-shadow: $panel
-```
-
-Output shape:
-
-```css
-background: var(--rod-colors-panel);
-color: var(--rod-colors-ink);
-border-radius: var(--rod-radius-xl);
-box-shadow: var(--rod-shadow-panel);
-```
-
-Explicit namespaces are also supported:
-
-```css
-bg: $colors.panel
-rounded: $radius.xl
-```
-
-Legacy `$theme.colors.panel` remains supported for compatibility.
-
-## Atomic/component mode
-
-Declaration-first CSS returns a class artifact.
-
-Input:
-
-```ts
-const card = css`
-  glass
-  px: 4
-  py: 3
-  bg: $panel
-  color: $ink
-  rounded: $xl
-
-  x:hover {
-    bg: alpha($brand / 18%);
-  }
-
-  x:md {
-    px: 6;
-  }
-`;
-```
-
-Output API:
-
-```ts
-String(card);
-// 'rod-s-... rod-a-... rod-a-...'
-
-card.kind;
-// 'cipo.css'
-```
-
-Output CSS shape:
-
-```css
-@layer cipo.atomic {
-  .rod-a-... {
-    padding-inline: calc(var(--rod-spacing, 0.25rem) * 4);
-  }
-
-  .rod-a-...:hover {
-    background: color-mix(in oklch, var(--rod-colors-brand) 18%, transparent);
-  }
-
-  @media (min-width: 768px) {
-    .rod-a-... {
-      padding-inline: calc(var(--rod-spacing, 0.25rem) * 6);
-    }
-  }
-}
-```
-
-## Production at-rule coalescing
-
-Compiled production CSS now coalesces consecutive equivalent grouping at-rules. Cipó keeps cascade order intact and only merges blocks that are already adjacent, so repeated responsive output such as:
-
-```css
-@media (min-width: 768px) {
-  .a {
-    display: flex;
-  }
-}
-@media (min-width: 768px) {
-  .b {
-    display: grid;
-  }
-}
-```
-
-is emitted as one shared block:
-
-```css
-@media (min-width: 768px) {
-  .a {
-    display: flex;
-  }
-  .b {
-    display: grid;
-  }
-}
-```
-
-The same optimization applies to adjacent equivalent `@supports` and `@container` blocks. Rule-list wrappers such as `@layer` and `@scope` are traversed recursively, while intervening rules remain hard cascade boundaries and are never reordered.
-
-## Full stylesheet mode
-
-A top-level selector returns stylesheet text instead of a class list.
-
-Input:
-
-```ts
-const sheet = css`
-  .card {
-    px: 4
-    bg: $panel
-
-    &:hover {
-      bg: alpha($brand / 18%)
-    }
+const styleText = Cipo.sheet.css`
+  .panel {
+    right: max(0.5rem, env(safe-area-inset-right))
+    bottom:
+      max(1.125rem, env(safe-area-inset-bottom))
+    background: linear-gradient(180deg, color-mix(in oklch, $panel 88%, transparent), light-dark(#fff, #000))
+    color: oklch(from $brand l c h)
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr))
   }
 `;
 ```
 
 Output:
 
-```ts
-String(sheet);
-// '.card { padding-inline: ...; background: ... } .card:hover { ... }'
-
-sheet.kind;
-// 'cipo.stylesheet'
+```css
+.panel {
+  right: max(0.5rem, env(safe-area-inset-right));
+  bottom: max(1.125rem, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, color-mix(in oklch, var(--cipo-colors-panel) 88%, transparent), light-dark(#fff, #000));
+  color: oklch(from var(--cipo-colors-brand) l c h);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
 ```
 
-Use it with:
+Future browser functions can be registered without creating custom helpers:
 
 ```ts
-injectGlobal(sheet);
-injectStyle(shadowRoot, sheet);
+Cipo.registerNativeFunction('anchor-size');
+
+Cipo.sheet.css`
+  .popover {
+    width: anchor-size(width)
+  }
+`;
 ```
 
-## Inline style mode
+The declaration tokenizer also supports multi-line values where the property and
+value are split across lines, which is useful for mobile-first safe-area CSS.
+
+## Fábrica component runtime upgrade
+
+Fábrica now supports deep component composition and ownership-aware rendering.
 
 Input:
 
 ```ts
-const style = inline.css`
-  px: 2
-  py: 1
-  color: saturate($brand, 20%)
-  bg: alpha($brand / 14%)
-`;
-```
-
-Output:
-
-```ts
-String(style);
-// 'padding-inline: ...; padding-block: ...; color: ...; background: ...;'
-```
-
-## Aliases
-
-Built-in aliases:
-
-```css
-hidden
-flex
-grid
-center
-glass
-buttonBase
-focusRing
-interactive
-cardSurface
-truncate
-balance
-pretty
-gpu
-absolute-fill
-screen-safe
-sr-only
-```
-
-Custom alias:
-
-```ts
-registerAlias(
-  "elevatedPanel",
-  `
-  glass
-  rounded: $xl
-  shadow: $panel
-`,
-);
-
-const panel = css`
-  elevatedPanel
-  px: 4
-`;
-```
-
-## Property aliases
-
-Input:
-
-```css
-px: 4
-py: 2
-gap: 3
-bg: $brand
-rounded: $xl
-```
-
-Output:
-
-```css
-padding-inline: calc(var(--rod-spacing, 0.25rem) * 4);
-padding-block: calc(var(--rod-spacing, 0.25rem) * 2);
-gap: calc(var(--rod-spacing, 0.25rem) * 3);
-background: var(--rod-colors-brand);
-border-radius: var(--rod-radius-xl);
-```
-
-Custom property alias:
-
-```ts
-registerProperty("bleed", { property: "margin-inline", scale: "spacing" });
-
-css`
-  bleed: -4;
-`;
-```
-
-## Helpers
-
-Built-ins include:
-
-```css
-alpha($brand / 18%)
-gradient(linear, to right, $brand, $danger)
-fluid(1rem, 2rem, 4vw)
-spacing(4)
-lighten($brand, 10%)
-darken($brand, 10%)
-saturate($brand, 20%)
-```
-
-Custom helper:
-
-```ts
-registerHelper("outlineGlow", (args, context) => {
-  return `0 0 0 3px ${context.resolveValue(`alpha(${args || "$brand"} / 25%)`)}`;
+const Button = Fabrica.component("Button", function Button(props) {
+  return Fabrica.html`
+    <button class=${props.class}>
+      ${props.children}
+    </button>
+  `;
 });
 
-css`
-  x:focus-visible {
-    box-shadow: outlineGlow($brand);
-  }
-`;
-```
-
-## x variants
-
-`x:` is reserved for runtime contexts:
-
-```css
-x:hover {
-  bg: alpha($brand / 18%);
-}
-x:focus-visible {
-  outline: 2px solid $brand;
-}
-x:md {
-  px: 6;
-}
-x:not(md) {
-  width: 100%;
-}
-x:dark {
-  bg: $panel;
-}
-```
-
-## Recipes
-
-```ts
-const button = recipe({
-  base: "buttonBase;focusRing;",
-  variants: {
-    tone: {
-      primary: "bg:$brand;color:$ink;",
-      danger: "bg:$danger;color:white;",
-    },
-  },
-  defaults: { tone: "primary" },
-});
-
-button({ tone: "danger" }).className;
-```
-
-## DOM factories via Fabrica Elements
-
-```ts
-const Button = cipo.button.css`
-  buttonBase
-  bg: $brand
-  color: $ink
-`;
-
-const node = Button({ children: "Save" });
-```
-
-## Debug
-
-```ts
-const card = css`
-  color: $brand;
-`;
-assertAtomicCssArtifact(card);
-const firstClass = card.className.split(" ")[0] ?? "";
-
-explain(firstClass);
-getCssText();
-```
-
-## Limitations
-
-- Fábrica owns real HTML rendering. Cipó's `html`...` helper is compatibility-only.
-- Full stylesheet mode is selector-first. Declaration-first input stays atomic/component mode.
-- Helpers should be value-level functions. Use aliases for declaration-level macros.
-- JIT cache is runtime-only; build-time extraction is a future step.
-
-## Next steps
-
-- Generate API reference pages from TSDoc comments.
-- Add perf benchmark fixtures for parser/JIT hot paths.
-- Add optional static extraction for production builds.
-- Add more recipe examples and visual kitchen-sink pages.
-
-## Performance and helper safety notes
-
-Cipó 1.1.1 changes the helper resolver from recursive expansion to a bounded iterative scanner. This matters for helpers that expand into other helpers.
-
-Input:
-
-```ts
-const button = css`
-  px: 4
-  py: 2
-  bg: $brand
-  color: saturate($brand, 20%)
-  /* bg: alpha($brand / 14%) */
-  #box-shadow: outlineGlow($brand)
-  $glassCard
-  bleed: -4
-
-  x:focus-visible {
-    box-shadow: outlineGlow($brand)
-  }
-
-  x:hover {
-    bg: alpha($brand / 72%)
-  }
-
-  x:md {
-    px: 6
-  }
-
-  x:not(md) {
-    width: 100%
-  }
-`;
-```
-
-Output shape:
-
-```css
-.cipo-a-... {
-  padding-inline: calc(var(--cipo-spacing, 0.25rem) * 4);
-}
-
-.cipo-a-... {
-  padding-block: calc(var(--cipo-spacing, 0.25rem) * 2);
-}
-
-.cipo-a-... {
-  background: var(--cipo-colors-brand);
-}
-
-.cipo-a-... {
-  color: oklch(from var(--cipo-colors-brand) l calc(c + 20%) h);
-}
-
-.cipo-a-... {
-  box-shadow: 0 0 0 3px
-    color-mix(in oklch, var(--cipo-colors-brand) 28%, transparent);
-}
-
-.cipo-a-... {
-  margin: calc(var(--cipo-spacing, 0.25rem) * -4);
-}
-
-.cipo-a-...:focus-visible {
-  box-shadow: 0 0 0 3px
-    color-mix(in oklch, var(--cipo-colors-brand) 28%, transparent);
-}
-
-.cipo-a-...:hover {
-  background: color-mix(in oklch, var(--cipo-colors-brand) 72%, transparent);
-}
-
-@media (min-width: 768px) {
-  .cipo-a-... {
-    padding-inline: calc(var(--cipo-spacing, 0.25rem) * 6);
-  }
-}
-
-@media not all and (min-width: 768px) {
-  .cipo-a-... {
-    width: 100%;
-  }
-}
-```
-
-### New syntax supported in this patch
-
-`$glassCard` as a standalone line expands the registered `glassCard` alias. Inside values, `$brand` still resolves to a theme token.
-
-`#box-shadow: ...` strips the `#` and writes the raw CSS property. This is useful when you want the exact property, not a future alias or plugin override.
-
-`bleed: -4` maps to `margin` with the spacing scale, so it becomes a negative spacing calculation.
-
-Block comments can hide whole Cipó blocks safely:
-
-```css
-/*
-x:hover {
-  bg: alpha($brand / 72%)
-}
-*/
-```
-
-## Styled components with Fábrica
-
-Cipó's callable API is also exported as `styled` for familiar styled-components-like authoring.
-
-```ts
-import { styled } from "../cipo";
-import { html, render } from "../fabrica";
-import { signal } from "../broto";
-
-const tone = signal("primary");
-
-const Button = styled.button.css`
-  px: 4
-  py: 2
-  bg: $brand
-  color: $ink
-`;
-
-render(
-  root,
-  html`
-  <${Button} data-tone=${tone} @click=${save}>
+Fabrica.render(document.body, Fabrica.html`
+  <${Button} class="primary">
     Save
   </${Button}>
-`,
-);
+`);
 ```
 
-When rendered through Fábrica component tags, dynamic props backed by Broto signals are reactive. Fábrica owns the effect and cleanup; Cipó only compiles the class list and Fabrica Elements creates the DOM or adapter payload.
+Output:
 
-## Validation and explainability
+```html
+<button class="primary">Save</button>
+```
 
-Cipó keeps the existing `explain()` and `inspect()` APIs and adds `validateCss()` for fast debug checks on generated CSS:
+The runtime now links DOM ranges to Broto owners, so effects, resources, context, refs, event listeners and lifecycle cleanup are disposed together.
+
+## Fábrica micro-JSX
+
+Fábrica now has a tiny JSX-like syntax inside template strings. It is still browser-native: no Babel, no AST transform, no virtual DOM.
+
+Input:
 
 ```ts
-const button = sheet.css`
-  .button {
-    color: red !important
-  }
-`;
+const Dock = Fabrica.component("Dock", function Dock() {
+  return Fabrica.html`<button>Open</button>`;
+});
 
-const result = validateCss(String(button));
-console.log(result.valid);
+Fabrica.render(document.body, Fabrica.html.jsx`
+  <Dock />
+`);
 ```
 
-`validateCss()` is not a heavyweight browser parser. It is a linear safety scan for unclosed blocks/functions/comments/strings and duplicated `!important`, useful in tests, generated docs and userscript diagnostics.
+Output:
 
-## Debugging source CSS
+```html
+<button>Open</button>
+```
 
-Use `explainCss()` when a helper, token, alias or nested stylesheet behaves unexpectedly:
+For explicit parser-safe composition:
 
 ```ts
-const report = explainCss(".card { bg: alpha($brand / 20%) }", "stylesheet");
-console.log(report.transformedCss);
-console.log(report.cssText);
-console.log(report.validation);
+Fabrica.render(document.body, Fabrica.html.jsx`
+  <f-component name="Dock" />
+`);
 ```
 
-## Advanced stylesheet helpers
+Unregistered components render a visible `<fabrica-component-error>` fallback, which makes broken names obvious during userscript debugging.
+
+## Error boundaries and owned async resources
+
+Input:
 
 ```ts
-const scoped = sheet.css.scoped(".app")`
-  .card { px: 4 }
-`;
+const Profile = Fabrica.component("Profile", function Profile(props, ctx) {
+  const profile = ctx.resource(
+    (abort, id) => fetch(`/users/${id}`, { signal: abort }).then((r) => r.json()),
+    { source: () => props.id, cacheKey: (id) => `user:${id}`, retries: 1 },
+  );
+
+  return Fabrica.html`${() => profile().loading ? "Loading" : profile().value?.name}`;
+});
 ```
+
+Output while loading:
+
+```html
+Loading
+```
+
+Output after success:
+
+```html
+Rod
+```
+
+## Fabrica micro-JSX, preferred syntax
+
+Use `Fabrica.jsx.html` for component templates. It keeps the runtime browser-native and usually gives better syntax highlighting than `html.jsx`.
 
 ```ts
-const layered = sheet.css.layer("components")`
-  .card { color: red }
-`;
+const Panel = Fabrica.component("Panel", function Panel(props) {
+  return Fabrica.html`<section>${props.children}</section>`;
+});
+
+Fabrica.render(document.body, Fabrica.jsx.html`
+  <Panel>Inspector</Panel>
+`);
 ```
 
-For diagnostics:
+`Fabrica.html.jsx` still works. Dynamic props on component tags are passed as raw values, so objects, signals and functions are not stringified.
+
+## Staff-level additive APIs
+
+This pass keeps existing APIs intact and adds diagnostics/composition helpers for larger apps and userscripts.
+
+### Broto diagnostics
 
 ```ts
-const info = explainDetailed(".card { color: red }", "stylesheet");
-const perf = benchmark("color: red", 100, "atomic");
+import { inspectRuntime, inspectSignals, inspectEffects, inspectScheduler } from './src/broto'
+
+const snapshot = inspectRuntime()
+console.table(snapshot.signals)
+console.table(snapshot.effects)
+console.log(snapshot.scheduler)
 ```
 
-## Runtime token DSL and OKLCH utilities
+Use this to find effect leaks, owner trees that were not disposed, resources still polling, and large reactive graphs.
 
-Cipó runtime can now compile a bounded design-token DSL without a build step. It stays browser-safe: token objects, mixins, simple macro conditions, CSS-variable math and Tailwind-like color utilities are expanded into static CSS text.
+### Fabrica lifecycle helpers
 
 ```ts
-const styleText = sheet.css`
-  :root {
-    $dock(
-      radius: 14px,
-      size: (sm: 4px, md: 1rem)
-    )
+import { onMount, onDispose, onError } from './src/fabrica'
 
-    $$iconWrapSize: 16px
-    $$iconSize: $$iconWrapSize - 1px
+onMount(() => {
+  const controller = new AbortController()
+  window.addEventListener('resize', sync, { signal: controller.signal })
+  return () => controller.abort()
+})
 
-    $$glass(c: color, b: length) {
-      py: *b
-      color-amber-245
-      bg-*c-235
-      x:md { color-accent-420 }
-    }
-  }
-
-  .card {
-    glass(amber, 4)
-  }
-`;
+onDispose(() => console.log('owner disposed'))
+onError((error) => {
+  console.error(error)
+  return true
+})
 ```
 
-Output shape:
+These helpers are additive. Component context lifecycle APIs continue working as before.
 
-```css
-:root {
-  --cipo-dock-radius: 0.875rem;
-  --cipo-dock-size-sm: 0.25rem;
-  --cipo-dock-size-md: 1rem;
-  --cipo-icon-wrap-size: 1rem;
-  --cipo-icon-size: calc(var(--cipo-icon-wrap-size) - 0.0625rem);
-}
-.card {
-  padding-block: calc(var(--cipo-spacing, 0.25rem) * 4);
-  color: oklch(...);
-  background: oklch(...);
-}
+### Fabrica Elements recipes
+
+```ts
+import { recipeProps } from './src/fabrica-elements'
+
+const button = recipeProps({
+  base: { class: 'btn', type: 'button' },
+  variants: {
+    tone: { primary: { class: 'btn-primary' }, danger: { class: 'btn-danger' } },
+    size: { sm: { class: 'btn-sm' }, lg: { class: 'btn-lg' } },
+  },
+  defaults: { tone: 'primary', size: 'sm' },
+  compound: [{ tone: 'danger', size: 'lg', props: { class: 'btn-danger-lg' } }],
+})
+
+button({ tone: 'danger', size: 'lg', class: 'extra' })
+// { class: 'btn btn-danger btn-lg btn-danger-lg extra', type: 'button', ... }
 ```
 
-Runtime boundaries:
+### Cipó source explanations
 
-- ✅ token objects and flattened CSS variables
-- ✅ derived `$$variable` math via `calc(...)`
-- ✅ simple mixins and equality macro blocks
-- ✅ `x:*` media/pseudo blocks inside mixins
-- ✅ generated OKLCH colors such as `color-amber-245` and `bg-sky-200`
-- ❌ loops and massive utility generation remain build-time concerns
-- ❌ deep type-checking remains dev/build-time only
+```ts
+import { explainCss } from '@rodkisten/cipo'
 
-Benchmarks are generated with:
+const report = explainCss('.card { bg: alpha($brand / 20%) }', 'stylesheet')
+console.log(report.transformedCss)
+console.log(report.cssText)
+console.log(report.validation)
+```
+
+## Staff-level feature pass
+
+This build keeps all existing public APIs intact while adding focused production APIs across the packages:
+
+- **Broto**: `configureDebug`, `effectScope`, `inspectLeaks`, `resource.mutate`, `resource.poll`, and `store.select`.
+- **Fabrica**: `bind`, `model`, `keyed`, `eventOptions`, `fragment`, `childrenToArray`, `slot`, and `memoView`.
+- **Fabrica Elements**: `recipe`, `variant`, and `asChild` composition helpers.
+- **Cipó**: `sheet.css.scoped`, `sheet.css.layer`, `sheet.css.debug`, `explainDetailed`, and `benchmark`.
+
+The new tests are split by feature so future regressions fail close to the package that owns the behavior.
+
+## Runtime benchmarks
+
+The build pipeline now runs `pnpm bench` after browser bundles are emitted and uploads the generated benchmark artifacts. The same output is copied into `dist/pipeline/benchmarks.md` and `dist/pipeline/benchmarks.json` so the generated docs can show the latest local runtime profile.
+
+Current benchmark fixture shape:
+
+```md
+| Benchmark | Purpose |
+| --- | --- |
+| `cipo.atomic.basic` | Hot path for atomic declarations, aliases, theme tokens and generated OKLCH color utilities. |
+| `cipo.sheet.nested` | Full stylesheet parser with nesting, runtime `x:*` blocks and helpers. |
+| `cipo.sheet.runtime-dsl` | Runtime token objects, derived CSS variables, mixins and Tailwind-like color utilities. |
+```
+
+Run locally:
 
 ```bash
 pnpm bench
 ```
 
-## Smart modern shorthands
+Example output:
 
-Cipó ships a runtime-safe shorthand layer for the things you write constantly in UI code. These helpers compile to plain CSS declarations and are available in `css`, `atomic.css`, `sheet.css`, `inline.css`, aliases and recipes.
+```markdown
+## ⚡ Runtime Benchmarks
 
-### Size and position helpers
-
-Input:
-
-```ts
-const card = atomic.css`
-  h(contain, min: 240px, max: 70vh)
-  w(fill, min: 320px, max: 960px)
-  pos(fixed, top: 0, right: 0)
-`;
+| Benchmark | Iterations | Total ms | Avg ms |
+| --- | ---: | ---: | ---: |
+| cipo.atomic.basic | 250 | varies | varies |
+| cipo.sheet.nested | 150 | varies | varies |
+| cipo.sheet.runtime-dsl | 120 | varies | varies |
 ```
 
-Output shape:
+## ⚡ Reliable Performance Observatory
 
-```css
-height: auto;
-min-height: 15rem;
-max-height: 70vh;
-width: 100%;
-min-width: 20rem;
-max-width: 60rem;
-position: fixed;
-top: 0;
-right: 0;
+The repository keeps versioned benchmark evidence in the root `bench/`
+directory:
+
+```txt
+bench/
+├── cipo.json
+├── fabrica.json
+├── runner.json
+├── README.md
+└── COMPARISON.md
 ```
 
-### Grid, layout and composition helpers
-
-Input:
-
-```ts
-const layout = atomic.css`
-  grid-template(cols: 220px minmax(0, 1fr), rows: auto minmax(0, 1fr))
-  grid-flow(row dense)
-  stack(gap: 3)
-  cluster(gap: 2, justify: space-between)
-  center(max: 720px, px: 16px, text: center)
-  cover(header: auto, main: minmax(0, 1fr), footer: auto)
-  sidebar(side: right, width: 280px, gap: 16px)
-`;
-```
-
-Output shape:
-
-```css
-grid-template-columns: 13.75rem minmax(0, 1fr);
-grid-template-rows: auto minmax(0, 1fr);
-grid-auto-flow: row dense;
-display: flex;
-flex-direction: column;
-flex-wrap: wrap;
-justify-content: space-between;
-box-sizing: content-box;
-margin-inline: auto;
-max-width: 45rem;
-padding-inline: 1rem;
-text-align: center;
-```
-
-### Text, word-breaking and borders
-
-Input:
-
-```ts
-const textCard = atomic.css`
-  text(nowrap)
-  break(anywhere)
-  bor: red
-  bor-x: 2px dashed color-amber-245
-`;
-```
-
-Output shape:
-
-```css
-white-space: nowrap;
-overflow-wrap: anywhere;
-border: 1px solid red;
-border-inline: 0.125rem dashed oklch(...);
-```
-
-`bor`, `bor-x`, `bor-y`, `bor-t`, `bor-r`, `bor-b` and `bor-l` infer `solid` and `1px` when they are omitted.
-
-### Background helpers
-
-Input:
-
-```ts
-const hero = atomic.css`
-  bg: gradient(repeating-linear, 90deg, red, blue)
-  background-image: image(https://example.com/panel.png)
-  color: color-amber-245
-`;
-```
-
-Output shape:
-
-```css
-background: repeating-linear-gradient(90deg, red, blue);
-background-image: url("https://example.com/panel.png");
-color: oklch(...);
-```
-
-The generated `color-{name}-{shade}` and `bg-{name}-{shade}` utilities are deterministic OKLCH colors. Unknown color families are assigned a stable hue by hashing the name.
-
-### Scroll, snap, interaction and motion
-
-Input:
-
-```ts
-const scroller = atomic.css`
-  scroll(smooth)
-  scrollbar(thin)
-  snap(x, mandatory)
-  snap-item(start)
-  overscroll(contain)
-  tap(none)
-  select(none)
-  drag(none)
-  focus-ring($brand)
-  transition(colors, transform)
-  animate(fade-in)
-`;
-```
-
-Output shape:
-
-```css
-scroll-behavior: smooth;
-scrollbar-width: thin;
-scroll-snap-type: x mandatory;
-scroll-snap-align: start;
-overscroll-behavior: contain;
-touch-action: none;
-user-select: none;
--webkit-user-drag: none;
-outline: 2px solid var(--...);
-transition:
-  color 160ms ease,
-  background-color 160ms ease,
-  border-color 160ms ease,
-  box-shadow 160ms ease,
-  transform 160ms ease;
-animation: fade-in 180ms ease-out both;
-```
-
-### Modern stylesheet wrappers
-
-`sheet.css` supports runtime wrapper blocks that compile to native CSS wrappers while preserving the current selector.
-
-Input:
-
-```ts
-const styleText = sheet.css`
-  .card {
-    color: red
-
-    supports(backdrop-filter: blur(1px)) {
-      backdrop-filter: blur(18px)
-    }
-
-    layer(components) {
-      bg: blue
-    }
-
-    x:cq(md) {
-      grid-template(cols: 1fr 1fr)
-    }
-
-    reduce-motion {
-      transition: none
-    }
-  }
-`;
-```
-
-Output shape:
-
-```css
-.card {
-  color: red;
-}
-@supports (backdrop-filter: blur(0.0625rem)) {
-  .card {
-    backdrop-filter: blur(1.125rem);
-  }
-}
-@layer components {
-  .card {
-    background: blue;
-  }
-}
-@container md {
-  .card {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .card {
-    transition: none;
-  }
-}
-```
-
-## Custom `@property` support
-
-Cipó now treats the CSS Properties and Values API as a first-class part of the token engine. You can define typed custom properties in stylesheets, from JavaScript, or directly inside theme tokens.
-
-### Declarative `sheet.css`
-
-```ts
-const styleText = sheet.css`
-  @property $$angle {
-    syntax: "<angle>"
-    inherits: false
-    initial: 0deg
-  }
-
-  .knob {
-    $$angle: 24deg
-    rotate: var(--cipo-angle)
-  }
-`;
-```
-
-Output shape:
-
-```css
-@property --cipo-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-.knob {
-  --cipo-angle: 24deg;
-  rotate: var(--cipo-angle);
-}
-```
-
-Rules:
-
-- `$$angle` is normalized to `--cipo-angle`.
-- `initial` is accepted as an ergonomic alias for `initial-value`.
-- `withImportant` never applies to `@property` internals, only normal declarations.
-- Duplicate JS registrations are deduped by name and definition signature.
-- `validateCss()` checks `@property` name, `syntax`, `inherits` and `initial-value`.
-
-### JS-first registration
-
-```ts
-property("angle", {
-  syntax: "<angle>",
-  inherits: false,
-  initial: "0deg",
-});
-
-properties({
-  progress: { syntax: "<number>", initial: 0 },
-  panelOpacity: { syntax: "<number>", inherits: true, initialValue: 0.94 },
-});
-```
-
-All names below normalize to the same CSS property:
-
-```ts
-property("angle", { syntax: "<angle>", initial: "0deg" });
-property("$$angle", { syntax: "<angle>", initial: "0deg" });
-property("--cipo-angle", { syntax: "<angle>", initial: "0deg" });
-```
-
-### Typed theme tokens
-
-```ts
-theme({
-  knob: {
-    angle: typed.angle("0deg", false),
-    progress: typed.number(0),
-    glow: typed.color("transparent"),
-  },
-});
-```
-
-This injects both the `@property` rules and the token values:
-
-```css
-@property --cipo-knob-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-:root {
-  --cipo-knob-angle: 0deg;
-}
-```
-
-### Semantic typed theme schema
-
-CSS-first themes can declare a Cipó semantic type directly on a scalar token or
-on an entire nested group. A group annotation is inherited by every scalar leaf.
-
-```ts
-configureCss`
-  @cipo {
-    theme-validation: warn;
-    register-typed-theme-properties: true;
-  }
-
-  @theme {
-    spacing<size>: 0.25rem;
-
-    radius<length>: (
-      sm: 6px,
-      md: 14px,
-      modal: 24px,
-      pill: 999px
-    );
-
-    shadow<shadow>: (
-      panel: 0 28px 90px rgb(0 0 0 / 0.72),
-      modal: 0 32px 120px rgb(0 0 0 / 0.78)
-    );
-  }
-`;
-```
-
-`<length>` and `<size>` validate every value and automatically emit native
-`@property` registrations because they map safely to browser syntax. `<shadow>`
-is a richer semantic Cipó type: it validates each shadow layer, but does not emit
-an invalid fictional `syntax: "<shadow>"` registration.
-
-```css
-@property --cipo-radius-md {
-  syntax: "<length>";
-  inherits: true;
-  initial-value: 0px;
-}
-
-:root {
-  --cipo-radius-md: 0.875rem;
-  --cipo-shadow-panel: 0 1.75rem 5.625rem rgb(0 0 0 / 0.72);
-}
-```
-
-Annotation options are optional and comma-separated:
-
-```css
-radius<length, no-register>: (sm: 6px, md: 14px);
-progress<number, register, inherits:false, initial:0>: 0.72;
-legacy<any, validation:off>: proprietary-value;
-```
-
-Validation modes:
-
-- `strict` throws and fails the build/config application.
-- `warn` reports a structured warning and preserves the original token value.
-- `off` keeps the schema metadata but skips validation.
-- `var()`, `env()` and `attr()` values are marked as deferred because the browser
-  owns their final computed value.
-
-Built-in native-compatible types include `length`, `size`, `spacing`,
-`length-percentage`, `percentage`, `number`, `integer`, `angle`, `time`,
-`resolution`, `color`, `transform`, `image`, `gradient`, `url` and
-`custom-ident`. Semantic-only validators include `shadow`, `easing`, `border`,
-`transition`, `font`, `z-index`, `string` and `any`.
-
-JS-first themes use the same registry and validation pipeline:
-
-```ts
-theme({
-  radius: typedTheme("length", { sm: "6px", md: "14px" }),
-  elevation: typedTheme("shadow", {
-    panel: "0 28px 90px rgb(0 0 0 / 0.72)",
-  }),
-});
-
-typedProperty("dockOffset", "length", "12px", { inherits: false });
-```
-
-Custom semantic types can reuse existing validators:
-
-```ts
-defineThemeType("positive-length", {
-  cssSyntax: "<length>",
-  registrable: true,
-  initialValue: "0px",
-  validate(value) {
-    const base = validateThemeValue("length", value);
-    if (base.status !== "valid") return { ...base, type: "positive-length" };
-    return value.trim().startsWith("-")
-      ? {
-          status: "invalid",
-          valid: false,
-          type: "positive-length",
-          value,
-          code: "positive-length-negative",
-          reason: "Negative lengths are not allowed.",
-        }
-      : { status: "valid", valid: true, type: "positive-length", value };
-  },
-});
-```
-
-The CSS-first object parser preserves comma-separated CSS values, so font stacks,
-transition lists, gradients and multi-layer shadows can live inside typed maps
-without being mistaken for sibling token entries.
-
-### Runtime typed declarations
-
-Typed values can also be used directly in the runtime DSL:
-
-```ts
-const styleText = sheet.css`
-  :root {
-    $$panelOpacity: typed("<number>", 0.94)
-    $$dockAngle: angle(0deg, false)
-    $$glow: color(transparent)
-  }
-`;
-```
-
-The declaration keeps the custom property value in the stylesheet and registers the property in the runtime style sheet.
-
-### Typed helpers
-
-```ts
-typed("<length>", "1rem");
-typed.angle("0deg");
-typed.number(0);
-typed.length("1rem");
-typed.percent("0%");
-typed.color("transparent");
-typed.time("120ms");
-typed.integer(0);
-typed.transform("none");
-typed.shadow("none");
-typed.image("none");
-typed.string("ready");
-```
-
-## Modern runtime design features
-
-Cipó now includes a browser-safe design-system layer that stays string-first, bounded and cache-friendly. These features run in the runtime compiler and generate static CSS, so they are safe for userscripts, Shadow DOM styling and interactive tooling.
-
-### Reactive CSS values
-
-Use `signal(name)` when a value should be controlled by a CSS custom property instead of forcing a DOM rerender.
-
-```ts
-Cipo.sheet.css`
-  .card {
-    bg: signal(theme.cardBg)
-  }
-`;
-```
-
-Output shape:
-
-```css
-.card {
-  background: var(--cipo-signal-theme-card-bg);
-}
-```
-
-`when(dark, truthy, falsy)` compiles to `light-dark(...)`, while other names compile to a fallback custom property.
-
-```ts
-Cipo.sheet.css`
-  .card {
-    color: when(dark, color(amber-245), color(sky-200))
-  }
-`;
-```
-
-### Context variables
-
-Use `provide(name: value)` to expose a local custom property and `consume(name)` to read it in descendants.
-
-```ts
-Cipo.sheet.css`
-  .card {
-    provide(cardColor: sky-240)
-
-    .icon {
-      color: consume(cardColor)
-    }
-  }
-`;
-```
-
-Output shape:
-
-```css
-.card {
-  --cipo-context-card-color: sky-240;
-}
-.card .icon {
-  color: var(--cipo-context-card-color);
-}
-```
-
-### Variants
-
-Variants generate both data-attribute selectors and class selectors, so components can choose either DOM API.
-
-```ts
-Cipo.sheet.css`
-  .button {
-    variant(size) {
-      sm { px: 2 }
-      lg { px: 6 }
-    }
-  }
-`;
-```
-
-Output shape:
-
-```css
-.button[data-size="sm"], .button.size-sm { ... }
-.button[data-size="lg"], .button.size-lg { ... }
-```
-
-### Compound variants
-
-```ts
-Cipo.sheet.css`
-  .button {
-    compound(size: lg, tone: danger) {
-      shadow: glow(red-300)
-    }
-  }
-`;
-```
-
-Output shape:
-
-```css
-.button[data-size="lg"][data-tone="danger"], .button.size-lg.tone-danger { ... }
-```
-
-### Slots
-
-```ts
-Cipo.sheet.css`
-  .card {
-    slot(header) {
-      pb: 2
-    }
-  }
-`;
-```
-
-Output shape:
-
-```css
-.card [data-slot="header"] {
-  padding-bottom: ...;
-}
-```
-
-### Dark blocks
-
-`dark { ... }` is a shorthand for the configured dark selector.
-
-```ts
-Cipo.sheet.css`
-  .card {
-    bg: white
-
-    dark {
-      bg: color(zinc-900)
-    }
-  }
-`;
-```
-
-### Color system helper
-
-`color(...)` is a Cipó color-system helper unless it is using native CSS color spaces such as `display-p3`.
-
-```ts
-Cipo.sheet.css`
-  .card {
-    color: color(brand/45%)
-    border-color: color(brand+12)
-    bg: color(amber-245)
-  }
-`;
-```
-
-Supported forms:
-
-```css
-color(amber-245)
-color(amber, 245)
-color(brand/45%)
-color(brand+12)
-color(display-p3 1 0.5 0)
-```
-
-### Palette generation
-
-`palette(name, source)` generates deterministic OKLCH custom properties for common shades.
-
-```ts
-Cipo.sheet.css`
-  :root {
-    palette(brand, amber)
-  }
-`;
-```
-
-Output shape:
-
-```css
-:root {
-  --cipo-brand-50: oklch(...);
-  --cipo-brand-100: oklch(...);
-  --cipo-brand-200: oklch(...);
-  --cipo-brand-300: oklch(...);
-  --cipo-brand-400: oklch(...);
-  --cipo-brand-500: oklch(...);
-  --cipo-brand-600: oklch(...);
-  --cipo-brand-700: oklch(...);
-  --cipo-brand-800: oklch(...);
-  --cipo-brand-900: oklch(...);
-  --cipo-brand-950: oklch(...);
-}
-```
-
-### Smart shadows
-
-```ts
-Cipo.sheet.css`
-  .card {
-    shadow: elevation(4)
-    box-shadow: glow(sky-240)
-  }
-`;
-```
-
-Supported forms:
-
-```css
-shadow(elevation(4))
-shadow(glow(sky-240))
-shadow(glass)
-glow(sky-240)
-```
-
-## CSS-first configuration
-
-Cipó can now be configured from CSS, similar in spirit to Tailwind's CSS-first setup, while still lowering everything into the existing runtime APIs. This means `setup({ ... })` keeps working, and `configure.css` simply becomes a more readable authoring layer.
-
-```ts
-Cipo.configure.css`
-  @cipo {
-    prefix: rod;
-    layers: true;
-    color-mode: oklch;
-    rem: 16px;
-  }
-
-  @theme {
-    colors: (
-      brand: #f97316,
-      ink: #f8fafc,
-      panel: #0f172a
-    );
-
-    spacing: 0.25rem;
-
-    radius: (
-      md: 12px,
-      xl: 24px
-    );
-  }
-
-  @breakpoints {
-    sm: 640px;
-    md: 768px;
-    lg: 1024px;
-  }
-
-  @alias glassCard {
-    bg: alpha($colors.panel / 72%)
-    border: 1px solid alpha($colors.ink / 12%)
-    backdrop-filter: blur(18px)
-  }
-
-  @property $$angle {
-    syntax: "<angle>";
-    inherits: false;
-    initial: 0deg;
-  }
-`;
-```
-
-### Supported CSS-first directives
-
-| Directive                          | Purpose                                                                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `@cipo { ... }`                    | Runtime config such as `prefix`, `layers`, `important`, `debug`, `minify`, `color-mode`, `rem`, `dark-selector` and `theme-root`. |
-| `@theme { ... }`                   | Registers nested theme tokens and injects CSS custom properties.                                                                  |
-| `@tokens { ... }`                  | Alias for `@theme`, useful when thinking in design-token language.                                                                |
-| `@breakpoints { ... }`             | Registers responsive breakpoints. Plain lengths become `(min-width: value)`. Full media queries are preserved.                    |
-| `@alias name { ... }`              | Registers a declaration macro usable as `name` inside `sheet.css`, `atomic.css` and `inline.css`.                                 |
-| `@helper name { ... }`             | CSS-only helper alias. JS value helpers still use `registerHelper()`.                                                             |
-| `@property $$name { ... }`         | Registers a typed custom property through the CSS Properties and Values API.                                                      |
-| `@layer tokens, base, components;` | Emits a cascade layer order declaration.                                                                                          |
-| `@preset name;`                    | Applies a registered CSS-first preset.                                                                                            |
-| `@plugin name;`                    | Runs a registered config plugin hook.                                                                                             |
-
-### Presets
-
-```ts
-Cipo.registerPreset(
-  "forest",
-  `
-  @cipo { prefix: leaf; layers: true; }
-
-  @theme {
-    colors: (brand: #22c55e, ink: #ecfccb);
-  }
-`,
-);
-
-Cipo.configure.css`
-  @preset forest;
-`;
-```
-
-Presets may be CSS strings, functions returning CSS, or regular `CipoConfig` objects:
-
-```ts
-Cipo.registerPreset("quiet", { debug: false, minify: true });
-```
-
-### Plugins
-
-Config plugins receive a tiny safe API that delegates to existing Cipó primitives.
-
-```ts
-Cipo.registerConfigPlugin("forms", (api) => {
-  api.theme({ colors: { field: "#e5e7eb" } });
-  api.alias(
-    "fieldBase",
-    `
-    border: 1px solid $colors.field
-    px: 3
-    py: 2
-  `,
-  );
-  api.property("focusOpacity", { syntax: "<number>", initial: 0 });
-});
-
-Cipo.configure.css`
-  @plugin forms;
-`;
-```
-
-### Alternate entry points
-
-All of these use the same engine:
-
-```ts
-Cipo.configure.css`@cipo { prefix: rod; }`;
-Cipo.setup.css`@theme { colors: (brand: #f97316); }`;
-Cipo.setupFromCss("@breakpoints { md: 768px; }");
-Cipo.configSheet("@tokens { spacing: 0.25rem; }");
-```
-
-### Merge order
-
-Configuration is applied in call order. A later `configure.css` call can override earlier `setup(...)` values, and a later `setup(...)` call can override CSS-first values. Theme tokens merge deeply, so small incremental config sheets are cheap and predictable.
-
-## Performance baselines
-
-Cipó benchmark output is stored in `bench/cipo.json` together with complete
-runner metadata, repeated-round measurements and the baseline/current source
-commits:
+### Local commands
 
 ```bash
+# Fast local smoke run, one revision and one round
+pnpm bench
+
+# Three-round local median, useful before pushing
+pnpm bench:reliable
+
+# One package only
 pnpm bench:cipo
+pnpm bench:fabrica
 ```
 
-The branch workflow runs baseline and current on the same GitHub runner,
-alternates order across three rounds and aggregates by median. Warm-cache,
-cold-compile and class-name cases remain separate groups. The synthetic
-`String.raw` control is shown in the report but excluded from Cipó's package-wide
-geometric mean.
+The branch workflow uses a stricter same-runner A/B protocol:
 
-A result is labeled faster or slower only when it exceeds the larger of the
-minimum 3% threshold, combined Tinybench RME and cross-round variation.
-Excessively noisy measurements are marked unstable and should be rerun.
+1. finds the previous benchmark-relevant source commit, skipping benchmark-only bot commits;
+2. creates a detached Git worktree for that baseline;
+3. installs baseline and current dependencies with the same Node and pnpm versions;
+4. runs baseline/current in alternating order for three rounds by default;
+5. aggregates every case by median and stores cross-round MAD variation;
+6. normalizes Fabrica results against the matching manual control in both revisions;
+7. records Node, V8, Vitest, pnpm, kernel, CPU, memory and GitHub runner metadata;
+8. writes `bench/*.json` and the visual Markdown comparison;
+9. commits those files back to the PR branch and updates one PR comment.
 
-## Named Cipó components registered in Fabrica
+The generated commit cannot create an infinite loop. The workflow does not
+listen to `bench/**`, generated commits carry a dedicated marker, and a final
+bot-author guard refuses to benchmark that marker commit.
 
-Cipó's styled factory now auto-registers components that have an explicit name
-when a Fabrica registry exists. Anonymous styled components keep the existing
-behavior and are never registered implicitly.
+### Reliable interpretation
+
+`bench/fabrica.json` stores both raw throughput change and normalized change.
+For a case such as `static-tree`, normalized change is calculated from:
+
+```txt
+(current Fabrica / current manual) / (baseline Fabrica / baseline manual) - 1
+```
+
+This removes much of the host-speed drift that previously made manual and
+Fabrica cases appear to improve together. Manual controls and Cipó's
+`baseline:` microbenchmarks are excluded from package-wide geometric means.
+Measurements with excessive Tinybench RME or cross-round variation are marked
+`unstable` instead of being presented as a regression or improvement.
+
+Fabrica's adapter contract remains framework-neutral. React, Preact, Solid or
+another renderer can be added to `src/fabrica/tests/fabrica.bench-cases.ts`
+without changing historical case identifiers.
+
+## 🌿 Named Cipó + Fabrica components
+
+Named Cipó styled components now bridge automatically into Fabrica's registry:
 
 ```ts
-import { styled } from "../cipo";
-import { html, render } from "../fabrica";
-
-const Button = styled.button("Button").css`
-  inline-flex
-  items-center
+const Button = Cipo.styled.button('Button').css`
   px: 4
-  py: 2
   bg: $brand
-`;
+`
 
-render(root, html` <button type="button" onClick=${save}>Save</button> `);
+Fabrica.render(root, Fabrica.html`
+  <Button onClick=${save}>Save</Button>
+`)
 ```
 
-The normal `html` entrypoint performs a tiny static-chunk scan and only enables
-registered uppercase component parsing when it sees `<Uppercase...>`. Ordinary
-HTML templates remain on the original fast path. `jsx.html` remains fully
-supported.
+The bridge is load-order safe, polling-free, collision-configurable and exposed
+through the reusable Fabrica Elements styled factory.
 
-A shorter direct style form is also supported:
+## 🔎 Readable Cipó atomic classes in debug mode
 
-```ts
-const Badge = styled.span("StatusBadge")`
-  px: 2
-  rounded: 999px
-`;
-```
-
-### `Cipo.component()` facade
+Cipó can expose declaration-shaped atomic class names while debugging without
+changing atomic identity or cache behavior:
 
 ```ts
-import { component } from "../cipo";
-
-const Card = component("SettingsCard", {
-  as: "article",
-  attrs: (props) => ({
-    role: "region",
-    "aria-label": props.label,
-  }),
-}).css`
-  grid
-  p: 4
-`;
-```
-
-The same facade is available as `Cipo.component()` in the browser global.
-
-### Loading order and explicit connection
-
-Cipó can load before Fabrica. Named components are stored in a small pending Map
-and flushed when Fabrica installs, without intervals or DOM observers.
-
-```ts
-import {
-  connectFabrica,
-  configureFabricaRegistry,
-  pendingFabricaComponents,
-} from "../cipo";
-
-configureFabricaRegistry({ collision: "replace" });
-connectFabrica(Fabrica);
-console.log(pendingFabricaComponents());
-```
-
-Named styled components expose `className`, `artifact`, `displayName`, `tag`,
-`registeredName`, `register()`, `unregister()` and `withComponent()`.
-
-## Debug-readable deterministic atomic classes
-
-Readable names can be enabled through the backwards-compatible `debug` option:
-
-```ts
-setup({
-  prefix: "app",
+Cipo.setup({
   debug: {
     enabled: true,
     readableClassNames: true,
     maxClassLabelLength: 72,
     includeContext: true,
   },
-});
+})
 
-css`
+Cipo.css`
   background-attachment: fixed;
-  x:md:hover {
-    color: $brand;
-  }
-`;
+  align-items: center;
+`
 ```
 
-Typical output:
+Development output is deterministic and readable:
 
 ```txt
-app-background-attachment-fixed-k3x9q7
-app-md-hover-color-var-app-colors-brand-p8w2z1
+cipo-background-attachment-fixed-<stable-hash>
+cipo-align-items-center-<stable-hash>
 ```
 
-The final segment is the existing deterministic atomic-rule hash, not a random
-UUID. The readable prefix is diagnostic decoration, while the hash remains the
-canonical identity for cache reuse and deduplication. `debug: false` keeps the
-compact production format `app-a-k3x9q7`.
-
-Safety rules applied to readable labels:
-
-- URL, `data:` and `blob:` payloads are replaced by neutral labels;
-- quoted user content is not copied into class names;
-- labels are normalized to lowercase class-safe segments;
-- oversized values are truncated while the stable hash is retained;
-- breakpoint, pseudo, dark, supports, container and layer contexts can be
-  included or disabled with `includeContext`.
-
-## Styled builders consuming polymorphic `css` results
-
-The styled bridge accepts precompiled polymorphic artifacts in addition to the
-existing tagged-template syntax:
+Production or explicit compact mode keeps the historical shape:
 
 ```ts
-const brandCss = css`
+Cipo.setup({ debug: false })
+// cipo-a-<stable-hash>
+```
+
+The suffix deliberately uses Cipó's stable rule hash rather than a random UUID.
+That preserves deduplication, snapshots, reproducible diagnostics and cache
+identity. URLs, data/blob payloads and quoted strings are redacted from the
+readable label before it reaches the DOM.
+
+## 🧬 Polymorphic `css` artifacts in the styled API
+
+Named styled builders accept the same Cipó artifact returned by the polymorphic
+`css` entrypoint:
+
+```ts
+const brandStyles = css`
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-`;
+`
 
-const Brand = styled.div("Brand")(brandCss);
+const Brand = styled.div('Brand')(brandStyles)
 ```
 
-Supported inputs are recursive and composable:
+Both authoring forms remain equivalent:
 
 ```ts
-const base = css`
-  display: inline-flex;
-  align-items: center;
-`;
-const rounded = css`
-  border-radius: 999px;
-`;
+const DirectBrand = styled.div('DirectBrand')`
+  display: flex;
+`
 
-const Action = styled.button("Action")((props) => [
+const ArtifactBrand = styled.div('ArtifactBrand')(css`
+  display: flex;
+`)
+```
+
+The resolver also accepts arrays, false/null branches and prop functions:
+
+```ts
+const base = css`display:inline-flex; align-items:center;`
+const danger = css`color:$danger;`
+
+const Button = styled.button('Button')((props) => [
   base,
-  rounded,
-  props.danger &&
-    css`
-      color: $danger;
-    `,
-  props.disabled && inline.css`opacity:.5; cursor:not-allowed;`,
-]);
+  props.danger && danger,
+  props.compact && css`padding:4px;`,
+])
 ```
 
-The resolver dispatches artifacts by kind:
+Atomic artifacts contribute classes, inline artifacts compose into `style`, and
+stylesheet artifacts are injected once. Named components keep Fabrica registry
+metadata and remain usable as `<Button>` without passing the function to
+`html`.
 
-| Artifact                     | Styled behavior                             |
-| ---------------------------- | ------------------------------------------- |
-| `cipo.css`                   | merges generated atomic/scope classes       |
-| `cipo.inline-css`            | composes the declaration text into `style`  |
-| `cipo.stylesheet`            | injects the stylesheet once                 |
-| arrays/functions             | resolves recursively with the current props |
-| `false`, `null`, `undefined` | skips the branch                            |
+## 🏭 Fabrica instances and portable component registries
 
-Static artifacts are exposed through `component.artifact` and
-`component.artifacts`. Components with prop-dependent inputs expose
-`component.dynamicStyles === true`. Registration, `attrs`, polymorphic `as`,
-`withComponent()`, collision policies and delayed Fabrica connection continue to
-use the same named-component lifecycle.
-
-Every `styled` factory now also owns a live artifact registry. Components are
-collected automatically when they are created, so callers no longer need to
-maintain parallel `FOO_STYLED_COMPONENTS` arrays just to assemble CSS output:
+Fabrica supports isolated renderers, realm-wide reusable instances, shared live
+registries, copy-on-write forks and portable component packs:
 
 ```ts
-const Root = styled.div("Root").css`display:grid;`;
-const Button = styled.button("Button").css`display:inline-flex;`;
+const alerta = Fabrica.getOrCreate('@rod/alerta')
+const registry = Fabrica.createRegistry({ name: 'alerta-ui' })
+const shell = Fabrica.create({ name: 'shell', registry })
+const storage = Fabrica.create({ name: 'storage', registry })
 
-styled.registry.components; // [Root, Button]
-styled.registry.artifacts; // every static Cipó artifact, deduplicated
-styled.registry.cssArtifacts; // only `cipo.css` artifacts, ready for injectStyle()
+const Button = Fabrica.defineComponent('Button', (props, ctx) =>
+  ctx.html`<button>${props.children}</button>`,
+)
+
+shell.use(Button)
+storage.html`<Button>Save</Button>`
 ```
 
-The collector is local to each `styled`/`createStyled()` factory and includes
-anonymous styled components too. In build mode, `attachCompiledCss()` recreates
-a lightweight `CipoCssArtifact` around already-compiled CSS, which means the
-same registry API works in runtime and production without shipping parser/AST
-metadata. The PURE compiler wrapper remains tree-shakeable with its component.
+The preferred component API is `component("Name", factory)`. Legacy explicit
+`registerComponent()` and implicit `component(function Name(){})` registration
+still work, emit one migration warning, and are documented as deprecated.
 
-## Instance-scoped styled factories
+Use `Cipo.createStyled({ fabrica: instance })` when each Fabrica instance needs
+its own named styled-component registry.
 
-When an application uses more than one Fabrica instance, create one Cipó styled
-factory per registry instead of reconnecting the global `styled` bridge:
+## 🌿 Cipó + Broto enterprise ergonomics
 
-```ts
-const shell = Fabrica.getOrCreate("@rod/alerta");
-const sandbox = Fabrica.create({ name: "sandbox" });
+This build adds the next layer of the design-system engine:
 
-const shellStyled = Cipo.createStyled({ fabrica: shell });
-const sandboxStyled = Cipo.createStyled({ fabrica: sandbox });
+- `!property: value` adds one safe `!important` priority without producing duplicate `!important !important` output.
+- `atomic: { minUses: 2 }` keeps first-use declarations scoped to the component and promotes only reused declarations into shared atomic classes.
+- `scope: { strategy: "where", selector: ".app" }` wraps generated selectors as `:where(.app) ...`, keeping specificity low while isolating styles.
+- Container-query authoring works in Cipó syntax via `container: card / inline-size` and `x:cq(md) { ... }`.
+- Tailwind-like helpers stay CSS-first: use `sr-only`, `space-y: 2`, `ring: glow`, `bg: color-sky-240`, `text(nowrap)` and friends inside declarations instead of className strings.
+- `getDebugOverlayStats()` and `installDebugOverlay()` expose atom reuse, promotion and CSS byte statistics for mobile debug panels.
+- Broto stores now accept middleware and devtools listeners: `store(initial, { middleware, devtools })`, plus runtime `state.use()` and `state.subscribeDevtools()`.
 
-const ShellButton = shellStyled.button("Button")`
-  inline-flex
-  px: 3
-`;
 
-const SandboxButton = sandboxStyled.button("Button")`
-  grid
-  place-items: center
-`;
-```
+## Máquina
 
-`createStyled()` keeps its own tag cache, pending-registration queue and registry
-bridge while sharing Cipó's compiler and atomic CSS caches. Named components are
-registered through the new `registry.register()` fast path, so Fabrica's legacy
-`registerComponent()` deprecation warning is not triggered.
+`src/maquina` is the repository's lightweight code editor. It uses Fábrica for rendering, Cipó styled components for its UI and Broto for editor state. The full interactive landing page is published at `dist/maquina/index.html` by the root build.
 
-## 🌿 Enterprise CSS authoring
+## DevTools production bundle optimization
 
-### Bang important declarations
+The DevTools build now uses the compact Fábrica + Cipó production pipeline:
 
-Any declaration can be marked important by placing `!` before the property name:
+- dynamic Fábrica templates compile to numeric tuple instructions instead of verbose object AST payloads;
+- uppercase component tags become direct lexical references in compiled DevTools templates, enabling identifier mangling and stronger tree shaking;
+- DevTools imports the runtime-only Fábrica entry so compiler/source scanners stay out of the browser graph;
+- Cipó emits compact hash-only production classes and minified compiled CSS;
+- styled-component CSS is coupled to a PURE-annotated component expression in style-tag builds, allowing unused JavaScript and its CSS to be eliminated together;
+- private CSS custom-property mangling is available as an explicit opt-in without renaming public theme tokens;
+- the DevTools Vite build enables esbuild minification, source maps, module-side-effect pruning and property-read pruning.
 
-```ts
-const button = css`
-  !bg: $brand
-  !px: 4
-  color: $ink
-`;
-```
+Readable component names remain available in development source and compilation manifests while production selectors stay compact.
 
-Cipó normalizes this after token/helper resolution, so scaled values still compile correctly and existing `!important` markers are not duplicated.
+### TypeScript path aliases in Vite builds
 
-### Atomic promotion by reuse
-
-Set a promotion threshold when you want one-off declarations to stay local and repeated declarations to become shared atoms:
-
-```ts
-setup({
-  atomic: { minUses: 2 },
-});
-```
-
-The first use compiles into the component scope class. When the same declaration/context is seen again, Cipó promotes it into the shared atomic rule cache. This keeps generated class lists quieter in small components while preserving dedupe for real reuse.
-
-### Global selector scope
-
-Use scope to isolate generated selectors:
-
-```ts
-setup({
-  scope: { strategy: "where", selector: ".my-app" },
-});
-```
-
-Strategies are `none`, `where`, `class`, `id`, `selector` and `host`. The recommended default for apps and userscripts is `where` because `:where(...)` does not add specificity.
-
-### Container queries
-
-Container declarations are preserved as native CSS while query variants stay in Cipó syntax:
-
-```ts
-sheet.css`
-  .card {
-    container: card / inline-size
-
-    x:cq(md) {
-      grid-template(cols: 1fr 1fr)
-    }
-  }
-`;
-```
-
-### Tailwind-style utilities, CSS-first
-
-Cipó keeps the ergonomics of modern utility systems but places them inside CSS declarations:
-
-```ts
-sheet.css`
-  .utility {
-    sr-only
-    not-sr-only
-    bg: color-sky-240
-    text(nowrap)
-    break(anywhere)
-    ring: glow
-    space-y: 2
-  }
-`;
-```
-
-### Debug observatory
-
-```ts
-const stats = getDebugOverlayStats();
-installDebugOverlay(document);
-```
-
-The stats object reports total atoms, inserted rules, promoted atoms, single-use fallbacks, reused atoms and generated CSS bytes.
-
-## Compiled inline mode
-
-Cipó now has a first compiled-mode surface for Fábrica and DevTools. It keeps the
-current syntax, but rewrites styled `.css` templates into explicit
-`compiledInlineCss` artifact calls through the Vite plugin. Output is inline CSS
-by default, so no generated CSS file is required yet.
-
-```ts
-import { cipoVite } from "./src/cipo/src/vite";
-
-export default {
-  plugins: [cipoVite()],
-};
-```
-
-```ts
-const Card = styled.div("Card").css`
-  px(3)
-  color: red;
-`;
-```
-
-DevTools uses this as the playground path: the `devtools` root entry is built
-with Vite and `cipoVite()`, while the rest of the bundle can continue on the
-existing esbuild pipeline. See [`COMPILED_INLINE.md`](./COMPILED_INLINE.md).
-
-### Vite workspace aliases
-
-The monorepo keeps Cipó compiler imports on `@rodkisten/*` TypeScript path aliases. Vite 8 application graphs use native `resolve.tsconfigPaths: true`, while standalone Vite CLI scripts load TypeScript configs through `tsx` plus Vite's native config loader so aliases referenced by `vite.config.ts` dependencies are already resolvable during config evaluation. This avoids maintaining a second manual `resolve.alias` table, avoids an extra path-resolution plugin, and avoids rewriting Cipó internals to relative `.js` imports solely for config bootstrapping.
-
-## Production CSS compaction
-
-Compiled build mode can emit compact hash-only class names and run a conservative post-compile optimizer. This is intended for production bundles where readable component labels belong in source maps and manifests rather than repeated CSS selectors.
-
-```ts
-cipoVite({
-  mode: "build",
-  classPrefix: "c",
-  classNameMode: "compact",
-  minifyCss: true,
-  mergeEquivalentRules: true,
-});
-```
-
-Compact mode removes component display names from generated classes, marks statically compiled styled factories as `/*#__PURE__*/` for JavaScript tree shaking, minifies safe CSS whitespace/leading zeroes, and can merge flat top-level rules with identical bodies. Private custom-property mangling is opt-in through `privateCustomPropertyPattern`; public theme variables are never renamed unless they explicitly match that pattern.
-
-The DevTools production build enables compact class names and aggressive module tree shaking. In style-tag delivery mode each compiled styled component is coupled to its own CSS insertion through a PURE-annotated helper, so an unused component and its stylesheet can be eliminated together. Fábrica compilation in the same pipeline emits direct component references, so an unused styled component can disappear together with its generated JavaScript instead of being retained only by a string-based component registry lookup.
-
-### Keeping CSS-first configuration out of production bundles
-
-Compiled applications can keep `configureFromCss(configSheet)` as their runtime-facing API without shipping the CSS-first parser in production. When the Vite plugin receives the same `configCss` as build input, it lowers eligible runtime calls to a compact `configureCompiledCssConfig()` operation payload. Development still parses the readable DSL normally; production applies equivalent config/theme operations at runtime from the pre-parsed payload, keeping the raw source DSL and parser tree-shakeable. Sheets that depend on runtime presets or config plugins intentionally remain on the parser path.
+The Vite-based DevTools and Máquina builds use Vite 8's native `resolve.tsconfigPaths: true` support for the stable package entrypoints declared in `tsconfig.base.json`. Build configuration imports Cipó through `@rodkisten/cipo/vite`; compiler/runtime helpers use the explicit `@rodkisten/cipo/compiler` and `@rodkisten/cipo/compiled-runtime` boundaries. Internal implementation-file aliases are intentionally not exposed, so reorganizing the compiler does not turn into an accidental workspace-wide breaking change.

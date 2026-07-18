@@ -1,0 +1,97 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "jsx": "preserve",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "rootDir": ".",
+    "paths": {
+      "@rodkisten/broto": [
+        "./broto/index.ts"
+      ],
+      "@rodkisten/broto/*": [
+        "./broto/*"
+      ],
+      "@rodkisten/cipo": [
+        "./cipo/index.ts"
+      ],
+      "@rodkisten/devtools": [
+        "./devtools/index.ts"
+      ],
+      "@rodkisten/devtools/core/*": [
+        "./devtools/*",
+        "./devtools/core-*"
+      ],
+      "@rodkisten/devtools/panels/*": [
+        "./devtools/*",
+        "./devtools/panels-*"
+      ],
+      "@rodkisten/devtools/*": [
+        "./devtools/*"
+      ],
+      "@rodkisten/fabrica": [
+        "./fabrica/index.ts"
+      ],
+      "@rodkisten/fabrica/*": [
+        "./fabrica/*"
+      ],
+      "@rodkisten/fabrica-elements": [
+        "./fabrica-elements/index.ts"
+      ],
+      "@rodkisten/fabrica-elements/*": [
+        "./fabrica-elements/*"
+      ],
+      "@rodkisten/maquina": [
+        "./maquina/index.ts"
+      ],
+      "@rodkisten/maquina/*": [
+        "./maquina/*"
+      ],
+      "@rodkisten/nascente": [
+        "./nascente/index.ts"
+      ],
+      "@rodkisten/nascente/*": [
+        "./nascente/*"
+      ],
+      "@rodkisten/seiva-state": [
+        "./seiva-state/index.ts"
+      ],
+      "@rodkisten/seiva-state/*": [
+        "./seiva-state/*"
+      ],
+      "@rodkisten/rod": [
+        "./rod/index.ts"
+      ],
+      "@rodkisten/rod/*": [
+        "./rod/*"
+      ],
+      "@rodkisten/cipo/compiler": [
+        "./cipo/compiler.ts"
+      ],
+      "@rodkisten/cipo/vite": [
+        "./cipo/vite-index.ts"
+      ],
+      "@rodkisten/cipo/compiled-runtime": [
+        "./cipo/compiled-runtime.ts"
+      ],
+      "@rodkisten/cipo/browser": [
+        "./cipo/browser-entry.ts"
+      ]
+    }
+  }
+}
