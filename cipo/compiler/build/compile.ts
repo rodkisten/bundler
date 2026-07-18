@@ -1,1 +1,306 @@
+import { installBuiltInAliases } from '../../aliases'
+import { configureFromCss } from '../../config-css'
+import { installBuiltInHelpers } from '../../helpers'
+import { installNativePropertyGuards } from '../../native-property-guards'
+import { optimizeCompiledCss } from '../../engine/optimizer'
+import { compileScopedSheetCss, compileSheetCss } from '../../engine/stylesheet/compile'
+import { createCompilerContext, runInCompilerContext } from '../context'
+import { asCipoCompileError } from '../../engine/diagnostics'
+import { assertGeneratedNameIdentity } from '../../engine/hash-registry'
+import {
+  applyEdits,
+  ensureNamedImportBinding,
+  findBareCssTemplates,
+  findStyledCssTemplates,
+  getAvailableBindingName,
+  hasTemplateInterpolation,
+  sourceLocationFromOffset,
+  type SourceEdit,
+} from '../source/index'
+import type { CipoCompilerDiagnostic } from '../contracts'
+import { splitPolymorphicCssSource } from '../../syntax/mode'
+import { runtime } from '../../runtime'
+import { hashString64 } from '../../utils'
 
+export interface CipoCompiledBuildOptions {
+  readonly filename?: string
+  readonly classPrefix?: string
+  readonly buildNamespace?: string
+  readonly transformCssTag?: boolean
+  readonly injectCssImport?: boolean
+  readonly cssImportId?: string
+  /** Optional Cipó configuration CSS applied inside an isolated compiler session. */
+  readonly configCss?: string
+  /** Readable keeps component labels; compact emits hash-only production class names. */
+  readonly classNameMode?: 'readable' | 'compact'
+  /** Minifies emitted CSS after semantic compilation. Defaults to true in compact mode. */
+  readonly minifyCss?: boolean
+  /** Merges only adjacent flat rules with identical declaration bodies. */
+  readonly mergeEquivalentRules?: boolean
+  /** Opt-in mangling for private custom properties only, for example /^--_cipo-/. */
+  readonly privateCustomPropertyPattern?: RegExp
+  /** Couples each styled component to its CSS so unused JS and CSS can tree-shake together. */
+  readonly coupleStyledCss?: boolean
+  /** Emits class-only styled artifacts and defers CSS emission to whole-build atomic promotion. */
+  readonly deferAtomicCss?: boolean
+  /** Import used by coupled/class-only styled CSS mode. */
+  readonly styledCssHelperImportPath?: string
+}
+
+export interface CipoCompiledBuildManifestEntry {
+  readonly id: string
+  readonly filename?: string
+  readonly start: number
+  readonly end: number
+  readonly kind: 'styled-css' | 'css-tag' | 'sheet-css'
+  readonly receiver?: string
+  readonly className: string
+  readonly rawCss: string
+  readonly cssText: string
+}
+
+export interface CipoCompiledBuildResult {
+  readonly code: string
+  readonly css: string
+  readonly changed: boolean
+  readonly manifest: readonly CipoCompiledBuildManifestEntry[]
+  readonly diagnostics: readonly CipoCompilerDiagnostic[]
+}
+
+const DEFAULT_CLASS_PREFIX = 'cp'
+const DEFAULT_CSS_IMPORT_ID = '\0cipo:compiled.css'
+
+/**
+ * Compiles static Cipó templates to deterministic CSS without leaking compiler
+ * configuration or caches into the live runtime.
+ */
+export function compileCipoSourceBuild(
+  source: string,
+  options: CipoCompiledBuildOptions = {},
+): CipoCompiledBuildResult {
+  const context = createCompilerContext({ id: `build:${options.filename ?? '<anonymous>'}` })
+
+  return runInCompilerContext(context, () => {
+    try {
+      installBuiltInHelpers()
+      installBuiltInAliases()
+      installNativePropertyGuards()
+      if (options.configCss) configureFromCss(options.configCss)
+      return compileCipoSourceBuildInContext(source, options, context.diagnostics)
+    } catch (error) {
+      throw asCipoCompileError(
+        error,
+        'CIPO_BUILD_COMPILE_FAILED',
+        'Static Cipó compilation failed. The build was stopped instead of emitting incomplete CSS.',
+        { filename: options.filename },
+      )
+    }
+  })
+}
+
+function compileCipoSourceBuildInContext(
+  source: string,
+  options: CipoCompiledBuildOptions,
+  diagnostics: readonly CipoCompilerDiagnostic[],
+): CipoCompiledBuildResult {
+  const edits: SourceEdit[] = []
+  const entries: CipoCompiledBuildManifestEntry[] = []
+  const filename = options.filename ?? 'source.tsx'
+  const cssFirstMode = options.configCss
+    ? (!runtime.config.debug || !runtime.config.debugOptions.readableClassNames ? 'compact' : 'readable')
+    : undefined
+  const classNameMode = cssFirstMode ?? options.classNameMode
+  const prefix = sanitizeClassPrefix(options.configCss ? runtime.config.prefix : options.classPrefix ?? DEFAULT_CLASS_PREFIX)
+  const minifyCss = options.configCss ? runtime.config.minify : options.minifyCss
+  const buildNamespace = options.buildNamespace ?? prefix
+  const helperImportPath = options.styledCssHelperImportPath ?? '@rodkisten/cipo/compiled-runtime'
+  const attachClassBinding = options.deferAtomicCss
+    ? getAvailableBindingName(source, '__cipoAttachCompiledClass', filename)
+    : ''
+  const attachCssBinding = !options.deferAtomicCss && options.coupleStyledCss
+    ? getAvailableBindingName(source, '__cipoAttachCompiledCss', filename)
+    : ''
+
+  for (const hit of findStyledCssTemplates(source, filename)) {
+    if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
+    const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
+    const receiverName = hit.receiver.replace(/\s+/g, '')
+
+    try {
+      if (receiverName === 'sheet') {
+        const cssText = compileRawSheetCss(rawCss)
+        const className = createCompiledClassName(prefix, buildNamespace, options.filename, rawCss, hit.receiver, classNameMode)
+        entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
+        edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
+        continue
+      }
+
+      const className = createCompiledClassName(prefix, buildNamespace, options.filename, rawCss, hit.receiver, classNameMode)
+      const cssText = compileRawCssForClass(className, rawCss)
+      entries.push(createManifestEntry('styled-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
+      const value = options.deferAtomicCss
+        ? `/*#__PURE__*/${attachClassBinding}(${hit.receiver},${JSON.stringify(className)})`
+        : options.coupleStyledCss
+          ? `/*#__PURE__*/${attachCssBinding}(${hit.receiver},${JSON.stringify(className)},${JSON.stringify(optimizeCompiledCss(cssText, {
+              minify: minifyCss ?? classNameMode === 'compact',
+              mergeEquivalentRules: options.mergeEquivalentRules ?? classNameMode === 'compact',
+              privateCustomPropertyPattern: options.privateCustomPropertyPattern,
+            }))})`
+          : `/*#__PURE__*/${hit.receiver}(${JSON.stringify(className)})`
+      edits.push({ start: hit.start, end: hit.templateEnd + 1, value })
+    } catch (error) {
+      throw asCipoCompileError(
+        error,
+        'CIPO_TEMPLATE_COMPILE_FAILED',
+        `Failed to compile static styled template ${hit.receiver}.`,
+        sourceLocationFromOffset(source, options.filename, hit.start, hit.templateEnd + 1),
+      )
+    }
+  }
+
+  if (options.transformCssTag === true) {
+    for (const hit of findBareCssTemplates(source, edits, filename)) {
+      if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
+      const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
+
+      try {
+        if (shouldCompileAsSheetConfig(rawCss)) {
+          const cssText = compileRawSheetCss(rawCss)
+          const className = createCompiledClassName(prefix, buildNamespace, options.filename, rawCss, 'css', classNameMode)
+          entries.push(createManifestEntry('sheet-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
+          edits.push({ start: hit.start, end: hit.templateEnd + 1, value: createStylesheetArtifactLiteral(cssText) })
+          continue
+        }
+
+        const className = createCompiledClassName(prefix, buildNamespace, options.filename, rawCss, 'css', classNameMode)
+        const cssText = compileRawCssForClass(className, rawCss)
+        entries.push(createManifestEntry('css-tag', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename))
+        edits.push({ start: hit.start, end: hit.templateEnd + 1, value: JSON.stringify(className) })
+      } catch (error) {
+        throw asCipoCompileError(
+          error,
+          'CIPO_CSS_TAG_COMPILE_FAILED',
+          'Failed to compile static css tagged template.',
+          sourceLocationFromOffset(source, options.filename, hit.start, hit.templateEnd + 1),
+        )
+      }
+    }
+  }
+
+  if (edits.length === 0) {
+    return { code: source, css: '', changed: false, manifest: [], diagnostics }
+  }
+
+  let code = applyEdits(source, edits)
+  if (options.deferAtomicCss && entries.some((entry) => entry.kind === 'styled-css')) {
+    code = ensureNamedImportBinding(
+      code,
+      'attachCompiledClass',
+      helperImportPath,
+      attachClassBinding,
+      filename,
+    ).code
+  } else if (options.coupleStyledCss && entries.some((entry) => entry.kind === 'styled-css')) {
+    code = ensureNamedImportBinding(
+      code,
+      'attachCompiledCss',
+      helperImportPath,
+      attachCssBinding,
+      filename,
+    ).code
+  }
+  if (options.injectCssImport !== false) code = ensureCssImport(code, options.cssImportId ?? DEFAULT_CSS_IMPORT_ID)
+
+  const rawOutputCss = entries
+    .filter((entry) => {
+      if (options.deferAtomicCss && (entry.kind === 'styled-css' || entry.kind === 'css-tag')) return false
+      if (options.coupleStyledCss && entry.kind === 'styled-css') return false
+      return true
+    })
+    .map((entry) => entry.cssText)
+    .filter(Boolean)
+    .join('\n')
+  const compact = classNameMode === 'compact'
+  const css = optimizeCompiledCss(rawOutputCss, {
+    minify: minifyCss ?? compact,
+    mergeEquivalentRules: options.mergeEquivalentRules ?? compact,
+    privateCustomPropertyPattern: options.privateCustomPropertyPattern,
+  })
+
+  return {
+    code,
+    css,
+    changed: true,
+    manifest: entries,
+    diagnostics,
+  }
+}
+
+function shouldCompileAsSheetConfig(rawCss: string): boolean {
+  return Boolean(splitPolymorphicCssSource(rawCss).configCss.trim())
+}
+
+function compileRawSheetCss(rawCss: string): string {
+  const cooked = rawCss.replace(/\\`/g, '`')
+  return compileSheetCss([cooked] as unknown as TemplateStringsArray, [], false).cssText
+}
+
+function createStylesheetArtifactLiteral(cssText: string): string {
+  return `{kind:"cipo.stylesheet",cssText:${JSON.stringify(cssText)}}`
+}
+
+function compileRawCssForClass(className: string, rawCss: string): string {
+  return String(compileScopedSheetCss(`.${className}`, [rawCss] as unknown as TemplateStringsArray, [], false))
+}
+
+function createManifestEntry(
+  kind: CipoCompiledBuildManifestEntry['kind'],
+  start: number,
+  end: number,
+  rawCss: string,
+  cssText: string,
+  className: string,
+  filename?: string,
+  receiver?: string,
+): CipoCompiledBuildManifestEntry {
+  return {
+    id: `cipo-build-${hashString64(`${filename ?? ''}|${start}|${rawCss}`)}`,
+    ...(filename ? { filename } : {}),
+    start,
+    end,
+    kind,
+    ...(receiver ? { receiver } : {}),
+    className,
+    rawCss,
+    cssText,
+  }
+}
+
+function createCompiledClassName(
+  prefix: string,
+  buildNamespace: string,
+  filename: string | undefined,
+  rawCss: string,
+  receiver: string,
+  mode: 'readable' | 'compact' = 'readable',
+): string {
+  const identity = `${buildNamespace}|${filename ?? ''}|${receiver}|${rawCss}`
+  const hash = hashString64(identity)
+  const receiverLabel = receiver.match(/['"]([^'"]+)['"]/)?.[1]
+  const className = mode === 'compact'
+    ? `${prefix}${hash}`
+    : `${prefix}${receiverLabel ? `-${sanitizeClassPrefix(receiverLabel)}` : ''}-${hash}`
+  assertGeneratedNameIdentity(className, identity)
+  return className
+}
+
+function sanitizeClassPrefix(value: string): string {
+  const safe = String(value || DEFAULT_CLASS_PREFIX).replace(/[^A-Za-z0-9_-]/g, '-').replace(/^-+/, '')
+  return safe || DEFAULT_CLASS_PREFIX
+}
+
+function ensureCssImport(source: string, cssImportId: string): string {
+  const quoted = cssImportId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (new RegExp(`import\\s+['"]${quoted}['"]`).test(source)) return source
+  return `import ${JSON.stringify(cssImportId)};\n${source}`
+}
