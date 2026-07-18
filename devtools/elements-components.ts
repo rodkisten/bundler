@@ -1,17 +1,16 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
-import type { Cleanup, RenderValue } from "@rodkisten/fabrica";
+import { component, event, html, styled } from "@rodkisten/devtools/core/runtime";
+import { crumbLabel, listenerText, number } from "@rodkisten/devtools/panels/elements.functions";
+import "@rodkisten/devtools/panels/shared-components";
 import type { ElementsContextValue } from "@rodkisten/devtools/types";
 import { icon, truncate } from "@rodkisten/devtools/utils";
-import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core/cipo-bootstrap";
-import { component, event, html,  styled } from "@rodkisten/devtools/core/runtime";
-import "@rodkisten/devtools/panels/shared-components";
-import { crumbLabel, listenerText, number } from "@rodkisten/devtools/panels/elements.functions";
+import type { Cleanup, RenderValue } from "@rodkisten/fabrica";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
 import { filterArray, flatMap, mapArray, mapJoinArray, sortArray, take, toArray } from "@rodkisten/nascente";
-export { styleRuleModels, listenerModels, propertyModels, crumbLabel } from "@rodkisten/devtools/panels/elements.functions";
+export { crumbLabel, listenerModels, propertyModels, styleRuleModels } from "@rodkisten/devtools/panels/elements.functions";
 
 
-bootstrapDevtoolsCipo();
+// bootstrapDevtoolsCipo();
 
 export const ElementsContext = createRequiredFabricaContext<ElementsContextValue>("ElementsContext");
 

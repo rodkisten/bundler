@@ -1,6 +1,6 @@
 import { configureFromCss } from "@rodkisten/cipo/config-css";
 import { setRuntimeStyleTarget } from "@rodkisten/cipo/injection";
-import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
+import { devtoolsStyles } from "@rodkisten/devtools/core-style";
 
 /**
  * Installs the DevTools Cipó configuration in the active runtime.
@@ -17,7 +17,7 @@ import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
  */
 export function bootstrapDevtoolsCipo(): void {
   setRuntimeStyleTarget(null);
-  configureFromCss(devtoolsCipoConfigCss);
+  configureFromCss(devtoolsStyles.cssText);
 }
 
-bootstrapDevtoolsCipo();
+// bootstrapDevtoolsCipo();

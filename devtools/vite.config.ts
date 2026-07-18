@@ -1,15 +1,15 @@
+import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
 import { copyFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
-import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
-import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
 import {
   createBuildMetadata,
   createIifeBuildBanner,
   readPackageVersion,
 } from "../scripts/build-metadata";
+import { devtoolsStyles } from "./core-style";
 
 const devtoolsDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(devtoolsDir, "..");
@@ -63,6 +63,9 @@ export default defineConfig({
   },
 
   server: {
+    watch: {
+      usePolling: true,
+    },
     open: "/index.html",
   },
 
@@ -110,7 +113,7 @@ export default defineConfig({
       // DevTools imports Maquina and shared Fábrica Elements components, so path
       // filtering here would leave nested styled templates uncompiled.
       // Class naming, minification, atomic promotion and tokens all come from CSS.
-      configCss: devtoolsCipoConfigCss,
+      configCss: devtoolsStyles.cssText,
     }),
   ],
 });

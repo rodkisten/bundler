@@ -1,4 +1,3 @@
-import type { InitialConsoleEntry } from "@rodkisten/devtools/types";
 import {
   createLandingBookmarklet,
   createLandingInitOptions,
@@ -10,8 +9,8 @@ import {
   normalizeInjectableScriptUrl,
   parseLandingState,
   parseLandingTokens,
-  resolveInjectableDevtoolsApi,
   resolveInitialLandingTool,
+  resolveInjectableDevtoolsApi,
   resolveInjectableErudaApi,
   serializeLandingState,
   serializeLandingTokens,
@@ -22,6 +21,7 @@ import {
   type LandingTheme,
   type LandingTokenState,
 } from "@rodkisten/devtools/landing.functions";
+import type { InitialConsoleEntry } from "@rodkisten/devtools/types";
 import { filterArray, mapArray, objectFromEntries, toArray, trimArrayStart } from "@rodkisten/nascente";
 
 const STATE_STORAGE_KEY = "rod.devtools.landing.state.v1";
@@ -216,7 +216,7 @@ function openDevtools(): void {
   if (!api) {
     setStatus("OFFLINE", "Inject RodEruda before opening it.", "warning");
     return;
-  }
+  } 
 
   const state = readStateFromForm(elements.form);
   const initialTool = resolveInitialLandingTool(state);

@@ -207,7 +207,24 @@
       <div class="footer-meta"><span>RodEruda Browser Laboratory</span><span>GMT-3 / Built for the unruly web</span></div>
     </footer>
   </main>
-
-  <script type="module" src="/landing.ts"></script>
+<script type="module">
+  async function main() {
+    const isLocalDevelopment = () => {
+      return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    };
+    
+    if(isLocalDevelopment()) {
+      await import("./index.ts");
+      await import("./landing.ts");
+    } else {
+      await import("./landing.ts");
+    }
+  }
+  try {
+    await main();
+  } catch (error) {
+    console.error(error);
+  }
+</script>
 </body>
 </html>

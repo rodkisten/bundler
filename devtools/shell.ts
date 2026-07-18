@@ -1,10 +1,10 @@
-import { debugLog } from "@rodkisten/devtools/core/debug";
-import { icon } from "@rodkisten/devtools/core/utils";
 import type { CipoCssArtifact } from "@rodkisten/cipo";
-import { component, event, html, renderInto, repeat, styled } from "@rodkisten/devtools/core/runtime";
-import { DevtoolsContext } from "@rodkisten/devtools/core/context";
-import type { DevtoolsContextValue, DevtoolsShellRefs } from "@rodkisten/devtools/types";
 import { DEVTOOLS_BUILD_BADGE, DEVTOOLS_BUILD_INFO } from "@rodkisten/devtools/core/build-info";
+import { DevtoolsContext } from "@rodkisten/devtools/core/context";
+import { debugLog } from "@rodkisten/devtools/core/debug";
+import { component, event, html, renderInto, repeat, styled } from "@rodkisten/devtools/core/runtime";
+import { icon } from "@rodkisten/devtools/core/utils";
+import type { DevtoolsContextValue, DevtoolsShellRefs } from "@rodkisten/devtools/types";
 import { filterArray, flatMap, joinArray, objectKeys } from "@rodkisten/nascente";
 
 
@@ -252,8 +252,6 @@ const TabIcon = styled.span("RodDevtoolsTabIcon").css`
   .roderuda-lucide-icon {
     display: block;
     flex: 0 0 auto;
-    width: 1em;
-    height: 1em;
     stroke: currentColor;
   }
 

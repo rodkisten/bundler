@@ -6,8 +6,8 @@ import {
 } from "@rodkisten/cipo/injection";
 import type {
   CipoCssArtifact,
-  CipoInlineCssArtifact,
   CipoInjectableStyleArtifact,
+  CipoInlineCssArtifact,
   CipoStylesheetArtifact,
 } from "@rodkisten/cipo/types";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
@@ -17,7 +17,7 @@ import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
 /* Global system   */
 /* *************** */
 
-bootstrapDevtoolsCipo();
+// bootstrapDevtoolsCipo();
 
 /**
  * Global DevTools stylesheet.
@@ -185,18 +185,6 @@ export const devtoolsStyles = sheet.css`
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
-  }
-
-  /*
-   * Icons are produced by the shared icon renderer rather than by a dedicated
-   * component, so the baseline SVG behavior remains global.
-   */
-  .roderuda-lucide-icon {
-    display: block;
-    flex: 0 0 auto;
-    width: 1em;
-    height: 1em;
-    stroke: currentColor;
   }
 
   /*
