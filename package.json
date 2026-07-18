@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Root-entry browser bundle publisher that emits one IIFE global per root source file, plus ESM builds, docs, and a generated landing page.",
-  "packageManager": "pnpm@11.5.1",
+  "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=11.7.0"
