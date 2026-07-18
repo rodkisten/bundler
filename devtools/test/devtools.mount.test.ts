@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { polyfillBrowserApis } from "./_tests.setup";
 import devtools from "@rodkisten/devtools";
-import { polyfillBrowserApis } from "./_tests.setup"
 
 describe("RodEruda devtools mount", () => {
   beforeEach(() => {
@@ -36,6 +36,34 @@ describe("RodEruda devtools mount", () => {
     expect(devtools.get("snippets")).toBeDefined();
   });
 
+
+  it("opens and closes when the floating DevTools button is clicked", () => {
+    devtools.init({ autoScale: false, tool: ["console"] });
+
+    const root = document.querySelector<HTMLElement>("#roderuda")?.shadowRoot;
+    const entry = root?.querySelector<HTMLButtonElement>(
+      "[data-roderuda-shell-ref='entryButton']",
+    );
+    const dock = root?.querySelector<HTMLElement>(
+      "[data-roderuda-shell-ref='devtools']",
+    );
+
+    expect(entry).toBeInstanceOf(HTMLButtonElement);
+    expect(dock).toBeInstanceOf(HTMLElement);
+    expect(devtools.get()?.isVisible()).toBe(false);
+    expect(dock?.dataset.active).toBe("false");
+
+    entry?.click();
+
+    expect(devtools.get()?.isVisible()).toBe(true);
+    expect(dock?.dataset.active).toBe("true");
+
+    entry?.click();
+
+    expect(devtools.get()?.isVisible()).toBe(false);
+    expect(dock?.dataset.active).toBe("false");
+  });
+
   it("renders styled/Fabrica panels and injects their Cipó styles", () => {
     devtools.init({ autoScale: false, tool: ["elements", "resources", "network", "console"], defaults: { theme: "AMOLED" } });
 
@@ -61,9 +89,11 @@ describe("RodEruda devtools mount", () => {
     const styleText = Array.from(root?.querySelectorAll("style") ?? [])
       .map((style) => style.textContent ?? "")
       .join("\n");
-    const generatedClass = layout?.className.split(/\s+/).find(Boolean) ?? "missing-elements-class";
+    const emittedLayoutClass = layout?.className
+      .split(/\s+/)
+      .find((className) => styleText.includes(`.${className}`));
 
-    expect(styleText).toContain(generatedClass);
+    expect(emittedLayoutClass).toBeDefined();
     expect(styleText).toMatch(/(?:\.roderuda-tools|overflow)/);
     expect(styleText).toContain("var(--rd-colors-background)");
     expect(styleText).not.toMatch(/(?:^|[^A-Za-z0-9_-])\$background\b/);

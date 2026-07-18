@@ -1,37 +1,51 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it } from "vitest";
-import { component, html } from "@rodkisten/devtools/core/runtime";
-import { render, setDevtoolsContextOwner } from "@rodkisten/devtools/core/runtime";
-import { createDevtoolsContextScope, DevtoolsContext } from "@rodkisten/devtools/core/context";
+import {
+  component,
+  html,
+  render,
+} from "@rodkisten/devtools/core/runtime";
+import {
+  createDevtoolsContextValue,
+  DevtoolsContext,
+} from "@rodkisten/devtools/core/context";
 
 describe("DevTools shared context", () => {
   afterEach(() => {
-    setDevtoolsContextOwner(null);
     document.body.replaceChildren();
   });
 
-  it("shares one context across independent panel render roots", () => {
+  it("shares one application context across panel subtrees in one root", () => {
     const host = document.createElement("div");
-    const first = document.createElement("div");
-    const second = document.createElement("div");
-    document.body.append(host, first, second);
+    const root = document.createElement("div");
+    document.body.append(host, root);
 
-    const scope = createDevtoolsContextScope(host, false);
-    setDevtoolsContextOwner(scope.owner);
+    const shared = createDevtoolsContextValue(host, false);
 
-    const Reader = component("DevtoolsContextReader", (_props, ctx) => {
-      const state = ctx.requireContext(DevtoolsContext);
-      return html`<span>${state.host === host ? "shared" : "missing"}</span>`;
-    });
+    const Reader = component<{ name: string }>(
+      "CoreDevtoolsContextReader",
+      (props, ctx) => {
+        const state = ctx.requireContext(DevtoolsContext);
+        return html`
+          <span :reader=${props.name}>
+            ${state.host === host ? "shared" : "missing"}
+          </span>
+        `;
+      },
+    );
 
-    const disposeFirst = render(first, html`<DevtoolsContextReader />`);
-    const disposeSecond = render(second, html`<DevtoolsContextReader />`);
+    const dispose = render(root, html`
+      <${DevtoolsContext.Provider} props=${{ value: shared }}>
+        <section data-panel="first"><${Reader} name="first" /></section>
+        <section data-panel="second"><${Reader} name="second" /></section>
+      </${DevtoolsContext.Provider}>
+    `);
 
-    expect(first.textContent).toBe("shared");
-    expect(second.textContent).toBe("shared");
+    expect(root.querySelector('[data-reader="first"]')?.textContent)
+      .toContain("shared");
+    expect(root.querySelector('[data-reader="second"]')?.textContent)
+      .toContain("shared");
 
-    disposeFirst();
-    disposeSecond();
-    scope.dispose();
+    dispose();
   });
 });

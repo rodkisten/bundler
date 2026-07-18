@@ -2,10 +2,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "@rodkisten/devtools/types";
-import { mocks, polyfillBrowserApis } from "./_tests.setup";
+import { getMocks, polyfillBrowserApis } from "./_tests.setup";
 
 import { Elements } from "@rodkisten/devtools/panels/elements";
-import { styledRegistry } from "@rodkisten/devtools/core/runtime";
+import {
+  render,
+  styledRegistry,
+} from "@rodkisten/devtools/core/runtime";
+
+const mocks = getMocks();
 
 type Fixture = {
   tool: Elements;
@@ -14,6 +19,7 @@ type Fixture = {
   root: HTMLElement;
   container: HTMLElement;
   context: ToolContext;
+  disposeView: () => void;
   settings: {
     registerSeparator: ReturnType<typeof vi.fn>;
     registerText: ReturnType<typeof vi.fn>;
@@ -60,7 +66,7 @@ function createFixture(show = true): Fixture {
   const settings = {
     registerSeparator: vi.fn(),
     registerText: vi.fn(),
-      registerConfigGroup: vi.fn(),
+    registerConfigGroup: vi.fn(),
     registerSwitch: vi.fn(),
   };
 
@@ -86,6 +92,7 @@ function createFixture(show = true): Fixture {
 
   const tool = new Elements();
   tool.init(container, context);
+  const disposeView = render(container, tool.renderView());
   if (show) tool.show();
 
   return {
@@ -95,6 +102,7 @@ function createFixture(show = true): Fixture {
     root,
     container,
     context,
+    disposeView,
     settings,
     devtools,
   };
@@ -180,6 +188,7 @@ describe("Elements panel", () => {
 
   afterEach(() => {
     fixture?.tool.destroy();
+    fixture?.disposeView();
     fixture = null;
 
     document.body.replaceChildren();
@@ -662,9 +671,11 @@ describe("Elements panel", () => {
     const { container, context } = fixture;
 
     firstTool.destroy();
+    fixture.disposeView();
 
     const secondTool = new Elements();
     secondTool.init(container, context);
+    const disposeSecondView = render(container, secondTool.renderView());
     secondTool.show();
 
     expect(
@@ -680,6 +691,7 @@ describe("Elements panel", () => {
     ).toBeNull();
 
     secondTool.destroy();
+    disposeSecondView();
 
     fixture = null;
   });

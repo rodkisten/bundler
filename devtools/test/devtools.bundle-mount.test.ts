@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { polyfillBrowserApis } from "./_tests.setup";
 import fs from "node:fs";
 import path from "node:path";
 import { TextDecoder, TextEncoder } from "node:util";
 import devtools from "@rodkisten/devtools";
-import { polyfillBrowserApis } from "./_tests.setup"
 
 process.env.DEBUG = 'vite:*';
 
@@ -181,6 +181,28 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(root.querySelector("[data-roderuda-shell-ref='tools']")).toBeInstanceOf(HTMLElement);
     expect(root.querySelector("fabrica-component-error")).toBeNull();
     expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")?.textContent).not.toContain("[object Object]");
+
+    const entry = root.querySelector<HTMLButtonElement>(
+      "[data-roderuda-shell-ref='entryButton']",
+    );
+    const dock = root.querySelector<HTMLElement>(
+      "[data-roderuda-shell-ref='devtools']",
+    );
+
+    expect(entry).toBeInstanceOf(HTMLButtonElement);
+    expect(dock).toBeInstanceOf(HTMLElement);
+    expect(runtime!.get()?.isVisible()).toBe(false);
+    expect(dock?.dataset.active).toBe("false");
+
+    // Exercise the production IIFE path. EntryBtn owns the native click and
+    // must forward it to the controller instead of swallowing the activation.
+    entry?.click();
+    expect(runtime!.get()?.isVisible()).toBe(true);
+    expect(dock?.dataset.active).toBe("true");
+
+    entry?.click();
+    expect(runtime!.get()?.isVisible()).toBe(false);
+    expect(dock?.dataset.active).toBe("false");
 
     expectStylesInjected(root);
 
