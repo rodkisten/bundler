@@ -1,5 +1,5 @@
-import { configureFromCss } from "@rodkisten/cipo/config-css";
-import { setRuntimeStyleTarget } from "@rodkisten/cipo/injection";
+import { configureFromCss } from "@rodkisten/cipo";
+import { setRuntimeStyleTarget } from "@rodkisten/cipo";
 import { devtoolsStyles } from "@rodkisten/devtools/core-style";
 
 /**
