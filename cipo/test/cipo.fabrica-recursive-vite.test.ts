@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { cipoVite } from "@rodkisten/cipo";
+import { cipoVite } from "@rodkisten/cipo/vite";
 
 describe("Cipó Vite + recursive Fábrica compilation", () => {
-  it("removes nested html runtime islands from DevTools-style component views", () => {
+  it("removes nested html runtime islands from DevTools-style component views", async () => {
     const plugin = cipoVite({
       root: "/project",
       mode: "build",
@@ -21,7 +21,7 @@ describe("Cipó Vite + recursive Fábrica compilation", () => {
       "`;",
     ].join("\n");
 
-    const transformed = plugin.transform?.call(
+    const transformed = await plugin.transform?.call(
       context,
       source,
       "/project/src/devtools/panels/elements.components.ts",

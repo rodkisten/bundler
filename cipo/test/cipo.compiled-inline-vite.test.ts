@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { createCompiledStyled, compileCipoSourceInline, compiledInlineCss, cipoVite, setup } from '@rodkisten/cipo'
+import { setup } from '@rodkisten/cipo'
+import { createCompiledStyled, compileCipoSourceInline, compiledInlineCss } from '@rodkisten/cipo/compiler'
+import { cipoVite } from '@rodkisten/cipo/vite'
 import { createFabrica } from '@rodkisten/fabrica'
 
 describe('Cipó compiled inline + Vite playground mode', () => {
@@ -39,7 +41,7 @@ describe('Cipó compiled inline + Vite playground mode', () => {
 
   it('rewrites styled .css templates to compiledInlineCss artifact calls', () => {
     const source = `
-      import { styled } from '@rodkisten/cipo/runtime'
+      import { styled } from '@rodkisten/cipo'
       export const Panel = styled.div('Panel').css\`
         color: red;
         padding-left: 8px;
@@ -59,11 +61,11 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     expect(result.manifest[0]?.cssText).toContain('color:red')
   })
 
-  it('computes valid relative compiler imports in the Vite plugin', () => {
-    const plugin = cipoVite({ root: '/project', mode: 'inline' })
+  it('uses the stable public compiler entrypoint in the Vite plugin', () => {
+    const plugin = cipoVite({ root: '/project', mode: 'inline', compileFabrica: false })
     const result = plugin.transform?.call({} as never, "export const Panel = styled.div('Panel').css`color: red;`", '/project/src/devtools/panel.ts')
 
-    expect(result && 'code' in result ? result.code : '').toContain("from '../../cipo/compiler-compiled-inline'")
+    expect(result && 'code' in result ? result.code : '').toContain('from "@rodkisten/cipo/compiler"')
     expect(result && 'meta' in result ? result.meta.cipo.manifest[0]?.receiver.trim() : '').toBe("styled.div('Panel')")
   })
 })

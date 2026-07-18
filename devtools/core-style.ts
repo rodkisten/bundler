@@ -1,15 +1,15 @@
 import { sheet } from "@rodkisten/cipo";
-import { STYLE_ELEMENT_ID } from "@rodkisten/cipo/constants";
+import { STYLE_ELEMENT_ID } from "@rodkisten/cipo";
 import {
   injectStyle,
   setRuntimeStyleTarget,
-} from "@rodkisten/cipo/injection";
+} from "@rodkisten/cipo";
 import type {
   CipoCssArtifact,
   CipoInjectableStyleArtifact,
   CipoInlineCssArtifact,
   CipoStylesheetArtifact,
-} from "@rodkisten/cipo/types";
+} from "@rodkisten/cipo";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
 import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
 

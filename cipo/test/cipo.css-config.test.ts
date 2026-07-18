@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { configSheet, configure, configureCss, configureFromCss, getCssText, registerConfigPlugin, registerPreset, reset, sheet, setupFromCss } from '@rodkisten/cipo'
-import { insertCss, setRuntimeStyleTarget } from '@rodkisten/cipo/injection'
-import { runtime } from '@rodkisten/cipo/runtime'
+import { insertCss, setRuntimeStyleTarget } from '../injection'
+import { runtime } from '../runtime'
 
 describe('Cipó CSS-first configuration', () => {
   beforeEach(() => reset())

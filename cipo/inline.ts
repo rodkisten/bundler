@@ -1,5 +1,5 @@
-import type { CipoCssInterpolation, CipoInlineCssArtifact, CipoStyleObject } from '@rodkisten/cipo/types'
-import { compileInlineCss, collectInlineCss } from '@rodkisten/cipo/compiler-inline-compile'
+import type { CipoCssInterpolation, CipoInlineCssArtifact, CipoStyleObject } from './types'
+import { compileInlineCss, collectInlineCss } from './engine/inline/compile'
 
 /**
  * Inline CSS namespace.

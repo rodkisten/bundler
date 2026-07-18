@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "outDir": ".",
+    "outDir": "./dist",
     "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
@@ -15,7 +15,6 @@
     "./examples/**",
     "./vite.config.ts",
     "./vitest.config.ts",
-    "./browser-entry.ts",
     "./dist/**"
   ]
 }

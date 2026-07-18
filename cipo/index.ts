@@ -5,54 +5,48 @@
  * @tags css jit atomic userscripts
  * @description Browser-first atomic CSS runtime and semantic CSS DSL bundled as a standalone browser global.
  */
-import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
-import { createCipoCallable, type CipoCallableRuntime, type CipoStyledFactoryOptions } from '@rodkisten/cipo/adapters'
-import { installBuiltInAliases } from '@rodkisten/cipo/aliases'
-import { configure, setup } from '@rodkisten/cipo/config'
-import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from '@rodkisten/cipo/css'
-import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from '@rodkisten/cipo/debug'
-import { getDebugOverlayStats, installDebugOverlay } from '@rodkisten/cipo/debug-overlay'
-import { getCssText, injectStyle, resetInjectionState, setRuntimeStyleTarget } from '@rodkisten/cipo/injection'
-import { inline } from '@rodkisten/cipo/inline'
-import { compiledInlineCss, compileCipoSourceInline, createCompiledStyled } from '@rodkisten/cipo/compiler-compiled-inline'
-import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler-compiled-build'
-import { cipoVite } from '@rodkisten/cipo/vite-compiled-inline'
-import { injectGlobal } from '@rodkisten/cipo/global'
-import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from '@rodkisten/cipo/plugins'
-import { properties, property, typed, typedProperty } from '@rodkisten/cipo/properties'
-import { runtime } from '@rodkisten/cipo/runtime'
-import { theme } from '@rodkisten/cipo/theme'
-import { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from '@rodkisten/cipo/theme-types'
-import { installBuiltInHelpers } from '@rodkisten/cipo/helpers'
-import { compileCssConfigPayload, configSheet, configureCss, configureFromCss, invalidateCssConfigApplications, registerConfigPlugin, registerPreset, setupFromCss } from '@rodkisten/cipo/config-css'
-import { installNativePropertyGuards } from '@rodkisten/cipo/native-property-guards'
-import { resetWarningDedupe } from '@rodkisten/cipo/utils'
+import { STYLE_ELEMENT_ID } from './constants'
+import { createCipoCallable, type CipoStyledFactoryOptions } from './adapters'
+import { installBuiltInAliases } from './aliases'
+import { configure, setup } from './config'
+import { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
+import { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
+import { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
+import { getCssText, injectStyle, resetInjectionState, setRuntimeStyleTarget } from './injection'
+import { inline } from './inline'
+import { injectGlobal } from './global'
+import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
+import { properties, property, typed, typedProperty } from './properties'
+import { runtime } from './runtime'
+import { theme } from './theme'
+import { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
+import { installBuiltInHelpers } from './helpers'
+import { configSheet, configureCss, configureFromCss, invalidateCssConfigApplications, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
+import { installNativePropertyGuards } from './native-property-guards'
+import { resetWarningDedupe } from './utils'
 
 Object.assign(css, { configure: configureCss })
+Object.assign(configure, { css: configureCss })
+Object.assign(setup, { css: configureCss })
 
-export * from '@rodkisten/cipo/types'
-export type { CipoCallableRuntime, CipoStyledFactoryOptions, CipoStyledRegistry } from '@rodkisten/cipo/adapters'
-export { configure, setup } from '@rodkisten/cipo/config'
-export { compileCssConfigPayload, configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from '@rodkisten/cipo/config-css'
-export { configureCompiledCssConfig } from '@rodkisten/cipo/compiled-config'
-export type { CipoCompiledConfigOperation, CipoCompiledCssConfig, CipoCompiledCssConfigResult } from '@rodkisten/cipo/compiled-config'
-export type { CipoConfigPlugin, CipoConfigPreset, CipoCssConfigureApi, CipoCssConfigResult } from '@rodkisten/cipo/config-css'
-export { theme } from '@rodkisten/cipo/theme'
-export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from '@rodkisten/cipo/theme-types'
-export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from '@rodkisten/cipo/css'
-export { inline } from '@rodkisten/cipo/inline'
-export { compiledInlineCss, compileCipoSourceInline, createCompiledStyled, inlineCssTextToObject, resolveCompiledStyleInput } from '@rodkisten/cipo/compiler-compiled-inline'
-export { compileCipoSourceBuild } from '@rodkisten/cipo/compiler-compiled-build'
-export type { CipoCompiledInlineArtifact, CipoCompiledInlineManifestEntry, CipoCompiledInlineOptions, CipoCompiledInlineSourceResult } from '@rodkisten/cipo/compiler-compiled-inline'
-export type { CipoCompiledBuildManifestEntry, CipoCompiledBuildOptions, CipoCompiledBuildResult } from '@rodkisten/cipo/compiler-compiled-build'
-export { cipoVite } from '@rodkisten/cipo/vite-compiled-inline'
-export type { CipoViteCompiledInlineOptions, CipoViteTransformResult } from '@rodkisten/cipo/vite-compiled-inline'
-export { injectGlobal } from '@rodkisten/cipo/global'
-export { injectStyle, getCssText, setRuntimeStyleTarget } from '@rodkisten/cipo/injection'
-export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from '@rodkisten/cipo/plugins'
-export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed, typedProperty } from '@rodkisten/cipo/properties'
-export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from '@rodkisten/cipo/debug'
-export { getDebugOverlayStats, installDebugOverlay } from '@rodkisten/cipo/debug-overlay'
+export * from './types'
+export { STYLE_ELEMENT_ID } from './constants'
+export type { CipoCallableRuntime, CipoStyledFactoryOptions, CipoStyledRegistry } from './adapters'
+export { configure, setup } from './config'
+export { configSheet, configureCss, configureFromCss, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
+export { configureCompiledCssConfig } from './compiled-config'
+export type { CipoCompiledConfigOperation, CipoCompiledCssConfig, CipoCompiledCssConfigResult } from './compiled-config'
+export type { CipoConfigPlugin, CipoConfigPreset, CipoCssConfigureApi, CipoCssConfigResult } from './config-css'
+export { theme } from './theme'
+export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
+export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
+export { inline } from './inline'
+export { injectGlobal } from './global'
+export { injectStyle, getCssText, setRuntimeStyleTarget } from './injection'
+export { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
+export { compilePropertyRule, customPropertyReference, normalizeCustomPropertyName, properties, property, typed, typedProperty } from './properties'
+export { benchmark, explain, explainCss, explainDetailed, inspect, validateCss } from './debug'
+export { getDebugOverlayStats, installDebugOverlay } from './debug-overlay'
 
 /**
  * Compatibility HTML tag.
@@ -145,11 +139,6 @@ assignPublicApi(cipo, {
   // template helper remains a named export and is exposed by
   // createBrowserGlobal().
   inline,
-  compiledInlineCss,
-  compileCipoSourceInline,
-  compileCipoSourceBuild,
-  createCompiledStyled,
-  cipoVite,
   theme,
   configure,
   setup,
@@ -214,10 +203,6 @@ export function createBrowserGlobal() {
     isStylesheetArtifact,
     html,
     inline,
-    compiledInlineCss,
-    compileCipoSourceInline,
-    createCompiledStyled,
-    cipoVite,
     theme,
     configure,
     setup,
@@ -278,4 +263,3 @@ installBuiltInHelpers()
 installBuiltInAliases()
 installNativePropertyGuards()
 
-if (typeof window !== 'undefined') installBrowserGlobal(window)

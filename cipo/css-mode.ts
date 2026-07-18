@@ -1,2 +1,2 @@
-export type { PolymorphicCssSource } from '@rodkisten/cipo/compiler-detect-mode'
-export { splitPolymorphicCssSource, findFirstMeaningful, findNextTopLevelAt } from '@rodkisten/cipo/compiler-detect-mode'
+export type { PolymorphicCssSource } from './syntax/mode'
+export { splitPolymorphicCssSource, findFirstMeaningful, findNextTopLevelAt } from './syntax/mode'

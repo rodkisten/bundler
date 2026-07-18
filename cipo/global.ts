@@ -1,10 +1,10 @@
-import type { CipoCssArtifact, CipoCssInterpolation, CipoInjectStyleOptions, CipoInlineCssArtifact } from '@rodkisten/cipo/types'
-import { buildCss, transformCss } from '@rodkisten/cipo/transform'
-import { insertCss, injectStyle, getCssText } from '@rodkisten/cipo/injection'
-import { wrapLayer, formatCss } from '@rodkisten/cipo/format'
-import { runtime } from '@rodkisten/cipo/runtime'
-import { addImportant } from '@rodkisten/cipo/compiler-index'
-import { parseDeclarations } from '@rodkisten/cipo/parser'
+import type { CipoCssArtifact, CipoCssInterpolation, CipoInlineCssArtifact } from './types'
+import { buildCss, transformCss } from './transform/index'
+import { insertCss, injectStyle, getCssText } from './injection'
+import { wrapLayer, formatCss } from './format'
+import { runtime } from './runtime'
+import { addImportant } from './engine/important'
+import { parseDeclarations } from './syntax/parser'
 
 /**
  * Injects global CSS while keeping the old overload behavior.
@@ -14,12 +14,12 @@ import { parseDeclarations } from '@rodkisten/cipo/parser'
  * @returns Compiled CSS.
  */
 export function injectGlobal(strings: TemplateStringsArray, ...values: readonly CipoCssInterpolation[]): string
-export function injectGlobal(options: { readonly important?: boolean; readonly layer?: false | import('@rodkisten/cipo/types').CipoLayerName }, cssText: string): string
+export function injectGlobal(options: { readonly important?: boolean; readonly layer?: false | import('./types').CipoLayerName }, cssText: string): string
 export function injectGlobal(artifact: CipoCssArtifact, ...artifacts: readonly CipoCssArtifact[]): string
-export function injectGlobal(first: TemplateStringsArray | { readonly important?: boolean; readonly layer?: false | import('@rodkisten/cipo/types').CipoLayerName } | CipoCssArtifact, ...values: readonly (CipoCssInterpolation | CipoCssArtifact | string)[]): string {
+export function injectGlobal(first: TemplateStringsArray | { readonly important?: boolean; readonly layer?: false | import('./types').CipoLayerName } | CipoCssArtifact, ...values: readonly (CipoCssInterpolation | CipoCssArtifact | string)[]): string {
   let rawCss = ''
   let important = runtime.config.important
-  let layer: false | import('@rodkisten/cipo/types').CipoLayerName = 'global'
+  let layer: false | import('./types').CipoLayerName = 'global'
 
   if (isCssArtifact(first)) {
     rawCss = [first, ...values.filter(isCssArtifact)].map(artifact => artifact.compiledCss).join('\n')

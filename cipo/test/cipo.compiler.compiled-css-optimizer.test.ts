@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { optimizeCompiledCss } from "@rodkisten/cipo/compiler-compiled-css-optimizer";
+import { optimizeCompiledCss } from "@rodkisten/cipo/compiler";
 
 describe("compiled CSS optimizer grouping at-rules", () => {
   it("groups adjacent equivalent media queries", () => {

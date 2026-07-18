@@ -1,4 +1,4 @@
-import { registerProperty } from '@rodkisten/cipo/plugins'
+import { registerProperty } from './plugin-registry'
 
 const NATIVE_PROPERTY_GUARDS = [
   ['font', 'font'],

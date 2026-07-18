@@ -2,38 +2,69 @@
   "name": "@rodkisten/cipo",
   "version": "0.0.1",
   "type": "module",
-  "description": "Browser-first atomic CSS runtime and semantic CSS DSL.",
-  "main": "./index.js",
-  "types": "./index.d.ts",
+  "description": "Browser-first atomic CSS runtime and semantic CSS DSL with an isolated build-time compiler.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "import": "./index.js",
-      "default": "./index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
-    "./*": {
-      "types": "./*.d.ts",
-      "import": "./*.js",
-      "default": "./*.js"
+    "./browser": {
+      "types": "./dist/browser-entry.d.ts",
+      "import": "./dist/browser-entry.js",
+      "default": "./dist/browser-entry.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler.d.ts",
+      "import": "./dist/compiler.js",
+      "default": "./dist/compiler.js"
+    },
+    "./vite": {
+      "types": "./dist/vite-index.d.ts",
+      "import": "./dist/vite-index.js",
+      "default": "./dist/vite-index.js"
+    },
+    "./compiled-runtime": {
+      "types": "./dist/compiled-runtime.d.ts",
+      "import": "./dist/compiled-runtime.js",
+      "default": "./dist/compiled-runtime.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "*.js",
-    "*.d.ts",
-    "*.js.map",
-    "*.d.ts.map",
-    "!vitest.config.*",
-    "!vite.config.*",
-    "!tsconfig.json"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "COMPILED_BUILD.md",
+    "COMPILED_INLINE.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root .. --dir .",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run check && pnpm run build",
+    "check:architecture": "node ./scripts/check-architecture.mjs",
+    "check": "pnpm run check:architecture && pnpm run typecheck && pnpm run test"
+  },
+  "dependencies": {
+    "@rodkisten/fabrica-elements": "workspace:*",
+    "typescript": "^7.0.2"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "peerDependencies": {
+    "@rodkisten/fabrica": "workspace:*",
+    "vite": "^8.1.2"
+  },
+  "peerDependenciesMeta": {
+    "@rodkisten/fabrica": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   }
 }

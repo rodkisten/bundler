@@ -1,9 +1,10 @@
-import { configure } from '@rodkisten/cipo/config'
-import { insertCss } from '@rodkisten/cipo/injection'
-import { registerAlias } from '@rodkisten/cipo/plugins'
-import { property } from '@rodkisten/cipo/properties'
-import { theme } from '@rodkisten/cipo/theme'
-import type { CipoConfig, CipoPropertyDefinition, CipoTheme, CipoWarning } from '@rodkisten/cipo/types'
+import { configure } from './config'
+import { insertCss } from './injection'
+import { registerAlias } from './plugin-registry'
+import { property } from './properties'
+import { theme } from './theme'
+import type { CipoConfig, CipoPropertyDefinition, CipoTheme, CipoWarning } from './types'
+import { clearObject, mergeConfigPatch, mergeTheme } from './config-css/shared'
 
 /** Compact operation codes used by build-time compiled Cipó configuration payloads. */
 export const enum CipoCompiledConfigOpcode {
@@ -37,7 +38,7 @@ export interface CipoCompiledCssConfigResult {
   readonly appliedPlugins: readonly string[]
 }
 
-type Mutable<T> = { -readonly [K in keyof T]: T[K] }
+import type { Mutable } from './config-css/contracts'
 
 /**
  * Applies a parser-free configuration payload produced from `configureFromCss()` source.
@@ -115,35 +116,4 @@ export function configureCompiledCssConfig(payload: CipoCompiledCssConfig): Cipo
     appliedPresets: [],
     appliedPlugins: [],
   }
-}
-
-function mergeConfigPatch(target: Partial<Mutable<CipoConfig>>, patch: Partial<CipoConfig>): void {
-  for (const key in patch) {
-    const typedKey = key as keyof CipoConfig
-    if (typedKey === 'breakpoints') {
-      target.breakpoints = { ...(target.breakpoints ?? {}), ...(patch.breakpoints ?? {}) }
-      continue
-    }
-    ;(target as Record<string, unknown>)[key] = (patch as Record<string, unknown>)[key]
-  }
-}
-
-function mergeTheme(left: CipoTheme, right: CipoTheme): CipoTheme {
-  const output: Record<string, import('@rodkisten/cipo/types').CipoThemeValue> = { ...left }
-  for (const key in right) {
-    const current = output[key]
-    const next = right[key]
-    if (isThemeBranch(current) && isThemeBranch(next)) output[key] = mergeTheme(current, next)
-    else if (next !== undefined) output[key] = next
-  }
-  return output
-}
-
-function isThemeBranch(value: unknown): value is CipoTheme {
-  return !!value && typeof value === 'object' && !Array.isArray(value) && (value as { kind?: unknown }).kind === undefined
-}
-
-function clearObject(target: object): void {
-  const record = target as Record<string, unknown>
-  for (const key in record) delete record[key]
 }

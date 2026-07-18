@@ -1,0 +1,1109 @@
+import { describe, expect, it, vi } from 'vitest'
+import {
+  canonicalizeCssForIdentity,
+  manglePrivateCustomPropertiesSafe,
+  mapCssCodeSegments,
+  minifyCssText,
+  stripCipoComments,
+} from './css-lexer'
+describe('CSS lexer utilities', () => {
+  describe('canonicalizeCssForIdentity', () => {
+    it('collapses consecutive whitespace into a single canonical space', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'color:   red   solid',
+        ),
+      ).toBe(
+        'color: red solid',
+      )
+    })
+    it('normalizes mixed whitespace characters', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'color:\n\t red\r\n solid',
+        ),
+      ).toBe(
+        'color: red solid',
+      )
+    })
+    it('trims leading and trailing whitespace', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          '   color: red;   ',
+        ),
+      ).toBe(
+        'color: red;',
+      )
+    })
+    it('preserves punctuation instead of applying minification rules', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'color : red ; padding : 1rem',
+        ),
+      ).toBe(
+        'color : red ; padding : 1rem',
+      )
+    })
+    it('removes block comments while preserving token separation', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'display:foo/**/bar;',
+        ),
+      ).toBe(
+        'display:foo bar;',
+      )
+    })
+    it('collapses comments surrounded by whitespace into one separator', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'display:foo  /** comment */   bar;',
+        ),
+      ).toBe(
+        'display:foo bar;',
+      )
+    })
+    it('removes multiple consecutive comments without duplicating whitespace', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'foo/**/bar/**/baz',
+        ),
+      ).toBe(
+        'foo bar baz',
+      )
+    })
+    it('preserves double-quoted strings byte-for-byte', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'content:  "hello   world";',
+        ),
+      ).toBe(
+        'content: "hello   world";',
+      )
+    })
+    it('preserves single-quoted strings byte-for-byte', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          "content:  'hello   world';",
+        ),
+      ).toBe(
+        "content: 'hello   world';",
+      )
+    })
+    it('does not remove comment-like text inside strings', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'content:"/* not a comment */";',
+        ),
+      ).toBe(
+        'content:"/* not a comment */";',
+      )
+    })
+    it('preserves escaped double quotes inside strings', () => {
+      const input =
+        String.raw`content:"hello \"  world"; color: red;`
+      expect(
+        canonicalizeCssForIdentity(
+          input,
+        ),
+      ).toBe(
+        String.raw`content:"hello \"  world"; color: red;`,
+      )
+    })
+    it('preserves escaped backslashes and quote state correctly', () => {
+      const input =
+        String.raw`content:"C:\\folder";   color:red;`
+      expect(
+        canonicalizeCssForIdentity(
+          input,
+        ),
+      ).toBe(
+        String.raw`content:"C:\\folder"; color:red;`,
+      )
+    })
+    it('preserves semantic differences inside quoted content', () => {
+      const first =
+        canonicalizeCssForIdentity(
+          'content:"a  b";',
+        )
+      const second =
+        canonicalizeCssForIdentity(
+          'content:"a b";',
+        )
+      expect(first).not.toBe(second)
+    })
+    it('canonicalizes equivalent outer whitespace deterministically', () => {
+      const first =
+        canonicalizeCssForIdentity(
+          'color: red;\npadding: 1rem;',
+        )
+      const second =
+        canonicalizeCssForIdentity(
+          'color:   red; \t padding:   1rem;',
+        )
+      expect(first).toBe(second)
+    })
+    it('returns an empty string for whitespace-only input', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          ' \n\t\r ',
+        ),
+      ).toBe('')
+    })
+    it('returns an empty string for comment-only input', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          '/* comment */',
+        ),
+      ).toBe('')
+    })
+    it('handles an unclosed block comment without throwing', () => {
+      expect(
+        canonicalizeCssForIdentity(
+          'color:red;/* unfinished',
+        ),
+      ).toBe(
+        'color:red;',
+      )
+    })
+    it('is deterministic', () => {
+      const input =
+        ' color:  red; /* x */ padding:  1rem; '
+      expect(
+        canonicalizeCssForIdentity(
+          input,
+        ),
+      ).toBe(
+        canonicalizeCssForIdentity(
+          input,
+        ),
+      )
+    })
+    it('is idempotent', () => {
+      const once =
+        canonicalizeCssForIdentity(
+          ' color:  red; /* x */ padding:  1rem; ',
+        )
+      expect(
+        canonicalizeCssForIdentity(
+          once,
+        ),
+      ).toBe(once)
+    })
+  })
+  describe('minifyCssText', () => {
+    it('removes unnecessary whitespace around CSS punctuation', () => {
+      expect(
+        minifyCssText(
+          '.button { color: red; padding: 1rem; }',
+        ),
+      ).toBe(
+        '.button{color:red;padding:1rem}',
+      )
+    })
+    it('removes the final declaration semicolon before a closing brace', () => {
+      expect(
+        minifyCssText(
+          '.button{color:red;}',
+        ),
+      ).toBe(
+        '.button{color:red}',
+      )
+    })
+    it('removes trailing semicolons independently from nested blocks', () => {
+      expect(
+        minifyCssText(
+          '@media print { .button { color: red; } }',
+        ),
+      ).toBe(
+        '@media print{.button{color:red}}',
+      )
+    })
+    it('preserves whitespace required between identifier-like tokens', () => {
+      expect(
+        minifyCssText(
+          'font: 16px Arial sans-serif;',
+        ),
+      ).toBe(
+        'font:16px Arial sans-serif;',
+      )
+    })
+    it('preserves whitespace around arithmetic plus operators', () => {
+      expect(
+        minifyCssText(
+          'width: calc(100% + 2rem);',
+        ),
+      ).toBe(
+        'width:calc(100% + 2rem);',
+      )
+    })
+    it('preserves whitespace around arithmetic minus operators', () => {
+      expect(
+        minifyCssText(
+          'width: calc(100% - 2rem);',
+        ),
+      ).toBe(
+        'width:calc(100% - 2rem);',
+      )
+    })
+    it('preserves whitespace around multiplication operators', () => {
+      expect(
+        minifyCssText(
+          'width: calc(10px * 2);',
+        ),
+      ).toBe(
+        'width:calc(10px * 2);',
+      )
+    })
+    it('preserves whitespace around division operators', () => {
+      expect(
+        minifyCssText(
+          'width: calc(100% / 3);',
+        ),
+      ).toBe(
+        'width:calc(100% / 3);',
+      )
+    })
+    it('removes block comments', () => {
+      expect(
+        minifyCssText(
+          '.button { /* comment */ color: red; }',
+        ),
+      ).toBe(
+        '.button{color:red}',
+      )
+    })
+    it('removes multiline block comments', () => {
+      expect(
+        minifyCssText(
+          [
+            '.button {',
+            '  /*',
+            '   * comment',
+            '   */',
+            '  color: red;',
+            '}',
+          ].join('\n'),
+        ),
+      ).toBe(
+        '.button{color:red}',
+      )
+    })
+    it('preserves comment-like text inside double-quoted strings', () => {
+      expect(
+        minifyCssText(
+          '.label { content: "/* hello */"; }',
+        ),
+      ).toBe(
+        '.label{content:"/* hello */"}',
+      )
+    })
+    it('preserves comment-like text inside single-quoted strings', () => {
+      expect(
+        minifyCssText(
+          ".label { content: '/* hello */'; }",
+        ),
+      ).toBe(
+        ".label{content:'/* hello */'}",
+      )
+    })
+    it('preserves whitespace inside quoted strings', () => {
+      expect(
+        minifyCssText(
+          '.label { content: "hello   world"; }',
+        ),
+      ).toBe(
+        '.label{content:"hello   world"}',
+      )
+    })
+    it('preserves escaped quotes inside strings', () => {
+      expect(
+        minifyCssText(
+          String.raw`.label { content: "hello \" world"; }`,
+        ),
+      ).toBe(
+        String.raw`.label{content:"hello \" world"}`,
+      )
+    })
+    it('preserves URL payloads inside quoted strings', () => {
+      expect(
+        minifyCssText(
+          '.hero { background: url("https://example.com/a b.png"); }',
+        ),
+      ).toBe(
+        '.hero{background:url("https://example.com/a b.png")}',
+      )
+    })
+    it('preserves data URL payloads inside strings', () => {
+      const input =
+        '.icon { background: url("data:image/svg+xml;utf8,<svg>  <path /></svg>"); }'
+      expect(
+        minifyCssText(
+          input,
+        ),
+      ).toBe(
+        '.icon{background:url("data:image/svg+xml;utf8,<svg>  <path /></svg>")}',
+      )
+    })
+    it('preserves combinator semantics while removing surrounding whitespace', () => {
+      expect(
+        minifyCssText(
+          '.parent > .child, .first ~ .second { color: red; }',
+        ),
+      ).toBe(
+        '.parent>.child,.first~.second{color:red}',
+      )
+    })
+    it('handles empty input', () => {
+      expect(
+        minifyCssText(''),
+      ).toBe('')
+    })
+    it('handles whitespace-only input', () => {
+      expect(
+        minifyCssText(
+          ' \n\t ',
+        ),
+      ).toBe('')
+    })
+    it('handles an unclosed comment by dropping the remaining comment text', () => {
+      expect(
+        minifyCssText(
+          'color:red;/* unfinished',
+        ),
+      ).toBe(
+        'color:red;',
+      )
+    })
+    it('is deterministic', () => {
+      const input =
+        '.button { color: red; padding: calc(1rem + 2px); }'
+      expect(
+        minifyCssText(
+          input,
+        ),
+      ).toBe(
+        minifyCssText(
+          input,
+        ),
+      )
+    })
+    it('is idempotent', () => {
+      const once =
+        minifyCssText(
+          '.button { color: red; padding: calc(1rem + 2px); }',
+        )
+      expect(
+        minifyCssText(
+          once,
+        ),
+      ).toBe(once)
+    })
+  })
+  describe('stripCipoComments', () => {
+    it('removes block comments', () => {
+      expect(
+        stripCipoComments(
+          'color:red;/* comment */display:block;',
+        ),
+      ).toBe(
+        'color:red;display:block;',
+      )
+    })
+    it('removes multiline block comments', () => {
+      expect(
+        stripCipoComments(
+          'before;/* first\nsecond */after;',
+        ),
+      ).toBe(
+        'before;after;',
+      )
+    })
+    it('removes full-line double-slash comments', () => {
+      expect(
+        stripCipoComments(
+          [
+            'color:red;',
+            '// comment',
+            'display:block;',
+          ].join('\n'),
+        ),
+      ).toBe([
+        'color:red;',
+        '',
+        'display:block;',
+      ].join('\n'))
+    })
+    it('removes indented full-line double-slash comments', () => {
+      expect(
+        stripCipoComments(
+          [
+            'color:red;',
+            '   // comment',
+            'display:block;',
+          ].join('\n'),
+        ),
+      ).toBe([
+        'color:red;',
+        '   ',
+        'display:block;',
+      ].join('\n'))
+    })
+    it('removes inline double-slash comments after ordinary CSS syntax', () => {
+      expect(
+        stripCipoComments(
+          'color:red; // comment\nwidth:10px;',
+        ),
+      ).toBe(
+        'color:red; \nwidth:10px;',
+      )
+    })
+    it('does not mistake protocol-relative URLs after an opening parenthesis for comments', () => {
+      const input =
+        'background:url(//cdn.example.com/image.png);'
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('does not mistake URL protocol slashes after a colon for comments', () => {
+      const input =
+        'background:url(https://example.com/image.png);'
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('preserves double-slash text inside double-quoted strings', () => {
+      const input =
+        'content:"// not a comment";'
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('preserves block-comment text inside strings', () => {
+      const input =
+        'content:"/* not a comment */";'
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('preserves escaped quotes while scanning strings', () => {
+      const input =
+        String.raw`content:"hello \" // still string";`
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('removes hash-prefixed full-line comments', () => {
+      expect(
+        stripCipoComments(
+          [
+            'color:red;',
+            '# comment',
+            'display:block;',
+          ].join('\n'),
+        ),
+      ).toBe([
+        'color:red;',
+        '',
+        'display:block;',
+      ].join('\n'))
+    })
+    it('removes indented hash-prefixed full-line comments', () => {
+      expect(
+        stripCipoComments(
+          [
+            'color:red;',
+            '   # comment',
+            'display:block;',
+          ].join('\n'),
+        ),
+      ).toBe([
+        'color:red;',
+        '   ',
+        'display:block;',
+      ].join('\n'))
+    })
+    it('does not treat an inline hash token as a line comment', () => {
+      const input =
+        'color:#ff0000;'
+      expect(
+        stripCipoComments(
+          input,
+        ),
+      ).toBe(input)
+    })
+    it('preserves newlines after removed line comments', () => {
+      const result =
+        stripCipoComments(
+          '// first\n// second\nvalue',
+        )
+      expect(result).toBe(
+        '\n\nvalue',
+      )
+    })
+    it('handles an unclosed block comment without throwing', () => {
+      expect(
+        stripCipoComments(
+          'color:red;/* unfinished',
+        ),
+      ).toBe(
+        'color:red;',
+      )
+    })
+    it('handles a line comment reaching end of input', () => {
+      expect(
+        stripCipoComments(
+          'color:red;// comment',
+        ),
+      ).toBe(
+        'color:red;\n',
+      )
+    })
+  })
+  describe('manglePrivateCustomPropertiesSafe', () => {
+    it('renames matching private custom-property declarations', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--private-color:red;',
+          /^--private-/,
+        ),
+      ).toBe(
+        '--a:red;',
+      )
+    })
+    it('renames matching custom-property references consistently', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--private-color:red;color:var(--private-color);',
+          /^--private-/,
+        ),
+      ).toBe(
+        '--a:red;color:var(--a);',
+      )
+    })
+    it('assigns deterministic compact names in first-seen order', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          [
+            '--private-first:red;',
+            '--private-second:blue;',
+            'color:var(--private-first);',
+            'background:var(--private-second);',
+          ].join(''),
+          /^--private-/,
+        ),
+      ).toBe([
+        '--a:red;',
+        '--b:blue;',
+        'color:var(--a);',
+        'background:var(--b);',
+      ].join(''))
+    })
+    it('does not rename non-matching public custom properties', () => {
+      const input =
+        '--public-color:red;color:var(--public-color);'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(input)
+    })
+    it('mangles private properties while preserving public properties', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--public:red;--private-color:blue;color:var(--private-color);',
+          /^--private-/,
+        ),
+      ).toBe(
+        '--public:red;--a:blue;color:var(--a);',
+      )
+    })
+    it('skips generated names already reserved by user-authored custom properties', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--a:existing;--private-color:red;color:var(--private-color);',
+          /^--private-/,
+        ),
+      ).toBe(
+        '--a:existing;--b:red;color:var(--b);',
+      )
+    })
+    it('skips multiple reserved compact candidate names', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--a:1;--b:2;--private-first:3;--private-second:4;',
+          /^--private-/,
+        ),
+      ).toBe(
+        '--a:1;--b:2;--c:3;--d:4;',
+      )
+    })
+    it('does not rename custom-property-like text inside double-quoted strings', () => {
+      const input =
+        '--private-color:red;content:"--private-color";'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(
+        '--a:red;content:"--private-color";',
+      )
+    })
+    it('does not rename custom-property-like text inside single-quoted strings', () => {
+      const input =
+        "--private-color:red;content:'--private-color';"
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(
+        "--a:red;content:'--private-color';",
+      )
+    })
+    it('does not rename custom-property-like text inside comments', () => {
+      const input =
+        '/* --private-comment */--private-color:red;'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(
+        '/* --private-comment */--a:red;',
+      )
+    })
+    it('preserves comments byte-for-byte while mangling surrounding code', () => {
+      const comment =
+        '/* keep   --private-color\nexactly */'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          `--private-color:red;${comment}color:var(--private-color);`,
+          /^--private-/,
+        ),
+      ).toBe(
+        `--a:red;${comment}color:var(--a);`,
+      )
+    })
+    it('handles escaped quotes without leaking string contents into mangling', () => {
+      const input =
+        String.raw`--private-color:red;content:"hello \" --private-color";`
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(
+        String.raw`--a:red;content:"hello \" --private-color";`,
+      )
+    })
+    it('supports a global RegExp without leaking lastIndex state', () => {
+      const pattern =
+        /^--private-/g
+      const first =
+        manglePrivateCustomPropertiesSafe(
+          '--private-first:red;--private-second:blue;',
+          pattern,
+        )
+      const second =
+        manglePrivateCustomPropertiesSafe(
+          '--private-first:red;--private-second:blue;',
+          pattern,
+        )
+      expect(first).toBe(
+        '--a:red;--b:blue;',
+      )
+      expect(second).toBe(first)
+    })
+    it('supports a sticky RegExp without leaking lastIndex state', () => {
+      const pattern =
+        /^--private-/y
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          '--private-first:red;--private-second:blue;',
+          pattern,
+        ),
+      ).toBe(
+        '--a:red;--b:blue;',
+      )
+    })
+    it('returns the original source when no property matches', () => {
+      const input =
+        '--public:red;color:var(--public);'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(input)
+    })
+    it('uses the same mangled name for every occurrence of one property', () => {
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          [
+            '--private-color:red;',
+            'color:var(--private-color);',
+            'border-color:var(--private-color);',
+            'background:var(--private-color);',
+          ].join(''),
+          /^--private-/,
+        ),
+      ).toBe([
+        '--a:red;',
+        'color:var(--a);',
+        'border-color:var(--a);',
+        'background:var(--a);',
+      ].join(''))
+    })
+    it('is deterministic for identical source and pattern', () => {
+      const input =
+        '--private-a:1;--private-b:2;color:var(--private-a);'
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      ).toBe(
+        manglePrivateCustomPropertiesSafe(
+          input,
+          /^--private-/,
+        ),
+      )
+    })
+    it('supports enough properties to advance beyond single-character a and b mappings', () => {
+      const declarations: string[] = []
+      for (
+        let index = 0;
+        index < 55;
+        index += 1
+      ) {
+        declarations.push(
+          `--private-${index}:${index};`,
+        )
+      }
+      const result =
+        manglePrivateCustomPropertiesSafe(
+          declarations.join(''),
+          /^--private-/,
+        )
+      expect(result).toContain(
+        '--a:0;',
+      )
+      expect(result).toContain(
+        '--Z:51;',
+      )
+      expect(result).toContain(
+        '--aa:52;',
+      )
+      expect(result).toContain(
+        '--ab:53;',
+      )
+      expect(result).toContain(
+        '--ac:54;',
+      )
+    })
+  })
+  describe('mapCssCodeSegments', () => {
+    it('transforms ordinary CSS code', () => {
+      expect(
+        mapCssCodeSegments(
+          'color:red;',
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        'COLOR:RED;',
+      )
+    })
+    it('preserves double-quoted strings byte-for-byte', () => {
+      expect(
+        mapCssCodeSegments(
+          'color:red;content:"keep Me";display:block;',
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        'COLOR:RED;CONTENT:"keep Me";DISPLAY:BLOCK;',
+      )
+    })
+    it('preserves single-quoted strings byte-for-byte', () => {
+      expect(
+        mapCssCodeSegments(
+          "color:red;content:'keep Me';display:block;",
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        "COLOR:RED;CONTENT:'keep Me';DISPLAY:BLOCK;",
+      )
+    })
+    it('preserves block comments byte-for-byte', () => {
+      expect(
+        mapCssCodeSegments(
+          'color:red;/* Keep Me */display:block;',
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        'COLOR:RED;/* Keep Me */DISPLAY:BLOCK;',
+      )
+    })
+    it('preserves multiline comments exactly', () => {
+      const comment =
+        '/* First\n  Second */'
+      expect(
+        mapCssCodeSegments(
+          `before;${comment}after;`,
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        `BEFORE;${comment}AFTER;`,
+      )
+    })
+    it('preserves escaped quotes inside strings', () => {
+      const input =
+        String.raw`before;"keep \" Me";after;`
+      expect(
+        mapCssCodeSegments(
+          input,
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        String.raw`BEFORE;"keep \" Me";AFTER;`,
+      )
+    })
+    it('preserves backslash escape parity while finding quoted-string ends', () => {
+      const input =
+        String.raw`before;"C:\\folder";after;`
+      expect(
+        mapCssCodeSegments(
+          input,
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        String.raw`BEFORE;"C:\\folder";AFTER;`,
+      )
+    })
+    it('transforms every independent code segment', () => {
+      const transform =
+        vi.fn(
+          (
+            segment: string,
+          ) =>
+            `[${segment}]`,
+        )
+      expect(
+        mapCssCodeSegments(
+          'a"x"b/* c */d',
+          transform,
+        ),
+      ).toBe(
+        '[a]"x"[b]/* c */[d]',
+      )
+      expect(
+        transform.mock.calls,
+      ).toEqual([
+        [
+          'a',
+        ],
+        [
+          'b',
+        ],
+        [
+          'd',
+        ],
+      ])
+    })
+    it('calls the transform for empty code segments surrounding opaque tokens', () => {
+      const transform =
+        vi.fn(
+          (
+            segment: string,
+          ) =>
+            segment,
+        )
+      mapCssCodeSegments(
+        '"quoted"',
+        transform,
+      )
+      expect(
+        transform.mock.calls,
+      ).toEqual([
+        [
+          '',
+        ],
+        [
+          '',
+        ],
+      ])
+    })
+    it('preserves an unclosed quoted string as opaque through end of input', () => {
+      expect(
+        mapCssCodeSegments(
+          'before;"unfinished',
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        'BEFORE;"unfinished',
+      )
+    })
+    it('preserves an unclosed block comment as opaque through end of input', () => {
+      expect(
+        mapCssCodeSegments(
+          'before;/* unfinished',
+          (segment) =>
+            segment.toUpperCase(),
+        ),
+      ).toBe(
+        'BEFORE;/* unfinished',
+      )
+    })
+    it('handles empty input', () => {
+      const transform =
+        vi.fn(
+          (
+            segment: string,
+          ) =>
+            `[${segment}]`,
+        )
+      expect(
+        mapCssCodeSegments(
+          '',
+          transform,
+        ),
+      ).toBe(
+        '[]',
+      )
+      expect(
+        transform,
+      ).toHaveBeenCalledWith('')
+    })
+    it('can safely apply DSL-like replacements only to code', () => {
+      expect(
+        mapCssCodeSegments(
+          [
+            'token',
+            'content:"token";',
+            '/* token */',
+            'other-token',
+          ].join('\n'),
+          (segment) =>
+            segment.replaceAll(
+              'token',
+              'expanded',
+            ),
+        ),
+      ).toBe([
+        'expanded',
+        'content:"token";',
+        '/* token */',
+        'other-expanded',
+      ].join('\n'))
+    })
+  })
+  describe('lexical integration', () => {
+    it('keeps string and comment payloads unchanged across code mapping and private-property mangling', () => {
+      const input = [
+        '--private-color:red;',
+        'content:"--private-color";',
+        '/* --private-color */',
+        'color:var(--private-color);',
+      ].join('')
+      const mapped =
+        mapCssCodeSegments(
+          input,
+          (segment) =>
+            segment.replace(
+              'red',
+              'blue',
+            ),
+        )
+      expect(
+        manglePrivateCustomPropertiesSafe(
+          mapped,
+          /^--private-/,
+        ),
+      ).toBe([
+        '--a:blue;',
+        'content:"--private-color";',
+        '/* --private-color */',
+        'color:var(--a);',
+      ].join(''))
+    })
+    it('preserves quoted semantic payloads through canonicalization and minification', () => {
+      const input =
+        '.label { content: "a   b /* c */"; }'
+      expect(
+        canonicalizeCssForIdentity(
+          input,
+        ),
+      ).toContain(
+        '"a   b /* c */"',
+      )
+      expect(
+        minifyCssText(
+          input,
+        ),
+      ).toContain(
+        '"a   b /* c */"',
+      )
+    })
+    it('produces deterministic mangling before minification', () => {
+      const input =
+        '.button { --private-color: red; color: var(--private-color); }'
+      const first =
+        minifyCssText(
+          manglePrivateCustomPropertiesSafe(
+            input,
+            /^--private-/,
+          ),
+        )
+      const second =
+        minifyCssText(
+          manglePrivateCustomPropertiesSafe(
+            input,
+            /^--private-/,
+          ),
+        )
+      expect(second).toBe(first)
+      expect(first).toBe(
+        '.button{--a:red;color:var(--a)}',
+      )
+    })
+  })
+  describe('regression contracts', () => {
+    it.todo(
+      'minifyCssText preserves a required token boundary when a removed block comment separates identifier-like tokens such as foo/**/bar',
+    )
+    it.todo(
+      'stripCipoComments preserves CRLF as one logical line ending instead of potentially emitting an extra newline after a removed line comment',
+    )
+    it.todo(
+      'stripCipoComments distinguishes hash-style Cipó comments from valid CSS id selectors beginning at the start of a line',
+    )
+    it.todo(
+      'manglePrivateCustomPropertiesSafe distinguishes custom-property tokens from matching text in URL-like unquoted payloads when required by CSS grammar',
+    )
+    it.todo(
+      'minifyCssText uses a more selective token-boundary classifier instead of preserving whitespace between every pair of non-punctuation tokens',
+    )
+    it.todo(
+      'canonicalizeCssForIdentity documents whether unterminated comments should canonicalize identically to the valid prefix before the comment',
+    )
+  })
+})

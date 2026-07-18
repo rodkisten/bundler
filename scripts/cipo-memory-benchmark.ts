@@ -1,10 +1,10 @@
 import { Session } from 'node:inspector'
 import { performance } from 'node:perf_hooks'
 import { atomic, css, sheet } from '@rodkisten/cipo'
-import { invalidateCssConfigApplications } from '@rodkisten/cipo/config-css'
-import { clearPolymorphicTemplateCache } from '@rodkisten/cipo/css'
-import { clearPolymorphicDetectionCache } from '@rodkisten/cipo/compiler-detect-mode'
-import { clearJitCaches } from '@rodkisten/cipo/runtime'
+import { invalidateCssConfigApplications } from '../cipo/config-css'
+import { clearPolymorphicTemplateCache } from '../cipo/css'
+import { clearPolymorphicDetectionCache } from '@rodkisten/cipo/compiler'
+import { clearJitCaches } from '../cipo/runtime'
 import {
   ATOMIC_CASE,
   CONFIG_CASE,

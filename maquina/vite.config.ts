@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import { cipoVite } from "@rodkisten/cipo/vite-compiled-inline";
+import { cipoVite } from "@rodkisten/cipo/vite";
 import { maquinaCipoConfigCss } from "@rodkisten/maquina/cipo-config";
 import {
   createBuildMetadata,

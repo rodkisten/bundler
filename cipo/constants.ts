@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
+ * import { STYLE_ELEMENT_ID } from './constants'
  * document.getElementById(STYLE_ELEMENT_ID)
  * ```
  */

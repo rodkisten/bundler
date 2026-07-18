@@ -1,5 +1,6 @@
-import { HASH_MASK, HASH_SEED } from '@rodkisten/cipo/constants'
-import type { CipoWarning, RuntimeState } from '@rodkisten/cipo/types'
+import { HASH_MASK, HASH_SEED } from './constants'
+import type { CipoWarning, RuntimeState } from './types'
+import { minifyCssText } from './syntax/css-lexer'
 
 const emittedWarningKeys = new Set<string>()
 
@@ -36,6 +37,28 @@ export function hashString(input: string): string {
 }
 
 /**
+ * Creates a stable composite 64-bit hash encoded as base36.
+ *
+ * @remarks
+ * The implementation keeps two independent 32-bit lanes so it remains fast in browser hot paths
+ * without BigInt allocation. Compiler-generated public identifiers use this wider hash while the
+ * legacy `hashString` remains available for non-public cache keys.
+ */
+export function hashString64(input: string): string {
+  let left = 0x811c9dc5
+  let right = 0x9e3779b9
+
+  for (let index = 0; index < input.length; index += 1) {
+    const code = input.charCodeAt(index)
+    left = Math.imul(left ^ code, 0x01000193)
+    right = Math.imul(right ^ (code + index), 0x85ebca6b)
+    right ^= right >>> 13
+  }
+
+  return `${(left >>> 0).toString(36).padStart(7, '0')}${(right >>> 0).toString(36).padStart(7, '0')}`
+}
+
+/**
  * Converts camelCase object keys to CSS kebab-case names.
  *
  * @param input - JS-style property name.
@@ -68,7 +91,7 @@ export function toKebabMixed(str: string): string {
  * ```
  */
 export function normalizeCss(input: string): string {
-  return input.replace(/\s+/g, ' ').replace(/\s*([{}:;,>+~])\s*/g, '$1').trim()
+  return minifyCssText(input)
 }
 
 /**
@@ -206,14 +229,29 @@ export function findTopLevelColon(input: string): number {
  * @returns Closing brace index or -1.
  */
 export function findMatchingBrace(input: string, startIndex: number): number {
-  let depth = 0
-  let quote: '"' | "'" | null = null
+  if (input[startIndex] !== '{') return -1
 
-  for (let index = startIndex; index < input.length; index += 1) {
-    const char = input[index]
+  let depth = 1
+  let quote: '"' | "'" | null = null
+  let escaped = false
+
+  for (let index = startIndex + 1; index < input.length; index += 1) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
 
     if (quote) {
-      if (char === quote && input[index - 1] !== '\\') quote = null
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = null
+      continue
+    }
+
+    // Braces inside CSS comments are data, not structure. Skipping the whole
+    // comment also prevents malformed debug/config parsing on commented blocks.
+    if (char === '/' && next === '*') {
+      const close = input.indexOf('*/', index + 2)
+      if (close < 0) return -1
+      index = close + 1
       continue
     }
 
@@ -223,9 +261,10 @@ export function findMatchingBrace(input: string, startIndex: number): number {
     }
 
     if (char === '{') depth += 1
-    else if (char === '}') depth -= 1
-
-    if (depth === 0) return index
+    else if (char === '}') {
+      depth -= 1
+      if (depth === 0) return index
+    }
   }
 
   return -1

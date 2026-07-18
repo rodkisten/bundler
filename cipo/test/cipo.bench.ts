@@ -1,11 +1,11 @@
 import { bench, beforeEach, describe } from 'vitest'
 import { atomic, css, inline, sheet } from '@rodkisten/cipo'
-import { invalidateCssConfigApplications } from '@rodkisten/cipo/config-css'
-import { clearPolymorphicTemplateCache } from '@rodkisten/cipo/css'
-import { clearPolymorphicDetectionCache } from '@rodkisten/cipo/compiler-detect-mode'
-import { clearJitCaches } from '@rodkisten/cipo/runtime'
-import { createAtomicClassName } from '@rodkisten/cipo/compiler-atomic-class-name'
-import { createAtomicRuleId } from '@rodkisten/cipo/compiler-selector-compile'
+import { invalidateCssConfigApplications } from '../config-css'
+import { clearPolymorphicTemplateCache } from '../css'
+import { clearPolymorphicDetectionCache } from '@rodkisten/cipo/compiler'
+import { clearJitCaches } from '../runtime'
+import { createAtomicClassName } from '@rodkisten/cipo/compiler'
+import { createAtomicRuleId } from '@rodkisten/cipo/compiler'
 import { compile as stylisCompile, serialize as stylisSerialize, stringify as stylisStringify } from 'stylis'
 import {
   ATOMIC_CASE,

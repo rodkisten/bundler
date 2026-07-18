@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFirstMeaningful, findNextTopLevelAt, splitPolymorphicCssSource } from "@rodkisten/cipo/css-mode";
+import { findFirstMeaningful, findNextTopLevelAt, splitPolymorphicCssSource } from "../css-mode";
 
 describe("Cipó css-mode scanner", () => {
   it("detects inline templates without invoking the compiler", () => {

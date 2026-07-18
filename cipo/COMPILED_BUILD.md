@@ -14,6 +14,15 @@ Compiled build mode keeps the authoring model exactly the same and moves expensi
 
 The important design point is that this is **not a second CSS engine**. Whole-build mode reuses Cipó's transformer, parser, alias/helper/theme resolution, selector compiler and stylesheet emitter. The extra build phase only owns global declaration counting, promotion, final class assignment and output consolidation.
 
+
+## Compiler isolation and diagnostics
+
+Build compilation runs inside a fresh `CompilerContext` backed by its own `RuntimeState`. The compiler never borrows the live application's atomic cache, generated stylesheet buffer, configuration-application cache, or generated-name collision registry. As a result, compiling A then B is deterministic with respect to compiling B then A, and a previously configured runtime cannot cause build configuration to be skipped.
+
+Static source analysis uses the TypeScript AST and lexical bindings rather than regex-based JavaScript scanning. Tagged templates inside `${...}` expressions are discovered correctly, shadowed identifiers are ignored, and generated imports are matched by module, imported symbol, and local binding.
+
+Compilation failures are fatal by default. Invalid static templates produce `CipoCompileError` diagnostics with filename, source location, diagnostic code, and the original cause instead of falling back to an empty stylesheet. Vite transforms also return source maps so transformed modules remain debuggable.
+
 ## CSS-first configuration
 
 Styling policy belongs in the Cipó configuration sheet, not in Vite options:
@@ -50,7 +59,7 @@ The same sheet controls runtime and production lowering:
 
 ```ts
 import { defineConfig } from 'vite'
-import { cipoVite } from '@rodkisten/cipo/vite-compiled-inline'
+import { cipoVite } from '@rodkisten/cipo/vite'
 import { appCipoConfigCss } from './cipo-config'
 
 export default defineConfig({
@@ -130,10 +139,17 @@ Whole-build mode emits only a temporary class token during source transformation
 3. promotes identities meeting `atomic-min-uses`;
 4. keeps the remaining declarations scoped;
 5. assigns final semantic or compact class names;
-6. rewrites temporary class tokens in rendered chunks;
+6. rewrites only compiler-owned JavaScript string literals that contain temporary class tokens;
 7. injects or emits one final stylesheet.
 
 This also means imported Maquina, DevTools and shared Fábrica Elements styled components can share the same atoms when they are part of the same final bundle.
+
+
+## Static configuration lowering
+
+The Vite integration only lowers `configureFromCss(...)` when the argument can be proven statically. String/template literals are compiled from their exact source value. Identifier arguments are lowered only when they are explicitly listed in `configRuntimeBindings` (the default contract includes `appConfigCss`). Unknown tenant, feature, or runtime-provided identifiers stay on the runtime parser path rather than being replaced with unrelated plugin configuration.
+
+This conservative rule prevents build optimization from changing configuration semantics.
 
 ## Runtime behavior
 

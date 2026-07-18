@@ -1,13 +1,15 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest'
-import { compileCipoSourceBuild, cipoVite, configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
+import { configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
+import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler'
+import { cipoVite } from '@rodkisten/cipo/vite'
 import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica'
 
 describe('Cipó + Fábrica compiled build mode', () => {
   it('compiles styled Cipó templates into real scoped CSS classes', () => {
     setup({ adapter: 'dom' })
     const source = `
-      import { styled } from '@rodkisten/cipo/devtools-components-runtime'
+      import { styled } from '@rodkisten/cipo'
       export const Panel = styled.div('Panel').css\`
         display: flex;
         gap: 8px;
@@ -118,10 +120,10 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.code).not.toContain('$primary')
   })
 
-  it('Vite plugin injects compiled CSS through Cipó runtime style tag and compiles Fabrica in build mode', () => {
+  it('Vite plugin injects compiled CSS through Cipó runtime style tag and compiles Fabrica in build mode', async () => {
     const plugin = cipoVite({ root: '/project', mode: 'build', compileFabrica: true })
     const context = { emitFile: () => 'asset' } as never
-    const transformed = plugin.transform?.call(
+    const transformed = await plugin.transform?.call(
       context,
       "const Card = styled.div('Card').css`color: red;`; const view = html`<section class=\"x\">Ok</section>`",
       '/project/src/devtools/card.ts',
@@ -142,6 +144,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
       root: '/project',
       mode: 'build',
       manifestFileName: 'maquina.cipo.compiled.manifest.json',
+      compileFabrica: false,
     })
     const context = {
       emitFile(asset: { type: string; fileName?: string; source?: unknown }) {
@@ -297,7 +300,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
       filename: '/project/src/components.ts',
       classNameMode: 'compact',
       coupleStyledCss: true,
-      styledCssHelperImportPath: '@rodkisten/cipo/compiler-compiled-style-runtime',
+      styledCssHelperImportPath: '@rodkisten/cipo/compiled-runtime',
       injectCssImport: false,
     })
 
@@ -335,12 +338,12 @@ describe('Cipó + Fábrica compiled build mode', () => {
       @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
       @breakpoints { md: 680px; }
     `
-    const plugin = cipoVite({ root: '/project', mode: 'build', configCss })
+    const plugin = cipoVite({ root: '/project', mode: 'build', configCss, compileFabrica: false })
     const context = { emitFile: () => 'asset' } as never
     const transformed = plugin.transform?.call(
       context,
-      `import { configureFromCss } from '@rodkisten/cipo/config-css';
-import { appConfigCss } from '@rodkisten/cipo/config';
+      `import { configureFromCss } from '@rodkisten/cipo';
+import { appConfigCss } from './config';
 configureFromCss(appConfigCss);`,
       '/project/src/devtools/bootstrap.ts',
     )
@@ -359,7 +362,8 @@ configureFromCss(appConfigCss);`,
       @cipo { prefix: rd; theme-root: :host; minify: true; }
       @theme { colors<color>: (primary: var(--primary)); radius<length>: (panel: 10px); }
     `
-    const { compileCssConfigPayload, configureCompiledCssConfig } = await import('@rodkisten/cipo')
+    const { compileCssConfigPayload } = await import('@rodkisten/cipo/compiler')
+    const { configureCompiledCssConfig } = await import('@rodkisten/cipo')
     const payload = compileCssConfigPayload(configCss)
 
     expect(payload).not.toBeNull()

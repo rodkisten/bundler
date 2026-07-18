@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
-import { compileSelector, resolveScopedSelector, wrapContext } from '@rodkisten/cipo/compiler-selector-compile'
+import { compileSelector, resolveScopedSelector, wrapContext } from '@rodkisten/cipo/compiler'
 
 describe('Cipó compiler/selector-compile', () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
-import { runtime } from '@rodkisten/cipo/runtime'
-import { getCssText } from '@rodkisten/cipo/injection'
+import { runtime } from './runtime'
+import { getCssText } from './injection'
 
 /** Snapshot returned by Cipó's lightweight debug observatory. */
 export interface CipoDebugOverlayStats {
