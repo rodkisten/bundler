@@ -1,4 +1,10 @@
 ## Unreleased
+- Fixed the floating entry button so its native drag/click guard forwards activation to the DevTools controller instead of swallowing the delegated click before the dock can open.
+- Added runtime and production-IIFE regression coverage that clicks the real floating entry button and verifies the dock opens and closes.
+- Restored lazy Elements traversal so its root-owned panel shell mounts immediately while the inspected page DOM is only walked after the panel becomes active.
+- Switched runtime style installation to the shared styled-component registry so newly declared panel/shared components cannot be omitted from the ShadowRoot stylesheet.
+- Removed duplicated `@cipo`, `@theme`, and `@breakpoints` DSL from the global DevTools sheet; the canonical CSS-first config remains `cipo-config.ts` and production lowering no longer leaks the duplicated raw theme block.
+- Updated DevTools context tests to the single-root Fábrica Provider architecture and panel tests to explicitly mount their root-owned views.
 - Added preserved IIFE banner metadata with the full build commit SHA and GMT-3 build timestamp through the shared build metadata helper.
 - Made CI hang diagnostics observable in real time by removing hidden `::debug::` reporter output and adding queued-file, active-file, active-test and heartbeat progress logs.
 

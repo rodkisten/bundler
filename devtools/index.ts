@@ -1,7 +1,6 @@
 import "@rodkisten/devtools/core/cipo-bootstrap";
 import {
   renderShell,
-  shellStyleArtifacts,
   type ShellRefs,
 } from "@rodkisten/devtools/core/shell";
 import {
@@ -36,41 +35,15 @@ import {
 } from "@rodkisten/devtools/core/theme";
 import { DevTools } from "@rodkisten/devtools/core/controller";
 import { EntryBtn } from "@rodkisten/devtools/core/entry-button";
-import {
-  Console,
-  consoleStyleArtifacts,
-} from "@rodkisten/devtools/panels/console";
-import {
-  Elements,
-  elementsStyleArtifacts,
-} from "@rodkisten/devtools/panels/elements";
-import {
-  Info,
-  infoStyleArtifacts,
-} from "@rodkisten/devtools/panels/info";
-import {
-  Network,
-  networkStyleArtifacts,
-} from "@rodkisten/devtools/panels/network";
-import {
-  Resources,
-  resourcesStyleArtifacts,
-} from "@rodkisten/devtools/panels/resources";
-import {
-  Settings,
-  settingsStyleArtifacts,
-} from "@rodkisten/devtools/panels/settings";
-import {
-  Snippets,
-  snippetsStyleArtifacts,
-} from "@rodkisten/devtools/panels/snippets";
-import {
-  Sources,
-  sourcesStyleArtifacts,
-} from "@rodkisten/devtools/panels/sources";
-import {
-  sharedStyleArtifacts,
-} from "@rodkisten/devtools/panels/shared-components";
+import { Console } from "@rodkisten/devtools/panels/console";
+import { Elements } from "@rodkisten/devtools/panels/elements";
+import { Info } from "@rodkisten/devtools/panels/info";
+import { Network } from "@rodkisten/devtools/panels/network";
+import { Resources } from "@rodkisten/devtools/panels/resources";
+import { Settings } from "@rodkisten/devtools/panels/settings";
+import { Snippets } from "@rodkisten/devtools/panels/snippets";
+import { Sources } from "@rodkisten/devtools/panels/sources";
+import { styledRegistry } from "@rodkisten/devtools/core/runtime";
 import { Tool } from "@rodkisten/devtools/tool";
 import type {
   DevtoolsInitOptions,
@@ -78,7 +51,6 @@ import type {
   ToolLike,
 } from "@rodkisten/devtools/types";
 import {
-  concatArrays,
   filterArray,
   filterMapArray,
   findArray,
@@ -603,18 +575,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
       this.style = installDevtoolsStyles(
         this.rootTarget,
-        concatArrays(
-          shellStyleArtifacts,
-          sharedStyleArtifacts,
-          consoleStyleArtifacts,
-          elementsStyleArtifacts,
-          networkStyleArtifacts,
-          infoStyleArtifacts,
-          resourcesStyleArtifacts,
-          settingsStyleArtifacts,
-          sourcesStyleArtifacts,
-          snippetsStyleArtifacts,
-        ),
+        styledRegistry.cssArtifacts,
       );
 
       debugLog("runtime", "styles installed", {
@@ -646,7 +607,9 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
       this.entryBtn = new EntryBtn(
         this.refs.entryButton,
         this.refs.root,
-      );
+      ).on("click", () => {
+        this.devtools?.toggle();
+      });
 
       this.mountSettings(normalizedOptions);
       this.mountTools(normalizedOptions.tools, normalizedOptions);

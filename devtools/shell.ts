@@ -651,10 +651,11 @@ export function renderShell(
     target: target instanceof ShadowRoot ? "shadow" : "element",
   });
 
-  const dispose = renderInto(target, DevtoolsContext.Provider({
-    value: shared,
-    children: () => html`<RodDevtoolsShell .refs=${refs} />`,
-  }));
+  const dispose = renderInto(target, html`
+    <${DevtoolsContext.Provider} props=${{ value: shared }}>
+      <RodDevtoolsShell .refs=${refs} />
+    </${DevtoolsContext.Provider}>
+  `);
 
   const shellRefs = assertShellRefs(refs, target);
   shared.refs.set(shellRefs);

@@ -21,15 +21,14 @@ describe("DevTools shared context", () => {
       return html`<span :reader=${props.name}>${state.host === host ? "shared" : "missing"}</span>`;
     });
 
-    const dispose = render(root, DevtoolsContext.Provider({
-      value: shared,
-      children: () => html`
+    const dispose = render(root, html`
+      <${DevtoolsContext.Provider} props=${{ value: shared }}>
         <section>
           <${Reader} name="first" />
           <div><${Reader} name="second" /></div>
         </section>
-      `,
-    }));
+      </${DevtoolsContext.Provider}>
+    `);
 
     expect(root.querySelector('[data-reader="first"]')?.textContent).toBe("shared");
     expect(root.querySelector('[data-reader="second"]')?.textContent).toBe("shared");
@@ -52,13 +51,14 @@ describe("DevTools shared context", () => {
       return html`<output>${() => `${app.host === host ? "shared" : "missing"}:${panel.count()}`}</output>`;
     });
 
-    const dispose = render(root, DevtoolsContext.Provider({
-      value: shared,
-      children: PanelContext.Provider({
-        value: { count },
-        children: () => PanelReader(),
-      }),
-    }));
+    const panelState = { count };
+    const dispose = render(root, html`
+      <${DevtoolsContext.Provider} props=${{ value: shared }}>
+        <${PanelContext.Provider} props=${{ value: panelState }}>
+          <${PanelReader} />
+        </${PanelContext.Provider}>
+      </${DevtoolsContext.Provider}>
+    `);
 
     const output = root.querySelector("output");
     expect(output?.textContent).toBe("shared:0");

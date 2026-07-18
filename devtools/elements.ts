@@ -411,7 +411,10 @@ export class Elements extends Tool {
   }
 
   private renderTreeContent(): RenderValue {
-    if (!document.documentElement) return null;
+    // Keep the shell mounted, but do not walk the inspected page until this
+    // panel is active. show() bumps treeRevision and materializes the tree.
+    if (!this.active || !document.documentElement) return null;
+
     return ElementsDomTreeView({
       children: this.renderNode(document.documentElement, 0),
     });

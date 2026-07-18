@@ -39,6 +39,9 @@ export function ref<T extends Element = HTMLElement>(callback: (node: T) => void
 export const styled = createStyled({ fabrica: devtoolsFabrica });
 export const compiledStyled = styled;
 
+/** Collects every styled component and static Cipó artifact created by DevTools. */
+export const styledRegistry = styled.registry;
+
 styled.connectRegistry(devtoolsFabrica);
 styled.flushRegistry();
 
