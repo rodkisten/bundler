@@ -1,5 +1,8 @@
+/** @vitest-environment jsdom */
+
 import { beforeEach, describe, expect, it } from 'vitest'
 import { configureFromCss, createStyled, getCssText, injectStyle, reset, setRuntimeStyleTarget } from '@rodkisten/cipo'
+import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
 
 function configure(minUses = 2, debug = false): void {
   configureFromCss(`
@@ -73,7 +76,7 @@ describe('Cipó runtime global atomic stylesheet', () => {
 
     const style = injectStyle(shadow, styled.registry.cssArtifacts)
 
-    expect(style.id).toBe('cipo-runtime')
+    expect(style.id).toBe(STYLE_ELEMENT_ID)
     expect(shadow.querySelectorAll('style')).toHaveLength(1)
     expect(style.textContent?.match(/display:flex/g)).toHaveLength(1)
   })

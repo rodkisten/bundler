@@ -257,7 +257,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
     expect(result.changed).toBe(true)
     expect(result.css).toContain('background:var(--rd-colors-background)')
-    expect(result.css).toContain('border:0.0625rem solid var(--rd-colors-border)')
+    expect(result.css).toMatch(/border:0?\.0625rem solid var\(--rd-colors-border\)/)
     expect(result.css).toContain('border-radius:var(--rd-radius-control)')
     expect(result.css).toContain('color:var(--rd-colors-primary)')
     expect(result.css).not.toMatch(/\$(?:background|border|primary|control)\b/)
@@ -348,6 +348,8 @@ configureFromCss(appConfigCss);`,
     const code = transformed && 'code' in transformed ? transformed.code : ''
     expect(code).toContain('configureCompiledCssConfig as __cipoConfigureCompiledCss')
     expect(code).toContain('__cipoConfigureCompiledCss({"operations":')
+    expect(code).not.toContain('configureFromCss')
+    expect(code).not.toContain('appConfigCss')
     expect(code).not.toContain('var(--rd-colors-primary)')
     expect(code).not.toContain('@theme')
   })
