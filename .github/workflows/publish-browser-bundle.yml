@@ -122,7 +122,7 @@ permissions:
 
 env:
   NODE_VERSION: "24"
-  PNPM_VERSION: "11.5.1"
+  PNPM_VERSION: "11.7.0"
   FULL_DIST_DIR: dist
   DEVTOOLS_DIST_DIR: dist
   PAGES_STATE_ARTIFACT: browser-pages-state
