@@ -213,23 +213,206 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: 📦 Setup pnpm
+      - name: 🪼Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
+          run_install: false
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          package-manager-cache: false
 
-      - name: 📚 Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: 🧹 Prepare completely isolated dependency environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🧹 Removing every existing node_modules directory..."
+
+          find . \
+            -type d \
+            -name node_modules \
+            -prune \
+            -exec rm -rf '{}' +
+
+          rm -rf .pnpm-store
+
+          # Every workflow execution receives a completely isolated pnpm store.
+          STORE_DIR="${RUNNER_TEMP}/pnpm-store-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          pnpm config set store-dir "${STORE_DIR}"
+
+          echo "📦 pnpm store:"
+          pnpm store path
+
+          echo "🟢 Node:"
+          node --version
+
+          echo "📦 pnpm:"
+          pnpm --version
+
+          echo "🔒 Lockfile:"
+          sha256sum pnpm-lock.yaml
+
+      - name: 📚 Install dependencies from lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pnpm install \
+            --frozen-lockfile \
+            --force
+
+      - name: 🔬 Inspect TypeScript dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 All TypeScript versions in pnpm-lock"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          grep -nE 'typescript(@|:)' pnpm-lock.yaml || true
+
+          echo
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 pnpm why typescript"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          pnpm why typescript -r || true
+
+          echo
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 Physical TypeScript packages"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          find node_modules/.pnpm \
+            -maxdepth 1 \
+            -type d \
+            -name 'typescript@*' \
+            -print \
+            | sort || true
+
+          echo
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 Root TypeScript resolution"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          node <<'NODE'
+          const path = require('node:path')
+
+          function inspect(label, base) {
+            try {
+              const packageJson = require.resolve(
+                'typescript/package.json',
+                { paths: [base] },
+              )
+
+              const pkg = require(packageJson)
+
+              console.log(`${label}:`)
+              console.log(`  base: ${base}`)
+              console.log(`  version: ${pkg.version}`)
+              console.log(`  package: ${packageJson}`)
+            } catch (error) {
+              console.error(`${label}: unable to resolve TypeScript`)
+              console.error(error)
+              process.exitCode = 1
+            }
+          }
+
+          inspect(
+            'workspace root',
+            process.cwd(),
+          )
+
+          inspect(
+            'cipo',
+            path.resolve(
+              process.cwd(),
+              'cipo',
+            ),
+          )
+          NODE
+
+      - name: 🛡️ Assert TypeScript 6
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const path = require('node:path')
+
+          const locations = [
+            [
+              'workspace root',
+              process.cwd(),
+            ],
+            [
+              'cipo',
+              path.resolve(
+                process.cwd(),
+                'cipo',
+              ),
+            ],
+          ]
+
+          let failed = false
+
+          for (const [label, base] of locations) {
+            const packageJson = require.resolve(
+              'typescript/package.json',
+              { paths: [base] },
+            )
+
+            const {
+              version,
+            } = require(packageJson)
+
+            console.log(
+              `🔎 ${label}: TypeScript ${version}`,
+            )
+
+            if (
+              !version.startsWith('6.')
+            ) {
+              console.error(
+                `❌ ${label} resolved TypeScript ${version}. Expected TypeScript 6.x.`,
+              )
+
+              console.error(
+                `   Resolved from: ${packageJson}`,
+              )
+
+              failed = true
+            }
+          }
+
+          if (failed) {
+            process.exit(1)
+          }
+
+          console.log(
+            '✅ Every checked workspace resolves TypeScript 6.x.',
+          )
+          NODE
 
       - name: 🔎 Typecheck
         if: ${{ inputs.should_typecheck != 'false' }}
-        run: pnpm typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🔎 TypeScript CLI:"
+          pnpm exec tsc --version
+
+          echo "🔎 TypeScript CLI path:"
+          command -v tsc || true
+
+          pnpm typecheck
 
       - name: 🧪 Run tests
         if: ${{ needs.scope.outputs.should_test == 'true' }}
