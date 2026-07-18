@@ -6,7 +6,7 @@ import { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
 import { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
 import type { RuntimeCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
 import { createStyled, getCssText, reset, setup } from "@rodkisten/cipo";
-import { setRuntimeStyleTarget } from "@rodkisten/cipo/injection";
+import { setRuntimeStyleTarget } from "@rodkisten/cipo";
 
 describe("compiled templates with styled Fabrica components", () => {
   let host: HTMLDivElement;
