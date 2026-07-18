@@ -56,7 +56,7 @@ export function compileRuntimeAtomicStyles(
       }
 
       scopedRules.push({
-        selector: resolveScopedSelector(artifact.scopeClassName, ''),
+        selector: resolveScopedSelector(artifact.scopeClassName, '', atom.context),
         declarations: [atomToDeclaration(atom)],
         context: atom.context,
       })

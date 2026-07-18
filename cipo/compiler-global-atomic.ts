@@ -112,7 +112,7 @@ export function compileGlobalAtomicStyles(
       }
 
       fallbackRules.push({
-        selector: resolveScopedSelector(plan.scopeClassName, ''),
+        selector: resolveScopedSelector(plan.scopeClassName, '', atom.context),
         declarations: [atomToDeclaration(atom)],
         context: atom.context,
       })

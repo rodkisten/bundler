@@ -109,7 +109,7 @@ export function collectBlock(name: string, body: readonly CipoAstNode[], context
 
   if (runtime.variantRegistry.has(normalized)) {
     for (const selector of runtime.variantRegistry.get(normalized) ?? []) {
-      scopedRules.push({ selector: resolveScopedSelector(scopeClassName, selector), declarations: body.filter(isDeclarationNode), context })
+      scopedRules.push({ selector: resolveScopedSelector(scopeClassName, selector, context), declarations: body.filter(isDeclarationNode), context })
     }
     return
   }
@@ -120,7 +120,7 @@ export function collectBlock(name: string, body: readonly CipoAstNode[], context
     return
   }
 
-  scopedRules.push({ selector: resolveScopedSelector(scopeClassName, normalized), declarations, context })
+  scopedRules.push({ selector: resolveScopedSelector(scopeClassName, normalized, context), declarations, context })
 }
 
 /** Type guard for declaration nodes. */

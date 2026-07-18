@@ -63,6 +63,11 @@ on:
         type: boolean
         description: "Delete the previous published files before deploy?"
         default: false
+      debug_tests:
+        type: boolean
+        description: "Debug tests (verbose)?"
+        default: false
+        
 
   workflow_call:
     inputs:
@@ -94,6 +99,10 @@ on:
         type: boolean
         required: false
         default: false
+      debug_tests:
+        type: boolean
+        required: false
+        default: false
     secrets:
       GIST_TOKEN:
         required: false
@@ -118,6 +127,7 @@ env:
   DEVTOOLS_DIST_DIR: dist
   PAGES_STATE_ARTIFACT: browser-pages-state
   MAIN_FULL_INTERVAL_SECONDS: "300"
+  
 
 jobs:
   scope:
@@ -195,6 +205,7 @@ jobs:
       TZ: America/Sao_Paulo
       BUILD_SCOPE: ${{ needs.scope.outputs.build_scope }}
       RELEASE_CHANNEL: ${{ needs.scope.outputs.release_channel }}
+      DEBUG_TESTS: ${inputs.debug_tests}
 
     steps:
       - name: 📥 Checkout source

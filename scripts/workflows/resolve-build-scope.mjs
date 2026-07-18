@@ -1,7 +1,7 @@
 import { env, envBoolean, git, githubJson, writeOutput } from "./utils.mjs";
 
 const EMPTY_SHA = "0000000000000000000000000000000000000000";
-const ALL_PROJECTS = ["broto", "cipo", "fabrica", "fabrica-elements", "seiva-state", "bundle", "maquina", "devtools"];
+const ALL_PROJECTS = ["broto", "cipo", "fabrica", "fabrica-elements", "seiva-state", "bundle", "maquina", "devtools", "nascente"];
 const TEST_FILE_PATTERN = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$|^vitest\.config\.|^scripts\/.*benchmark/;
 
 function changedFilesForEvent(eventName) {
@@ -34,6 +34,7 @@ function spawnGitCatFile(sha) {
 }
 
 function projectForPath(file) {
+  if (/^nascente\//.test(file)) return "nascente";
   if (/^devtools\//.test(file)) return "devtools";
   if (/^fabrica\//.test(file)) return "fabrica";
   if (/^cipo\//.test(file)) return "cipo";
@@ -131,7 +132,7 @@ else if (testMode === "never") shouldTest = false;
 else if (testMode === "auto") shouldTest = buildScope === "all" || testsChanged || affectedCount > 1;
 else throw new Error(`Unknown test mode: ${testMode}`);
 
-const shouldDeploy = eventName !== "pull_request" && requestedDeploy && buildScope !== "none";
+const shouldDeploy = /* eventName !== "pull_request" && */ requestedDeploy && buildScope !== "none";
 const outputs = {
   build_scope: buildScope,
   affected_projects: affectedProjects.join(","),

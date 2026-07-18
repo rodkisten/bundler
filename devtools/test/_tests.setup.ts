@@ -57,7 +57,7 @@ export function polyfillBrowserApis(): void {
 }
 
 
-export const mocks = vi.hoisted(() => {
+const hoistedMocks = vi.hoisted(() => {
   const copyText = vi.fn<(...args: unknown[]) => Promise<void>>(
     async () => undefined,
   );
@@ -97,18 +97,22 @@ export const mocks = vi.hoisted(() => {
   };
 });
 
+export function getMocks(): typeof hoistedMocks {
+  return hoistedMocks;
+}
+
 vi.mock("@rodkisten/devtools/utils", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@rodkisten/devtools/utils")>();
 
   return {
     ...actual,
-    copyText: mocks.copyText,
+    copyText: hoistedMocks.copyText,
   };
 });
 
 vi.mock("@rodkisten/devtools/core-event-listeners", () => ({
-  getEventListeners: mocks.getEventListeners,
-  installEventListenerRegistry: mocks.installEventListenerRegistry,
+  getEventListeners: hoistedMocks.getEventListeners,
+  installEventListenerRegistry: hoistedMocks.installEventListenerRegistry,
 }));
 
 
@@ -116,7 +120,7 @@ vi.mock("@rodkisten/devtools/core-code-editor", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@rodkisten/devtools/core-code-editor")>();
   return {
     ...actual,
-    mountCodeEditor: mocks.mountCodeEditor,
+    mountCodeEditor: hoistedMocks.mountCodeEditor,
   };
 });
 
@@ -127,7 +131,7 @@ vi.mock("@rodkisten/devtools/core-highlighter", () => ({
     readonly destroy = vi.fn(() => this.hide());
 
     constructor(_host?: HTMLElement) {
-      mocks.highlighterInstances.push(this);
+      hoistedMocks.highlighterInstances.push(this);
     }
   },
 }));
