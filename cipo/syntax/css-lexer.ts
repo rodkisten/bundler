@@ -1,0 +1,401 @@
+/** Lightweight lexical state shared by safe CSS canonicalization and minification. */
+interface CssLexState {
+  quote: '"' | "'" | ''
+  escaped: boolean
+  blockComment: boolean
+}
+
+const EMPTY_STATE: CssLexState = {
+  quote: '',
+  escaped: false,
+  blockComment: false,
+}
+
+/**
+ * Canonicalizes CSS fragments for cache identity without rewriting token
+ * punctuation or quoted content.
+ *
+ * @remarks
+ * Identity canonicalization intentionally performs fewer transformations than
+ * minification. False negatives in dedupe only cost bytes; false positives can
+ * alias two semantically different declarations to one atomic class.
+ */
+export function canonicalizeCssForIdentity(input: string): string {
+  let output = ''
+  let pendingWhitespace = false
+  const state: CssLexState = { ...EMPTY_STATE }
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (state.blockComment) {
+      if (char === '*' && next === '/') {
+        state.blockComment = false
+        index += 1
+        pendingWhitespace = true
+      }
+      continue
+    }
+
+    if (state.quote) {
+      output += char
+      if (state.escaped) state.escaped = false
+      else if (char === '\\') state.escaped = true
+      else if (char === state.quote) state.quote = ''
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      state.blockComment = true
+      index += 1
+      pendingWhitespace = true
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      if (pendingWhitespace && output && !output.endsWith(' ')) output += ' '
+      pendingWhitespace = false
+      state.quote = char
+      output += char
+      continue
+    }
+
+    if (/\s/.test(char)) {
+      pendingWhitespace = true
+      continue
+    }
+
+    if (pendingWhitespace && output && !output.endsWith(' ')) output += ' '
+    pendingWhitespace = false
+    output += char
+  }
+
+  return output.trim()
+}
+
+/**
+ * Conservatively minifies CSS while preserving strings, escapes and whitespace
+ * required to separate identifier-like tokens.
+ */
+export function minifyCssText(input: string): string {
+  let output = ''
+  let index = 0
+  let quote = ''
+  let escaped = false
+
+  while (index < input.length) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (quote) {
+      output += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      index += 1
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      const end = input.indexOf('*/', index + 2)
+      index = end < 0 ? input.length : end + 2
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      index += 1
+      continue
+    }
+
+    if (/\s/.test(char)) {
+      let cursor = index + 1
+      while (cursor < input.length && /\s/.test(input[cursor]!)) cursor += 1
+      const previous = output.at(-1) ?? ''
+      const following = input[cursor] ?? ''
+
+      if (needsWhitespaceBetween(previous, following)) output += ' '
+      index = cursor
+      continue
+    }
+
+    if (char === '}' && output.endsWith(';')) output = output.slice(0, -1)
+
+    output += char
+    index += 1
+  }
+
+  return output.trim()
+}
+
+/**
+ * Removes Cipó comments without mistaking protocol-relative URLs for `//`
+ * comments. Quoted strings are always opaque.
+ */
+export function stripCipoComments(input: string): string {
+  let output = ''
+  let quote = ''
+  let escaped = false
+  let lineOnlyWhitespace = true
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (quote) {
+      output += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      if (char === '\n' || char === '\r') lineOnlyWhitespace = true
+      else if (!/\s/.test(char)) lineOnlyWhitespace = false
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      lineOnlyWhitespace = false
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      const end = input.indexOf('*/', index + 2)
+      index = end < 0 ? input.length : end + 1
+      continue
+    }
+
+    if (char === '/' && next === '/' && isLineCommentStart(input, index, lineOnlyWhitespace)) {
+      index = skipUntilLineEnd(input, index + 2)
+      output += '\n'
+      lineOnlyWhitespace = true
+      continue
+    }
+
+    if (char === '#' && lineOnlyWhitespace) {
+      index = skipUntilLineEnd(input, index + 1)
+      output += '\n'
+      lineOnlyWhitespace = true
+      continue
+    }
+
+    output += char
+    if (char === '\n' || char === '\r') lineOnlyWhitespace = true
+    else if (!/\s/.test(char)) lineOnlyWhitespace = false
+  }
+
+  return output
+}
+
+/**
+ * Renames private custom properties only in CSS code tokens. Text inside quoted
+ * strings and comments is left untouched.
+ */
+export function manglePrivateCustomPropertiesSafe(input: string, pattern: RegExp): string {
+  const names = collectPrivateCustomProperties(input, pattern)
+  if (names.size === 0) return input
+
+  let output = ''
+  let quote = ''
+  let escaped = false
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (quote) {
+      output += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      const end = input.indexOf('*/', index + 2)
+      const final = end < 0 ? input.length : end + 2
+      output += input.slice(index, final)
+      index = final - 1
+      continue
+    }
+
+    if (char === '-' && next === '-') {
+      const match = /^--[A-Za-z0-9_-]+/.exec(input.slice(index))
+      if (match) {
+        output += names.get(match[0]) ?? match[0]
+        index += match[0].length - 1
+        continue
+      }
+    }
+
+    output += char
+  }
+
+  return output
+}
+
+/**
+ * Maps only lexical CSS code segments while preserving quoted strings and block
+ * comments byte-for-byte. This is the shared primitive for textual DSL passes
+ * that must never rewrite semantic string/comment payloads.
+ */
+export function mapCssCodeSegments(
+  input: string,
+  transform: (segment: string) => string,
+): string {
+  let output = ''
+  let codeStart = 0
+  let index = 0
+
+  while (index < input.length) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (char === '"' || char === "'") {
+      output += transform(input.slice(codeStart, index))
+      const end = findQuotedEnd(input, index, char)
+      output += input.slice(index, end)
+      index = end
+      codeStart = index
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      output += transform(input.slice(codeStart, index))
+      const close = input.indexOf('*/', index + 2)
+      const end = close < 0 ? input.length : close + 2
+      output += input.slice(index, end)
+      index = end
+      codeStart = index
+      continue
+    }
+
+    index += 1
+  }
+
+  output += transform(input.slice(codeStart))
+  return output
+}
+
+function findQuotedEnd(input: string, start: number, quote: string): number {
+  let escaped = false
+  for (let index = start + 1; index < input.length; index += 1) {
+    const char = input[index]!
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+    if (char === quote) return index + 1
+  }
+  return input.length
+}
+
+function collectPrivateCustomProperties(input: string, pattern: RegExp): Map<string, string> {
+  const output = new Map<string, string>()
+  const privateNames: string[] = []
+  const reservedNames = new Set<string>()
+  const safePattern = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ''))
+  let quote = ''
+  let escaped = false
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]!
+    const next = input[index + 1] ?? ''
+
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      const end = input.indexOf('*/', index + 2)
+      index = end < 0 ? input.length : end + 1
+      continue
+    }
+
+    if (char !== '-' || next !== '-') continue
+    const match = /^--[A-Za-z0-9_-]+/.exec(input.slice(index))
+    if (!match) continue
+
+    const name = match[0]
+    reservedNames.add(name)
+    safePattern.lastIndex = 0
+    if (safePattern.test(name) && !privateNames.includes(name)) privateNames.push(name)
+    index += name.length - 1
+  }
+
+  let candidateIndex = 0
+  for (const name of privateNames) {
+    let candidate = ''
+    do {
+      candidate = `--${encodeIdentifier(candidateIndex)}`
+      candidateIndex += 1
+    } while (reservedNames.has(candidate) || hasMappedValue(output, candidate))
+    output.set(name, candidate)
+  }
+
+  return output
+}
+
+function hasMappedValue(values: ReadonlyMap<string, string>, candidate: string): boolean {
+  for (const value of values.values()) if (value === candidate) return true
+  return false
+}
+
+function needsWhitespaceBetween(previous: string, following: string): boolean {
+  if (!previous || !following) return false
+  if (/[{}:;,>~]/.test(previous) || /[{}:;,>~]/.test(following)) return false
+  // Keep whitespace around arithmetic operators. `calc(1 + 2)` is not safely
+  // equivalent to `calc(1+2)` in all CSS grammar positions.
+  if (/[+\-*/]/.test(previous) || /[+\-*/]/.test(following)) return true
+  return true
+}
+
+function isLineCommentStart(input: string, index: number, lineOnlyWhitespace: boolean): boolean {
+  if (lineOnlyWhitespace) return true
+  let previous = index - 1
+  while (previous >= 0 && /[ \t]/.test(input[previous]!)) previous -= 1
+  const previousChar = input[previous] ?? ''
+  if (previousChar === ':' || previousChar === '(') return false
+  return true
+}
+
+function skipUntilLineEnd(input: string, start: number): number {
+  for (let index = start; index < input.length; index += 1) {
+    if (input[index] === '\n' || input[index] === '\r') return index
+  }
+  return input.length
+}
+
+function encodeIdentifier(index: number): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const radix = alphabet.length
+  let value = index
+  let output = ''
+
+  do {
+    output = alphabet[value % radix]! + output
+    value = Math.floor(value / radix) - 1
+  } while (value >= 0)
+
+  return output
+}
