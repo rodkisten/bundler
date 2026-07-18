@@ -1,4 +1,4 @@
-import { runtime } from "@rodkisten/cipo/runtime";
+import { runtime } from "./runtime";
 import type {
   CipoCssArtifact,
   CipoCssInterpolation,
@@ -6,27 +6,24 @@ import type {
   CipoStyleObject,
   CipoStylesheetArtifact,
   CipoWarning,
-} from "@rodkisten/cipo/types";
-import { buildCss, transformCss } from "@rodkisten/cipo/transform";
-import { normalizeTemplateChunk } from "@rodkisten/cipo/safe-template";
-import { parseStylesheet } from "@rodkisten/cipo/parser";
+} from "./types";
+import { buildCss, transformCss } from "./transform/index";
+import { normalizeTemplateChunk } from "./transform/safety";
+import { parseStylesheet } from "./syntax/parser";
+import { compileAtomicCss, createAtomicArtifact } from "./engine/atomic/compile";
 import {
-  compileAtomicCss,
   compileSheetCss,
   compileScopedSheetCss,
   wrapSheetLayer,
-  createArtifactCacheKey,
-  createAtomicArtifact,
   createStylesheetArtifact,
-  getCachedArtifact,
-  setCachedArtifact,
   shouldCompileAsStylesheet,
   injectSheetInto,
-} from "@rodkisten/cipo/compiler-index";
-import { insertCss, registerAtomicArtifact } from "@rodkisten/cipo/injection";
-import { configureFromCss } from "@rodkisten/cipo/config-css";
-import { inline } from "@rodkisten/cipo/inline";
-import { splitPolymorphicCssSource, type PolymorphicCssSource } from "@rodkisten/cipo/css-mode";
+} from "./engine/stylesheet/compile";
+import { createArtifactCacheKey, getCachedArtifact, setCachedArtifact } from "./engine/cache";
+import { insertCss, registerAtomicArtifact } from "./injection";
+import { configureFromCss } from "./config-css";
+import { inline } from "./inline";
+import { splitPolymorphicCssSource, type PolymorphicCssSource } from "./css-mode";
 
 /***************************************************************************************************
  * Public Types
@@ -337,7 +334,7 @@ function compilePolymorphicCss(
       ? inline.css.withImportant(first, ...values)
       : inline.css(first, ...values);
 
-  const { rawCss, source: polymorphic } = getPolymorphicTemplateSource(
+  const { source: polymorphic } = getPolymorphicTemplateSource(
     first as TemplateStringsArray,
     values,
   );

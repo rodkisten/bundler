@@ -1,15 +1,15 @@
-import { runtime } from '@rodkisten/cipo/runtime'
+import { runtime } from './runtime'
 import type {
   CipoPropertyDefinition,
   CipoPropertyMap,
   CipoTypedPropertyOptions,
   CipoTypedValue,
-} from '@rodkisten/cipo/types'
-import { getThemeType, normalizeThemeTypeName, validateThemeValue } from '@rodkisten/cipo/theme-types'
-import { wrapLayer } from '@rodkisten/cipo/format'
-import { insertCss } from '@rodkisten/cipo/injection'
-import { normalizeValue } from '@rodkisten/cipo/values'
-import { splitTopLevel, toKebabMixed } from '@rodkisten/cipo/utils'
+} from './types'
+import { getThemeType, normalizeThemeTypeName, validateThemeValue } from './theme-types'
+import { wrapLayer } from './format'
+import { insertCss } from './injection'
+import { normalizePxValues } from './helpers'
+import { splitTopLevel, toKebabMixed } from './utils'
 
 /**
  * CSS Properties and Values API support for Cipó.
@@ -129,7 +129,7 @@ export const typed = new Proxy(createTypedValue, {
     if (propertyKey in typedHelpers) return typedHelpers[propertyKey as keyof typeof typedHelpers]
     return Reflect.get(target, propertyKey, receiver)
   },
-}) as import('@rodkisten/cipo/types').CipoTypedFactory
+}) as import('./types').CipoTypedFactory
 
 export function isTypedValue(value: unknown): value is CipoTypedValue {
   return Boolean(value && typeof value === 'object' && (value as { kind?: unknown }).kind === 'cipo.typed')
@@ -225,7 +225,7 @@ export function normalizeTypedCssValue(value: string): CipoTypedValue | null {
 }
 
 export function getTypedInitialValue(value: CipoTypedValue): string {
-  return normalizeValue('theme-token', value.initialValue)
+  return normalizePropertyInitialValue(value.initialValue)
 }
 
 function normalizePropertyDefinition(definition: CipoPropertyDefinition): Required<CipoPropertyDefinition> {
@@ -234,8 +234,13 @@ function normalizePropertyDefinition(definition: CipoPropertyDefinition): Requir
     syntax: String(definition.syntax || '*'),
     inherits: definition.inherits !== false,
     initial: String(initialValue),
-    initialValue: normalizeValue('theme-token', String(initialValue)),
+    initialValue: normalizePropertyInitialValue(initialValue),
   }
+}
+
+function normalizePropertyInitialValue(value: string | number): string {
+  // CSS @property initial-value must be computationally independent, so theme var() references are intentionally not resolved here.
+  return normalizePxValues(String(value).trim())
 }
 
 function propertySignature(name: string, definition: Required<CipoPropertyDefinition>): string {

@@ -1,35 +1,38 @@
 # Cipó Compiled Inline Mode
 
-Compiled inline mode is the first production-safe compiler surface for Cipó and
-Fábrica. It keeps the current authoring model, but makes the compiled artifact
-explicit before runtime rendering.
+Compiled inline mode keeps Cipó/Fábrica authoring syntax while moving static CSS parsing out of the rendering hot path. The source compiler analyzes JavaScript and TypeScript with the TypeScript AST, identifies real Cipó/Fábrica styled-template bindings, and rewrites only statically provable templates into explicit compiled artifacts.
 
-## What it does today
+## What it does
 
-- uses the existing Cipó compiler and parser;
-- compiles to `cipo.inline-css` by default;
-- does not emit a generated CSS file yet;
-- works with Fábrica styled components;
-- exposes a Vite plugin for DevTools/playground builds;
-- keeps runtime fallback behavior for userscripts and non-Vite builds.
+- reuses Cipó's parser, transformer, helpers, aliases, theme resolution, and inline emitter;
+- analyzes source with TypeScript AST and lexical bindings instead of regex-scanning JavaScript;
+- discovers nested styled templates inside template interpolations;
+- ignores shadowed lookalike identifiers and text that merely resembles code inside strings/comments;
+- injects imports by exact module/imported-name/local-binding semantics;
+- emits `cipo.inline-css` artifacts without requiring a generated CSS asset;
+- keeps runtime fallback behavior for userscripts and non-Vite builds;
+- reports static compiler failures as structured `CipoCompileError` diagnostics.
 
 ## Use with Vite
 
 ```ts
 import { defineConfig } from 'vite'
-import { cipoVite } from './src/cipo/src/vite'
+import { cipoVite } from '@rodkisten/cipo/vite'
 
 export default defineConfig({
   plugins: [
-    cipoVite(),
+    cipoVite({
+      mode: 'inline',
+      compileFabrica: true,
+    }),
   ],
 })
 ```
 
-You keep writing components the same way:
+Authoring remains unchanged:
 
 ```ts
-import { styled } from './runtime'
+import { styled } from '@rodkisten/cipo'
 
 export const Panel = styled.div('Panel').css`
   px(3)
@@ -39,11 +42,11 @@ export const Panel = styled.div('Panel').css`
 `
 ```
 
-The plugin rewrites that to an explicit inline artifact call:
+Conceptually, the source transform lowers the static template to a compiler artifact rather than asking the browser runtime to parse the DSL again:
 
 ```ts
-import { compiledInlineCss } from '../cipo/src/compiler/compiled-inline'
-import { styled } from './runtime'
+import { compiledInlineCss } from '@rodkisten/cipo/compiler'
+import { styled } from '@rodkisten/cipo'
 
 export const Panel = styled.div('Panel')(compiledInlineCss`
   px(3)
@@ -53,16 +56,15 @@ export const Panel = styled.div('Panel')(compiledInlineCss`
 `)
 ```
 
-That means DevTools can inspect the compiled artifact, while the DOM still gets
-plain inline declarations through Fábrica.
+The exact generated form is an implementation detail of the compiler. Consumers should import compiler APIs only through `@rodkisten/cipo/compiler`.
 
-## Use without Vite
+## Use without the Vite transform
 
-Use the compiled styled factory directly:
+The compiler entrypoint can be called directly by build tooling:
 
 ```ts
-import { createCompiledStyled } from './src/cipo'
-import { createFabrica } from './src/fabrica'
+import { createCompiledStyled } from '@rodkisten/cipo/compiler'
+import { createFabrica } from '@rodkisten/fabrica'
 
 const fabrica = createFabrica({ name: 'app', isolated: true })
 const styled = createCompiledStyled({ fabrica })
@@ -74,14 +76,8 @@ export const Button = styled.button('Button').css`
 `
 ```
 
-## DevTools build
+The compiler entrypoint is intentionally separate from `@rodkisten/cipo`. Importing the normal runtime does not load TypeScript, the source compiler, or the Vite integration.
 
-The root `pnpm build` now builds the `src/devtools.ts` entry through Vite with
-`cipoVite()`. Other root entries still use the existing esbuild path. This makes
-DevTools the playground for compiled mode without forcing the rest of the bundle
-to move to Vite at once.
+## Boundary with whole-build mode
 
-## Current boundary
-
-This mode intentionally avoids CSS file output. The next compiler step can add
-atomic/scoped CSS emission, but inline mode gives a small, testable base first.
+Inline mode intentionally keeps declarations attached to inline artifacts and does not require CSS-file output. For cross-component declaration reuse, atomic promotion, scoped fallbacks, global class finalization, and one consolidated stylesheet, use `cipoVite({ mode: 'build' })`; see [`COMPILED_BUILD.md`](./COMPILED_BUILD.md).

@@ -1,1 +1,1 @@
-export * from '@rodkisten/cipo/vite-compiled-inline'
+export * from './integrations/vite/plugin'

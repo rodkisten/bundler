@@ -1,7 +1,7 @@
-import { DEFAULT_LAYER_DECLARATION } from '@rodkisten/cipo/constants'
-import { runtime } from '@rodkisten/cipo/runtime'
-import type { CipoLayerName } from '@rodkisten/cipo/types'
-import { normalizeCss } from '@rodkisten/cipo/utils'
+import { DEFAULT_LAYER_DECLARATION } from './constants'
+import { runtime } from './runtime'
+import type { CipoLayerName } from './types'
+import { normalizeCss } from './utils'
 
 /**
  * Wraps generated CSS in a named cascade layer when layers are enabled.

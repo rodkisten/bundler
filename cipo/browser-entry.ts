@@ -12,12 +12,14 @@ import {
   inline as coreInline,
   sheet as coreSheet,
   styled as coreStyled,
-} from '@rodkisten/cipo'
-import { hydrateDocumentStartStyles } from '@rodkisten/cipo/document-start-hydration'
+  installBrowserGlobal,
+} from './index'
+import { hydrateDocumentStartStyles } from './document-start-hydration'
 
 hydrateDocumentStartStyles()
+installBrowserGlobal(globalThis)
 
-export * from '@rodkisten/cipo'
+export * from './index'
 export {
   coreAtomic as atomic,
   coreCipo as cipo,

@@ -1,9 +1,9 @@
-import { DEFAULT_SPACING_VALUE } from "@rodkisten/cipo/constants";
-import { registerHelper, registerNativeFunction } from "@rodkisten/cipo/plugins";
-import { runtime } from "@rodkisten/cipo/runtime";
-import { createOklchUtilityColor } from "@rodkisten/cipo/runtime-dsl";
-import type { CipoHelperContext } from "@rodkisten/cipo/types";
-import { splitTopLevel, toKebabMixed } from "@rodkisten/cipo/utils";
+import { DEFAULT_SPACING_VALUE } from "./constants";
+import { registerHelper, registerNativeFunction } from "./plugin-registry";
+import { runtime } from "./runtime";
+import { createOklchUtilityColor } from "./runtime-dsl";
+import type { CipoHelperContext } from "./types";
+import { splitTopLevel, toKebabMixed } from "./utils";
 
 /**
  * Installs CSS-native function names that Cipó should preserve instead of

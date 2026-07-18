@@ -1,8 +1,7 @@
-import { DEFAULT_BASE_FONT_SIZE } from '@rodkisten/cipo/constants'
-import { clearJitCaches, runtime } from '@rodkisten/cipo/runtime'
-import type { CipoAtomicPromotionConfig, CipoConfig, CipoDebugConfig, CipoDebugOverlayConfig, CipoJitConfig, CipoRemConfig, CipoScopeConfig, RuntimeConfig } from '@rodkisten/cipo/types'
-import { theme } from '@rodkisten/cipo/theme'
-import { configureCss } from '@rodkisten/cipo/config-css'
+import { DEFAULT_BASE_FONT_SIZE } from './constants'
+import { clearJitCaches, runtime } from './runtime'
+import type { CipoAtomicPromotionConfig, CipoConfig, CipoDebugConfig, CipoDebugOverlayConfig, CipoJitConfig, CipoRemConfig, CipoScopeConfig, RuntimeConfig } from './types'
+import { theme } from './theme'
 
 /**
  * Configures the Cipó runtime.
@@ -58,14 +57,10 @@ export function configure(config: CipoConfig): void {
   if (config.theme) theme(config.theme)
 }
 
-/** Ergonomic alias for configure(). */
-Object.assign(configure, { css: configureCss })
-
 export function setup(config: CipoConfig): void {
   configure(config)
 }
 
-Object.assign(setup, { css: configureCss })
 
 
 function normalizeAtomicConfig(

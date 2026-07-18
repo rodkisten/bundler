@@ -1,8 +1,9 @@
-import { compileAtomicRule } from '@rodkisten/cipo/compiler-index'
-import { atomic, sheet } from '@rodkisten/cipo/css'
-import { transformCss } from '@rodkisten/cipo/transform'
-import { runtime } from '@rodkisten/cipo/runtime'
-import type { CipoExplainResult } from '@rodkisten/cipo/types'
+import { compileAtomicRule } from './engine/emitter'
+import { atomic, sheet } from './css'
+import { transformCss } from './transform/index'
+import { runtime } from './runtime'
+import type { CipoExplainResult } from './types'
+import { findMatchingBrace } from './utils'
 
 /**
  * Explains a generated atomic class.
@@ -187,22 +188,6 @@ function validatePropertyBlocks(cssText: string, issues: CipoValidationIssue[]):
   }
 }
 
-function findMatchingBrace(input: string, openIndex: number): number {
-  let depth = 0
-  let quote = ''
-  for (let index = openIndex; index < input.length; index += 1) {
-    const char = input[index]
-    if (quote) {
-      if (char === quote && input[index - 1] !== '\\') quote = ''
-      continue
-    }
-    if (char === '"' || char === "'") { quote = char; continue }
-    if (char === '{') depth += 1
-    else if (char === '}') depth -= 1
-    if (depth === 0) return index
-  }
-  return -1
-}
 
 function pushIssue(issues: CipoValidationIssue[], code: string, message: string, index: number): void {
   issues[issues.length] = { code, message, index }
@@ -212,7 +197,7 @@ export interface CipoSourceExplanation {
   readonly rawCss: string
   readonly transformedCss: string
   readonly cssText: string
-  readonly warnings: readonly import('@rodkisten/cipo/types').CipoWarning[]
+  readonly warnings: readonly import('./types').CipoWarning[]
   readonly validation: CipoValidationResult
   readonly mode: 'atomic' | 'stylesheet'
   readonly className?: string
@@ -238,7 +223,7 @@ export interface CipoSourceExplanation {
  * ```
  */
 export function explainCss(input: string, mode: 'atomic' | 'stylesheet' = input.indexOf('{') >= 0 ? 'stylesheet' : 'atomic'): CipoSourceExplanation {
-  const warnings: import('@rodkisten/cipo/types').CipoWarning[] = []
+  const warnings: import('./types').CipoWarning[] = []
   const rawCss = String(input || '')
   const transformedCss = transformCss(rawCss, warnings)
   const validation = validateCss(transformedCss)

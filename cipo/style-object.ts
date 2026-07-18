@@ -1,6 +1,6 @@
-import type { CipoStyleObject } from '@rodkisten/cipo/types'
-import { normalizePropertyDeclaration } from '@rodkisten/cipo/values'
-import { isPlainObject, toKebabCase } from '@rodkisten/cipo/utils'
+import type { CipoStyleObject } from './types'
+import { normalizePropertyDeclaration } from './values'
+import { isPlainObject, toKebabCase } from './utils'
 
 /**
  * Converts object style syntax to Cipó DSL declarations.

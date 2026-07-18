@@ -1,9 +1,9 @@
-import { compileRuntimeAtomicStyles } from '@rodkisten/cipo/compiler-runtime-atomic'
-import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
-import { formatCss, getLayerDeclaration } from '@rodkisten/cipo/format'
-import { runtime } from '@rodkisten/cipo/runtime'
-import type { CipoCssArtifact, CipoInjectableStyleArtifact, CipoInjectStyleOptions } from '@rodkisten/cipo/types'
-import { hashString, normalizeCss } from '@rodkisten/cipo/utils'
+import { compileRuntimeAtomicStyles } from './engine/atomic/runtime'
+import { STYLE_ELEMENT_ID } from './constants'
+import { formatCss, getLayerDeclaration } from './format'
+import { runtime } from './runtime'
+import type { CipoCssArtifact, CipoInjectableStyleArtifact, CipoInjectStyleOptions } from './types'
+import { hashString, normalizeCss } from './utils'
 
 export type CipoRuntimeStyleTarget = HTMLElement | ShadowRoot | Document | null
 

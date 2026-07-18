@@ -1,5 +1,5 @@
-import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
-import { runtime } from '@rodkisten/cipo/runtime'
+import { STYLE_ELEMENT_ID } from './constants'
+import { runtime } from './runtime'
 
 let pending = false
 

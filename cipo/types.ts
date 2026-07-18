@@ -8,7 +8,7 @@
  *
  * @example
  * ```ts
- * import type { CipoConfig, CipoCssArtifact } from '@rodkisten/cipo/types'
+ * import type { CipoConfig, CipoCssArtifact } from './types'
  *
  * const config: CipoConfig = { prefix: 'rod' }
  * const className = String({ className: 'rod-a-x' } as CipoCssArtifact)
@@ -361,14 +361,22 @@ export interface CipoStylesheetArtifact extends CipoStylesheetTextArtifact {
  * `CipoStylesheetArtifact`. Callers that need a class list should narrow with
  * `isAtomicCssArtifact()` from `css.ts` or use `assertAtomicCssArtifact()`.
  */
-export type CipoCssConfigResultLike =
-  import("@rodkisten/cipo/config-css").CipoCssConfigResult;
+export interface CipoCssConfigResult {
+  readonly kind?: never;
+  readonly config: Partial<CipoConfig>;
+  readonly theme: CipoTheme;
+  readonly warnings: readonly CipoWarning[];
+  readonly appliedAliases: readonly string[];
+  readonly appliedProperties: readonly string[];
+  readonly appliedPresets: readonly string[];
+  readonly appliedPlugins: readonly string[];
+}
 
 export type CipoCssResult =
   | CipoCssArtifact
   | CipoStylesheetArtifact
   | CipoInlineCssArtifact
-  | CipoCssConfigResultLike;
+  | CipoCssConfigResult;
 
 export interface CipoInlineCssArtifact {
   readonly kind: "cipo.inline-css";

@@ -1,5 +1,5 @@
-import { DEFAULT_BASE_FONT_SIZE, DEFAULT_PREFIX } from '@rodkisten/cipo/constants'
-import type { RuntimeState } from '@rodkisten/cipo/types'
+import { DEFAULT_BASE_FONT_SIZE, DEFAULT_PREFIX } from './constants'
+import type { RuntimeState } from './types'
 
 /**
  * Central mutable runtime state.
@@ -16,12 +16,12 @@ import type { RuntimeState } from '@rodkisten/cipo/types'
  *
  * @example
  * ```ts
- * import { runtime } from '@rodkisten/cipo/runtime'
+ * import { runtime } from './runtime'
  * runtime.config.prefix
  * // 'cipo'
  * ```
  */
-export const runtime: RuntimeState = {
+const defaultRuntime: RuntimeState = {
   config: {
     prefix: DEFAULT_PREFIX,
     debug: true,
@@ -95,6 +95,28 @@ export const runtime: RuntimeState = {
   registryVersion: 0,
   atomicUsageCounts: new Map(),
   atomicSingleUseFallbacks: new Map(),
+}
+
+/** Live runtime binding. Compiler sessions temporarily point this binding at isolated state. */
+export let runtime: RuntimeState = defaultRuntime
+
+/** Returns the process/application runtime that is never replaced by compiler sessions. */
+export function getDefaultRuntime(): RuntimeState {
+  return defaultRuntime
+}
+
+/**
+ * Runs synchronous work against a temporary runtime state without mutating the default runtime object.
+ * Nested calls are safe because ESM imports observe this live binding and restoration happens in `finally`.
+ */
+export function runWithRuntimeState<T>(state: RuntimeState, operation: () => T): T {
+  const previous = runtime
+  runtime = state
+  try {
+    return operation()
+  } finally {
+    runtime = previous
+  }
 }
 
 /**

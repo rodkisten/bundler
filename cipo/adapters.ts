@@ -1,8 +1,8 @@
-import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledFactoryRegistry, type StyledRegistryCollision, type StyledTagFactory } from '@rodkisten/fabrica-elements'
-import type { CipoComponent, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from '@rodkisten/cipo/types'
-import { compileStyledCss } from '@rodkisten/cipo/css'
-import { runtime } from '@rodkisten/cipo/runtime'
-import { insertCss } from '@rodkisten/cipo/injection'
+import { createStyledFactory, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledFactoryRegistry, type StyledRegistryCollision, type StyledTagFactory } from '@rodkisten/fabrica-elements'
+import type { CipoCssArtifact, CipoCssInterpolation, CipoCssResult } from './types'
+import { compileStyledCss } from './css'
+import { insertCss } from './injection'
+import { inlineCssTextToObject, needsObjectStyleAdapter, resolveElementsAdapter } from './elements-style-adapter'
 
 /**
  * Callable styled API exposed by Cipó.
@@ -133,65 +133,6 @@ function resolveCipoStyleInput(input: unknown): ElementsResolvedStyle<CipoCssRes
 
 function isCipoCssArtifact(artifact: CipoCssResult): artifact is CipoCssArtifact {
   return Boolean(artifact && typeof artifact === 'object' && 'kind' in artifact && artifact.kind === 'cipo.css')
-}
-
-function needsObjectStyleAdapter(): boolean {
-  return runtime.config.adapter === 'react' || runtime.config.adapter === 'preact'
-}
-
-/** Converts inline declaration text into a React/Preact-compatible style object. */
-function inlineCssTextToObject(cssText: string): ElementsRecord {
-  const output: ElementsRecord = {}
-  let start = 0
-  let depth = 0
-  let quote = ''
-  let escaped = false
-
-  for (let index = 0; index <= cssText.length; index += 1) {
-    const char = cssText[index] ?? ';'
-
-    if (quote) {
-      if (escaped) escaped = false
-      else if (char === '\\') escaped = true
-      else if (char === quote) quote = ''
-      continue
-    }
-
-    if (char === '"' || char === "'") { quote = char; continue }
-    if (char === '(' || char === '[') { depth += 1; continue }
-    if (char === ')' || char === ']') { depth = Math.max(0, depth - 1); continue }
-    if (char !== ';' || depth !== 0) continue
-
-    const declaration = cssText.slice(start, index).trim()
-    start = index + 1
-    if (!declaration) continue
-    const colon = declaration.indexOf(':')
-    if (colon <= 0) continue
-    const property = declaration.slice(0, colon).trim()
-    const value = declaration.slice(colon + 1).trim()
-    if (property && value) output[toStylePropertyName(property)] = value
-  }
-
-  return output
-}
-
-function toStylePropertyName(property: string): string {
-  if (property.startsWith('--')) return property
-  return property.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
-}
-
-/**
- * Resolves the current Cipó adapter into the shared Fabrica Elements adapter
- * format.
- *
- * @remarks
- * Custom Cipó adapters already follow the same contract, so they are passed
- * through structurally. Built-in string names are resolved by Fabrica Elements.
- *
- * @returns Adapter name or adapter object.
- */
-function resolveElementsAdapter(): ElementsAdapterName | ElementsAdapter {
-  return runtime.config.adapter as ElementsAdapterName | ElementsAdapter
 }
 
 /** Compatibility aliases for older internal imports. */

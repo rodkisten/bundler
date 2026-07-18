@@ -1,51 +1,41 @@
 ## Unreleased
-- Fixed startup when the callable styled factory already owns the read-only
-  `html` tag helper. `cipo.html` remains the styled `<html>` factory, while the
-  compatibility template `html` helper stays available as a named export and
-  on the browser global API.
-- Added order-safe compiled CSS coalescing for adjacent equivalent `@media`, `@supports`, and `@container` blocks, including nested rule-list wrappers such as `@layer` and `@scope`, without moving rules across cascade boundaries.
-- Updated Vite integration coverage for Vite 8 native `resolve.tsconfigPaths: true` and removed the obsolete `vite-tsconfig-paths` dependency expectation.
 
-- Changed atomic promotion to a two-use default. Runtime styled components keep first-use declarations scoped and promote reused declaration/context pairs, while CSS-first Vite builds now analyze the complete module graph and can rewrite every participating component.
-- Added whole-build atomic stylesheet compilation for CSS-first Vite builds. Static `styled`/Fábrica Elements components now carry class-only compiled artifacts instead of one embedded CSS string per component, and production emits one consolidated stylesheet containing shared atomic classes plus scoped single-use fallbacks.
-- Production class naming is now driven by CSS-first configuration: readable/debug builds keep semantic labels, while `debug: false` uses compact `a<hash>` atomic and `s<hash>` scope classes in the global build output. `atomic-min-uses` and `minify` are read from the same `@cipo` sheet.
-- Added a factory-local `styled.registry` collector with cached `components`/`artifacts` snapshots and `cssArtifacts` for Cipó. Build-compiled styled components now preserve lightweight `CipoCssArtifact` metadata through compiled style helpers, keeping registry output identical across runtime and production while retaining PURE tree shaking.
-- Added compiled runtime configuration payloads: Vite build mode can lower eligible `configureFromCss(config)` calls to `configureCompiledCssConfig()` without shipping raw `@theme` DSL or the parser graph. Runtime presets/plugins safely stay on the parser path.
-- Restored canonical `@rodkisten/*` imports in the Cipó Vite adapter and moved workspace path resolution to `vite-tsconfig-paths`; standalone Vite configs now bootstrap through `tsx` plus the native config loader instead of requiring relative `.js` compiler imports.
-- Fixed DevTools/Cipó remounts after `reset()` by making the runtime token bridge re-bootstrap idempotently through Cipó's own CSS dedupe, and aligned compact-build tests with production tuple/class-name output.
+### Compiler correctness
 
-- Documented and validated the build/runtime split for compiled consumers: CSS-first configuration can remain build-only while production runtimes inject only the resolved token bridge they actually need.
- - Compact production CSS output
+- Fixed compiled CSS optimization so only adjacent equivalent rules or adjacent equivalent grouping at-rules are merged. The optimizer never moves selectors across cascade boundaries.
+- Replaced regex-only CSS normalization/minification paths with a quote/comment-aware lexical scanner. String contents, escapes, protocol-relative URLs, custom-property payloads, and punctuation inside values remain semantically intact.
+- Added explicit at-rule classification for conditional groups, keyframes, declaration blocks, pages, and unknown rules. Keyframe steps such as `from`, `to`, and `50%` are never treated as ordinary selectors or scoped.
+- Removed silent compiler fallbacks that returned empty CSS. Static compilation now raises structured `CipoCompileError` diagnostics with filename, location, code, and original cause.
+- Added generated-name collision detection and wider deterministic hashes for compiler-owned classes. Collision registries are scoped to the active runtime/compiler session.
+- Made compact whole-build class names namespace-aware so independently compiled bundles have a lower collision surface.
 
-### Performance
+### Compiler architecture
 
-- Added whole-build declaration reuse analysis so repeated styles are emitted once instead of being duplicated in every styled component CSS string.
-- Added `classNameMode: 'compact'` for legacy integrations; CSS-first builds now derive naming from their `@cipo` debug/readability configuration.
-- Added conservative compiled CSS minification, leading-zero compaction, safe flat-rule merging, and opt-in private custom-property mangling.
-- Marked statically compiled styled factory expressions as `/*#__PURE__*/` so unused styled components can be removed by bundlers.
-- Updated the Vite build path to inject a single global compiled sheet and attach only final class lists to styled component artifacts.
-- Enabled compact Cipó class names and stronger Rollup/esbuild tree shaking for the DevTools production build.
+- Added isolated `CompilerContext` execution backed by a session-local `RuntimeState`. Compiler configuration, generated CSS, atomic counters, caches, and collision registries no longer mutate or depend on the live application runtime.
+- Made CSS configuration application caching runtime-scoped with `WeakMap`, so the same config can be independently applied to a compiler session even when it is already hot in the application runtime.
+- Removed all local TypeScript import cycles from the Cipó production graph and added an architecture checker that fails on cycles, unreachable production modules, legacy compiler files, wildcard package exports, or runtime-to-toolchain boundary violations.
+- Introduced a build-agnostic `engine/` layer with IR contracts for generated declarations/rules and structural emission for compiler-owned CSS. Runtime and build tooling share the engine without making the runtime depend transitively on `compiler/` or Vite.
+- Split the compiler into `atomic`, `build`, `inline`, `source`, and `stylesheet` responsibilities and separated stylesheet artifact lifecycle, selector logic, at-rule emission, and formatting.
+- Split configuration parsing/planning from runtime application, theme reference resolution from theme mutation, plugin registry state from recipe APIs, and large runtime DSL/value/alias/theme-type modules into cohesive primitives.
 
-### Tests
+### Source compiler and Vite
 
-- Added coverage for two-use global atomic promotion, single-use scoped fallback rules, class-only compiled styled artifacts and semantic class-name mode.
-- Added coverage for compact class names, pure annotations, minified CSS, and private-only custom-property mangling.
+- Rebuilt JavaScript/TypeScript source analysis on the TypeScript AST and lexical bindings. The compiler now handles aliases, nested templates, shadowed identifiers, type-only imports, and unrelated same-name imports without regex-based JavaScript parsing.
+- Made import injection exact by source module, imported symbol, and local binding, including collision-free generated local names.
+- Made `configureFromCss(...)` lowering conservative: exact literals are compiled from their own value, while identifier bindings are lowered only when explicitly contracted through `configRuntimeBindings`; unknown runtime configuration stays runtime configuration.
+- Replaced whole-chunk `.split().join()` class rewriting with AST-guided JavaScript string-literal rewriting so comments and unrelated template payloads are not modified.
+- Added per-build Vite state reset, lazy optional Fábrica compiler loading, package-based runtime helper imports, and transform/render source maps.
+- Removed the divergent duplicate Vite implementation from `maquina/`; `@rodkisten/cipo/vite` is now the single integration surface.
 
-## Unreleased
+### Package boundaries and maintenance
 
-### Added
+- Split public entrypoints into `@rodkisten/cipo`, `@rodkisten/cipo/browser`, `@rodkisten/cipo/compiler`, `@rodkisten/cipo/vite`, and `@rodkisten/cipo/compiled-runtime`.
+- Removed compiler/Vite exports and automatic `window.Cipo` installation from the root runtime entrypoint. Browser-global installation is now explicit through `@rodkisten/cipo/browser`.
+- Removed wildcard package subpath exports and workspace wildcard path aliases so internal filenames are no longer accidental public API.
+- Consolidated the small `*-safety` patch modules into a shared lexical safety layer and removed deprecated/unused compiler wrappers and compatibility shims.
+- Added strict unused-local/unused-parameter/fallthrough checks to the Cipó TypeScript project and a `check:architecture` CI gate.
+- Added enterprise regression tests for cascade preservation, lexical CSS safety, optimizer idempotence, keyframes, compiler determinism/isolation, configuration cache isolation, generated-name collisions, TypeScript AST binding correctness, conservative config lowering, chunk rewriting, Vite lifecycle reset, source maps, and loud diagnostics.
 
-- Added `!property: value` declaration priority syntax for Cipó with idempotent important handling.
-- Added atomic promotion thresholds via `setup({ atomic: { minUses } })`, keeping single-use declarations scoped and promoting repeated declarations into shared atoms.
-- Added configurable generated-selector scoping with `scope: { strategy, selector }`, including low-specificity `:where(...)` support.
-- Added debug observability helpers, `getDebugOverlayStats()` and `installDebugOverlay()`, for atom reuse and generated CSS diagnostics.
-- Added CSS-first coverage tests for container queries and Tailwind-like utility helpers inside declarations.
-- Added Broto store middleware and devtools listener hooks through `store(initial, { middleware, devtools })`, `store.use()` and `store.subscribeDevtools()`.
-
-### Fixed
-
-- Preserved native `container: name / inline-size` values instead of treating the slash as arithmetic.
-- Kept Fábrica root `render()` disposer identity stable across direct fragment rerenders.
 ## Instance-scoped styled registries
 
 - Added `createStyled({ fabrica | registry })` for independent styled factories bound to separate Fabrica instances.
