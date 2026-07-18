@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import ts from "@typescript/typescript6";
+import ts from "typescript";
 import { renderMarkdown } from "./docs/markdown-renderer";
 import { escapeHtml } from "./docs/html-utils";
 import { DIST_DIR, ROOT_DIR } from "./config";
