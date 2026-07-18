@@ -403,50 +403,101 @@ jobs:
       - name: 🔎 Typecheck
         if: ${{ inputs.should_typecheck != 'false' }}
         shell: bash
+        env:
+          NO_COLOR: "1"
+          FORCE_COLOR: "0"
         run: |
-          set -euo pipefail
-
+          set -o pipefail
+          TYPECHECK_LOG="${RUNNER_TEMP}/typecheck-output.log"
           echo "🔎 TypeScript CLI:"
           pnpm exec tsc --version
-
           echo "🔎 TypeScript CLI path:"
           command -v tsc || true
-
-          pnpm typecheck
-
+          # Keep the full typecheck visible in the regular Actions log while
+          # capturing it for the job summary when compilation fails.
+          set +e
+          pnpm typecheck 2>&1 | tee "${TYPECHECK_LOG}"
+          TYPECHECK_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          if [ "${TYPECHECK_EXIT_CODE}" -ne 0 ]; then
+            {
+              echo "## ❌ Typecheck failed"
+              echo
+              echo '```text'
+              cat "${TYPECHECK_LOG}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          exit "${TYPECHECK_EXIT_CODE}"
+          
       - name: 🧪 Run tests
         if: ${{ needs.scope.outputs.should_test == 'true' }}
         continue-on-error: ${{ github.ref_name != 'main' }}
         timeout-minutes: 5
         env:
-          # Keep the captured output readable inside the Markdown code block.
+          # ANSI sequences make extraction and Markdown summaries harder to read.
           NO_COLOR: "1"
           FORCE_COLOR: "0"
         shell: bash
         run: |
           set -o pipefail
-
           TEST_LOG="${RUNNER_TEMP}/vitest-output.log"
-
-          # Capture stdout and stderr while keeping the test output visible
-          # in real time in the GitHub Actions job log.
+          FAILED_TEST_LOG="${RUNNER_TEMP}/vitest-failures.log"
+          # Keep the complete Vitest output visible in the regular job log.
           set +e
-          node scripts/workflows/publish-browser-bundle.mjs run-tests 2>&1 | tee "${TEST_LOG}"
+          node scripts/workflows/publish-browser-bundle.mjs run-tests \
+            2>&1 \
+            | tee "${TEST_LOG}"
           TEST_EXIT_CODE=${PIPESTATUS[0]}
           set -e
-
           if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
+            # Extract only Vitest's useful failure section:
+            #
+            #   ─────── Failed Suites 12 ───────
+            #   ...
+            #   FAIL ...
+            #   ...
+            #
+            # and stop before the final aggregate statistics:
+            #
+            #   Test Files  12 failed ...
+            #
+            # This also handles runs that contain only "Failed Tests".
+            awk '
+              /Failed (Suites|Tests)/ {
+                capturing = 1
+              }
+              capturing && /^[[:space:]]*Test Files[[:space:]]/ {
+                exit
+              }
+              capturing {
+                print
+              }
+            ' "${TEST_LOG}" > "${FAILED_TEST_LOG}"
             {
               echo "## ❌ Vitest failed"
               echo
-              echo "The complete Vitest output is available below:"
-              echo
-              echo '```text'
-              cat "${TEST_LOG}"
-              echo '```'
+              if [ -s "${FAILED_TEST_LOG}" ]; then
+                echo '```text'
+                cat "${FAILED_TEST_LOG}"
+                echo '```'
+              else
+                # Collection/runtime failures do not always produce a standard
+                # "Failed Suites" or "Failed Tests" section. Never hide the
+                # diagnostic completely when Vitest exits unsuccessfully.
+                echo "> Vitest failed before producing its standard failure section."
+                echo
+                echo "<details>"
+                echo "<summary>Show captured Vitest output</summary>"
+                echo
+                echo '```text'
+                cat "${TEST_LOG}"
+                echo '```'
+                echo
+                echo "</details>"
+              fi
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
-
           exit "${TEST_EXIT_CODE}"
 
       - name: ⚡ Run optional benchmarks
