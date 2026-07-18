@@ -9,6 +9,7 @@ const ROOT_DIR = fileURLToPath(new URL(".", import.meta.url));
 function workspaceFile(path: string): string {
   return resolve(ROOT_DIR, path);
 }
+const DEBUG_TESTS = process.env.DEBUG_TESTS === "true";
 
 export default defineConfig({
   resolve: {
@@ -38,18 +39,25 @@ export default defineConfig({
       { find: /^@rodkisten\/rod\/(.+)$/, replacement: workspaceFile("rod/$1") },
     ],
   },
+
   test: {
     testTimeout: 20_000,
     hookTimeout: 20_000,
+
+    // Enable the debug reporter only when DEBUG_TESTS=true. Its output uses
+    // regular stdout so the latest START/heartbeat line remains visible when
+    // diagnosing a stalled CI run.
+    //
+    // The GitHub Actions and hanging-process reporters remain CI-only.
     reporters: IS_GITHUB_ACTIONS
       ? [
-          new VitestDebugReporter(),
+          ...(DEBUG_TESTS ? [new VitestDebugReporter()] : []),
           "verbose",
           "github-actions",
           "hanging-process",
         ]
       : [
-          new VitestDebugReporter(),
+          ...(DEBUG_TESTS ? [new VitestDebugReporter()] : []),
           "verbose",
         ],
   },
