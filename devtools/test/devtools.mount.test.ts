@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { polyfillBrowserApis } from "./_tests.setup";
 import devtools from "@rodkisten/devtools";
-import { polyfillBrowserApis } from "./_tests.setup"
 
 describe("RodEruda devtools mount", () => {
   beforeEach(() => {

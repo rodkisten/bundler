@@ -2,10 +2,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolContext } from "@rodkisten/devtools/types";
-import { mocks, polyfillBrowserApis } from "./_tests.setup";
+import { getMocks, polyfillBrowserApis } from "./_tests.setup";
 
 import { Elements } from "@rodkisten/devtools/panels/elements";
 import { styledRegistry } from "@rodkisten/devtools/core/runtime";
+
+const mocks = getMocks();
 
 type Fixture = {
   tool: Elements;

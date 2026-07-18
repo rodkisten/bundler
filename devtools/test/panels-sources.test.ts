@@ -2,8 +2,10 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NetworkRecord, ToolContext } from "@rodkisten/devtools/types";
-import { mocks, polyfillBrowserApis } from "./_tests.setup";
+import { getMocks, polyfillBrowserApis } from "./_tests.setup";
 import { Sources, formatSource } from "@rodkisten/devtools/panels/sources";
+
+const mocks = getMocks();
 
 type GlobalWithUserscriptRequest = typeof globalThis & {
   GM_xmlhttpRequest?: (details: {

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { polyfillBrowserApis } from "./_tests.setup";
 import fs from "node:fs";
 import path from "node:path";
 import { TextDecoder, TextEncoder } from "node:util";
 import devtools from "@rodkisten/devtools";
-import { polyfillBrowserApis } from "./_tests.setup"
 
 process.env.DEBUG = 'vite:*';
 
