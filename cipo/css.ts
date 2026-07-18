@@ -23,7 +23,7 @@ import {
   shouldCompileAsStylesheet,
   injectSheetInto,
 } from "@rodkisten/cipo/compiler-index";
-import { insertCss } from "@rodkisten/cipo/injection";
+import { insertCss, registerAtomicArtifact } from "@rodkisten/cipo/injection";
 import { configureFromCss } from "@rodkisten/cipo/config-css";
 import { inline } from "@rodkisten/cipo/inline";
 import { splitPolymorphicCssSource, type PolymorphicCssSource } from "@rodkisten/cipo/css-mode";
@@ -162,6 +162,15 @@ Object.assign(css, {
     return compilePolymorphicCss(first, values, true);
   },
 });
+
+/** Compiles a static styled template into the shared runtime atomic collector. */
+export function compileStyledCss(
+  strings: TemplateStringsArray,
+  values: readonly CipoCssInterpolation[],
+): CipoCssArtifact {
+  const artifact = compilePolymorphicCss(strings, values, false, true);
+  return assertAtomicCssArtifact(artifact);
+}
 
 /**
  * Explicit atomic CSS namespace.
@@ -321,6 +330,7 @@ function compilePolymorphicCss(
   first: TemplateStringsArray | CipoStyleObject,
   values: readonly CipoCssInterpolation[],
   important: boolean,
+  runtimeStyled = false,
 ): CipoCssResult {
   if (!Array.isArray(first))
     return important
@@ -348,7 +358,7 @@ function compilePolymorphicCss(
     polymorphic.css,
     important ? "important" : "auto",
   );
-  const cacheable = runtime.config.atomic.minUses <= 1;
+  const cacheable = !runtimeStyled && runtime.config.atomic.minUses <= 1;
   const cached = cacheable ? getCachedArtifact(cacheKey) : undefined;
 
   if (cached) {
@@ -378,8 +388,12 @@ function compilePolymorphicCss(
     ast,
     warnings,
     important,
+    runtimeStyled,
   );
-  insertCss(artifact.compiledCss);
+
+  if (runtimeStyled) registerAtomicArtifact(artifact);
+  else insertCss(artifact.compiledCss);
+
   if (cacheable) setCachedArtifact(cacheKey, artifact);
   return artifact;
 }

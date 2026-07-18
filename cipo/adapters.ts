@@ -1,6 +1,6 @@
 import { createStyledFactory, type ElementsAdapter, type ElementsAdapterName, type ElementsComponent, type ElementsComponentRegistry, type ElementsRecord, type ElementsResolvedStyle, type StyledBuilder, type StyledComponent, type StyledDomResult, type StyledFactory, type StyledFactoryRegistry, type StyledRegistryCollision, type StyledTagFactory } from '@rodkisten/fabrica-elements'
 import type { CipoComponent, CipoCssArtifact, CipoCssInterpolation, CipoCssResult, CipoDomStyledResult, CipoRecord, CipoStyledBuilder, CipoStyledTagFactory, CipoTarget } from '@rodkisten/cipo/types'
-import { assertAtomicCssArtifact, css } from '@rodkisten/cipo/css'
+import { compileStyledCss } from '@rodkisten/cipo/css'
 import { runtime } from '@rodkisten/cipo/runtime'
 import { insertCss } from '@rodkisten/cipo/injection'
 
@@ -66,7 +66,7 @@ export function createCipoCallable(options: CipoStyledFactoryOptions = {}): Cipo
     registry: options.registry ?? options.fabrica,
     onWarning: options.onWarning,
     createStyle(strings, values) {
-      const artifact = assertAtomicCssArtifact(css(strings, ...(values as readonly CipoCssInterpolation[])))
+      const artifact = compileStyledCss(strings, values as readonly CipoCssInterpolation[])
       return { artifact, className: artifact.className }
     },
     resolveStyle(input) {

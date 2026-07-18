@@ -24,13 +24,21 @@ export function wrapContext(rule: string, context: CipoRuleContext): string {
   return output
 }
 
-/** Resolves a nested selector against the generated scope class. */
-export function resolveScopedSelector(scopeClassName: string, selector: string): string {
-  const localSelector = !selector
+/** Resolves a nested selector against the generated scope class and rule context. */
+export function resolveScopedSelector(
+  scopeClassName: string,
+  selector: string,
+  context: CipoRuleContext = {},
+): string {
+  let localSelector = !selector
     ? `.${scopeClassName}`
     : selector.includes('&')
       ? selector.replaceAll('&', `.${scopeClassName}`)
       : `.${scopeClassName} ${selector}`
+
+  if (context.pseudo) localSelector += context.pseudo
+  if (context.dark) localSelector = `${runtime.config.darkSelector} ${localSelector}`
+
   return applyConfiguredScope(localSelector)
 }
 
