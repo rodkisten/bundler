@@ -1,5 +1,5 @@
 import { effect } from "@rodkisten/broto/reactivity";
-import { compileInlineCss } from "@rodkisten/cipo/compiler-inline-compile";
+import { compileInlineCss } from "@rodkisten/cipo/compiler";
 import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
 import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
 
