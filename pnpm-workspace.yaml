@@ -11,3 +11,6 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+overrides:
+  typescript: "6"
