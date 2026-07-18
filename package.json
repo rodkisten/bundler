@@ -13,7 +13,7 @@
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsx scripts/build.ts",
     "build:nascente:docs": "tsx scripts/build-nascente-docs.ts",
-    "typecheck": "tsc6 --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test && pnpm build",
     "publish:gist": "tsx scripts/publish-gist.ts",
@@ -37,11 +37,9 @@
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/node": "25.9.1",
-    "@typescript/typescript6": "^6.0.2",
     "esbuild": "0.28.0",
     "jsdom": "^29.1.1",
     "tsx": "4.22.4",
-    "@typescript/native": "npm:typescript@^7.0.2",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "8.1.2",
     "vitest": "4.1.8"
