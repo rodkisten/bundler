@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Fabrica, { clearComponents, createFabrica, html, render, resolveComponent } from '@rodkisten/fabrica'
 import { createStyled, reset, setup, styled } from '@rodkisten/cipo'
-import { attachCompiledCss } from '@rodkisten/cipo/compiler-compiled-style-runtime'
+import { attachCompiledCss } from '@rodkisten/cipo/compiled-runtime'
 
 let host: HTMLDivElement
 

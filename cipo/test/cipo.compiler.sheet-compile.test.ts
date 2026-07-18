@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
-import { compileSheetCss, compileStylesheetText, shouldCompileAsStylesheet, wrapSheetLayer } from '@rodkisten/cipo/compiler-sheet-compile'
-import { parseStylesheet } from '@rodkisten/cipo/parser'
+import { compileSheetCss, compileStylesheetText, shouldCompileAsStylesheet, wrapSheetLayer } from '@rodkisten/cipo/compiler'
+import { parseStylesheet } from '../syntax/parser'
 
 describe('Cipó compiler/sheet-compile', () => {
   beforeEach(() => {

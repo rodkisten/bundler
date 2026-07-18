@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { compileCipoSourceBuild, reset } from '@rodkisten/cipo'
-import { compileGlobalAtomicStyles } from '@rodkisten/cipo/compiler-global-atomic'
-import { runtime } from '@rodkisten/cipo/runtime'
+import { reset } from '@rodkisten/cipo'
+import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler'
+import { compileGlobalAtomicStyles } from '@rodkisten/cipo/compiler'
+import { runtime } from '../runtime'
 
 const MINIFIED_CONFIG = `
   @cipo {
@@ -43,7 +44,7 @@ describe('Cipó whole-build atomic promotion', () => {
       configCss: MINIFIED_CONFIG,
       deferAtomicCss: true,
       injectCssImport: false,
-      styledCssHelperImportPath: '@rodkisten/cipo/compiler-compiled-style-runtime',
+      styledCssHelperImportPath: '@rodkisten/cipo/compiled-runtime',
     })
     const second = compileCipoSourceBuild(`
       export const Second = styled.div('Second').css\`
@@ -55,7 +56,7 @@ describe('Cipó whole-build atomic promotion', () => {
       configCss: MINIFIED_CONFIG,
       deferAtomicCss: true,
       injectCssImport: false,
-      styledCssHelperImportPath: '@rodkisten/cipo/compiler-compiled-style-runtime',
+      styledCssHelperImportPath: '@rodkisten/cipo/compiled-runtime',
     })
 
     const entries = [...first.manifest, ...second.manifest]
@@ -94,7 +95,7 @@ describe('Cipó whole-build atomic promotion', () => {
       configCss: SEMANTIC_CONFIG,
       deferAtomicCss: true,
       injectCssImport: false,
-      styledCssHelperImportPath: '@rodkisten/cipo/compiler-compiled-style-runtime',
+      styledCssHelperImportPath: '@rodkisten/cipo/compiled-runtime',
     }).manifest)
 
     const result = compileGlobalAtomicStyles(entries.map((entry) => ({

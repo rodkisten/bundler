@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
-import { compileAtomicCss, compileAtomicRule, createAtomicRule, joinClassNames } from '@rodkisten/cipo/compiler-atomic-compile'
+import { compileAtomicCss, compileAtomicRule, createAtomicRule, joinClassNames } from '@rodkisten/cipo/compiler'
 
 describe('Cipó compiler/atomic-compile', () => {
   beforeEach(() => {

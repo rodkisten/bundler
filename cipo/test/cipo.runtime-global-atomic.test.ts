@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { configureFromCss, createStyled, getCssText, injectStyle, reset, setRuntimeStyleTarget } from '@rodkisten/cipo'
-import { STYLE_ELEMENT_ID } from '@rodkisten/cipo/constants'
+import { STYLE_ELEMENT_ID } from '../constants'
 
 function configure(minUses = 2, debug = false): void {
   configureFromCss(`

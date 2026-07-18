@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-describe('Cipó Vite adapter source loading', () => {
-  it('keeps workspace aliases while loading Vite configs through tsx and the native config loader', () => {
+describe('Cipó Vite adapter package boundaries', () => {
+  it('uses the public Vite entrypoint and keeps a single implementation', () => {
     const root = process.cwd()
-    const adapter = readFileSync(resolve(root, 'cipo/vite-compiled-inline.ts'), 'utf8')
+    const adapter = readFileSync(resolve(root, 'cipo/integrations/vite/plugin.ts'), 'utf8')
     const devtoolsConfig = readFileSync(resolve(root, 'devtools/vite.config.ts'), 'utf8')
     const maquinaConfig = readFileSync(resolve(root, 'maquina/vite.config.ts'), 'utf8')
     const vitestConfig = readFileSync(resolve(root, 'vitest.config.ts'), 'utf8')
@@ -14,11 +14,16 @@ describe('Cipó Vite adapter source loading', () => {
       devDependencies: Record<string, string>
     }
 
-    // Config-time imports are resolved by tsx before Vite starts. Vite 8 then
-    // resolves application and test graph aliases natively from compilerOptions.paths.
-    expect(adapter).toContain("from '@rodkisten/cipo/compiler-compiled-build'")
-    expect(adapter).toContain("from '@rodkisten/fabrica/compiler'")
-    expect(adapter).not.toMatch(/from ['"]\.\.?\//)
+    expect(adapter).toContain("import('@rodkisten/fabrica/compiler')")
+    expect(adapter).not.toContain("from '@rodkisten/fabrica/compiler'")
+    expect(adapter).toContain("const CIPO_COMPILED_RUNTIME = '@rodkisten/cipo/compiled-runtime'")
+    expect(adapter).toContain("const CIPO_COMPILER = '@rodkisten/cipo/compiler'")
+    expect(devtoolsConfig).toContain('from "@rodkisten/cipo/vite"')
+    expect(maquinaConfig).toContain('from "@rodkisten/cipo/vite"')
+
+    // The old fork in Máquina and the root-level adapter were a real source of divergence.
+    expect(existsSync(resolve(root, 'cipo/vite-compiled-inline.ts'))).toBe(false)
+    expect(existsSync(resolve(root, 'maquina/vite-compiled-inline.ts'))).toBe(false)
 
     for (const config of [devtoolsConfig, maquinaConfig, vitestConfig]) {
       expect(config).toContain('tsconfigPaths: true')

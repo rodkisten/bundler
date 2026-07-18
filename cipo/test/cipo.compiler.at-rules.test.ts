@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
-import { collectRules } from '@rodkisten/cipo/compiler-at-rules'
-import { parseStylesheet } from '@rodkisten/cipo/parser'
+import { collectRules } from '@rodkisten/cipo/compiler'
+import { parseStylesheet } from '../syntax/parser'
 
 describe('Cipó compiler/at-rules', () => {
   beforeEach(() => {

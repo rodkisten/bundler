@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
-import { expandResponsiveDeclaration, resolveBreakpointContext } from '@rodkisten/cipo/compiler-declaration-compile'
+import { expandResponsiveDeclaration, resolveBreakpointContext } from '@rodkisten/cipo/compiler'
 
 describe('Cipó compiler/declaration-compile', () => {
   beforeEach(() => {
