@@ -99,7 +99,12 @@ export function minifyCssText(input: string): string {
 
     if (char === '/' && next === '*') {
       const end = input.indexOf('*/', index + 2)
-      index = end < 0 ? input.length : end + 2
+      if (end < 0) break
+
+      const previous = output.at(-1) ?? ''
+      const following = input[end + 2] ?? ''
+      if (needsWhitespaceBetween(previous, following) && !output.endsWith(' ')) output += ' '
+      index = end + 2
       continue
     }
 
@@ -136,11 +141,12 @@ export function minifyCssText(input: string): string {
  */
 export function stripCipoComments(input: string): string {
   let output = ''
+  let index = 0
   let quote = ''
   let escaped = false
   let lineOnlyWhitespace = true
 
-  for (let index = 0; index < input.length; index += 1) {
+  while (index < input.length) {
     const char = input[index]!
     const next = input[index + 1] ?? ''
 
@@ -151,6 +157,7 @@ export function stripCipoComments(input: string): string {
       else if (char === quote) quote = ''
       if (char === '\n' || char === '\r') lineOnlyWhitespace = true
       else if (!/\s/.test(char)) lineOnlyWhitespace = false
+      index += 1
       continue
     }
 
@@ -158,25 +165,32 @@ export function stripCipoComments(input: string): string {
       quote = char
       output += char
       lineOnlyWhitespace = false
+      index += 1
       continue
     }
 
     if (char === '/' && next === '*') {
       const end = input.indexOf('*/', index + 2)
-      index = end < 0 ? input.length : end + 1
+      index = end < 0 ? input.length : end + 2
       continue
     }
 
     if (char === '/' && next === '/' && isLineCommentStart(input, index, lineOnlyWhitespace)) {
-      index = skipUntilLineEnd(input, index + 2)
-      output += '\n'
+      const lineEnd = findLineEnd(input, index + 2)
+      if (lineEnd < 0) return `${output}\n`
+      const terminator = readLineTerminator(input, lineEnd)
+      output += terminator
+      index = lineEnd + terminator.length
       lineOnlyWhitespace = true
       continue
     }
 
-    if (char === '#' && lineOnlyWhitespace) {
-      index = skipUntilLineEnd(input, index + 1)
-      output += '\n'
+    if (char === '#' && lineOnlyWhitespace && /[ \t]/.test(next)) {
+      const lineEnd = findLineEnd(input, index + 1)
+      if (lineEnd < 0) return output
+      const terminator = readLineTerminator(input, lineEnd)
+      output += terminator
+      index = lineEnd + terminator.length
       lineOnlyWhitespace = true
       continue
     }
@@ -184,6 +198,7 @@ export function stripCipoComments(input: string): string {
     output += char
     if (char === '\n' || char === '\r') lineOnlyWhitespace = true
     else if (!/\s/.test(char)) lineOnlyWhitespace = false
+    index += 1
   }
 
   return output
@@ -200,6 +215,7 @@ export function manglePrivateCustomPropertiesSafe(input: string, pattern: RegExp
   let output = ''
   let quote = ''
   let escaped = false
+  const functionStack: string[] = []
 
   for (let index = 0; index < input.length; index += 1) {
     const char = input[index]!
@@ -227,7 +243,19 @@ export function manglePrivateCustomPropertiesSafe(input: string, pattern: RegExp
       continue
     }
 
-    if (char === '-' && next === '-') {
+    if (char === '(') {
+      functionStack.push(readFunctionNameBeforeParen(input, index))
+      output += char
+      continue
+    }
+
+    if (char === ')') {
+      functionStack.pop()
+      output += char
+      continue
+    }
+
+    if (char === '-' && next === '-' && !functionStack.includes('url')) {
       const match = /^--[A-Za-z0-9_-]+/.exec(input.slice(index))
       if (match) {
         output += names.get(match[0]) ?? match[0]
@@ -309,6 +337,7 @@ function collectPrivateCustomProperties(input: string, pattern: RegExp): Map<str
   const safePattern = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ''))
   let quote = ''
   let escaped = false
+  const functionStack: string[] = []
 
   for (let index = 0; index < input.length; index += 1) {
     const char = input[index]!
@@ -332,7 +361,17 @@ function collectPrivateCustomProperties(input: string, pattern: RegExp): Map<str
       continue
     }
 
-    if (char !== '-' || next !== '-') continue
+    if (char === '(') {
+      functionStack.push(readFunctionNameBeforeParen(input, index))
+      continue
+    }
+
+    if (char === ')') {
+      functionStack.pop()
+      continue
+    }
+
+    if (functionStack.includes('url') || char !== '-' || next !== '-') continue
     const match = /^--[A-Za-z0-9_-]+/.exec(input.slice(index))
     if (!match) continue
 
@@ -354,6 +393,14 @@ function collectPrivateCustomProperties(input: string, pattern: RegExp): Map<str
   }
 
   return output
+}
+
+function readFunctionNameBeforeParen(input: string, openIndex: number): string {
+  let end = openIndex
+  let start = end
+
+  while (start > 0 && /[A-Za-z0-9_-]/.test(input[start - 1] ?? '')) start -= 1
+  return input.slice(start, end).toLowerCase()
 }
 
 function hasMappedValue(values: ReadonlyMap<string, string>, candidate: string): boolean {
@@ -379,11 +426,15 @@ function isLineCommentStart(input: string, index: number, lineOnlyWhitespace: bo
   return true
 }
 
-function skipUntilLineEnd(input: string, start: number): number {
+function findLineEnd(input: string, start: number): number {
   for (let index = start; index < input.length; index += 1) {
     if (input[index] === '\n' || input[index] === '\r') return index
   }
-  return input.length
+  return -1
+}
+
+function readLineTerminator(input: string, index: number): string {
+  return input[index] === '\r' && input[index + 1] === '\n' ? '\r\n' : input[index] ?? ''
 }
 
 function encodeIdentifier(index: number): string {

@@ -1468,29 +1468,65 @@ describe('Cipó AST parser', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'tokenizeDeclarations uses escape parity instead of checking only the immediately preceding backslash when scanning quoted strings',
+      () => {
+        const input = String.raw`content:"value\\";
+        color:red`
+        expect(tokenizeDeclarations(input)).toEqual([String.raw`content:"value\\"`, 'color:red'])
+      },
     )
-    it.todo(
+    it(
       'findDeclarationBlockBoundary uses quote-aware reverse scanning that correctly handles escaped quotes when scanning backwards',
+      () => {
+        const warnings: CipoWarning[] = []
+        const ast = parseBlockBody(String.raw`content:"value\\"
+        .card{color:red;}`, warnings)
+        expect(ast.some((node) => node.type === 'block' && node.name === '.card')).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'parseBlockBody does not treat braces inside quoted declaration values as structural block delimiters',
+      () => {
+        const ast = parseBlockBody('content:"}";color:red;', [])
+        expect(ast.filter((node) => node.type === 'declaration')).toHaveLength(2)
+      },
     )
-    it.todo(
+    it(
       'parseBlockBody does not treat braces inside comments as structural delimiters when called directly instead of through parseStylesheet',
+      () => {
+        const ast = parseBlockBody('/* { fake } */ color:red;', [])
+        expect(ast).toHaveLength(1)
+        expect(ast[0]).toMatchObject({ type: 'declaration', property: 'color', value: 'red' })
+      },
     )
-    it.todo(
+    it(
       'tokenizeDeclarations tracks matching delimiter families instead of one shared depth counter for parentheses and brackets',
+      () => {
+        expect(tokenizeDeclarations('value:fn([)]);color:red')).toEqual(['value:fn([)])', 'color:red'])
+      },
     )
-    it.todo(
+    it(
       'standalone native CSS function lines followed by declarations do not merge into one invalid token when semicolons are omitted',
+      () => {
+        expect(tokenizeDeclarations(`linear-gradient(red, blue)\ncolor:red`)).toEqual(['linear-gradient(red, blue)', 'color:red'])
+      },
     )
-    it.todo(
+    it(
       'unclosed blocks do not produce a secondary invalid-declaration warning for the preserved opening-brace remainder',
+      () => {
+        const warnings: CipoWarning[] = []
+        parseBlockBody('.card{color:red;', warnings)
+        expect(warnings.filter((warning) => warning.code === 'unclosed-block')).toHaveLength(1)
+        expect(warnings.some((warning) => warning.code === 'invalid-declaration')).toBe(false)
+      },
     )
-    it.todo(
+    it(
       'parseDirective shares balanced-parentheses parsing with the common lexer instead of relying on a whole-string regular expression',
+      () => {
+        expect(parseDirective('@with(fn(a, nested(b, c)))', [])).toMatchObject({ name: 'with', args: ['fn(a, nested(b, c))'] })
+        expect(parseDirective('@with(fn(a)) trailing', [])).toBeNull()
+      },
     )
   })
 })
