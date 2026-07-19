@@ -23,6 +23,13 @@ export type BuiltInPropertyAlias = readonly [
   property: string,
   scale: BuiltInScale,
 ]
+
+export interface ResolveBuiltInPropertyAliasOptions {
+  /** Rejects lexically valid unknown properties when the host can validate native CSS support. */
+  readonly strict?: boolean
+  /** Test/CI hook for validating against an externally supplied native-property manifest. */
+  readonly isNativeProperty?: (property: string) => boolean
+}
 const spacing = 'spacing' as const
 const color = 'color' as const
 const radius = 'radius' as const
@@ -644,6 +651,7 @@ Readonly<Record<string, BuiltInPropertyAlias>> =
  */
 export function resolveBuiltInPropertyAlias(
   input: string,
+  options: ResolveBuiltInPropertyAliasOptions = {},
 ): BuiltInPropertyAlias | undefined {
   const name = input.trim()
   if (!name) return undefined
@@ -651,6 +659,9 @@ export function resolveBuiltInPropertyAlias(
   if (direct) return direct
   const property = toCssPropertyName(name)
   if (!property || !isCssPropertyName(property)) return undefined
+  if (options.strict && !property.startsWith('--') && !isKnownNativeProperty(property, options)) {
+    return undefined
+  }
   const normalizedAlias =
     BUILT_IN_PROPERTY_ALIASES[property]
   if (normalizedAlias) return normalizedAlias
@@ -749,15 +760,10 @@ export function toCssPropertyName(
  * The inference is deliberately conservative. A wrong scale can alter valid
  * CSS grammar, while `none` simply leaves the native value untouched.
  */
-export function inferBuiltInScale(
-  property: string,
-): BuiltInScale {
-  if (
-    !property
-    || property.startsWith('--')
-  ) {
-    return none
-  }
+export function inferBuiltInScale(property: string): BuiltInScale {
+  if (!property || property.startsWith('--')) return none
+  const unprefixed = property.replace(/^-(?:webkit|moz|ms|o)-/, '')
+  if (unprefixed !== property) return inferBuiltInScale(unprefixed)
   if (property === 'font-size') {
     return text
   }
@@ -893,4 +899,14 @@ function isCssPropertyName(
   return /^-?[a-z][a-z0-9-]*$/.test(
     property,
   )
+}
+
+
+function isKnownNativeProperty(
+  property: string,
+  options: ResolveBuiltInPropertyAliasOptions,
+): boolean {
+  if (options.isNativeProperty) return options.isNativeProperty(property)
+  const css = globalThis.CSS
+  return typeof css?.supports === 'function' && css.supports(property, 'initial')
 }

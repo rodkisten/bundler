@@ -640,11 +640,13 @@ defineAlias(
  *************************************************************************************************/
 defineAlias(
   'min-width:0;',
+  'min-w-0',
   'minw-0',
   'minW0',
 )
 defineAlias(
   'min-height:0;',
+  'min-h-0',
   'minh-0',
   'minH0',
 )
@@ -960,10 +962,9 @@ defineAlias(
 /**************************************************************************************************
  * GPU rendering convenience
  *************************************************************************************************/
-defineAlias(
-  'transform:translateZ(0);backface-visibility:hidden;will-change:transform;',
-  'gpu',
-)
+// `gpu` is intentionally handled by the smart declaration expander so it can
+// compose through the individual `translate` property without replacing an
+// existing transform chain.
 /**************************************************************************************************
  * Background attachment
  *************************************************************************************************/
@@ -980,7 +981,7 @@ defineValues(
  * Background clip
  *************************************************************************************************/
 defineValues(
-  'bg',
+  'bg-clip',
   'background-clip',
   {
     border: 'border-box',
@@ -1278,7 +1279,6 @@ defineValues(
   'snap',
   'scroll-snap-align',
   {
-    none: 'none',
     start: 'start',
     center: 'center',
     end: 'end',

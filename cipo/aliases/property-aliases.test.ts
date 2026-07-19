@@ -709,20 +709,49 @@ describe('built-in property aliases', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'distinguishes lexically valid but nonexistent CSS properties from real native properties when strict validation is enabled',
-    )
-    it.todo(
-      'defines whether vendor-prefixed properties should receive inferred scales when their unprefixed equivalent has one',
-    )
-    it.todo(
-      'defines whether background should use the color scale despite accepting images, gradients and multiple mixed-grammar layers',
-    )
-    it.todo(
-      'defines whether border shorthand should use the color scale despite also accepting width and style tokens',
-    )
-    it.todo(
-      'validates the complete native-property surface against WebRef during CI without shipping the WebRef dataset at runtime',
-    )
+    it('rejects lexically valid unknown properties in strict mode while accepting manifest-backed native properties', () => {
+      const isNativeProperty = (property: string) => property === 'display'
+      expect(
+        resolveBuiltInPropertyAlias('display', {
+          strict: true,
+          isNativeProperty,
+        }),
+      ).toEqual(['display', 'none'])
+      expect(
+        resolveBuiltInPropertyAlias('definitely-not-a-css-property', {
+          strict: true,
+          isNativeProperty,
+        }),
+      ).toBeUndefined()
+    })
+    it('infers vendor-prefixed property scales from their unprefixed equivalent', () => {
+      expect(inferBuiltInScale('-webkit-border-radius')).toBe('radius')
+      expect(inferBuiltInScale('-moz-border-radius')).toBe('radius')
+      expect(inferBuiltInScale('-webkit-text-size-adjust')).toBe('none')
+    })
+    it('keeps background on the color scale as the documented Cipó authoring convenience', () => {
+      expect(inferBuiltInScale('background')).toBe('color')
+      expect(resolveBuiltInPropertyAlias('background')).toEqual(['background', 'color'])
+    })
+    it('keeps border shorthand on the color scale as the documented Cipó authoring convenience', () => {
+      expect(inferBuiltInScale('border')).toBe('color')
+      expect(resolveBuiltInPropertyAlias('border')).toEqual(['border', 'color'])
+    })
+    it('accepts an externally supplied native-property manifest for strict CI validation', () => {
+      const webRefProperties = new Set(['display', 'color', 'view-transition-name'])
+      const isNativeProperty = (property: string) => webRefProperties.has(property)
+      expect(
+        resolveBuiltInPropertyAlias('viewTransitionName', {
+          strict: true,
+          isNativeProperty,
+        }),
+      ).toEqual(['view-transition-name', 'none'])
+      expect(
+        resolveBuiltInPropertyAlias('webref-missing-property', {
+          strict: true,
+          isNativeProperty,
+        }),
+      ).toBeUndefined()
+    })
   })
 })
