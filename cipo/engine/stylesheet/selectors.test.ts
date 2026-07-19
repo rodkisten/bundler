@@ -822,20 +822,37 @@ describe('stylesheet selector utilities', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'splitRuntimeContextParts preserves colons inside cq() and other parenthesized runtime context expressions',
+      () => {
+        expect(splitRuntimeContextParts('cq(sidebar: width > 30rem):hover')).toEqual(['cq(sidebar: width > 30rem)', 'hover'])
+      },
     )
-    it.todo(
+    it(
       'hasTopLevelLooseStatements uses escape parity instead of checking only the immediately preceding backslash',
+      () => {
+        expect(hasTopLevelLooseStatements(String.raw`.a{content:"x\\";color:red;}`)).toBe(false)
+      },
     )
-    it.todo(
+    it(
       'splitSelectorList uses escape parity instead of checking only the immediately preceding backslash',
+      () => {
+        expect(splitSelectorList(String.raw`[data-value="a\\"], .next`)).toHaveLength(2)
+      },
     )
-    it.todo(
+    it(
       'hasTopLevelLooseStatements treats CSS comments as lexical content instead of interpreting braces and semicolons inside comments',
+      () => {
+        expect(hasTopLevelLooseStatements('/* }; loose: value; { */ .card{color:red;}')).toBe(false)
+      },
     )
-    it.todo(
+    it(
       'isStylesheetRootBlock validates complex root selectors structurally instead of accepting any name containing whitespace or combinator characters',
+      () => {
+        expect(isStylesheetRootBlock('.parent > .child')).toBe(true)
+        expect(isStylesheetRootBlock('.parent >')).toBe(false)
+        expect(isStylesheetRootBlock('> .child')).toBe(false)
+      },
     )
   })
 })
