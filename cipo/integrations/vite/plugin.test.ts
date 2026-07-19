@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
     createCipoViteBuildState: vi.fn(),
     resetCipoViteBuildState: vi.fn(),
     replaceCompiledClassLiterals: vi.fn(),
+    assertGeneratedNameIdentity: vi.fn(),
   }
 })
 vi.mock(
@@ -97,6 +98,13 @@ vi.mock(
   () => ({
     replaceCompiledClassLiterals:
       mocks.replaceCompiledClassLiterals,
+  }),
+)
+vi.mock(
+  '../../engine/hash-registry',
+  () => ({
+    assertGeneratedNameIdentity:
+      mocks.assertGeneratedNameIdentity,
   }),
 )
 import { cipoVite } from './plugin'
@@ -320,15 +328,12 @@ describe('cipoVite', () => {
         {},
         '\0cipo:compiled-style-tag.js',
       )
-      expect(result).toContain(
-        'import { insertCss } from "@rodkisten/cipo/compiled-runtime";',
-      )
+      expect(result).not.toContain('@rodkisten/cipo/compiled-runtime')
+      expect(result).toContain('document.createElement("style")')
       expect(result).toContain(
         '__CIPO_COMPILED_GLOBAL_STYLESHEET__',
       )
-      expect(result).toContain(
-        'insertCss(',
-      )
+      expect(result).toContain('style.textContent')
     })
     it('returns null when loading an unrelated module', () => {
       const plugin = cipoVite()
@@ -1667,18 +1672,58 @@ describe('cipoVite', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'covers optional Fábrica compiler loading without making @rodkisten/fabrica a hard dependency for runtime-only Cipó consumers',
-    )
-    it.todo(
-      'defines whether whole-build finalization should be invalidated when a transformed module contributes CSS but cipo.changed is false',
-    )
-    it.todo(
-      'defines whether buildNamespace hash collisions should be guarded similarly to generated class-name collisions',
-    )
-    it.todo(
-      'defines source-map composition semantics when both runtime config lowering and Cipó/Fábrica transforms change the same source',
-    )
+    it('keeps Fábrica compilation opt-in for runtime-only Cipó consumers', async () => {
+      const plugin = cipoVite()
+      await expect(
+        callAsyncHook(plugin.transform, {}, 'source', '/src/app.ts'),
+      ).resolves.toBeNull()
+    })
+    it('invalidates whole-build finalization when a later module contributes CSS even if cipo.changed is false', async () => {
+      const plugin = cipoVite({
+        configCss: '@cipo { prefix: cp; }',
+        compileFabrica: false,
+      })
+      await callAsyncHook(plugin.renderChunk, {}, 'untouched', { fileName: 'first.js' })
+      expect(mocks.compileGlobalAtomicStyles).toHaveBeenCalledTimes(1)
+      mocks.compileCipoSourceBuild.mockReturnValueOnce({
+        code: 'source',
+        css: '.late{color:red}',
+        changed: false,
+        manifest: [],
+      })
+      await callAsyncHook(plugin.transform, {}, 'source', '/src/late.ts')
+      await callAsyncHook(plugin.renderChunk, {}, 'untouched', { fileName: 'second.js' })
+      expect(mocks.compileGlobalAtomicStyles).toHaveBeenCalledTimes(2)
+    })
+    it('guards build namespace hashes through the generated-name collision registry', () => {
+      cipoVite({ buildNamespace: 'application-one' })
+      expect(mocks.assertGeneratedNameIdentity).toHaveBeenCalledWith(
+        'cipo-build-abcdef',
+        'build-namespace|application-one',
+      )
+    })
+    it('maps the original module directly to the final transformed source after all plugin stages', async () => {
+      mocks.compileCssConfigPayload.mockReturnValue({ operations: [] } as CipoCompiledCssConfig)
+      mocks.compileCipoSourceBuild.mockImplementation((code: string) => ({
+        code: `${code}
+compiled`,
+        css: '',
+        changed: true,
+        manifest: [],
+      }) as CipoCompiledBuildResult)
+      const plugin = cipoVite({
+        compileFabrica: false,
+        configCss: '@cipo { prefix: cp; }',
+      })
+      const source = `import { configureFromCss } from '@rodkisten/cipo'
+configureFromCss('@cipo { prefix: cp; }')`
+      const result = await callAsyncHook(plugin.transform, {}, source, '/src/app.ts')
+      expect(mocks.createLineSourceMap).toHaveBeenLastCalledWith(
+        source,
+        result?.code,
+        '/src/app.ts',
+      )
+    })
   })
 })
 /**

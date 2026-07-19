@@ -14,6 +14,7 @@ import { compileGlobalAtomicStyles } from '../../compiler/atomic/global'
 import { compileCssConfigPayload } from '../../config-css/parse'
 import type { CipoCompiledCssConfig } from '../../compiled-config'
 import { hashString64 } from '../../utils'
+import { assertGeneratedNameIdentity } from '../../engine/hash-registry'
 import {
   applyEdits,
   ensureNamedImportBinding,
@@ -135,11 +136,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
     },
     load(id) {
       if (id === VIRTUAL_CSS_ID) {
-        return [
-          `import { insertCss } from ${JSON.stringify(CIPO_COMPILED_RUNTIME)};`,
-          `insertCss(${JSON.stringify(GLOBAL_STYLESHEET_SENTINEL)});`,
-          '',
-        ].join('\n')
+        return createVirtualStyleTagModule(GLOBAL_STYLESHEET_SENTINEL)
       }
       if (id === VIRTUAL_CSS_ASSET_ID) {
         return wholeBuildAtomic ? '' : dedupeCssChunks(state.cssChunks)
@@ -201,6 +198,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         const finalCode = fabrica?.code ?? nextCode
         if (cipo.css) {
           state.cssChunks.push(cipo.css)
+          if (wholeBuildAtomic) state.finalized = undefined
         }
         if (cipo.changed) {
           state.manifests.push(...cipo.manifest)
@@ -228,7 +226,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
           },
         }
       }
-      if (options.compileFabrica === false) {
+      if (options.compileFabrica !== true) {
         return finalizeTransform()
       }
       // Fábrica is an optional peer for runtime-only Cipó consumers. Load its compiler only
@@ -486,11 +484,27 @@ function compileRuntimeConfigCalls(
   }
 }
 function createBuildNamespace(options: CipoViteCompiledInlineOptions): string {
-  const source =
-    options.buildNamespace
-    ?? options.configCss
-    ?? options.root
-    ?? options.classPrefix
-    ?? 'cipo'
-  return hashString64(String(source)).slice(0, 6)
+  const source = options.buildNamespace ?? options.configCss ?? options.root ?? options.classPrefix ?? 'cipo'
+  const namespace = hashString64(String(source)).slice(0, 6)
+  assertGeneratedNameIdentity(`cipo-build-${namespace}`, `build-namespace|${String(source)}`)
+  return namespace
+}
+
+/** Creates a dependency-free virtual module so workspace builds do not require prebuilt package exports. */
+function createVirtualStyleTagModule(cssText: string): string {
+  return [
+    `const css = ${JSON.stringify(cssText)};`,
+    'if (typeof document !== "undefined" && css) {',
+    '  const id = "cipo-runtime";',
+    '  let style = document.getElementById(id);',
+    '  if (!(style instanceof HTMLStyleElement)) {',
+    '    style = document.createElement("style");',
+    '    style.id = id;',
+    '    style.dataset.cipo = "runtime";',
+    '    document.head.appendChild(style);',
+    '  }',
+    '  if (!style.textContent?.includes(css)) style.textContent = `${style.textContent ?? ""}${css}`;',
+    '}',
+    '',
+  ].join('\n')
 }
