@@ -55,8 +55,8 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain("import { compiledInlineCss } from '../cipo'")
-    expect(result.code).toContain("styled.div('Panel')(compiledInlineCss`")
+    expect(result.code).toContain("import { compiledInlineCss as __cipoCompiledInlineCss } from \"../cipo\"")
+    expect(result.code).toContain("styled.div('Panel')(__cipoCompiledInlineCss`")
     expect(result.manifest).toHaveLength(1)
     expect(result.manifest[0]?.cssText).toContain('color:red')
   })

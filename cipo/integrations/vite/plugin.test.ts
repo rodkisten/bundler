@@ -328,11 +328,12 @@ describe('cipoVite', () => {
         {},
         '\0cipo:compiled-style-tag.js',
       )
-      expect(result).toContain('@rodkisten/cipo/compiled-runtime')
-      expect(result).toContain('insertCss')
+      expect(result).not.toContain('@rodkisten/cipo/compiled-runtime')
+      expect(result).toContain('document.createElement("style")')
       expect(result).toContain(
         '__CIPO_COMPILED_GLOBAL_STYLESHEET__',
       )
+      expect(result).toContain('style.textContent')
     })
     it('returns null when loading an unrelated module', () => {
       const plugin = cipoVite()

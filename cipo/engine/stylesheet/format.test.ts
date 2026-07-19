@@ -451,14 +451,21 @@ describe('stylesheet formatter', () => {
     })
   })
   describe('known formatter boundaries', () => {
-    it.todo(
-      'tracks backslash parity before quotes so a quote preceded by an even number of backslashes closes the string correctly',
-    )
-    it.todo(
-      'preserves CSS comments as opaque lexical content if pretty formatting is ever required to retain compiler comments',
-    )
-    it.todo(
-      'uses the shared CSS lexer for structural formatting once pretty output needs full awareness of comments, escapes and modern nested syntax',
-    )
+    it('tracks backslash parity before quotes while formatting strings', () => {
+      const css = String.raw`.a{content:"ends-with-backslash\";color:red;}`
+      expect(formatStylesheetText(css)).toContain('color:red;')
+    })
+    it('preserves CSS comments as opaque lexical content in pretty output', () => {
+      const result = formatStylesheetText('.a{/* } ; { */color:red;}')
+      expect(result).toContain('/* } ; { */')
+      expect(result).toContain('color:red;')
+    })
+    it('formats modern nested syntax without treating opaque lexical payloads as structure', () => {
+      const css = '.a{&:is(.b,.c){content:"};{";/* }; */color:red;}}'
+      const result = formatStylesheetText(css)
+      expect(result).toContain('&:is(.b,.c) {')
+      expect(result).toContain('content:"};{";')
+      expect(result).toContain('/* }; */')
+    })
   })
 })

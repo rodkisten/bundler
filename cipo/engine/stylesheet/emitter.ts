@@ -116,7 +116,12 @@ function compileStylesheetRuntimeBlock(
       if (part === 'dark') { selectors = prefixSelectors(runtime.config.darkSelector, selectors); continue }
       if (part === 'motion-safe') { wrappers.push('@media (prefers-reduced-motion: no-preference)'); continue }
       if (part === 'motion-reduce') { wrappers.push('@media (prefers-reduced-motion: reduce)'); continue }
-      if (isCipoPseudoName(part)) selectors = appendPseudoToSelectors(selectors, part)
+      if (isCipoPseudoName(part)) { selectors = appendPseudoToSelectors(selectors, part); continue }
+      runtime.warningSink.push({
+        code: 'cipo-unknown-runtime-context',
+        message: `Unknown runtime context: x:${part}`,
+        source: block.name,
+      })
     }
   }
 
@@ -137,8 +142,8 @@ function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly
     const declarations = block.body.filter((node): node is CipoDeclarationNode => node.type === 'declaration')
     return compilePropertyBlock(propertyName, declarations)
   }
-  if (kind === 'keyframes') return compileKeyframesAtRule(block, forceImportant)
-  if (kind === 'declaration-block') return compileDeclarationBlockAtRule(block, forceImportant)
+  if (kind === 'keyframes') return compileKeyframesAtRule(block)
+  if (kind === 'declaration-block') return compileDeclarationBlockAtRule(block)
 
   let body = ''
   for (const child of block.body) {
@@ -148,20 +153,20 @@ function compileStylesheetAtRule(block: CipoBlockNode, parentSelectors: readonly
   return body ? `${name}{${body}}` : ''
 }
 
-function compileDeclarationBlockAtRule(block: CipoBlockNode, forceImportant: boolean): string {
+function compileDeclarationBlockAtRule(block: CipoBlockNode): string {
   let body = ''
-  for (const child of block.body) if (child.type === 'declaration') body += compileDeclaration(child, forceImportant)
+  for (const child of block.body) if (child.type === 'declaration') body += compileDeclaration(child, false, true)
   return body ? `${block.name.trim()}{${body}}` : ''
 }
 
-function compileKeyframesAtRule(block: CipoBlockNode, forceImportant: boolean): string {
+function compileKeyframesAtRule(block: CipoBlockNode): string {
   let body = ''
   for (const child of block.body) {
     if (child.type !== 'block') continue
     const declarations = child.body.filter((node): node is CipoDeclarationNode => node.type === 'declaration')
     if (declarations.length === 0) continue
     let declarationText = ''
-    for (const declaration of declarations) declarationText += compileDeclaration(declaration, forceImportant)
+    for (const declaration of declarations) declarationText += compileDeclaration(declaration, false, true)
     body += `${child.name.trim()}{${declarationText}}`
   }
   return body ? `${block.name.trim()}{${body}}` : ''
@@ -177,7 +182,20 @@ function compileStylesheetRule(
   return `${joinSelectors(applyConfiguredScopeToSelectors(selectors))}{${body}}`
 }
 
-function compileDeclaration(declaration: CipoDeclarationNode, forceImportant: boolean): string {
-  const important = runtime.config.important || forceImportant
+function compileDeclaration(
+  declaration: CipoDeclarationNode,
+  forceImportant: boolean,
+  suppressImportant = false,
+): string {
+  const important = !suppressImportant && (runtime.config.important || forceImportant)
   return `${declaration.property}:${important ? addImportant(declaration.value) : declaration.value};`
+}
+
+/** Parses one function-style runtime wrapper and rejects malformed or empty arguments. */
+function readRuntimeWrapperArgument(name: string, wrapper: string): string | null | undefined {
+  const prefix = `${wrapper}(`
+  if (!name.startsWith(prefix)) return undefined
+  if (!name.endsWith(')')) return null
+  const value = name.slice(prefix.length, -1).trim()
+  return value || null
 }

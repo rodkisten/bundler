@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => {
       darkSelector: '.dark',
       breakpoints: {} as Record<string, string | null>,
     },
+    warningSink: [] as Array<{
+      code: string
+      message: string
+      source?: string
+    }>,
   }
   return {
     runtime,
@@ -256,6 +261,7 @@ vi.mock('./selectors', () => ({
 import { compileStylesheetText } from './emitter'
 describe('full stylesheet compiler', () => {
   beforeEach(() => {
+    mocks.runtime.warningSink.length = 0
     vi.clearAllMocks()
     mocks.runtime.config = {
       important: false,
@@ -1350,7 +1356,7 @@ describe('full stylesheet compiler', () => {
         '@font-face{font-family:"Inter";src:url(inter.woff2);}',
       )
     })
-    it('applies forceImportant inside declaration-block at-rules', () => {
+    it('suppresses forceImportant inside declaration-block at-rules', () => {
       const result =
         compileStylesheetText(
           [
@@ -1367,7 +1373,7 @@ describe('full stylesheet compiler', () => {
           true,
         )
       expect(result).toBe(
-        '@font-face{font-display:swap !important;}',
+        '@font-face{font-display:swap;}',
       )
     })
     it('omits an empty declaration-block at-rule', () => {
@@ -1529,7 +1535,7 @@ describe('full stylesheet compiler', () => {
         ]),
       ).toBe('')
     })
-    it('propagates forceImportant to keyframe declarations', () => {
+    it('suppresses forceImportant inside keyframe declarations', () => {
       const result =
         compileStylesheetText(
           [
@@ -1551,7 +1557,7 @@ describe('full stylesheet compiler', () => {
           true,
         )
       expect(result).toBe(
-        '@keyframes fade{to{opacity:1 !important;}}',
+        '@keyframes fade{to{opacity:1;}}',
       )
     })
   })
@@ -1728,18 +1734,39 @@ describe('full stylesheet compiler', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'defines whether malformed supports(), layer() and container() runtime wrapper names should be rejected instead of slicing the final character blindly',
+    it.each(['supports(display: grid', 'layer(components', 'container(sidebar'])(
+      'rejects malformed runtime wrapper %s',
+      (name) => {
+        expect(
+          compileStylesheetText([block(name, [declaration('color', 'red')])]),
+        ).toBe('')
+      },
     )
-    it.todo(
-      'defines whether unknown x: runtime blocks should compile transparently or emit diagnostics instead of silently behaving like their parent context',
-    )
-    it.todo(
-      'defines whether !important is semantically valid inside @font-face and @keyframes before forceImportant is propagated into those grammar families',
-    )
-    it.todo(
-      'defines whether top-level declarations are intentionally supported by the full stylesheet compiler or should require a selector/root declaration context',
-    )
+    it('emits a diagnostic for unknown x: runtime context parts while preserving recognized context', () => {
+      const result = compileStylesheetText([
+        block('.button', [block('x:unknown:hover', [declaration('color', 'red')])]),
+      ])
+      expect(result).toContain('.button:hover')
+      expect(mocks.runtime.warningSink).toContainEqual({
+        code: 'cipo-unknown-runtime-context',
+        message: 'Unknown runtime context: x:unknown',
+        source: 'x:unknown:hover',
+      })
+    })
+    it('suppresses global and forced important inside declaration-block at-rules and keyframes', () => {
+      mocks.runtime.config.important = true
+      expect(
+        compileStylesheetText([
+          block('@font-face', [declaration('font-family', 'Demo')]),
+          block('@keyframes fade', [block('to', [declaration('opacity', '1')])]),
+        ], true),
+      ).not.toContain('!important')
+    })
+    it('intentionally supports top-level declarations for stylesheet-root custom properties', () => {
+      expect(
+        compileStylesheetText([declaration('--brand', 'red')]),
+      ).toBe('--brand:red;')
+    })
   })
 })
 function declaration(
