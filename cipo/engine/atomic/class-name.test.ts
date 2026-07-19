@@ -121,7 +121,7 @@ describe('atomic class-name generation', () => {
           'dark',
           'md',
           'hover',
-          'supports',
+          'supports-display-grid',
           'container-sidebar',
           'layer-components',
           'color',
@@ -365,7 +365,7 @@ describe('atomic class-name generation', () => {
           },
         ),
       ).toBe(
-        'media-prefers-reduced-motion-reduce-display-block',
+        'media-orientation-landscape-display-block',
       )
     })
     it('redacts quoted user-authored content from readable labels', () => {
