@@ -106,7 +106,11 @@ function rewriteRuntimeFeatureBlocks(
     }
 
     const body = input.slice(cursor + 1, closeBrace);
-    const rewrittenBody = rewriteRuntimeFeatureBlocks(body, warnings);
+    // Variant choice names are structural, so do not rewrite names such as `dark`
+    // before the variant parser has separated choice names from their bodies.
+    const rewrittenBody = name === "variant"
+      ? body
+      : rewriteRuntimeFeatureBlocks(body, warnings);
     const replacement = renderRuntimeFeatureBlock(
       name,
       args,
@@ -114,7 +118,7 @@ function rewriteRuntimeFeatureBlocks(
       warnings,
     );
 
-    if (replacement) output += replacement;
+    if (replacement !== null) output += replacement;
     else output += `${input.slice(index, cursor + 1)}${rewrittenBody}}`;
 
     index = closeBrace + 1;
@@ -128,12 +132,12 @@ function renderRuntimeFeatureBlock(
   args: string,
   body: string,
   warnings: CipoWarning[],
-): string {
+): string | null {
   if (name === "dark" && !args.trim()) return `x:dark{${body}}`;
   if (name === "slot") return renderSlotBlock(args, body, warnings);
   if (name === "variant") return renderVariantBlock(args, body, warnings);
   if (name === "compound") return renderCompoundBlock(args, body, warnings);
-  return "";
+  return null;
 }
 
 function renderSlotBlock(
@@ -186,7 +190,8 @@ function renderVariantBlock(
     const choiceName = sanitizeRuntimeIdentifier(choice.name.trim());
     if (!choiceName) continue;
     const choiceKebab = toKebabMixed(choiceName);
-    output += `&[data-${variantKebab}="${choiceKebab}"], &.${variantKebab}-${choiceKebab}{${choice.body}}\n`;
+    const choiceBody = rewriteRuntimeFeatureBlocks(choice.body, warnings);
+    output += `&[data-${variantKebab}="${choiceKebab}"], &.${variantKebab}-${choiceKebab}{${choiceBody}}\n`;
   }
   return output;
 }
@@ -346,7 +351,6 @@ function expandContextProviderCalls(input: string, warnings: CipoWarning[]): str
         code: "cipo-provide-invalid",
         message: "Runtime provide() requires a non-empty name:value pair.",
       });
-      output += input.slice(start, close + 1);
     } else {
       output += rendered;
     }

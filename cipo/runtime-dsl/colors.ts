@@ -31,7 +31,7 @@ function expandColorUtilityLine(line: string): string {
     return line
   }
 
-  const match = /^(bg|color)-([a-z][a-z0-9-]*)-([0-9]{1,3})$/i.exec(trimmed)
+  const match = /^(bg|color)-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)-([0-9]{1,3})$/i.exec(trimmed)
   if (!match) return line
 
   const property = match[1]?.toLowerCase() === 'bg' ? 'background' : 'color'
