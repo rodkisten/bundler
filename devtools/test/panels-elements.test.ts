@@ -12,8 +12,6 @@ import {
 
 const mocks = getMocks();
 
-const mocks = getMocks();
-
 type Fixture = {
   tool: Elements;
   host: HTMLElement;
