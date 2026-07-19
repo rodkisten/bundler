@@ -40,7 +40,10 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
   const name = block.name.trim()
   if (isStylesheetAtRuleName(name)) return compileStylesheetAtRule(block, parentSelectors, forceImportant)
   if (name === 'reduce-motion') return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
-  if (name.startsWith('supports(')) return wrapStylesheetRuntimeWrapper(`@supports ${name.slice('supports('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  if (name.startsWith('supports(')) {
+    const condition = normalizeSupportsRuntimeCondition(name.slice('supports('.length, -1))
+    return wrapStylesheetRuntimeWrapper(`@supports ${condition}`, block, parentSelectors, forceImportant)
+  }
   if (name.startsWith('layer(')) return wrapStylesheetRuntimeWrapper(`@layer ${name.slice('layer('.length, -1).trim()}`, block, parentSelectors, forceImportant)
   if (name.startsWith('container(')) return wrapStylesheetRuntimeWrapper(`@container ${name.slice('container('.length, -1).trim()}`, block, parentSelectors, forceImportant)
   if (name.startsWith('x:')) return compileStylesheetRuntimeBlock(block, parentSelectors, forceImportant)
@@ -66,6 +69,12 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
     output += output ? `\n${rule}` : rule
   }
   return output
+}
+
+function normalizeSupportsRuntimeCondition(condition: string): string {
+  const normalized = condition.trim()
+  if (/^[a-zA-Z-]+\s*:/.test(normalized)) return `(${normalized})`
+  return normalized
 }
 
 function wrapStylesheetRuntimeWrapper(

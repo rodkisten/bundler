@@ -253,7 +253,7 @@ vi.mock('./selectors', () => ({
   splitSelectorList:
     mocks.splitSelectorList,
 }))
-import { compileStylesheetText } from './compiler'
+import { compileStylesheetText } from './emitter'
 describe('full stylesheet compiler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -698,7 +698,7 @@ describe('full stylesheet compiler', () => {
           ),
         ])
       expect(result).toBe(
-        '@supports display: grid{.configured .layout{display:grid;}}',
+        '@supports (display: grid){.configured .layout{display:grid;}}',
       )
     })
     it('compiles layer() runtime wrappers', () => {
