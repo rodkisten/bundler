@@ -43,18 +43,18 @@ export function createReadableAtomicLabel(
   context: CipoRuleContext,
 ): string {
   const options = runtime.config.debugOptions
-  const segments: string[] = []
+  const contextSegments: string[] = []
+  if (options.includeContext) appendContextSegments(contextSegments, context)
 
-  if (options.includeContext) appendContextSegments(segments, context)
-
+  const declarationSegments: string[] = []
   const propertySegment = sanitizeAtomicClassSegment(property, false)
   const valueSegment = sanitizeAtomicClassSegment(redactSensitiveCssValue(value), true)
+  if (propertySegment) declarationSegments.push(propertySegment)
+  if (valueSegment) declarationSegments.push(valueSegment)
 
-  if (propertySegment) segments.push(propertySegment)
-  if (valueSegment) segments.push(valueSegment)
-
-  const raw = segments.join('-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '')
-  return truncateReadableLabel(raw, options.maxClassLabelLength)
+  const contextLabel = normalizeReadableLabel(contextSegments.join('-'))
+  const declarationLabel = normalizeReadableLabel(declarationSegments.join('-'))
+  return composeReadableLabel(contextLabel, declarationLabel, options.maxClassLabelLength)
 }
 
 /** Normalizes arbitrary CSS text into a class-safe lowercase segment. */
@@ -83,11 +83,18 @@ export function sanitizeAtomicClassSegment(value: string, isValue = false): stri
 
 function appendContextSegments(output: string[], context: CipoRuleContext): void {
   if (context.dark) output.push('dark')
-  if (context.breakpoint && context.breakpoint !== 'base') output.push(sanitizeAtomicClassSegment(context.breakpoint))
-  else if (context.mediaQuery) output.push('media')
+  if (context.breakpoint && context.breakpoint !== 'base') {
+    output.push(sanitizeAtomicClassSegment(context.breakpoint))
+  } else if (context.mediaQuery) {
+    const media = sanitizeAtomicClassSegment(context.mediaQuery)
+    output.push(media ? `media-${media}` : 'media')
+  }
   if (context.notBreakpoint) output.push(`not-${sanitizeAtomicClassSegment(context.notBreakpoint)}`)
   if (context.pseudo) output.push(sanitizeAtomicClassSegment(context.pseudo.replace(/^:+/, '')))
-  if (context.supports) output.push('supports')
+  if (context.supports) {
+    const supports = sanitizeAtomicClassSegment(context.supports)
+    output.push(supports ? `supports-${supports}` : 'supports')
+  }
   if (context.container) {
     const container = sanitizeAtomicClassSegment(context.container)
     output.push(container ? `container-${container}` : 'container')
@@ -96,13 +103,35 @@ function appendContextSegments(output: string[], context: CipoRuleContext): void
 }
 
 function redactSensitiveCssValue(value: string): string {
+  const trimmed = value.trim()
+  if (/^(?:data|blob):/i.test(trimmed)) return 'url'
+
   return value
     .replace(/url\(\s*(['"]?)[\s\S]*?\1\s*\)/gi, 'url')
-    .replace(/(?:data|blob):[^\s,)]+/gi, 'url')
+    .replace(/(?:data|blob):[^\s)]+/gi, 'url')
     .replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, 'string')
 }
 
+function normalizeReadableLabel(value: string): string {
+  return value.replace(/-{2,}/g, '-').replace(/^-|-$/g, '')
+}
+
+/** Keeps declaration identity visible even when verbose context consumes the label budget. */
+function composeReadableLabel(context: string, declaration: string, maxLength: number): string {
+  if (!context) return truncateReadableLabel(declaration, maxLength)
+  if (!declaration) return truncateReadableLabel(context, maxLength)
+
+  const full = `${context}-${declaration}`
+  if (full.length <= maxLength) return full
+  if (declaration.length >= maxLength) return truncateReadableLabel(declaration, maxLength)
+
+  const contextBudget = Math.max(0, maxLength - declaration.length - 1)
+  const contextPrefix = truncateReadableLabel(context, contextBudget)
+  return contextPrefix ? `${contextPrefix}-${declaration}` : declaration
+}
+
 function truncateReadableLabel(value: string, maxLength: number): string {
+  if (maxLength <= 0) return ''
   if (value.length <= maxLength) return value
   const truncated = value.slice(0, maxLength).replace(/-+$/g, '')
   return truncated || value.slice(0, maxLength)

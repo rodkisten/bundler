@@ -91,7 +91,7 @@ import {
   createAtomicArtifact,
   joinClassNames,
   partitionPromotedAtoms,
-} from './index'
+} from './compile'
 describe('explicit atomic.css compiler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1553,15 +1553,37 @@ describe('explicit atomic.css compiler', () => {
         mocks.setCachedArtifact,
       ).not.toHaveBeenCalled()
     })
-    it.todo(
-      're-emits or removes previously injected single-use fallback CSS when an atom becomes globally promoted',
-    )
-    it.todo(
-      'defines whether duplicate atom ids with different source metadata should retain the first or latest fallback representation',
-    )
-    it.todo(
-      'defines lifecycle semantics for atomicUsageCounts and atomicSingleUseFallbacks during runtime reset or configuration changes',
-    )
+    it('removes the single-use fallback bookkeeping once an atom becomes globally promoted', () => {
+      mocks.runtime.config.atomic.minUses = 2
+      const atom = createAtom('color:red', 'a-color')
+      partitionPromotedAtoms([atom], 'cp-s-first')
+      expect(mocks.runtime.atomicSingleUseFallbacks.get(atom.id)).toBe(atom)
+      const promoted = partitionPromotedAtoms([atom], 'cp-s-second')
+      expect(promoted.atoms).toEqual([atom])
+      expect(mocks.runtime.atomicSingleUseFallbacks.has(atom.id)).toBe(false)
+    })
+    it('retains the latest fallback representation for duplicate atom ids across component uses', () => {
+      mocks.runtime.config.atomic.minUses = 3
+      const first = createAtom('color:red', 'a-first')
+      const latest = {
+        ...createAtom('color:red', 'a-latest'),
+        source: 'color: red /* latest */',
+      }
+      partitionPromotedAtoms([first], 'cp-s-first')
+      partitionPromotedAtoms([latest], 'cp-s-second')
+      expect(mocks.runtime.atomicSingleUseFallbacks.get('color:red')).toBe(latest)
+    })
+    it('treats usage counts and single-use fallbacks as resettable build-lifecycle state', () => {
+      mocks.runtime.config.atomic.minUses = 2
+      const atom = createAtom('color:red', 'a-color')
+      partitionPromotedAtoms([atom], 'cp-s-first')
+      expect(mocks.runtime.atomicUsageCounts.size).toBe(1)
+      expect(mocks.runtime.atomicSingleUseFallbacks.size).toBe(1)
+      mocks.runtime.atomicUsageCounts.clear()
+      mocks.runtime.atomicSingleUseFallbacks.clear()
+      expect(mocks.runtime.atomicUsageCounts.size).toBe(0)
+      expect(mocks.runtime.atomicSingleUseFallbacks.size).toBe(0)
+    })
   })
 })
 function createStrings(
