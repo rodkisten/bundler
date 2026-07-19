@@ -1,39 +1,41 @@
 export function expandRuntimeColorUtilities(input: string): string {
-  let output = "";
-  let line = "";
+  let output = ''
+  let lineStart = 0
 
-  for (let index = 0; index <= input.length; index += 1) {
-    const char = input[index] || "\n";
-    if (char !== "\n" && char !== "\r") {
-      line += char;
-      continue;
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index]
+    if (char !== '\n' && char !== '\r') continue
+
+    output += expandColorUtilityLine(input.slice(lineStart, index))
+
+    if (char === '\r' && input[index + 1] === '\n') {
+      output += '\r\n'
+      index += 1
+    } else {
+      output += char
     }
 
-    const expanded = expandColorUtilityLine(line);
-    output += expanded + char;
-    line = "";
+    lineStart = index + 1
   }
 
-  return output;
+  if (lineStart < input.length) output += expandColorUtilityLine(input.slice(lineStart))
+  return output
 }
 
 function expandColorUtilityLine(line: string): string {
-  const indentSize = line.length - line.trimStart().length;
-  const indent = line.slice(0, indentSize);
-  const trimmed = line.trim().replace(/;$/, "");
-  if (
-    !trimmed ||
-    trimmed.includes(":") ||
-    trimmed.includes("{") ||
-    trimmed.includes("}")
-  )
-    return line;
+  const indentSize = line.length - line.trimStart().length
+  const indent = line.slice(0, indentSize)
+  const trimmed = line.trim().replace(/;$/, '')
 
-  const match = /^(bg|color)-([a-z]+)-([0-9]{1,3})$/.exec(trimmed);
-  if (!match) return line;
+  if (!trimmed || trimmed.includes(':') || trimmed.includes('{') || trimmed.includes('}')) {
+    return line
+  }
 
-  const property = match[1] === "bg" ? "background" : "color";
-  return `${indent}${property}: ${createOklchUtilityColor(match[2]!, Number(match[3]))}`;
+  const match = /^(bg|color)-([a-z][a-z0-9-]*)-([0-9]{1,3})$/i.exec(trimmed)
+  if (!match) return line
+
+  const property = match[1]?.toLowerCase() === 'bg' ? 'background' : 'color'
+  return `${indent}${property}: ${createOklchUtilityColor(match[2] ?? '', Number(match[3]))}`
 }
 
 const HUE_BY_NAME: Record<string, number> = {
@@ -60,32 +62,30 @@ const HUE_BY_NAME: Record<string, number> = {
   pink: 350,
   rose: 18,
   accent: 205,
-};
+}
 
 export function createOklchUtilityColor(name: string, shade: number): string {
-  const safeShade = Math.max(
-    0,
-    Math.min(999, Number.isFinite(shade) ? shade : 500),
-  );
-  const t = safeShade / 999;
-  const hue = HUE_BY_NAME[name] ?? hashHue(name);
-  const lightness = clamp(0.16 + (1 - t) * 0.76, 0.12, 0.96);
-  const chroma = clamp(0.04 + Math.sin(Math.PI * t) * 0.24, 0.035, 0.28);
-  return `oklch(${round(lightness)} ${round(chroma)} ${round(hue)})`;
+  const normalizedName = name.trim().toLowerCase()
+  const safeShade = Math.max(0, Math.min(999, Number.isFinite(shade) ? shade : 500))
+  const t = safeShade / 999
+  const hue = HUE_BY_NAME[normalizedName] ?? hashHue(normalizedName)
+  const lightness = clamp(0.16 + (1 - t) * 0.76, 0.12, 0.96)
+  const chroma = clamp(0.04 + Math.sin(Math.PI * t) * 0.24, 0.035, 0.28)
+  return `oklch(${round(lightness)} ${round(chroma)} ${round(hue)})`
 }
 
 function hashHue(name: string): number {
-  let hash = 0;
-  for (let index = 0; index < name.length; index += 1)
-    hash = (hash * 31 + name.charCodeAt(index)) >>> 0;
-  return hash % 360;
+  let hash = 0
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) >>> 0
+  }
+  return hash % 360
 }
 
-
 function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+  return Math.min(max, Math.max(min, value))
 }
 
 function round(value: number): string {
-  return String(Math.round(value * 10000) / 10000);
+  return String(Math.round(value * 10000) / 10000)
 }

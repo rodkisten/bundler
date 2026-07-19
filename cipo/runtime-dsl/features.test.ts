@@ -13,7 +13,7 @@ vi.mock('./colors', () => ({
   createOklchUtilityColor:
     mocks.createOklchUtilityColor,
 }))
-import { expandRuntimeDesignFeatures } from './design-features'
+import { expandRuntimeDesignFeatures } from './features'
 describe('runtime design features', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -879,20 +879,44 @@ describe('runtime design features', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'ignores palette() and provide() text inside CSS comments',
+      () => {
+        const input = '/* palette(Brand, 500) provide(theme: dark) */'
+        expect(expand(input)).toBe(input)
+        expect(mocks.createOklchUtilityColor).not.toHaveBeenCalled()
+      },
     )
-    it.todo(
+    it(
       'uses escape parity instead of checking only the immediately preceding backslash when scanning quoted strings',
+      () => {
+        const input = String.raw`content:"x\\";palette(Brand, 500)`
+        expect(expand(input)).toContain('oklch-brand-500')
+      },
     )
-    it.todo(
+    it(
       'defines whether malformed provide() calls should emit diagnostics instead of disappearing silently',
+      () => {
+        const warnings: CipoWarning[] = []
+        const input = 'provide(theme)'
+        expect(expandRuntimeDesignFeatures(input, warnings)).toBe(input)
+        expect(warnings.some((warning) => warning.code === 'cipo-provide-invalid')).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'defines whether malformed choice blocks inside variant() should emit diagnostics instead of being ignored',
+      () => {
+        const warnings: CipoWarning[] = []
+        expandRuntimeDesignFeatures('variant(size){lg{color:red;}', warnings)
+        expect(warnings.some((warning) => warning.code.includes('variant-choice'))).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'defines whether palette source names should preserve case normalization semantics or always canonicalize before hashing unknown colors',
+      () => {
+        expand('palette(BrandAccent, 500)')
+        expect(mocks.createOklchUtilityColor).toHaveBeenCalledWith('brand-accent', 500)
+      },
     )
   })
 })
