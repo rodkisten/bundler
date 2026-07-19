@@ -1,4 +1,5 @@
 import * as ts from 'typescript'
+import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
 import {
   compileCipoSourceBuild,
@@ -92,6 +93,10 @@ const VIRTUAL_CSS_ID = '\0cipo:compiled-style-tag.js'
 const VIRTUAL_CSS_ASSET_ID = '\0cipo:compiled.css'
 const GLOBAL_STYLESHEET_SENTINEL = '__CIPO_COMPILED_GLOBAL_STYLESHEET__'
 const CIPO_COMPILED_RUNTIME = '@rodkisten/cipo/compiled-runtime'
+const CIPO_COMPILED_RUNTIME_FILE = fileURLToPath(new URL(
+  import.meta.url.endsWith('.ts') ? '../../compiled-runtime.ts' : '../../compiled-runtime.js',
+  import.meta.url,
+))
 const CIPO_COMPILER = '@rodkisten/cipo/compiler'
 const FABRICA_COMPILER_RUNTIME = '@rodkisten/fabrica/compiler-runtime'
 const CONFIG_IMPORT_MODULES = new Set(['@rodkisten/cipo'])
@@ -121,7 +126,14 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
     buildStart() {
       resetCipoViteBuildState(state)
     },
-    resolveId(id) {
+    resolveId(id, importer) {
+      // Virtual modules have no filesystem location, so workspace tsconfig paths
+      // are not always consulted for imports they emit. Resolve the runtime
+      // helper back to this package explicitly while preserving normal package
+      // resolution for imports emitted from real source modules.
+      if (id === CIPO_COMPILED_RUNTIME && importer === VIRTUAL_CSS_ID) {
+        return CIPO_COMPILED_RUNTIME_FILE
+      }
       if (id === VIRTUAL_CSS_ID) {
         return {
           id: VIRTUAL_CSS_ID,
