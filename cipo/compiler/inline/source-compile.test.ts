@@ -29,7 +29,7 @@ import {
   compiledInlineCss,
   createCompiledStyled,
   resolveCompiledStyleInput,
-} from './compiled-inline'
+} from './source-compile'
 describe('compiled inline compiler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
