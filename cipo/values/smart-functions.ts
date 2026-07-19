@@ -25,10 +25,11 @@ export function createSmartDeclarationExpander(
     if (name === 'scrollbar') return expandScrollbarFunction(raw)
     if (name === 'snap') return expandSnapFunction(raw)
     if (name === 'snap-item') return expandSnapItemFunction(raw)
-    if (name === 'overscroll') return createDeclaration('overscroll-behavior', normalizeKeywordArg(raw, 'auto'))
+    if (name === 'overscroll') return createDeclaration('overscroll-behavior', normalizeAllowedKeyword(raw, 'auto', OVERSCROLL_VALUES))
     if (name === 'tap') return createDeclaration('touch-action', normalizeTapValue(raw))
-    if (name === 'select') return createDeclaration('user-select', normalizeKeywordArg(raw, 'auto'))
+    if (name === 'select') return createDeclaration('user-select', normalizeAllowedKeyword(raw, 'auto', SELECT_VALUES))
     if (name === 'drag') return expandDragFunction(raw)
+    if (name === 'gpu') return expandGpuFunction()
     if (name === 'focus-ring') return expandFocusRingFunction(raw)
     if (name === 'transition') return createDeclaration('transition', normalization.normalizeTransitionValue(raw))
     if (name === 'animate') return createDeclaration('animation', normalization.normalizeAnimationValue(raw))
@@ -75,8 +76,8 @@ export function createSmartDeclarationExpander(
       if (colon > 0) {
         const key = part.slice(0, colon).trim()
         const value = part.slice(colon + 1).trim()
-        const property = key === 'x' ? 'inset-inline' : key === 'y' ? 'inset-block' : key
-        output += createDeclaration(property, normalizeValue(property, value, 'spacing'))
+        const property = POSITION_PROPERTIES[key]
+        if (property) output += createDeclaration(property, normalizeValue(property, value, 'spacing'))
       } else if (part === 'top' || part === 'right' || part === 'bottom' || part === 'left') {
         output += createDeclaration(part, '0')
       }
@@ -110,9 +111,10 @@ export function createSmartDeclarationExpander(
 
   function expandStackFunction(raw: string): string {
     const values = parseNamedArgs(raw)
+    const gap = values.gap || values.space || values.value || '4'
     return createDeclaration('display', 'flex')
       + createDeclaration('flex-direction', values.direction || 'column')
-      + createDeclaration('gap', normalizeValue('gap', values.gap || values.space || '4', 'spacing'))
+      + createDeclaration('gap', normalizeValue('gap', gap, 'spacing'))
   }
 
   function expandClusterFunction(raw: string): string {
@@ -121,13 +123,14 @@ export function createSmartDeclarationExpander(
       + createDeclaration('flex-wrap', values.wrap || 'wrap')
       + createDeclaration('align-items', values.align || values.items || 'center')
       + createDeclaration('justify-content', values.justify || 'flex-start')
-      + createDeclaration('gap', normalizeValue('gap', values.gap || '3', 'spacing'))
+      + createDeclaration('gap', normalizeValue('gap', values.gap || values.value || '3', 'spacing'))
   }
 
   function expandCenterFunction(raw: string): string {
     const values = parseNamedArgs(raw)
     let output = createDeclaration('box-sizing', 'content-box') + createDeclaration('margin-inline', 'auto')
-    if (values.max) output += createDeclaration('max-width', normalizeValue('max-width', values.max, 'spacing'))
+    const max = values.max || values.value
+    if (max) output += createDeclaration('max-width', normalizeValue('max-width', max, 'spacing'))
     if (values.px) output += createDeclaration('padding-inline', normalizeValue('padding-inline', values.px, 'spacing'))
     if (values.text === 'true' || values.text === 'center') output += createDeclaration('text-align', 'center')
     return output
@@ -138,13 +141,13 @@ export function createSmartDeclarationExpander(
     const rows = [values.header || 'auto', values.main || '1fr', values.footer || 'auto'].join(' ')
     return createDeclaration('display', 'grid')
       + createDeclaration('grid-template-rows', rows)
-      + createDeclaration('min-block-size', values.min || '100dvh')
+      + createDeclaration('min-block-size', values.min || values.value || '100dvh')
   }
 
   function expandSidebarFunction(raw: string): string {
     const values = parseNamedArgs(raw)
-    const width = values.width || values.w || '280px'
-    const gap = values.gap || '4'
+    const width = values.width || values.w || values.value || '280px'
+    const gap = values.gap || values._1 || '4'
     const normalizedWidth = normalizeValue('width', width, 'spacing')
     const columns = values.side === 'right' ? `minmax(0,1fr) ${normalizedWidth}` : `${normalizedWidth} minmax(0,1fr)`
     return createDeclaration('display', 'grid')
@@ -153,21 +156,26 @@ export function createSmartDeclarationExpander(
   }
 
   function expandScrollFunction(raw: string): string {
-    const value = normalizeKeywordArg(raw, 'smooth')
-    return value === 'touch' ? createDeclaration('-webkit-overflow-scrolling', 'touch') : createDeclaration('scroll-behavior', value)
+    const value = normalizeAllowedKeyword(raw, 'smooth', SCROLL_VALUES)
+    return value === 'touch'
+      ? createDeclaration('-webkit-overflow-scrolling', 'touch')
+      : createDeclaration('scroll-behavior', value)
   }
 
   function expandScrollbarFunction(raw: string): string {
-    return createDeclaration('scrollbar-width', normalizeKeywordArg(raw, 'thin'))
+    return createDeclaration('scrollbar-width', normalizeAllowedKeyword(raw, 'thin', SCROLLBAR_VALUES))
   }
 
   function expandSnapFunction(raw: string): string {
     const parts = splitTopLevel(raw, ',')
-    return createDeclaration('scroll-snap-type', `${(parts[0] || 'x').trim()} ${(parts[1] || 'mandatory').trim()}`)
+    const axis = normalizeAllowedKeyword(parts[0] || '', 'x', SNAP_AXIS_VALUES)
+    if (axis === 'none') return createDeclaration('scroll-snap-type', 'none')
+    const strictness = normalizeAllowedKeyword(parts[1] || '', 'mandatory', SNAP_STRICTNESS_VALUES)
+    return createDeclaration('scroll-snap-type', `${axis} ${strictness}`)
   }
 
   function expandSnapItemFunction(raw: string): string {
-    return createDeclaration('scroll-snap-align', normalizeKeywordArg(raw, 'start'))
+    return createDeclaration('scroll-snap-align', normalizeAllowedKeyword(raw, 'start', SNAP_ALIGN_VALUES))
   }
 
   function expandDragFunction(raw: string): string {
@@ -175,6 +183,12 @@ export function createSmartDeclarationExpander(
     return value === 'none'
       ? createDeclaration('-webkit-user-drag', 'none') + createDeclaration('user-select', 'none')
       : createDeclaration('-webkit-user-drag', value)
+  }
+
+  function expandGpuFunction(): string {
+    return createDeclaration('translate', '0 0 0')
+      + createDeclaration('backface-visibility', 'hidden')
+      + createDeclaration('will-change', 'transform')
   }
 
   function expandFocusRingFunction(raw: string): string {
@@ -202,6 +216,31 @@ function normalizeKeywordArg(raw: string, fallback: string): string {
 
 function normalizeTapValue(raw: string): string {
   const value = normalizeKeywordArg(raw, 'manipulation')
-  if (value === 'none' || value === 'pan-x' || value === 'pan-y' || value === 'auto' || value === 'manipulation') return value
+  if (value === 'none' || value === 'pan-x' || value === 'pan-y' || value === 'pinch-zoom' || value === 'auto' || value === 'manipulation') return value
   return 'manipulation'
+}
+
+
+const POSITION_PROPERTIES: Readonly<Record<string, string>> = Object.freeze({
+  x: 'inset-inline',
+  y: 'inset-block',
+  inset: 'inset',
+  'inset-inline': 'inset-inline',
+  'inset-block': 'inset-block',
+  top: 'top',
+  right: 'right',
+  bottom: 'bottom',
+  left: 'left',
+})
+const SCROLL_VALUES = new Set(['smooth', 'auto', 'touch'])
+const SCROLLBAR_VALUES = new Set(['auto', 'thin', 'none'])
+const OVERSCROLL_VALUES = new Set(['auto', 'contain', 'none'])
+const SELECT_VALUES = new Set(['auto', 'none', 'text', 'all'])
+const SNAP_AXIS_VALUES = new Set(['x', 'y', 'block', 'inline', 'both', 'none'])
+const SNAP_STRICTNESS_VALUES = new Set(['mandatory', 'proximity'])
+const SNAP_ALIGN_VALUES = new Set(['none', 'start', 'end', 'center'])
+
+function normalizeAllowedKeyword(raw: string, fallback: string, allowed: ReadonlySet<string>): string {
+  const value = normalizeKeywordArg(raw, fallback)
+  return allowed.has(value) ? value : fallback
 }

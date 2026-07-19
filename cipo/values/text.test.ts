@@ -832,21 +832,35 @@ describe('text value expander', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'defines whether named CSS colors such as red, blue and rebeccapurple should be accepted as standalone text colors',
+    it.each(['red', 'blue', 'rebeccapurple'])(
+      'accepts named CSS color %s as a standalone text color',
+      (color) => {
+        expect(createExpander()(color)).toBe(`color:normalized(color|${color}|color);`)
+      },
     )
-    it.todo(
-      'defines whether standalone gradient detection should use parseFunctionCall instead of the exact lowercase gradient( prefix',
-    )
-    it.todo(
-      'validates typed enum values such as align, transform, wrap and decoration before emitting declarations',
-    )
-    it.todo(
-      'defines whether duplicate standalone declarations should be deduplicated or intentionally preserve CSS cascade order',
-    )
-    it.todo(
-      'defines whether typed arguments should preserve their original source order instead of being emitted in canonical property order',
-    )
+    it('detects standalone gradient calls case-insensitively through function parsing', () => {
+      expect(createExpander()('Gradient(red, blue)')).toContain(
+        'background-image:normalized(background-image|Gradient(red, blue));',
+      )
+    })
+    it.each([
+      ['align:definitely-invalid', 'text-align'],
+      ['transform:definitely-invalid', 'text-transform'],
+      ['wrap:definitely-invalid', 'text-wrap'],
+      ['decoration:definitely-invalid', 'text-decoration-line'],
+    ])('rejects invalid typed enum %s', (input, property) => {
+      expect(createExpander()(input)).not.toContain(`${property}:`)
+    })
+    it('preserves duplicate standalone declarations so CSS cascade order remains explicit', () => {
+      expect(createExpander()('red, blue')).toBe(
+        'color:normalized(color|red|color);color:normalized(color|blue|color);',
+      )
+    })
+    it('emits typed arguments in canonical property order rather than source order', () => {
+      const result = createExpander()('weight:700, size:lg, align:center')
+      expect(result.indexOf('font-size:')).toBeLessThan(result.indexOf('font-weight:'))
+      expect(result.indexOf('font-weight:')).toBeLessThan(result.indexOf('text-align:'))
+    })
   })
 })
 function createExpander(): (

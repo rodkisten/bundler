@@ -3,6 +3,31 @@ import { createDeclaration, findTopLevelColon, parseFunctionCall, splitTopLevel 
 import type { ValueNormalizer } from './contracts'
 import { TEXT_SIZE_TOKENS } from './presets'
 
+
+
+const TEXT_ALIGN_VALUES = new Set(['start', 'end', 'left', 'right', 'center', 'justify', 'match-parent'])
+const TEXT_DECORATION_VALUES = new Set(['none', 'underline', 'overline', 'line-through', 'blink'])
+const TEXT_TRANSFORM_VALUES = new Set(['none', 'capitalize', 'uppercase', 'lowercase', 'full-width', 'full-size-kana'])
+const TEXT_WRAP_VALUES = new Set(['wrap', 'nowrap', 'balance', 'pretty', 'stable'])
+
+/** Standard CSS named colors accepted by the standalone text color shorthand. */
+const NAMED_CSS_COLORS = new Set(`
+aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown
+burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan
+darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid
+darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet
+deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro
+ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki
+lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray
+lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue
+lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple
+mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream
+mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen
+paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown
+royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow
+springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen
+`.trim().split(/\s+/))
+
 /** Creates the typography shorthand expander around the core value normalizer. */
 export function createTextExpander(normalizeValue: ValueNormalizer): (args: string) => string {
   /**
@@ -54,7 +79,7 @@ export function createTextExpander(normalizeValue: ValueNormalizer): (args: stri
           "color",
           normalizeValue("color", token, "color"),
         );
-      else if (token.startsWith("gradient(")) {
+      else if (parseFunctionCall(token)?.name.toLowerCase() === 'gradient') {
         output += createDeclaration(
           "background-image",
           normalizeValue("background-image", token),
@@ -80,9 +105,12 @@ export function createTextExpander(normalizeValue: ValueNormalizer): (args: stri
         "color",
         normalizeValue("color", typed.color, "color"),
       );
-    if (typed.align) output += createDeclaration("text-align", typed.align);
-    if (typed.decoration)
-      output += createDeclaration("text-decoration-line", typed.decoration);
+    if (typed.align && TEXT_ALIGN_VALUES.has(typed.align)) {
+      output += createDeclaration('text-align', typed.align)
+    }
+    if (typed.decoration && TEXT_DECORATION_VALUES.has(typed.decoration)) {
+      output += createDeclaration('text-decoration-line', typed.decoration)
+    }
     if (typed.shadow)
       output += createDeclaration(
         "text-shadow",
@@ -93,9 +121,12 @@ export function createTextExpander(normalizeValue: ValueNormalizer): (args: stri
         "letter-spacing",
         normalizeValue("letter-spacing", typed.tracking),
       );
-    if (typed.transform)
-      output += createDeclaration("text-transform", typed.transform);
-    if (typed.wrap) output += createDeclaration("text-wrap", typed.wrap);
+    if (typed.transform && TEXT_TRANSFORM_VALUES.has(typed.transform)) {
+      output += createDeclaration('text-transform', typed.transform)
+    }
+    if (typed.wrap && TEXT_WRAP_VALUES.has(typed.wrap)) {
+      output += createDeclaration('text-wrap', typed.wrap)
+    }
     if (typed.fill) {
       output += createDeclaration(
         "background-image",
@@ -117,8 +148,9 @@ export function createTextExpander(normalizeValue: ValueNormalizer): (args: stri
       value.startsWith("hsl") ||
       value.startsWith("oklch") ||
       value.startsWith("oklab") ||
-      value === "transparent" ||
-      value === "currentColor"
+      value === 'transparent' ||
+      value === 'currentColor' ||
+      NAMED_CSS_COLORS.has(value.toLowerCase())
     );
   }
 
