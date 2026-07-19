@@ -613,14 +613,13 @@ describe('stylesheet selector utilities', () => {
         splitRuntimeContextParts(''),
       ).toEqual([])
     })
-    it('currently splits every colon regardless of parentheses', () => {
+    it('preserves colons nested inside runtime context functions', () => {
       expect(
         splitRuntimeContextParts(
           'cq(style(--theme: dark)):hover',
         ),
       ).toEqual([
-        'cq(style(--theme',
-        'dark))',
+        'cq(style(--theme: dark))',
         'hover',
       ])
     })
@@ -849,9 +848,9 @@ describe('stylesheet selector utilities', () => {
     it(
       'isStylesheetRootBlock validates complex root selectors structurally instead of accepting any name containing whitespace or combinator characters',
       () => {
-        expect(isStylesheetRootBlock('.parent > .child')).toBe(true)
-        expect(isStylesheetRootBlock('.parent >')).toBe(false)
-        expect(isStylesheetRootBlock('> .child')).toBe(false)
+        expect(isStylesheetRootBlock(block('.parent > .child'))).toBe(true)
+        expect(isStylesheetRootBlock(block('.parent >'))).toBe(false)
+        expect(isStylesheetRootBlock(block('> .child'))).toBe(false)
       },
     )
   })
