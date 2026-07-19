@@ -465,7 +465,7 @@ describe("Elements panel", () => {
     );
 
     expect(menu).toBeInstanceOf(HTMLElement);
-    expect(menu?.parentElement).toBe(fixture.container);
+    expect(menu?.closest("[data-elements-layout]")).toBeInstanceOf(HTMLElement);
 
     expect(menu?.style.left).toMatch(/px$/);
     expect(menu?.style.top).toMatch(/px$/);
@@ -524,7 +524,7 @@ describe("Elements panel", () => {
 
     const targetRow = findPageTargetRow(fixture.container);
 
-    click(targetRow);
+    doubleClick(targetRow);
 
     const idRow = Array.from(
       fixture.container.querySelectorAll<HTMLElement>(
@@ -570,7 +570,7 @@ describe("Elements panel", () => {
 
     const targetRow = findPageTargetRow(fixture.container);
 
-    click(targetRow);
+    doubleClick(targetRow);
 
     const editableRows = fixture.container.querySelectorAll<HTMLElement>(
       "[data-style-declaration]",

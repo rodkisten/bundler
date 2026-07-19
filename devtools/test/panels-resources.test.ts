@@ -3,12 +3,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourcePayload, ToolContext } from "@rodkisten/devtools/types";
 import { Resources } from "@rodkisten/devtools/panels/resources";
+import { render } from "@rodkisten/devtools/core/runtime";
 
 function createFixture(): {
   tool: Resources;
   container: HTMLElement;
   sourcesSet: ReturnType<typeof vi.fn>;
   showTool: ReturnType<typeof vi.fn>;
+  disposeView: () => void;
 } {
   const container = document.createElement("section");
   const root = document.createElement("div");
@@ -53,12 +55,14 @@ function createFixture(): {
 
   const tool = new Resources();
   tool.init(container, context);
+  const disposeView = render(container, tool.renderView());
 
-  return { tool, container, sourcesSet, showTool };
+  return { tool, container, sourcesSet, showTool, disposeView };
 }
 
 describe("Resources panel", () => {
   let tool: Resources | null = null;
+  let disposeView: (() => void) | null = null;
 
   beforeEach(() => {
     document.documentElement.innerHTML = "<head></head><body></body>";
@@ -68,7 +72,10 @@ describe("Resources panel", () => {
 
   afterEach(() => {
     tool?.destroy();
+    disposeView?.();
     tool = null;
+    disposeView = null;
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -76,6 +83,7 @@ describe("Resources panel", () => {
     const resourceEntries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
     const fixture = createFixture();
     tool = fixture.tool;
+    disposeView = fixture.disposeView;
 
     expect(fixture.container.querySelector("[data-resources-body]")).toBeInstanceOf(HTMLElement);
     expect(fixture.container.textContent).not.toContain("Local Storage");
@@ -95,6 +103,7 @@ describe("Resources panel", () => {
     const resourceEntries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
     const fixture = createFixture();
     tool = fixture.tool;
+    disposeView = fixture.disposeView;
     tool.show();
     resourceEntries.mockClear();
 
@@ -122,6 +131,7 @@ describe("Resources panel", () => {
 
     const fixture = createFixture();
     tool = fixture.tool;
+    disposeView = fixture.disposeView;
     tool.show();
 
     const link = Array.from(fixture.container.querySelectorAll<HTMLAnchorElement>("a"))

@@ -56,12 +56,16 @@ describe("RodEruda devtools mount", () => {
     entry?.click();
 
     expect(devtools.get()?.isVisible()).toBe(true);
-    expect(dock?.dataset.active).toBe("true");
+    expect(
+      root?.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")?.dataset.active,
+    ).toBe("true");
 
     entry?.click();
 
     expect(devtools.get()?.isVisible()).toBe(false);
-    expect(dock?.dataset.active).toBe("false");
+    expect(
+      root?.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")?.dataset.active,
+    ).toBe("false");
   });
 
   it("renders styled/Fabrica panels and injects their Cipó styles", () => {

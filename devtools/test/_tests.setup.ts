@@ -36,11 +36,13 @@ export function polyfillBrowserApis(): void {
 
   Object.defineProperty(globalThis, "requestAnimationFrame", {
     configurable: true,
+    writable: true,
     value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0),
   });
 
   Object.defineProperty(globalThis, "cancelAnimationFrame", {
     configurable: true,
+    writable: true,
     value: (id: number) => clearTimeout(id),
   });
 

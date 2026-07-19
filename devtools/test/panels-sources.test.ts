@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NetworkRecord, ToolContext } from "@rodkisten/devtools/types";
 import { getMocks, polyfillBrowserApis } from "./_tests.setup";
 import { Sources, formatSource } from "@rodkisten/devtools/panels/sources";
+import { render } from "@rodkisten/devtools/core/runtime";
 
 const mocks = getMocks();
 
@@ -84,6 +85,7 @@ function networkRecord(url: string, responseBody: string): NetworkRecord {
 
 describe("Sources panel", () => {
   let tool: Sources | null = null;
+  let disposeView: (() => void) | null = null;
 
   beforeEach(() => {
     document.body.replaceChildren();
@@ -94,7 +96,9 @@ describe("Sources panel", () => {
 
   afterEach(() => {
     tool?.destroy();
+    disposeView?.();
     tool = null;
+    disposeView = null;
     document.body.replaceChildren();
     delete (globalThis as GlobalWithUserscriptRequest).GM_xmlhttpRequest;
     vi.restoreAllMocks();
@@ -104,6 +108,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "javascript", value: "const deferred = true;", title: "deferred.js" });
     await flush();
 
@@ -116,6 +121,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "text", value: "plain source", title: "Fixture" });
     tool.show();
     await flush();
@@ -133,6 +139,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.config.set("showLineNum", false);
     tool.config.set("wrapLines", true);
     tool.set({ type: "javascript", value: "const answer = 42;", title: "fixture.js" });
@@ -153,6 +160,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "object", value: { nested: { value: 7 } }, title: "Object" });
     tool.show();
     await flush();
@@ -169,6 +177,7 @@ describe("Sources panel", () => {
 
     tool = new Sources();
     tool.init(container, createContext(container, [networkRecord(url, "window.answer = 42;")]));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "javascript", value: url, url, title: url });
     tool.show();
     await flush();
@@ -190,6 +199,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "css", value: url, url, title: url });
     tool.show();
     await flush();
@@ -207,6 +217,7 @@ describe("Sources panel", () => {
     const container = document.createElement("section");
     tool = new Sources();
     tool.init(container, createContext(container));
+    disposeView = render(container, tool.renderView());
     tool.set({ type: "javascript", value: url, url, title: url });
     tool.show();
     await flush();
