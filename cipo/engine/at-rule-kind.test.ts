@@ -3,7 +3,7 @@ import {
   classifyAtRule,
   isStylesheetAtRuleName,
   type CipoAtRuleKind,
-} from './at-rule-kind'
+} from './at-rule-kinds'
 describe('at-rule classification', () => {
   describe('classifyAtRule', () => {
     it.each([

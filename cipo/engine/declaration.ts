@@ -23,16 +23,54 @@ export function expandResponsiveDeclaration(declaration: CipoDeclarationNode): A
   let hasResponsive = false
 
   for (const part of parts) {
-    const match = part.trim().match(/^x:([a-zA-Z][\w-]*)\(([\s\S]*)\)$/)
-    if (!match || match[1] === undefined || match[2] === undefined || !(match[1] in runtime.config.breakpoints)) {
+    const responsive = parseResponsiveValue(part.trim())
+    if (!responsive || !(responsive.breakpoint in runtime.config.breakpoints)) {
       output.push({ breakpoint: 'base', value: part.trim() })
       continue
     }
     hasResponsive = true
-    output.push({ breakpoint: match[1], value: match[2].trim() })
+    output.push(responsive)
   }
 
   return hasResponsive ? output : null
+}
+
+/** Parses one exact `x:breakpoint(value)` wrapper without accepting trailing tokens. */
+function parseResponsiveValue(input: string): { readonly breakpoint: string; readonly value: string } | null {
+  const prefix = /^x:([a-zA-Z][\w-]*)\(/.exec(input)
+  if (!prefix || prefix[1] === undefined) return null
+
+  const openIndex = prefix[0].length - 1
+  let depth = 1
+  let quote: '"' | "'" | null = null
+  let escaped = false
+
+  for (let index = openIndex + 1; index < input.length; index += 1) {
+    const char = input[index]!
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(') depth += 1
+    else if (char === ')') {
+      depth -= 1
+      if (depth === 0) {
+        if (input.slice(index + 1).trim()) return null
+        return {
+          breakpoint: prefix[1],
+          value: input.slice(openIndex + 1, index).trim(),
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 /** Applies a configured breakpoint to an atomic rule context. */

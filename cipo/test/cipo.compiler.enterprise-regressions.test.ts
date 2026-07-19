@@ -81,8 +81,8 @@ describe('Cipó enterprise compiler regressions', () => {
       }
     `), [], false)
 
-    expect(artifact.cssText).toContain('content:"}"')
-    expect(artifact.cssText).toContain('color:red')
+    expect(artifact.cssText).toMatch(/content:\s*"}"/)
+    expect(artifact.cssText).toMatch(/color:\s*red/)
   })
 
   it('never mangles a private custom property onto an existing public custom property', () => {

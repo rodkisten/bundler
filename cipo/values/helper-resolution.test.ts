@@ -164,7 +164,7 @@ describe('helper resolver', () => {
         'px([first:a] [second:b])',
       )
     })
-    it('preserves ordinary text surrounding helper calls', () => {
+    it('does not expand helper-like substrings embedded in identifier-like text', () => {
       mocks.runtime.helperRegistry.set(
         'alpha',
         (
@@ -179,7 +179,7 @@ describe('helper resolver', () => {
           'before-alpha(red)-after',
         ),
       ).toBe(
-        'px(before-[red]-after)',
+        'px(before-alpha(red)-after)',
       )
     })
     it('does not expand an unregistered function', () => {
@@ -760,7 +760,7 @@ describe('helper resolver', () => {
         )
       expect(
         helper,
-      ).toHaveBeenCalledTimes(12)
+      ).toHaveBeenCalledTimes(13)
       expect(result).toBe(
         `px(loop(${
           'x'.repeat(12)
@@ -798,7 +798,7 @@ describe('helper resolver', () => {
       expect(
         first.mock.calls.length
         + second.mock.calls.length,
-      ).toBe(12)
+      ).toBe(13)
     })
     it('allows a helper chain that resolves on the twelfth pass', () => {
       for (

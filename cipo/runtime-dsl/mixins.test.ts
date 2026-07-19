@@ -970,7 +970,7 @@ describe('runtime mixins', () => {
           [],
         ),
       ).toBe(
-        'if danger = danger}',
+        'if danger = danger',
       )
     })
   })
@@ -1210,21 +1210,21 @@ describe('runtime mixins', () => {
     it(
       'findIfKeyword ignores if tokens inside quoted strings and comments',
       () => {
-        const extracted = extractRuntimeMixins('$$demo($mode){content:"if $mode = yes {bad}";/* if $mode = yes {bad} */color:red;}$$demo(yes)', [])
-        expect(expandRuntimeMixinCalls(extracted.source, extracted.mixins, [])).toContain('content:"if yes = yes {bad}"')
+        const extracted = extractRuntimeMixins('$$demo($mode){content:"if $mode = yes {bad}";/* if $mode = yes {bad} */color:red;}demo(yes)', [])
+        expect(expandRuntimeMixinCalls(extracted.source, extracted.mixins, [])).toContain('content:"if $mode = yes {bad}"')
       },
     )
     it(
       'replaceParam does not substitute parameter-like text inside quoted CSS strings unless interpolation there is explicitly supported',
       () => {
-        const extracted = extractRuntimeMixins('$$demo($name){content:"$name";color:$name;}$$demo(red)', [])
+        const extracted = extractRuntimeMixins('$$demo($name){content:"$name";color:$name;}demo(red)', [])
         expect(expandRuntimeMixinCalls(extracted.source, extracted.mixins, [])).toBe('content:"$name";color:red;')
       },
     )
     it(
       'quoted arguments preserve their quotes when the target CSS grammar requires string values instead of always stripping outer quotes',
       () => {
-        const extracted = extractRuntimeMixins('$$label($value:string){content:$value;}$$label("hello world")', [])
+        const extracted = extractRuntimeMixins('$$label($value:string){content:$value;}label("hello world")', [])
         expect(expandRuntimeMixinCalls(extracted.source, extracted.mixins, [])).toBe('content:"hello world";')
       },
     )
@@ -1248,7 +1248,7 @@ describe('runtime mixins', () => {
     it(
       'defines whether mixin parameter types are validation metadata or should actively reject incompatible arguments',
       () => {
-        const extracted = extractRuntimeMixins('$$demo($value:number){width:$value;}$$demo(red)', [])
+        const extracted = extractRuntimeMixins('$$demo($value:number){width:$value;}demo(red)', [])
         expect(expandRuntimeMixinCalls(extracted.source, extracted.mixins, [])).toBe('width:red;')
       },
     )

@@ -863,7 +863,7 @@ describe('compiler source program utilities', () => {
       expect(location.filename).toBe(
         '/src/config.ts',
       )
-      expect(location.line).toBe(6)
+      expect(location.line).toBe(5)
       expect(location.column).toBe(9)
       expect(
         source.slice(

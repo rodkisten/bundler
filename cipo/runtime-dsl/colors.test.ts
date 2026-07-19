@@ -16,7 +16,7 @@ describe('runtime color utilities', () => {
             'blue',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('expands a foreground color utility into a CSS color declaration', () => {
@@ -30,7 +30,7 @@ describe('runtime color utilities', () => {
             'red',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('preserves leading indentation when expanding a utility', () => {
@@ -44,7 +44,7 @@ describe('runtime color utilities', () => {
             'blue',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('accepts a trailing semicolon on utility lines', () => {
@@ -58,7 +58,7 @@ describe('runtime color utilities', () => {
             'green',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('expands multiple utility lines independently', () => {
@@ -83,7 +83,6 @@ describe('runtime color utilities', () => {
             700,
           )
         }`,
-        '',
       ].join('\n'))
     })
     it('preserves ordinary CSS declarations unchanged', () => {
@@ -92,7 +91,7 @@ describe('runtime color utilities', () => {
           'color: red;',
         ),
       ).toBe(
-        'color: red;\n',
+        'color: red;',
       )
     })
     it('does not expand lines containing a colon', () => {
@@ -101,7 +100,7 @@ describe('runtime color utilities', () => {
           'bg-blue-500: hover',
         ),
       ).toBe(
-        'bg-blue-500: hover\n',
+        'bg-blue-500: hover',
       )
     })
     it('does not expand selector or block syntax', () => {
@@ -123,7 +122,6 @@ describe('runtime color utilities', () => {
           )
         }`,
         '}',
-        '',
       ].join('\n'))
     })
     it('does not expand a utility when braces appear on the same line', () => {
@@ -132,7 +130,7 @@ describe('runtime color utilities', () => {
           '.button { bg-blue-500 }',
         ),
       ).toBe(
-        '.button { bg-blue-500 }\n',
+        '.button { bg-blue-500 }',
       )
     })
     it('preserves unknown utility names unchanged', () => {
@@ -141,7 +139,7 @@ describe('runtime color utilities', () => {
           'border-blue-500',
         ),
       ).toBe(
-        'border-blue-500\n',
+        'border-blue-500',
       )
     })
     it('preserves malformed color utilities unchanged', () => {
@@ -159,7 +157,7 @@ describe('runtime color utilities', () => {
             input,
           ),
         ).toBe(
-          `${input}\n`,
+          input,
         )
       }
     })
@@ -206,16 +204,15 @@ describe('runtime color utilities', () => {
             999,
           )
         }`,
-        '',
       ].join('\n'))
     })
-    it('does not expand uppercase utility names under the current lowercase grammar', () => {
+    it('accepts uppercase color names case-insensitively', () => {
       expect(
         expandRuntimeColorUtilities(
           'bg-BLUE-500',
         ),
       ).toBe(
-        'bg-BLUE-500\n',
+        `background: ${createOklchUtilityColor('BLUE', 500)}`,
       )
     })
     it('supports custom lowercase color names through hashed hue generation', () => {
@@ -229,7 +226,7 @@ describe('runtime color utilities', () => {
             'brand',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('preserves blank lines between utilities', () => {
@@ -256,7 +253,6 @@ describe('runtime color utilities', () => {
             500,
           )
         }`,
-        '',
       ].join('\n'))
     })
     it('preserves CRLF line separators while processing each physical line', () => {
@@ -277,7 +273,7 @@ describe('runtime color utilities', () => {
             'red',
             500,
           )
-        }\n`,
+        }`,
       )
     })
     it('does not modify text merely containing a utility token', () => {
@@ -293,7 +289,7 @@ describe('runtime color utilities', () => {
             input,
           ),
         ).toBe(
-          `${input}\n`,
+          input,
         )
       }
     })
@@ -678,7 +674,6 @@ describe('runtime color utilities', () => {
       ).toBe([
         `background: ${color}`,
         `color: ${color}`,
-        '',
       ].join('\n'))
     })
     it('can expand known and hash-derived colors in the same input', () => {
@@ -692,7 +687,6 @@ describe('runtime color utilities', () => {
       ).toBe([
         'background: oklch(0.5396 0.28 260)',
         'color: oklch(0.5396 0.28 159)',
-        '',
       ].join('\n'))
     })
   })

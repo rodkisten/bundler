@@ -386,7 +386,7 @@ describe('polymorphic CSS source detection', () => {
           '@inline{color:red;} trailing',
         ),
       ).toEqual({
-        css: 'color:red;',
+        css: 'color:red; trailing',
         configCss: '',
         inline: true,
       })
@@ -720,7 +720,7 @@ describe('polymorphic CSS source detection', () => {
         inline: false,
       })
     })
-    it('uses case-sensitive directive matching', () => {
+    it('matches configuration directive names case-insensitively', () => {
       const input =
         '@Theme{brand:red;}'
       expect(
@@ -728,8 +728,8 @@ describe('polymorphic CSS source detection', () => {
           input,
         ),
       ).toEqual({
-        css: input,
-        configCss: '',
+        css: '',
+        configCss: `${input}\n`,
         inline: false,
       })
     })
@@ -907,15 +907,15 @@ describe('polymorphic CSS source detection', () => {
       '@inline block mode defines whether trailing source after the closing brace should be preserved or rejected instead of silently discarded',
       () => {
         const result = splitPolymorphicCssSource('@inline { color:red; } background:blue;')
-        expect(result.mode).toBe('inline')
-        expect(result.stylesheet).toContain('background:blue;')
+        expect(result.inline).toBe(true)
+        expect(result.css).toContain('background:blue;')
       },
     )
     it(
       'statement-style configuration directives ending at a newline preserve surrounding newline ownership without leaking whitespace into stylesheet output',
       () => {
         const result = splitPolymorphicCssSource('@cipo prefix: app\n.card{color:red;}')
-        expect(result.stylesheet.startsWith('.card')).toBe(true)
+        expect(result.css.startsWith('.card')).toBe(true)
       },
     )
     it(

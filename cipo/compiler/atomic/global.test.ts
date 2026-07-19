@@ -120,7 +120,7 @@ describe('compileGlobalAtomicStyles', () => {
 
     // The uncommon declaration remains attached to Button's private scope.
     expect(result.css).toContain(`.${buttonScope}`)
-    expect(result.css).toContain('padding:8px')
+    expect(result.css).toContain('padding:0.5rem')
 
     // The shared declaration is emitted globally only once.
     expect(countOccurrences(result.css, 'color:red')).toBe(1)
@@ -267,11 +267,13 @@ describe('compileGlobalAtomicStyles', () => {
     const first = compileGlobalAtomicStyles(inputs, {
       minUses: 2,
       buildNamespace: 'bundleA',
+      configCss: '@cipo { debug: false; }',
     })
 
     const second = compileGlobalAtomicStyles(inputs, {
       minUses: 2,
       buildNamespace: 'bundleB',
+      configCss: '@cipo { debug: false; }',
     })
 
     expect(requireClassName(first.classNames, 'Button')).not.toBe(

@@ -54,6 +54,8 @@ export interface CipoViteCompiledInlineOptions {
   readonly configRuntimeBindings?: readonly string[]
   /** Isolates compact class names across independently deployed bundles/microfrontends. */
   readonly buildNamespace?: string
+  /** Additional modules explicitly trusted to re-export Cipó's styled factory. */
+  readonly styledImportModules?: readonly string[]
 }
 export interface CipoViteFabricaCompileResult {
   readonly code: string
@@ -181,6 +183,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         deferAtomicCss: wholeBuildAtomic,
         coupleStyledCss: !wholeBuildAtomic && options.cssDelivery !== 'asset',
         styledCssHelperImportPath: CIPO_COMPILED_RUNTIME,
+        styledImportModules: options.styledImportModules,
         cssImportId: wholeBuildAtomic ? VIRTUAL_CSS_ID : VIRTUAL_CSS_ASSET_ID,
         injectCssImport: wholeBuildAtomic
           ? options.cssDelivery !== 'asset'
@@ -490,21 +493,11 @@ function createBuildNamespace(options: CipoViteCompiledInlineOptions): string {
   return namespace
 }
 
-/** Creates a dependency-free virtual module so workspace builds do not require prebuilt package exports. */
+/** Routes the finalized build stylesheet through Cipó's retargetable runtime sink. */
 function createVirtualStyleTagModule(cssText: string): string {
   return [
-    `const css = ${JSON.stringify(cssText)};`,
-    'if (typeof document !== "undefined" && css) {',
-    '  const id = "cipo-runtime";',
-    '  let style = document.getElementById(id);',
-    '  if (!(style instanceof HTMLStyleElement)) {',
-    '    style = document.createElement("style");',
-    '    style.id = id;',
-    '    style.dataset.cipo = "runtime";',
-    '    document.head.appendChild(style);',
-    '  }',
-    '  if (!style.textContent?.includes(css)) style.textContent = `${style.textContent ?? ""}${css}`;',
-    '}',
+    `import { insertCss as __cipoInsertCompiledCss } from ${JSON.stringify(CIPO_COMPILED_RUNTIME)};`,
+    `__cipoInsertCompiledCss(${JSON.stringify(cssText)});`,
     '',
   ].join('\n')
 }

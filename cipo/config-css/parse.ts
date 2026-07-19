@@ -14,7 +14,7 @@ export function getPreparedCssConfig(source: string): PreparedCssConfig {
   const cached = preparedConfigCache.get(source)
   if (cached) return cached
 
-  const prepared = prepareCssConfig(source)
+  const prepared = deepFreeze(prepareCssConfig(source))
   preparedConfigCache.set(source, prepared)
   if (preparedConfigCache.size > CONFIG_PLAN_CACHE_LIMIT) {
     const oldest = preparedConfigCache.keys().next().value as string | undefined
@@ -135,6 +135,13 @@ function prepareCssConfig(rawSource: string): PreparedCssConfig {
     } else if (directive === 'layer') {
       const cssText = normalizeLayerStatement(args)
       if (cssText) operations.push({ kind: 'layer', cssText })
+    } else {
+      warnings.push(
+        createWarning(
+          'cipo-config-unknown-directive',
+          `Unknown CSS-first directive: @${directive}`,
+        ),
+      )
     }
 
     index = statementEnd + 1
@@ -151,6 +158,17 @@ function prepareCssConfig(rawSource: string): PreparedCssConfig {
     appliedPresets,
     appliedPlugins,
   }
+}
+
+function deepFreeze<T>(value: T): T {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
+
+  for (const key of Reflect.ownKeys(value as object)) {
+    const child = (value as Record<PropertyKey, unknown>)[key]
+    deepFreeze(child)
+  }
+
+  return Object.freeze(value)
 }
 
 function createWarning(code: string, message: string): CipoWarning {
@@ -222,7 +240,7 @@ function parsePropertyDefinition(body: string): CipoPropertyDefinition {
   return {
     syntax: stripQuotes(entries.syntax || '*'),
     inherits: entries.inherits === undefined ? true : parseBoolean(entries.inherits),
-    initialValue: entries['initial-value'] ?? entries.initial ?? '',
+    initialValue: entries.initialValue ?? entries.initial ?? '',
   }
 }
 

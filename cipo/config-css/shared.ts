@@ -12,6 +12,13 @@ export function mergeConfigPatch(
       target.breakpoints = { ...(target.breakpoints ?? {}), ...(patch.breakpoints ?? {}) }
       continue
     }
+    if (typedKey === 'scope' && typeof patch.scope === 'object' && patch.scope) {
+      target.scope = {
+        ...(typeof target.scope === 'object' && target.scope ? target.scope : {}),
+        ...patch.scope,
+      }
+      continue
+    }
     ;(target as Record<string, unknown>)[key] = (patch as Record<string, unknown>)[key]
   }
 }
@@ -37,7 +44,7 @@ export function buildConfigTemplate(strings: TemplateStringsArray, values: reado
   let output = ''
   for (let index = 0; index < strings.length; index += 1) {
     output += strings[index] ?? ''
-    if (index < values.length) output += String(values[index] ?? '')
+    if (index < strings.length - 1 && index < values.length) output += String(values[index] ?? '')
   }
   return output
 }

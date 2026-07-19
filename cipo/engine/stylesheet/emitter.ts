@@ -39,21 +39,13 @@ function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly stri
 function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   const name = block.name.trim()
   if (isStylesheetAtRuleName(name)) return compileStylesheetAtRule(block, parentSelectors, forceImportant)
-  if (name === 'reduce-motion') {
-    return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
+  if (name === 'reduce-motion') return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
+  if (name.startsWith('supports(')) {
+    const condition = normalizeSupportsRuntimeCondition(name.slice('supports('.length, -1))
+    return wrapStylesheetRuntimeWrapper(`@supports ${condition}`, block, parentSelectors, forceImportant)
   }
-  const supports = readRuntimeWrapperArgument(name, 'supports')
-  if (supports !== undefined) {
-    return supports === null ? '' : wrapStylesheetRuntimeWrapper(`@supports (${supports})`, block, parentSelectors, forceImportant)
-  }
-  const layer = readRuntimeWrapperArgument(name, 'layer')
-  if (layer !== undefined) {
-    return layer === null ? '' : wrapStylesheetRuntimeWrapper(`@layer ${layer}`, block, parentSelectors, forceImportant)
-  }
-  const container = readRuntimeWrapperArgument(name, 'container')
-  if (container !== undefined) {
-    return container === null ? '' : wrapStylesheetRuntimeWrapper(`@container ${container}`, block, parentSelectors, forceImportant)
-  }
+  if (name.startsWith('layer(')) return wrapStylesheetRuntimeWrapper(`@layer ${name.slice('layer('.length, -1).trim()}`, block, parentSelectors, forceImportant)
+  if (name.startsWith('container(')) return wrapStylesheetRuntimeWrapper(`@container ${name.slice('container('.length, -1).trim()}`, block, parentSelectors, forceImportant)
   if (name.startsWith('x:')) return compileStylesheetRuntimeBlock(block, parentSelectors, forceImportant)
 
   const selectors = resolveNestedSelectors(parentSelectors, splitSelectorList(name))
@@ -77,6 +69,12 @@ function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly 
     output += output ? `\n${rule}` : rule
   }
   return output
+}
+
+function normalizeSupportsRuntimeCondition(condition: string): string {
+  const normalized = condition.trim()
+  if (/^[a-zA-Z-]+\s*:/.test(normalized)) return `(${normalized})`
+  return normalized
 }
 
 function wrapStylesheetRuntimeWrapper(

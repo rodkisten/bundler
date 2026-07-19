@@ -1053,7 +1053,7 @@ describe('smart declaration expander', () => {
         )
       },
     )
-    it('falls back to manipulation for unsupported touch-action values', () => {
+    it('preserves pinch-zoom as a valid touch-action value', () => {
       const expand =
         createExpander()
       expect(
@@ -1064,7 +1064,7 @@ describe('smart declaration expander', () => {
           ],
         ),
       ).toBe(
-        'touch-action:manipulation;',
+        'touch-action:pinch-zoom;',
       )
     })
   })
@@ -1486,8 +1486,8 @@ describe('smart declaration expander', () => {
       expect(expand('stack', ['2rem'])).toContain('gap:normalized(gap|2rem|spacing);')
       expect(expand('cluster', ['1rem'])).toContain('gap:normalized(gap|1rem|spacing);')
       expect(expand('center', ['60rem'])).toContain('max-width:normalized(max-width|60rem|spacing);')
-      expect(expand('cover', ['100dvh'])).toContain('min-height:normalized(min-height|100dvh|spacing);')
-      expect(expand('sidebar', ['20rem', '2rem'])).toContain('flex-basis:normalized(flex-basis|20rem|spacing);')
+      expect(expand('cover', ['100dvh'])).toContain('min-block-size:100dvh;')
+      expect(expand('sidebar', ['20rem', '2rem'])).toContain('grid-template-columns:normalized(width|20rem|spacing) minmax(0,1fr);')
     })
     it('ignores unsafe or unsupported named position properties', () => {
       const expand = createExpander()

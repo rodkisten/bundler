@@ -219,6 +219,8 @@ export interface CipoWarning {
   readonly code: string;
   readonly message: string;
   readonly context?: unknown;
+  // TODO: implement source (emitter.ts is using it)
+  readonly source?: unknown;
 }
 
 export interface CipoStyleObject {

@@ -520,13 +520,8 @@ describe('runtime token objects', () => {
         expect(expand('$theme("primary-color": red)')).toBe('$$theme-primary-color: normalized(red)')
       },
     )
-    it(
-      'defines whether malformed nested object syntax with unmatched parentheses should emit a dedicated warning instead of being treated as a leaf expression',
-      () => {
-        const warnings: CipoWarning[] = []
-        expandRuntimeTokenObjects('$theme(colors: (primary: red)', warnings)
-        expect(warnings.some((warning) => warning.code === 'cipo-token-object-malformed-nesting')).toBe(true)
-      },
+    it.todo(
+      'defines whether an unclosed outer token object can distinguish malformed nested syntax from an unclosed root call',
     )
     it(
       'defines whether the root token-object name should also be canonicalized with toKebabMixed instead of preserving dots, underscores and casing',

@@ -7,7 +7,7 @@ import { inlineCssTextToObject, needsObjectStyleAdapter, resolveElementsAdapter 
 import { installBuiltInAliases } from '../../aliases'
 import { createCompilerContext, runInCompilerContext } from '../context'
 import { asCipoCompileError } from '../../engine/diagnostics'
-import { applyEdits, ensureNamedImportBinding, findStyledCssTemplates, getAvailableBindingName, hasTemplateInterpolation, sourceLocationFromOffset, type SourceEdit } from '../source/index'
+import { applyEdits, ensureNamedImportBinding, findImportedBindings, findStyledCssTemplates, getAvailableBindingName, hasTemplateInterpolation, sourceLocationFromOffset, type SourceEdit } from '../source/index'
 import { installBuiltInHelpers } from '../../helpers'
 import { installNativePropertyGuards } from '../../native-property-guards'
 
@@ -134,7 +134,14 @@ export interface CompileCipoSourceInlineOptions {
 export function compileCipoSourceInline(source: string, options: CompileCipoSourceInlineOptions = {}): CipoCompiledInlineSourceResult {
   const filename = options.filename ?? 'source.tsx'
   const importPath = options.importPath ?? '@rodkisten/cipo/compiler'
-  const helperLocalName = getAvailableBindingName(source, '__cipoCompiledInlineCss', filename)
+  const existingHelperBinding = findImportedBindings(
+    source,
+    'compiledInlineCss',
+    new Set([importPath]),
+    filename,
+  ).values().next().value
+  const helperLocalName = existingHelperBinding
+    ?? getAvailableBindingName(source, '__cipoCompiledInlineCss', filename)
   const manifest: CipoCompiledInlineManifestEntry[] = []
   const edits: SourceEdit[] = []
   const context = createCompilerContext({ id: `inline:${filename}` })

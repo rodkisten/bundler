@@ -355,34 +355,34 @@ describe('runtime variable math normalization', () => {
         'color:;',
       )
     })
-    it('does not normalize chunks containing an opening brace', () => {
+    it('normalizes declarations after an opening brace', () => {
       expect(
         normalizeRuntimeVariableMath(
           '.button{padding: $$spacing;',
         ),
       ).toBe(
-        '.button{padding: $$spacing;',
+        '.button{padding: var(--cp-spacing);',
       )
     })
-    it('does not normalize chunks containing a closing brace', () => {
+    it('normalizes declarations following a closing brace', () => {
       expect(
         normalizeRuntimeVariableMath(
           '}padding: $$spacing;',
         ),
       ).toBe(
-        '}padding: $$spacing;',
+        '}padding: var(--cp-spacing);',
       )
     })
-    it('preserves selectors and full blocks instead of rewriting their declarations', () => {
+    it('preserves selectors while normalizing declarations inside full blocks', () => {
       expect(
         normalizeRuntimeVariableMath(
           '.button{padding: $$spacing;}',
         ),
       ).toBe(
-        '.button{padding: $$spacing;}',
+        '.button{padding: var(--cp-spacing);}',
       )
     })
-    it('normalizes declarations that appear outside block syntax around untouched blocks', () => {
+    it('normalizes declarations both outside and inside block syntax', () => {
       expect(
         normalizeRuntimeVariableMath(
           [
@@ -393,7 +393,7 @@ describe('runtime variable math normalization', () => {
         ),
       ).toBe([
         'width: var(--cp-size);',
-        '.button{padding: $$spacing;}',
+        '.button{padding: var(--cp-spacing);}',
         'height: var(--cp-size);',
       ].join('\n'))
     })

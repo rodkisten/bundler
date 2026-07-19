@@ -24,6 +24,7 @@ export default defineConfig({
       { find: /^@rodkisten\/broto$/, replacement: workspaceFile("broto/index.ts") },
       { find: /^@rodkisten\/broto\/(.+)$/, replacement: workspaceFile("broto/$1") },
       { find: /^@rodkisten\/cipo$/, replacement: workspaceFile("cipo/index.ts") },
+      { find: /^@rodkisten\/cipo\/vite$/, replacement: workspaceFile("cipo/vite-index.ts") },
       { find: /^@rodkisten\/cipo\/(.+)$/, replacement: workspaceFile("cipo/$1") },
       { find: /^@rodkisten\/fabrica$/, replacement: workspaceFile("fabrica/index.ts") },
       { find: /^@rodkisten\/fabrica\/(.+)$/, replacement: workspaceFile("fabrica/$1") },

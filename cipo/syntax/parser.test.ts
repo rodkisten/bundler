@@ -350,7 +350,7 @@ describe('Cipó AST parser', () => {
         'color:red',
       ])
     })
-    it('does not flush native CSS function calls as standalone declarations', () => {
+    it('flushes native CSS function-shaped lines so later parsing can ignore them independently', () => {
       mocks.isNativeCssFunction.mockImplementation(
         (
           name: string,
@@ -365,7 +365,8 @@ describe('Cipó AST parser', () => {
           ].join('\n'),
         ),
       ).toEqual([
-        'var(--token) color:red',
+        'var(--token)',
+        'color:red',
       ])
     })
     it('drops empty tokens', () => {

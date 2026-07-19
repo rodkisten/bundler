@@ -75,7 +75,11 @@ function findTokenObjectStart(input: string, startIndex: number): number {
       continue
     }
 
-    if (char !== '$' || input[index + 1] === '$') continue
+    if (char !== '$') continue
+    if (input[index + 1] === '$') {
+      index += 1
+      continue
+    }
     if (!isIdentifierStart(input[index + 1] ?? '')) continue
 
     const nameEnd = readIdentifierEnd(input, index + 1)

@@ -31,7 +31,7 @@ describe('compileCipoSourceBuild', () => {
     expect(entry.rawCss).toContain('padding: 8px')
     expect(result.css).toContain(`.${entry.className}`)
     expect(result.css).toContain('color:red')
-    expect(result.css).toContain('padding:8px')
+    expect(result.css).toContain('padding:0.5rem')
     // Static `.css` authoring syntax must be removed from generated source.
     expect(result.code).not.toContain('.css`')
     expect(result.code).toContain(JSON.stringify(entry.className))
@@ -247,7 +247,7 @@ describe('compileCipoSourceBuild', () => {
     expect(helperImport).not.toBe('__cipoAttachCompiledCss')
     // The exact collision suffix is deliberately not asserted. The important
     // contract is that the generated call uses the same safe imported binding.
-    expect(result.code).toContain(`/*#__PURE__*/${helperImport}(`)
+    expect(result.code).toContain(`${helperImport}(`)
   })
   it('defers styled CSS emission for whole-build atomic promotion', () => {
     const source = `

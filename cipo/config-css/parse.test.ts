@@ -5,7 +5,7 @@ import {
   clearPreparedCssConfigCache,
   compileCssConfigPayload,
   getPreparedCssConfig,
-} from './parser'
+} from './parse'
 describe('CSS-first configuration parser', () => {
   beforeEach(() => {
     clearPreparedCssConfigCache()
@@ -982,11 +982,23 @@ describe('CSS-first configuration parser', () => {
         ),
       )
     })
-    it.todo(
-      'emits a warning for unknown statement-style directives instead of silently ignoring them',
-    )
-    it.todo(
-      'freezes cached PreparedCssConfig plans deeply if immutable parse plans become a hard runtime contract',
-    )
+    it('emits a warning for unknown statement-style directives instead of silently ignoring them', () => {
+      const prepared = getPreparedCssConfig('@unknown value;')
+      expect(prepared.warnings).toContainEqual({
+        code: 'cipo-config-unknown-directive',
+        message: 'Unknown CSS-first directive: @unknown',
+      })
+    })
+    it('deep-freezes cached prepared configuration plans', () => {
+      const prepared = getPreparedCssConfig(`
+        @cipo { breakpoints: ignored; }
+        @theme { colors: { brand: red; }; }
+      `)
+      expect(Object.isFrozen(prepared)).toBe(true)
+      expect(Object.isFrozen(prepared.operations)).toBe(true)
+      expect(Object.isFrozen(prepared.config)).toBe(true)
+      expect(Object.isFrozen(prepared.theme)).toBe(true)
+      expect(getPreparedCssConfig(prepared.source)).toBe(prepared)
+    })
   })
 })

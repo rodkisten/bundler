@@ -51,7 +51,11 @@ export function findTopLevelChar(value: string, target: string): number {
       continue
     }
 
-    if (isClosingDelimiter(char) && stack.at(-1) === char) stack.pop()
+    if (isClosingDelimiter(char)) {
+      if (stack.length === 0) continue
+      if (stack.at(-1) !== char) return -1
+      stack.pop()
+    }
   }
 
   return -1

@@ -29,7 +29,7 @@ import {
   compiledInlineCss,
   createCompiledStyled,
   resolveCompiledStyleInput,
-} from './compiled-inline'
+} from './source-compile'
 describe('compiled inline compiler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -472,9 +472,10 @@ describe('compiled inline compiler', () => {
       expect(result.code).toContain(
         "from '@unrelated/package'",
       )
-      expect(result.code).toContain(
-        "from '@rodkisten/cipo/compiler'",
-      )
+      expect(countModuleImports(
+        result.code,
+        '@rodkisten/cipo/compiler',
+      )).toBe(1)
       // The generated call must use the binding imported from the Cipó compiler,
       // not the unrelated application import.
       const cipoBinding = extractNamedImportBinding(
@@ -506,7 +507,7 @@ describe('compiled inline compiler', () => {
     it('preserves escaped backticks when rewriting a template', () => {
       const source = [
         "const Code = styled.code('Code').css`",
-        '  content: "\\\\`";',
+        '  content: "\\`";',
         '`',
       ].join('\n')
       const result = compileCipoSourceInline(source, {
@@ -515,8 +516,8 @@ describe('compiled inline compiler', () => {
       })
       expect(result.changed).toBe(true)
       expect(result.manifest).toHaveLength(1)
-      expect(result.manifest[0].rawCss).toContain('\\\\`')
-      expect(result.code).toContain('\\\\`')
+      expect(result.manifest[0].rawCss).toContain('\\`')
+      expect(result.code).toContain('\\`')
     })
     it('does not transform styled-like syntax that appears only inside comments or strings', () => {
       const source = [

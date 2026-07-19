@@ -66,7 +66,11 @@ describe("compiled CSS optimizer grouping at-rules", () => {
 @media (min-width: 768px) { .a { display: flex; } }
 @media (min-width: 768px) { .b { display: grid; } }`;
 
-    expect(optimizeCompiledCss(css, { minify: false })).toBe(css);
+    expect(optimizeCompiledCss(css, {
+      minify: false,
+      mergeEquivalentAtRules: false,
+      mergeEquivalentRules: false,
+    })).toBe(css);
   });
 
   it("can keep equivalent at-rules separate when explicitly disabled", () => {

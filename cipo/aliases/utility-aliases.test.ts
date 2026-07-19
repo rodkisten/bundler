@@ -756,14 +756,12 @@ describe('built-in utility aliases', () => {
     )
   })
   describe('rendering utilities', () => {
-    it('expands gpu rendering optimization', () => {
+    it('leaves gpu to the smart declaration expander', () => {
       expect(
         resolveBuiltInUtilityAlias(
           'gpu',
         ),
-      ).toBe(
-        'transform:translateZ(0);backface-visibility:hidden;will-change:transform;',
-      )
+      ).toBeUndefined()
     })
     it.each([
       [
@@ -1403,26 +1401,43 @@ describe('built-in utility aliases', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'adds the canonical Tailwind min-w-0 alias instead of exposing only minw-0/min-w0 compatibility spellings',
-    )
-    it.todo(
-      'adds the canonical Tailwind min-h-0 alias instead of exposing only minh-0/min-h0 compatibility spellings',
-    )
-    it.todo(
-      'decides whether rounded-full should use the theme radius token instead of the hardcoded 9999px compatibility value',
-    )
-    it.todo(
-      'defines whether antialiased and subpixel-antialiased should remain built-ins despite relying on non-standard vendor properties',
-    )
-    it.todo(
-      'moves gpu to a smart compositional utility when existing transform declarations must never be overwritten',
-    )
-    it.todo(
-      'keeps aliases requiring dynamic theme values, arbitrary values or filter/transform composition out of the static registry',
-    )
-    it.todo(
-      'validates generated static utility coverage against the supported Tailwind, UnoCSS and Panda compatibility manifest in CI',
-    )
+    it('exposes the canonical min-w-0 compatibility alias', () => {
+      expect(resolveBuiltInUtilityAlias('min-w-0')).toBe('min-width:0;')
+    })
+    it('exposes the canonical min-h-0 compatibility alias', () => {
+      expect(resolveBuiltInUtilityAlias('min-h-0')).toBe('min-height:0;')
+    })
+    it('keeps rounded-full as the static 9999px compatibility value', () => {
+      expect(resolveBuiltInUtilityAlias('rounded-full')).toBe('border-radius:9999px;')
+    })
+    it('keeps font-smoothing compatibility utilities as explicit static built-ins', () => {
+      expect(resolveBuiltInUtilityAlias('antialiased')).toContain('-webkit-font-smoothing:antialiased;')
+      expect(resolveBuiltInUtilityAlias('subpixel-antialiased')).toContain('-webkit-font-smoothing:auto;')
+    })
+    it('keeps gpu out of the static alias registry so the smart expander can compose transforms', () => {
+      expect(resolveBuiltInUtilityAlias('gpu')).toBeUndefined()
+      expect(BUILT_IN_UTILITY_ALIASES.gpu).toBeUndefined()
+    })
+    it('keeps dynamic and compositional utility families out of the static registry', () => {
+      for (const utility of ['p-4', 'bg-red-500', 'translate-x-2', 'blur-sm', 'rotate-45']) {
+        expect(resolveBuiltInUtilityAlias(utility)).toBeUndefined()
+      }
+    })
+    it('covers the representative static compatibility manifest without introducing empty entries', () => {
+      const compatibilityManifest = [
+        'hidden',
+        'flex',
+        'grid',
+        'min-w-0',
+        'min-h-0',
+        'bg-clip-text',
+        'snap-none',
+        'rounded-full',
+        'pointer-events-none',
+      ]
+      for (const utility of compatibilityManifest) {
+        expect(resolveBuiltInUtilityAlias(utility), utility).toBeTruthy()
+      }
+    })
   })
 })
