@@ -136,6 +136,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(code).toContain('createCompiledElement("section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
+    expect(runtimeModule).toContain('__CIPO_COMPILED_GLOBAL_STYLESHEET__')
     expect(runtimeModule).not.toContain('color:red')
   })
   it('allows root publication builds to isolate compiled manifest filenames', () => {
@@ -185,7 +186,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('createCompiledTemplate([[0,RodProbe')
+    expect(result.code).toContain('createCompiledTemplate(html, [[0,RodProbe')
     expect(result.code).not.toContain('\"RodProbe\"')
     expect(result.code).toContain('[2,\"class\"')
     expect(result.code).not.toContain('html`')
@@ -292,10 +293,10 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).not.toMatch(/\s/)
   })
 
-  it('couples styled CSS to the component expression for per-component tree shaking', () => {
+  it('couples anonymous styled CSS to the component expression for per-component tree shaking', () => {
     const result = compileCipoSourceBuild(`
-      export const Used = styled.div('Used').css\`color: red;\`
-      export const Unused = styled.div('Unused').css\`color: blue;\`
+      export const Used = styled.div.css\`color: red;\`
+      export const Unused = styled.section.css\`color: blue;\`
     `, {
       filename: '/project/src/components.ts',
       classNameMode: 'compact',
@@ -304,11 +305,26 @@ describe('Cipó + Fábrica compiled build mode', () => {
       injectCssImport: false,
     })
 
-    expect(result.code).toContain("import { attachCompiledCss }")
-    expect(result.code.match(/\/\*#__PURE__\*\/attachCompiledCss/g)).toHaveLength(2)
+    expect(result.code).toContain('attachCompiledCss')
+    expect(result.code.match(/\/\*#__PURE__\*\/[A-Za-z_$][\w$]*\(/g)).toHaveLength(2)
     expect(result.code).toContain('color:red')
     expect(result.code).toContain('color:blue')
     expect(result.css).toBe('')
+  })
+
+  it('keeps explicitly named styled registry components side-effectful in compiled output', () => {
+    const result = compileCipoSourceBuild(`
+      export const Registered = styled.textarea('Registered').css\`resize: none;\`
+    `, {
+      filename: '/project/src/registered.ts',
+      classNameMode: 'compact',
+      coupleStyledCss: true,
+      styledCssHelperImportPath: '@rodkisten/cipo/compiled-runtime',
+      injectCssImport: false,
+    })
+
+    expect(result.code).toContain('attachCompiledCss')
+    expect(result.code).not.toMatch(/\/\*#__PURE__\*\/[A-Za-z_$][\w$]*\(/)
   })
 
   it('mangles only explicitly private custom properties in compact CSS', () => {
