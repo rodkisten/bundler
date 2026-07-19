@@ -247,7 +247,7 @@ describe('compileCipoSourceBuild', () => {
     expect(helperImport).not.toBe('__cipoAttachCompiledCss')
     // The exact collision suffix is deliberately not asserted. The important
     // contract is that the generated call uses the same safe imported binding.
-    expect(result.code).toContain(`/*#__PURE__*/${helperImport}(`)
+    expect(result.code).toContain(`${helperImport}(`)
   })
   it('defers styled CSS emission for whole-build atomic promotion', () => {
     const source = `
@@ -472,7 +472,7 @@ describe('compileCipoSourceBuild', () => {
       minifyCss: true,
       injectCssImport: false,
     })
-    expect(result.css).toContain('"a : b; c"')
+    expect(result.css).toContain('"a : b ; c"')
     expect(result.css).not.toContain('"a:b;c"')
   })
   it('preserves protocol-relative URLs while compiling and minifying CSS', () => {

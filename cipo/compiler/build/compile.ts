@@ -45,6 +45,8 @@ export interface CipoCompiledBuildOptions {
   readonly deferAtomicCss?: boolean
   /** Import used by coupled/class-only styled CSS mode. */
   readonly styledCssHelperImportPath?: string
+  /** Additional modules explicitly trusted to re-export Cipó's styled factory. */
+  readonly styledImportModules?: readonly string[]
 }
 
 export interface CipoCompiledBuildManifestEntry {
@@ -120,8 +122,12 @@ function compileCipoSourceBuildInContext(
   const attachCssBinding = !options.deferAtomicCss && options.coupleStyledCss
     ? getAvailableBindingName(source, '__cipoAttachCompiledCss', filename)
     : ''
+  const styledImportModules = new Set([
+    '@rodkisten/cipo',
+    ...(options.styledImportModules ?? []),
+  ])
 
-  for (const hit of findStyledCssTemplates(source, filename)) {
+  for (const hit of findStyledCssTemplates(source, filename, styledImportModules)) {
     if (hasTemplateInterpolation(source, hit.templateStart, hit.templateEnd)) continue
     const rawCss = source.slice(hit.templateStart + 1, hit.templateEnd)
     const receiverName = hit.receiver.replace(/\s+/g, '')
@@ -138,15 +144,20 @@ function compileCipoSourceBuildInContext(
       const className = createCompiledClassName(prefix, buildNamespace, options.filename, rawCss, hit.receiver, classNameMode)
       const cssText = compileRawCssForClass(className, rawCss)
       entries.push(createManifestEntry('styled-css', hit.start, hit.templateEnd + 1, rawCss, cssText, className, options.filename, hit.receiver))
+      // Explicitly named styled components participate in Fabrica's registry and
+      // therefore carry a registration side effect even when their JS binding is
+      // referenced only through an uppercase template tag. Anonymous styled
+      // components remain pure so ordinary per-component tree shaking still works.
+      const pureAnnotation = hit.requiresRegistrationSideEffect ? '' : '/*#__PURE__*/'
       const value = options.deferAtomicCss
-        ? `/*#__PURE__*/${attachClassBinding}(${hit.receiver},${JSON.stringify(className)})`
+        ? `${pureAnnotation}${attachClassBinding}(${hit.receiver},${JSON.stringify(className)})`
         : options.coupleStyledCss
-          ? `/*#__PURE__*/${attachCssBinding}(${hit.receiver},${JSON.stringify(className)},${JSON.stringify(optimizeCompiledCss(cssText, {
+          ? `${pureAnnotation}${attachCssBinding}(${hit.receiver},${JSON.stringify(className)},${JSON.stringify(optimizeCompiledCss(cssText, {
               minify: minifyCss ?? classNameMode === 'compact',
               mergeEquivalentRules: options.mergeEquivalentRules ?? classNameMode === 'compact',
               privateCustomPropertyPattern: options.privateCustomPropertyPattern,
             }))})`
-          : `/*#__PURE__*/${hit.receiver}(${JSON.stringify(className)})`
+          : `${pureAnnotation}${hit.receiver}(${JSON.stringify(className)})`
       edits.push({ start: hit.start, end: hit.templateEnd + 1, value })
     } catch (error) {
       throw asCipoCompileError(
