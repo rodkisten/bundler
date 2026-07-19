@@ -240,7 +240,7 @@ function parsePropertyDefinition(body: string): CipoPropertyDefinition {
   return {
     syntax: stripQuotes(entries.syntax || '*'),
     inherits: entries.inherits === undefined ? true : parseBoolean(entries.inherits),
-    initialValue: entries['initial-value'] ?? entries.initial ?? '',
+    initialValue: entries.initialValue ?? entries.initial ?? '',
   }
 }
 

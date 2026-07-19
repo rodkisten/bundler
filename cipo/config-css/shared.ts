@@ -12,6 +12,13 @@ export function mergeConfigPatch(
       target.breakpoints = { ...(target.breakpoints ?? {}), ...(patch.breakpoints ?? {}) }
       continue
     }
+    if (typedKey === 'scope' && typeof patch.scope === 'object' && patch.scope) {
+      target.scope = {
+        ...(typeof target.scope === 'object' && target.scope ? target.scope : {}),
+        ...patch.scope,
+      }
+      continue
+    }
     ;(target as Record<string, unknown>)[key] = (patch as Record<string, unknown>)[key]
   }
 }
