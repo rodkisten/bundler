@@ -1,7 +1,15 @@
 import type { CipoWarning } from '../types'
 import { splitTopLevel, toKebabMixed } from '../utils'
 import { createOklchUtilityColor } from './colors'
-import { findMatching, findTopLevelChar, isIdentifierPart, isIdentifierStart, readIdentifierEnd, skipSpaces } from './shared'
+import {
+  findMatching,
+  findTopLevelChar,
+  isEscapedAt,
+  isIdentifierPart,
+  isIdentifierStart,
+  readIdentifierEnd,
+  skipSpaces,
+} from './shared'
 
 export function expandRuntimeDesignFeatures(
   input: string,
@@ -9,7 +17,7 @@ export function expandRuntimeDesignFeatures(
 ): string {
   let output = rewriteRuntimeFeatureBlocks(input, warnings);
   output = expandPaletteCalls(output, warnings);
-  output = expandContextProviderCalls(output);
+  output = expandContextProviderCalls(output, warnings);
   return output;
 }
 
@@ -20,14 +28,36 @@ function rewriteRuntimeFeatureBlocks(
   let output = "";
   let index = 0;
   let quote: '"' | "'" | null = null;
+  let blockComment = false;
 
   while (index < input.length) {
     const char = input[index];
 
+    const next = input[index + 1] || "";
+
+    if (blockComment) {
+      output += char;
+      if (char === "*" && next === "/") {
+        output += next;
+        blockComment = false;
+        index += 2;
+      } else {
+        index += 1;
+      }
+      continue;
+    }
+
     if (quote) {
       output += char;
-      if (char === quote && input[index - 1] !== "\\") quote = null;
+      if (char === quote && !isEscapedAt(input, index)) quote = null;
       index += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      output += "/*";
+      blockComment = true;
+      index += 2;
       continue;
     }
 
@@ -140,7 +170,7 @@ function renderVariantBlock(
     return body;
   }
 
-  const choices = readTopLevelNamedBlocks(body);
+  const choices = readTopLevelNamedBlocks(body, warnings);
   if (choices.length === 0) {
     warnings.push({
       code: "cipo-variant-empty-body",
@@ -206,7 +236,7 @@ function renderCompoundBlock(
 
 type RuntimeNamedBlock = { readonly name: string; readonly body: string };
 
-function readTopLevelNamedBlocks(input: string): RuntimeNamedBlock[] {
+function readTopLevelNamedBlocks(input: string, warnings: CipoWarning[]): RuntimeNamedBlock[] {
   const blocks: RuntimeNamedBlock[] = [];
   let index = 0;
 
@@ -214,10 +244,24 @@ function readTopLevelNamedBlocks(input: string): RuntimeNamedBlock[] {
     while (index < input.length && /\s|;/.test(input[index] || "")) index += 1;
     const nameStart = index;
     while (index < input.length && input[index] !== "{") index += 1;
-    if (index >= input.length) break;
+    if (index >= input.length) {
+      if (input.slice(nameStart).trim()) {
+        warnings.push({
+          code: "cipo-variant-choice-malformed",
+          message: "Runtime variant() contains a choice without a block body.",
+        });
+      }
+      break;
+    }
     const name = input.slice(nameStart, index).trim();
     const close = findMatching(input, index, "{", "}");
-    if (close < 0) break;
+    if (close < 0) {
+      warnings.push({
+        code: "cipo-variant-choice-unclosed",
+        message: `Runtime variant choice "${name}" is missing a closing brace.`,
+      });
+      break;
+    }
     blocks[blocks.length] = { name, body: input.slice(index + 1, close) };
     index = close + 1;
   }
@@ -259,7 +303,9 @@ function renderPaletteCall(rawArgs: string): string {
   const parts = splitTopLevel(rawArgs, ",");
   const name =
     sanitizeRuntimeIdentifier((parts[0] || "palette").trim()) || "palette";
-  const source = sanitizeRuntimeIdentifier((parts[1] || name).trim()) || name;
+  const source =
+    toKebabMixed(sanitizeRuntimeIdentifier((parts[1] || name).trim())) ||
+    toKebabMixed(name);
   const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
   let output = "";
 
@@ -271,7 +317,7 @@ function renderPaletteCall(rawArgs: string): string {
   return output;
 }
 
-function expandContextProviderCalls(input: string): string {
+function expandContextProviderCalls(input: string, warnings: CipoWarning[]): string {
   let output = "";
   let index = 0;
 
@@ -286,11 +332,24 @@ function expandContextProviderCalls(input: string): string {
     const open = skipSpaces(input, start + "provide".length);
     const close = findMatching(input, open, "(", ")");
     if (close < 0) {
+      warnings.push({
+        code: "cipo-provide-unclosed",
+        message: "Unclosed runtime provide(...) call.",
+      });
       output += input.slice(start);
       break;
     }
 
-    output += renderContextProvider(input.slice(open + 1, close));
+    const rendered = renderContextProvider(input.slice(open + 1, close));
+    if (!rendered) {
+      warnings.push({
+        code: "cipo-provide-invalid",
+        message: "Runtime provide() requires a non-empty name:value pair.",
+      });
+      output += input.slice(start, close + 1);
+    } else {
+      output += rendered;
+    }
     index = close + 1;
   }
 
@@ -314,25 +373,46 @@ function findFunctionCall(
   name: string,
 ): number {
   let quote: '"' | "'" | null = null;
+  let blockComment = false;
 
   for (let index = startIndex; index < input.length; index += 1) {
-    const char = input[index];
-    if (quote) {
-      if (char === quote && input[index - 1] !== "\\") quote = null;
+    const char = input[index] || "";
+    const next = input[index + 1] || "";
+
+    if (blockComment) {
+      if (char === "*" && next === "/") {
+        blockComment = false;
+        index += 1;
+      }
       continue;
     }
+
+    if (quote) {
+      if (char === quote && !isEscapedAt(input, index)) quote = null;
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+
     if (char === '"' || char === "'") {
       quote = char;
       continue;
     }
+
     if (input.slice(index, index + name.length) !== name) continue;
     const before = input[index - 1] || "";
     const after = input[index + name.length] || "";
     if (
       (before && isIdentifierPart(before)) ||
       (after && isIdentifierPart(after))
-    )
+    ) {
       continue;
+    }
+
     const open = skipSpaces(input, index + name.length);
     if (input[open] === "(") return index;
   }

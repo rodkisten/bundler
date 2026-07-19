@@ -513,20 +513,36 @@ describe('runtime variable math normalization', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'does not split declaration chunks at semicolons inside quoted strings',
+      () => {
+        expect(normalizeRuntimeVariableMath('content: "a;b"; color: $$brand;')).toBe('content: "a;b"; color: var(--cp-brand);')
+      },
     )
-    it.todo(
+    it(
       'does not split declaration chunks at semicolons inside nested function arguments',
+      () => {
+        expect(normalizeRuntimeVariableMath('value: fn(a;b); width: $$size;')).toBe('value: fn(a;b); width: var(--cp-size);')
+      },
     )
-    it.todo(
+    it(
       'normalizes declarations inside stylesheet blocks when this transform is intended to operate on full CSS rather than declaration fragments',
+      () => {
+        expect(normalizeRuntimeVariableMath('.card{width: $$size + 1rem;}')).toContain('width: calc(var(--cp-size) + 1rem);')
+      },
     )
-    it.todo(
+    it(
       'uses escape parity instead of checking only the immediately preceding backslash when scanning quoted expressions',
+      () => {
+        const input = String.raw`content: "a\\"; width: $$size;`
+        expect(normalizeRuntimeVariableMath(input)).toContain('width: var(--cp-size);')
+      },
     )
-    it.todo(
+    it(
       'defines whether subtraction without surrounding whitespace such as 100%-2rem should be recognized as CSS math',
+      () => {
+        expect(normalizeRuntimeExpression('100%-2rem')).toBe('calc(100%-2rem)')
+      },
     )
   })
 })

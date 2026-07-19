@@ -788,23 +788,50 @@ describe('runtime parser shared utilities', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'findTopLevelChar uses delimiter-specific stacks so mismatched mixed brackets cannot incorrectly return to top-level depth',
+      () => {
+        expect(findTopLevelChar('fn([)]):outside', ':')).toBe(-1)
+      },
     )
-    it.todo(
+    it(
       'findMatching ignores matching delimiter characters nested inside different bracket families',
+      () => {
+        const input = '(value[)]tail)'
+        expect(findMatching(input, 0, '(', ')')).toBe(input.length - 1)
+      },
     )
-    it.todo(
+    it(
       'findTopLevelChar and findMatching use escape parity instead of checking only the immediately preceding backslash',
+      () => {
+        const input = String.raw`"value\\":outside`
+        expect(findTopLevelChar(input, ':')).toBe(input.indexOf(':'))
+        const wrapped = String.raw`("value\\")`
+        expect(findMatching(wrapped, 0, '(', ')')).toBe(wrapped.length - 1)
+      },
     )
-    it.todo(
+    it(
       'findTopLevelChar and findMatching treat CSS comments as opaque lexical content',
+      () => {
+        const input = '/* nested: value ) */ actual:value'
+        expect(findTopLevelChar(input, ':')).toBe(input.indexOf(':', input.indexOf('actual')))
+        const wrapped = '(before /* ) */ after)'
+        expect(findMatching(wrapped, 0, '(', ')')).toBe(wrapped.length - 1)
+      },
     )
-    it.todo(
+    it(
       'identifier character predicates enforce their single-character contract instead of matching any valid character inside a longer string',
+      () => {
+        expect(isIdentifierStart('ab')).toBe(false)
+        expect(isIdentifierPart('a-')).toBe(false)
+      },
     )
-    it.todo(
+    it(
       'clarifies why hyphen is an identifier part but is intentionally considered a parameter boundary',
+      () => {
+        expect(isIdentifierPart('-')).toBe(true)
+        expect(isParamBoundary('-')).toBe(true)
+      },
     )
   })
 })

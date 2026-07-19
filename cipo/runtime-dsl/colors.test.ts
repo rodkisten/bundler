@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createOklchUtilityColor,
   expandRuntimeColorUtilities,
-} from './color-utilities'
+} from './colors'
 describe('runtime color utilities', () => {
   describe('expandRuntimeColorUtilities', () => {
     it('expands a background color utility into a CSS background declaration', () => {
@@ -697,17 +697,36 @@ describe('runtime color utilities', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'preserves the exact presence or absence of a trailing newline instead of always appending one',
+      () => {
+        expect(expandRuntimeColorUtilities('bg-blue-500')).not.toMatch(/\n$/)
+        expect(expandRuntimeColorUtilities('bg-blue-500\n')).toMatch(/\n$/)
+      },
     )
-    it.todo(
+    it(
       'does not append an extra blank line when the input already ends with a newline',
+      () => {
+        const output = expandRuntimeColorUtilities('bg-blue-500\n')
+        expect(output.endsWith('\n')).toBe(true)
+        expect(output.endsWith('\n\n')).toBe(false)
+      },
     )
-    it.todo(
+    it(
       'treats CRLF as one logical line terminator instead of independently flushing on carriage return and line feed',
+      () => {
+        const output = expandRuntimeColorUtilities('bg-blue-500\r\ncolor-red-500')
+        expect(output.split('\r\n')).toHaveLength(2)
+        expect(output).not.toContain('\r\n\r\n')
+      },
     )
-    it.todo(
+    it(
       'defines whether utility color names should support digits or hyphenated custom palette names',
+      () => {
+        const output = expandRuntimeColorUtilities('bg-brand-2-500\ncolor-accent-2026-400')
+        expect(output).toContain('background: oklch(')
+        expect(output).toContain('color: oklch(')
+      },
     )
   })
 })

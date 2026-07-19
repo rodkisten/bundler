@@ -10,7 +10,7 @@ vi.mock('./math', () => ({
   normalizeRuntimeExpression:
     mocks.normalizeRuntimeExpression,
 }))
-import { expandRuntimeTokenObjects } from './token-objects'
+import { expandRuntimeTokenObjects } from './tokens'
 describe('runtime token objects', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -499,20 +499,40 @@ describe('runtime token objects', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'ignores token-object syntax inside CSS comments',
+      () => {
+        const input = '/* $theme(primary: red) */ color: blue;'
+        expect(expand(input)).toBe(input)
+        expect(mocks.normalizeRuntimeExpression).not.toHaveBeenCalled()
+      },
     )
-    it.todo(
+    it(
       'uses escape parity instead of checking only the immediately preceding backslash while scanning quoted strings',
+      () => {
+        const input = String.raw`content: "value\\"; $theme(primary: red)`
+        expect(expand(input)).toContain('$$theme-primary: normalized(red)')
+      },
     )
-    it.todo(
+    it(
       'defines whether quoted object keys such as "primary-color": red should be supported and unquoted before flattening',
+      () => {
+        expect(expand('$theme("primary-color": red)')).toBe('$$theme-primary-color: normalized(red)')
+      },
     )
-    it.todo(
+    it(
       'defines whether malformed nested object syntax with unmatched parentheses should emit a dedicated warning instead of being treated as a leaf expression',
+      () => {
+        const warnings: CipoWarning[] = []
+        expandRuntimeTokenObjects('$theme(colors: (primary: red)', warnings)
+        expect(warnings.some((warning) => warning.code === 'cipo-token-object-malformed-nesting')).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'defines whether the root token-object name should also be canonicalized with toKebabMixed instead of preserving dots, underscores and casing',
+      () => {
+        expect(expand('$Theme_Palette(primary: red)')).toBe('$$theme-palette-primary: normalized(red)')
+      },
     )
   })
 })
