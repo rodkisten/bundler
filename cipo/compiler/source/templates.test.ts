@@ -54,6 +54,34 @@ describe('compiler source template analysis', () => {
         "styled.button('Button')",
       )
     })
+    it('finds styled imported from an explicitly trusted re-export module', () => {
+      const source = `
+        import { styled } from '@app/ui-runtime'
+        const Button = styled.button('Button').css\`
+          color: red;
+        \`
+      `
+      const hits = findStyledCssTemplates(
+        source,
+        '/src/button.ts',
+        new Set(['@rodkisten/cipo', '@app/ui-runtime']),
+      )
+      expect(hits).toHaveLength(1)
+      expect(hits[0].receiver).toBe(
+        "styled.button('Button')",
+      )
+    })
+    it('does not trust a styled re-export module unless the caller opts into it', () => {
+      const source = `
+        import { styled } from '@app/ui-runtime'
+        const Button = styled.button('Button').css\`
+          color: red;
+        \`
+      `
+      expect(
+        findStyledCssTemplates(source, '/src/button.ts'),
+      ).toEqual([])
+    })
     it('finds an aliased styled import by its exported Cipó identity', () => {
       const source = `
         import {

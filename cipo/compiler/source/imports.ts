@@ -429,6 +429,32 @@ function countExecutableIdentifierReferences(
   checker: ts.TypeChecker,
   candidates: ReadonlySet<string>,
 ): Map<string, number> {
+  try {
+    return countSemanticIdentifierReferences(
+      sourceFile,
+      checker,
+      candidates,
+    )
+  } catch {
+    /*
+     * TypeScript can attempt module-specifier synthesis while resolving aliases
+     * from an intentionally no-resolution Program. TS 6 currently throws for
+     * some absolute filenames combined with unresolved relative imports. Import
+     * cleanup only needs lexical identity, so fall back to scope-aware counting
+     * instead of making compiler transforms depend on module resolution.
+     */
+    return countLexicalIdentifierReferences(
+      sourceFile,
+      candidates,
+    )
+  }
+}
+
+function countSemanticIdentifierReferences(
+  sourceFile: ts.SourceFile,
+  checker: ts.TypeChecker,
+  candidates: ReadonlySet<string>,
+): Map<string, number> {
   const counts = new Map<string, number>()
   const importedSymbols = new Map<string, ts.Symbol>()
 
@@ -460,6 +486,137 @@ function countExecutableIdentifierReferences(
   })
 
   return counts
+}
+
+function countLexicalIdentifierReferences(
+  sourceFile: ts.SourceFile,
+  candidates: ReadonlySet<string>,
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  const importedNames = new Set<string>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    const bindings = getNamedImports(statement.importClause)
+    if (!bindings) continue
+
+    for (const element of bindings.elements) {
+      if (candidates.has(element.name.text)) {
+        importedNames.add(element.name.text)
+      }
+    }
+  }
+
+  visitSourceTree(sourceFile, (node) => {
+    if (!ts.isIdentifier(node)) return
+    if (!importedNames.has(node.text)) return
+    if (isImportIdentifier(node)) return
+    if (isPropertyAccessPropertyName(node)) return
+    if (isDeclarationIdentifier(node)) return
+    if (isLexicallyShadowed(node, node.text, sourceFile)) return
+
+    counts.set(node.text, (counts.get(node.text) ?? 0) + 1)
+  })
+
+  return counts
+}
+
+function isLexicallyShadowed(
+  node: ts.Identifier,
+  name: string,
+  sourceFile: ts.SourceFile,
+): boolean {
+  let current: ts.Node | undefined = node.parent
+
+  while (current && current !== sourceFile) {
+    if (ts.isFunctionLike(current)) {
+      for (const parameter of current.parameters) {
+        if (bindingNameContains(parameter.name, name)) return true
+      }
+
+      if (current.name && ts.isIdentifier(current.name) && current.name.text === name) {
+        return true
+      }
+    }
+
+    if (ts.isCatchClause(current) && current.variableDeclaration) {
+      if (bindingNameContains(current.variableDeclaration.name, name)) return true
+    }
+
+    if (ts.isBlock(current) && blockDeclaresName(current, name)) {
+      return true
+    }
+
+    if (ts.isForStatement(current) && current.initializer && ts.isVariableDeclarationList(current.initializer)) {
+      if (declarationListContainsName(current.initializer, name)) return true
+    }
+
+    if ((ts.isForInStatement(current) || ts.isForOfStatement(current)) && ts.isVariableDeclarationList(current.initializer)) {
+      if (declarationListContainsName(current.initializer, name)) return true
+    }
+
+    current = current.parent
+  }
+
+  return false
+}
+
+function blockDeclaresName(
+  block: ts.Block,
+  name: string,
+): boolean {
+  for (const statement of block.statements) {
+    if (ts.isVariableStatement(statement) && declarationListContainsName(statement.declarationList, name)) {
+      return true
+    }
+
+    if (isNamedValueDeclaration(statement) && statement.name?.text === name) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function declarationListContainsName(
+  declarations: ts.VariableDeclarationList,
+  name: string,
+): boolean {
+  for (const declaration of declarations.declarations) {
+    if (bindingNameContains(declaration.name, name)) return true
+  }
+
+  return false
+}
+
+function bindingNameContains(
+  bindingName: ts.BindingName,
+  name: string,
+): boolean {
+  if (ts.isIdentifier(bindingName)) return bindingName.text === name
+
+  for (const element of bindingName.elements) {
+    if (ts.isBindingElement(element) && bindingNameContains(element.name, name)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isDeclarationIdentifier(node: ts.Identifier): boolean {
+  const parent = node.parent
+
+  return (
+    (ts.isVariableDeclaration(parent) && parent.name === node)
+    || (ts.isParameter(parent) && parent.name === node)
+    || (ts.isBindingElement(parent) && parent.name === node)
+    || (ts.isFunctionDeclaration(parent) && parent.name === node)
+    || (ts.isFunctionExpression(parent) && parent.name === node)
+    || (ts.isClassDeclaration(parent) && parent.name === node)
+    || (ts.isClassExpression(parent) && parent.name === node)
+    || (ts.isEnumDeclaration(parent) && parent.name === node)
+  )
 }
 
 function isPropertyAccessPropertyName(node: ts.Identifier): boolean {

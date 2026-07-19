@@ -828,6 +828,25 @@ describe('compiler source imports', () => {
         expect(removeUnusedNamedImports(source, new Set(['compile']))).not.toContain('import { compile }')
       },
     )
+    it(
+      'removes shadowed imports without resolving unrelated relative modules from an absolute filename',
+      () => {
+        const source = `import { configure } from 'pkg'
+import { appConfigCss } from './config'
+function demo(configure: (value: unknown) => void) {
+  configure(appConfigCss)
+}`
+        const result = removeUnusedNamedImports(
+          source,
+          new Set(['configure', 'appConfigCss']),
+          '/src/config.ts',
+        )
+
+        expect(result).not.toContain("import { configure } from 'pkg'")
+        expect(result).toContain("import { appConfigCss } from './config'")
+        expect(result).toContain('configure(appConfigCss)')
+      },
+    )
   })
 })
 function countOccurrences(
