@@ -48,9 +48,7 @@ describe('core CSS transform safety', () => {
       expect(result).toContain(
         'h: 20px',
       )
-      expect(result).toContain(
-        'var(--cipo-internal-native-slash-7f3c, /)',
-      )
+      expect(result).toContain('font:16px/1.4 sans-serif;')
     })
     it('installs native property guards at most once for the loaded module instance', () => {
       prepareCoreCssInput(
@@ -726,7 +724,7 @@ describe('core CSS transform safety', () => {
     })
   })
   describe('normalizeTemplateChunk', () => {
-    it('normalizes compact blocks and nested selector lists while protecting native slash grammar', () => {
+    it('normalizes compact blocks and nested selector lists without prematurely protecting native slash grammar', () => {
       const result =
         normalizeTemplateChunk(
           [
@@ -735,9 +733,7 @@ describe('core CSS transform safety', () => {
             '&:focus{color:red;}',
           ].join('\n'),
         )
-      expect(result).toContain(
-        'var(--cipo-internal-native-slash-7f3c, /)',
-      )
+      expect(result).toContain('font:16px/1.4 sans-serif;')
       expect(result).toContain(
         '&:hover,&:focus',
       )
@@ -872,20 +868,42 @@ describe('core CSS transform safety', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'protectNativeSlashes does not confuse selector pseudo-class colons with declaration property separators',
+      () => {
+        const output = protectNativeSlashes('a:hover{font:16px/1.4 Arial;}')
+        expect(output).toContain('a:hover{font:16px')
+        expect(restoreNativeSlashes(output)).toBe('a:hover{font:16px/1.4 Arial;}')
+      },
     )
-    it.todo(
+    it(
       'protectNativeSlashes preserves line comments if the input reaches this layer before comment stripping',
+      () => {
+        const input = `// font:16px/1.4\nfont:16px/1.4 Arial;`
+        const protectedCss = protectNativeSlashes(input)
+        expect(protectedCss).toContain('// font:16px/1.4')
+        expect(restoreNativeSlashes(protectedCss)).toBe(input)
+      },
     )
-    it.todo(
+    it(
       'resolveRemainingRuntimeVars defines whether $$token followed by a declaration colon with intervening whitespace is always a declaration rather than a value reference',
+      () => {
+        expect(resolveRemainingRuntimeVars('$$token : red; color: $$token;')).toBe('$$token : red; color: var(--cp-token);')
+      },
     )
-    it.todo(
+    it(
       'joinNestedSelectorLists supports CR-only line endings consistently with CRLF and LF',
+      () => {
+        expect(joinNestedSelectorLists('&:hover,\r&:focus { color:red; }')).toBe('&:hover,&:focus { color:red; }')
+      },
     )
-    it.todo(
+    it(
       'the private native slash sentinel cannot collide with literal user-authored CSS containing the same var() expression',
+      () => {
+        const sentinel = 'var(--cipo-internal-native-slash-7f3c, /)'
+        const input = `.a{content:"${sentinel}";font:16px/1.4 Arial;}`
+        expect(restoreNativeSlashes(protectNativeSlashes(input))).toBe(input)
+      },
     )
   })
 })

@@ -4,6 +4,7 @@ import { mapCssCodeSegments } from '../syntax/css-lexer'
 import { splitTopLevel, toKebabMixed } from '../utils'
 
 const NATIVE_SLASH_TOKEN = 'var(--cipo-internal-native-slash-7f3c, /)'
+const NATIVE_SLASH_LITERAL_ESCAPE = 'var(--cipo-internal-native-slash-literal-7f3c)'
 const NATIVE_SLASH_PROPERTIES = /^(?:font|grid(?:-[\w-]+)?|aspect-ratio)$/i
 
 let nativePropertyGuardsInstalled = false
@@ -35,14 +36,85 @@ export function finalizeCoreCssOutput(input: string): string {
 
 /** Normalizes template chunks without entering quoted CSS strings/comments. */
 export function normalizeTemplateChunk(value: string): string {
-  return protectNativeSlashes(joinNestedSelectorLists(normalizeCompactRuntimeBlocks(value)))
+  // Native slash protection belongs to prepareCoreCssInput(). Protecting here as
+  // well would double-escape the internal marker when the full transform pipeline
+  // later prepares the same template source.
+  return joinNestedSelectorLists(normalizeCompactRuntimeBlocks(value))
 }
 
 /** Makes compact runtime blocks declaration-safe outside quoted content. */
 export function normalizeCompactRuntimeBlocks(input: string): string {
-  return mapCssCodeSegments(input, (segment) => segment
-    .replace(/\{[ \t]+(?=[#$a-zA-Z_-])/g, '{\n')
-    .replace(/;[ \t]*\}/g, ';\n}'))
+  let output = ''
+  const compactStack: boolean[] = []
+  let quote: '"' | "'" | null = null
+  let escaped = false
+  let blockComment = false
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index] ?? ''
+    const next = input[index + 1] ?? ''
+
+    if (blockComment) {
+      output += char
+      if (char === '*' && next === '/') {
+        output += next
+        blockComment = false
+        index += 1
+      }
+      continue
+    }
+
+    if (quote) {
+      output += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = null
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      output += '/*'
+      blockComment = true
+      index += 1
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      output += char
+      continue
+    }
+
+    if (char === '{') {
+      let cursor = index + 1
+      while (cursor < input.length && /[ \t]/.test(input[cursor] ?? '')) cursor += 1
+      const compact = cursor > index + 1 && /[#$a-zA-Z_-]/.test(input[cursor] ?? '')
+      const inherited = compactStack.some(Boolean)
+      compactStack.push(compact || inherited)
+      output += char
+
+      if (compact) {
+        output += '\n'
+        index = cursor - 1
+      }
+      continue
+    }
+
+    if (char === '}') {
+      const active = compactStack.pop() ?? false
+      if (active) {
+        output = output.replace(/[ \t]+$/g, '')
+        if (output.endsWith(';')) output += '\n'
+        else if (!output.endsWith('\n')) output += '\n'
+      }
+      output += char
+      continue
+    }
+
+    output += char
+  }
+
+  return output
 }
 
 /**
@@ -50,7 +122,9 @@ export function normalizeCompactRuntimeBlocks(input: string): string {
  * Arguments are split only at top level so nested native CSS functions survive.
  */
 export function expandCoreSizeCalls(input: string): string {
-  return mapCssCodeSegments(input, (segment) => segment.replace(
+  return mapCssCodeSegments(input, (segment) => segment
+    .replace(/(^|[;{}\n])(\s*)size\(\)\s*;?/g, '$1$2')
+    .replace(
     /(^|[;{}\n])(\s*)size\(([^{}\n;]*)\)(?=\s*(?:;|\n|}|$))/g,
     (_all, edge: string, spacing: string, raw: string) => {
       const parts = splitTopLevel(raw, ',')
@@ -91,11 +165,12 @@ export function normalizePropertyDirectiveNames(input: string): string {
  * strings or comments.
  */
 export function protectNativeSlashes(input: string): string {
-  const ranges = findDeclarationValueRanges(input)
+  const escapedInput = input.split(NATIVE_SLASH_TOKEN).join(NATIVE_SLASH_LITERAL_ESCAPE)
+  const ranges = findDeclarationValueRanges(escapedInput)
     .filter((range) => NATIVE_SLASH_PROPERTIES.test(range.property))
     .reverse()
 
-  let output = input
+  let output = escapedInput
   for (const range of ranges) {
     const value = output.slice(range.start, range.end)
     const protectedValue = replaceUnquotedSlashes(value, NATIVE_SLASH_TOKEN)
@@ -107,7 +182,9 @@ export function protectNativeSlashes(input: string): string {
 
 /** Restores private native slash markers emitted by `protectNativeSlashes`. */
 export function restoreNativeSlashes(input: string): string {
-  return input.split(NATIVE_SLASH_TOKEN).join('/')
+  return input
+    .split(NATIVE_SLASH_TOKEN).join('/')
+    .split(NATIVE_SLASH_LITERAL_ESCAPE).join(NATIVE_SLASH_TOKEN)
 }
 
 /** Resolves deferred value-side `$$name` references outside strings/comments. */
@@ -127,7 +204,7 @@ export function resolveRemainingRuntimeVars(input: string): string {
 /** Repairs multiline nested selector continuations without rewriting quoted text. */
 export function joinNestedSelectorLists(input: string): string {
   return mapCssCodeSegments(input, (segment) => {
-    const lines = segment.split(/\r?\n/)
+    const lines = segment.split(/\r\n|\r|\n/)
     const output: string[] = []
 
     for (let index = 0; index < lines.length; index += 1) {
