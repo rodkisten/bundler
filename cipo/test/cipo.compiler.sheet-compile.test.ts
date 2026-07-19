@@ -19,8 +19,8 @@ describe('Cipó compiler/sheet-compile', () => {
     const ast = parseStylesheet('.card { color: red; &:hover { color: blue } }', [])
     const output = compileStylesheetText(ast)
 
-    expect(output).toContain('.card{color:red;}')
-    expect(output).toContain('.card:hover{color:blue;}')
+    expect(output).toContain('.card{color:red}')
+    expect(output).toContain('.card:hover{color:blue}')
   })
 
   it('compiles explicit sheet artifacts and layers', () => {

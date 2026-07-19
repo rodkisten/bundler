@@ -304,8 +304,8 @@ describe('Cipó + Fábrica compiled build mode', () => {
       injectCssImport: false,
     })
 
-    expect(result.code).toContain("import { attachCompiledCss }")
-    expect(result.code.match(/\/\*#__PURE__\*\/attachCompiledCss/g)).toHaveLength(2)
+    expect(result.code).toContain("import { attachCompiledCss as __cipoAttachCompiledCss }")
+    expect(result.code.match(/\/\*#__PURE__\*\/__cipoAttachCompiledCss/g)).toHaveLength(2)
     expect(result.code).toContain('color:red')
     expect(result.code).toContain('color:blue')
     expect(result.css).toBe('')
