@@ -191,7 +191,7 @@ describe('text value expander', () => {
         )
       },
     )
-    it('does not treat arbitrary named colors as color-like standalone tokens', () => {
+    it('normalizes CSS named colors as standalone color values', () => {
       const normalizeValue =
         createNormalizer()
       const expandText =
@@ -202,10 +202,14 @@ describe('text value expander', () => {
         expandText(
           'red',
         ),
-      ).toBe('')
+      ).toBe('color:normalized(color|red|color);')
       expect(
         normalizeValue,
-      ).not.toHaveBeenCalled()
+      ).toHaveBeenCalledWith(
+        'color',
+        'red',
+        'color',
+      )
     })
     it('normalizes multiple color-like standalone values independently', () => {
       const normalizeValue =
