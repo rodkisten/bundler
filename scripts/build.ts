@@ -1079,7 +1079,7 @@ async function buildCipoEntryWithVite(
       () =>
         Promise.all([
           import("vite"),
-          import("@rodkisten/cipo/vite-index"),
+          import("@rodkisten/cipo/vite"),
         ]),
     );
 
