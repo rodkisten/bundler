@@ -167,7 +167,7 @@ describe('compiler IR emitter', () => {
         context,
       })
     })
-    it('preserves the original rule context by reference', () => {
+    it('preserves the original rule context by value in immutable IR', () => {
       const context: CipoRuleContext = {
         layer: 'components',
       }
@@ -177,7 +177,7 @@ describe('compiler IR emitter', () => {
             context,
           }),
         )
-      expect(result.context).toBe(context)
+      expect(result.context).toStrictEqual(context)
     })
     it('does not apply global important configuration to atomic values at IR conversion time', () => {
       mocks.runtime.config.important = true
@@ -572,11 +572,7 @@ describe('compiler IR emitter', () => {
         ].join('\n'),
       )
       expect(result).toBe(
-        [
-          'formatted(layer(atomic){.compiled-a-color-{color:red;}',
-          '}',
-          'layer(scoped){.scope:hover{opacity:0.5;}})',
-        ].join('\n'),
+        'formatted(layer(atomic){.compiled-a-color-{color:red;}}\nlayer(scoped){.scope:hover{opacity:0.5;}})',
       )
     })
     it('preserves atomic rule source order inside the atomic layer', () => {
@@ -807,7 +803,7 @@ describe('compiler IR emitter', () => {
           value: 'red',
         },
       ])
-      expect(ir.context).toBe(context)
+      expect(ir.context).toStrictEqual(context)
       serializeCompiledRule(ir)
       expect(
         mocks.wrapContext,

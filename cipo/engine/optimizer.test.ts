@@ -1105,7 +1105,7 @@ function minifyPrelude(
     .trim()
     .replace(/\s+/g, ' ')
     .replace(
-      /\s*([():>,+~])\s*/g,
+      /\s*([:>,+~])\s*/g,
       '$1',
     )
 }
