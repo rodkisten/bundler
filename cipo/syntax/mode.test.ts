@@ -9,7 +9,7 @@ import {
   findFirstMeaningful,
   findNextTopLevelAt,
   splitPolymorphicCssSource,
-} from './polymorphic-css'
+} from './mode'
 describe('polymorphic CSS source detection', () => {
   beforeEach(() => {
     clearPolymorphicDetectionCache()
@@ -883,26 +883,56 @@ describe('polymorphic CSS source detection', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'findNextTopLevelAt ignores @directive-like text inside // line comments',
+      () => {
+        const input = '// @cipo { prefix: bad }\n@theme { color: red }'
+        expect(findNextTopLevelAt(input, 0)).toBe(input.indexOf('@theme'))
+      },
     )
-    it.todo(
+    it(
       'all quoted-string scanners use escape parity instead of checking only the immediately preceding backslash',
+      () => {
+        const input = String.raw`.a{content:"x\\";} @theme { color: red }`
+        expect(findNextTopLevelAt(input, 0)).toBe(input.indexOf('@theme'))
+      },
     )
-    it.todo(
+    it(
       'top-level scanning tracks matching delimiter families instead of using one shared depth counter for (), [] and {}',
+      () => {
+        expect(findNextTopLevelAt('fn([)] @inside) @outside', 0)).toBe(-1)
+      },
     )
-    it.todo(
+    it(
       '@inline block mode defines whether trailing source after the closing brace should be preserved or rejected instead of silently discarded',
+      () => {
+        const result = splitPolymorphicCssSource('@inline { color:red; } background:blue;')
+        expect(result.mode).toBe('inline')
+        expect(result.stylesheet).toContain('background:blue;')
+      },
     )
-    it.todo(
+    it(
       'statement-style configuration directives ending at a newline preserve surrounding newline ownership without leaking whitespace into stylesheet output',
+      () => {
+        const result = splitPolymorphicCssSource('@cipo prefix: app\n.card{color:red;}')
+        expect(result.stylesheet.startsWith('.card')).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'configuration directive detection defines whether names should be ASCII-case-insensitive',
+      () => {
+        const result = splitPolymorphicCssSource('@CIPO { prefix: app; } .card{color:red;}')
+        expect(result.configCss.toLowerCase()).toContain('@cipo')
+      },
     )
-    it.todo(
+    it(
       'the bounded cache defines whether cache hits should refresh recency or intentionally remain FIFO insertion-order eviction',
+      () => {
+        const source = '.card{color:red;}'
+        const first = splitPolymorphicCssSource(source)
+        const second = splitPolymorphicCssSource(source)
+        expect(second).toBe(first)
+      },
     )
   })
 })

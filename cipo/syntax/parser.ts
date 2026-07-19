@@ -1,5 +1,6 @@
 import type { CipoAstNode, CipoDeclarationNode, CipoWarning } from '../types'
-import { findMatchingBrace, findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from '../utils'
+import { findTopLevelColon, parseFunctionCall, splitTopLevel, warn } from '../utils'
+import { findMatching, isEscapedAt } from '../runtime-dsl/shared'
 import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyDeclaration, parseGeneratedDeclarations } from '../values'
 import { runtime } from '../runtime'
 import { getStandaloneAliasName, stringifyAlias } from '../transform/index'
@@ -77,12 +78,28 @@ export function parseStylesheet(input: string, warnings: CipoWarning[]): readonl
  * @returns AST nodes.
  */
 export function parseBlockBody(input: string, warnings: CipoWarning[]): readonly CipoAstNode[] {
+  const sourceInput = stripCssComments(input)
   const nodes: CipoAstNode[] = []
   let buffer = ''
   let index = 0
+  let quote: '"' | "'" | null = null
 
-  while (index < input.length) {
-    const char = input[index]
+  while (index < sourceInput.length) {
+    const char = sourceInput[index] ?? ''
+
+    if (quote) {
+      buffer += char
+      if (char === quote && !isEscapedAt(sourceInput, index)) quote = null
+      index += 1
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      buffer += char
+      index += 1
+      continue
+    }
 
     if (char !== '{') {
       buffer += char
@@ -95,18 +112,29 @@ export function parseBlockBody(input: string, warnings: CipoWarning[]): readonly
     buffer = ''
 
     if (!blockName) {
-      warn(runtime, warnings, 'missing-block-name', 'A CSS block is missing its selector or runtime context.', input.slice(Math.max(0, index - 40), index + 40))
+      warn(
+        runtime,
+        warnings,
+        'missing-block-name',
+        'A CSS block is missing its selector or runtime context.',
+        sourceInput.slice(Math.max(0, index - 40), index + 40),
+      )
     }
 
-    const endIndex = findMatchingBrace(input, index)
+    const endIndex = findMatching(sourceInput, index, '{', '}')
 
     if (endIndex < 0) {
-      warn(runtime, warnings, 'unclosed-block', `Block "${blockName}" is missing a closing brace.`, input.slice(index))
-      buffer += input.slice(index)
+      warn(
+        runtime,
+        warnings,
+        'unclosed-block',
+        `Block "${blockName}" is missing a closing brace.`,
+        sourceInput.slice(index),
+      )
       break
     }
 
-    const body = input.slice(index + 1, endIndex)
+    const body = sourceInput.slice(index + 1, endIndex)
     nodes.push({
       type: 'block',
       name: blockName,
@@ -212,16 +240,32 @@ export function appendDeclarationsAndDirectives(nodes: CipoAstNode[], input: str
  */
 export function tokenizeDeclarations(input: string): string[] {
   const output: string[] = []
+  const stack: string[] = []
   let buffer = ''
-  let depth = 0
   let quote: '"' | "'" | null = null
+  let blockComment = false
 
   for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
+    const char = input[index] ?? ''
+    const next = input[index + 1] ?? ''
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false
+        index += 1
+      }
+      continue
+    }
 
     if (quote) {
       buffer += char
-      if (char === quote && input[index - 1] !== '\\') quote = null
+      if (char === quote && !isEscapedAt(input, index)) quote = null
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      blockComment = true
+      index += 1
       continue
     }
 
@@ -231,16 +275,17 @@ export function tokenizeDeclarations(input: string): string[] {
       continue
     }
 
-    if (char === '(' || char === '[') depth += 1
-    else if (char === ')' || char === ']') depth = Math.max(0, depth - 1)
+    const close = closingDelimiterFor(char)
+    if (close) stack.push(close)
+    else if (isClosingDelimiter(char) && stack.at(-1) === char) stack.pop()
 
-    if (char === ';' && depth === 0) {
+    if (char === ';' && stack.length === 0) {
       pushToken(output, buffer)
       buffer = ''
       continue
     }
 
-    if ((char === '\n' || char === '\r') && depth === 0) {
+    if ((char === '\n' || char === '\r') && stack.length === 0) {
       if (isCompleteDeclarationToken(buffer)) {
         pushToken(output, buffer)
         buffer = ''
@@ -257,6 +302,16 @@ export function tokenizeDeclarations(input: string): string[] {
   return output
 }
 
+function closingDelimiterFor(char: string): string | undefined {
+  if (char === '(') return ')'
+  if (char === '[') return ']'
+  return undefined
+}
+
+function isClosingDelimiter(char: string): boolean {
+  return char === ')' || char === ']'
+}
+
 
 /**
  * Parses old directive syntax.
@@ -266,14 +321,38 @@ export function tokenizeDeclarations(input: string): string[] {
  * @returns Directive node or null.
  */
 export function parseDirective(source: string, warnings: CipoWarning[]) {
-  const match = source.match(/^@([a-zA-Z][\w-]*)\(([^]*)\)$/)
-  if (!match || match[1] === undefined || match[2] === undefined) {
+  const trimmed = source.trim()
+  if (!trimmed.startsWith('@')) {
     warn(runtime, warnings, 'invalid-directive', `Invalid directive "${source}".`, source)
     return null
   }
 
-  return { type: 'directive' as const, name: match[1], args: splitTopLevel(match[2], ','), source }
+  let nameEnd = 1
+  while (nameEnd < trimmed.length && /[a-zA-Z0-9_-]/.test(trimmed[nameEnd] ?? '')) {
+    nameEnd += 1
+  }
+
+  const name = trimmed.slice(1, nameEnd)
+  const open = trimmed.indexOf('(', nameEnd)
+  if (!name || open < 0 || trimmed.slice(nameEnd, open).trim()) {
+    warn(runtime, warnings, 'invalid-directive', `Invalid directive "${source}".`, source)
+    return null
+  }
+
+  const close = findMatching(trimmed, open, '(', ')')
+  if (close < 0 || trimmed.slice(close + 1).trim()) {
+    warn(runtime, warnings, 'invalid-directive', `Invalid directive "${source}".`, source)
+    return null
+  }
+
+  return {
+    type: 'directive' as const,
+    name,
+    args: splitTopLevel(trimmed.slice(open + 1, close), ','),
+    source,
+  }
 }
+
 
 /**
  * Supports function-like declaration helpers that remain useful, e.g. text(...).
@@ -344,14 +423,15 @@ function splitBufferBeforeBlock(buffer: string): { readonly before: string; read
  * @returns Index where the block name starts, or -1 when the whole buffer is the block name.
  */
 function findDeclarationBlockBoundary(input: string): number {
-  let depth = 0
+  const candidates: number[] = []
+  const stack: string[] = []
   let quote: '"' | "'" | null = null
 
-  for (let index = input.length - 1; index >= 0; index -= 1) {
-    const char = input[index]
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index] ?? ''
 
     if (quote) {
-      if (char === quote && input[index - 1] !== '\\') quote = null
+      if (char === quote && !isEscapedAt(input, index)) quote = null
       continue
     }
 
@@ -360,27 +440,24 @@ function findDeclarationBlockBoundary(input: string): number {
       continue
     }
 
-    if (char === ')' || char === ']') depth += 1
-    else if (char === '(' || char === '[') depth = Math.max(0, depth - 1)
+    const close = closingDelimiterFor(char)
+    if (close) stack.push(close)
+    else if (isClosingDelimiter(char) && stack.at(-1) === char) stack.pop()
 
-    if (depth === 0 && (char === ';' || char === '\n' || char === '\r')) {
-      const before = input.slice(0, index).trim()
-      const after = input.slice(index + 1).trim()
-
-      if (!after) return -1
-
-      // Selector lists can span lines before a nested block:
-      //
-      //   th,
-      //   td { ... }
-      //
-      // When scanning backwards, the newline after `th,` looks like the last
-      // possible split point. Do not split there, otherwise `th,` is parsed as
-      // a declaration and the compiled build silently drops that selector.
-      if ((char === '\n' || char === '\r') && getLastNonEmptyLine(before).endsWith(',')) continue
-
-      if (before && containsDeclarationLikeStatement(before)) return index + 1
+    if (stack.length === 0 && (char === ';' || char === '\n' || char === '\r')) {
+      candidates.push(index)
     }
+  }
+
+  for (let cursor = candidates.length - 1; cursor >= 0; cursor -= 1) {
+    const index = candidates[cursor]!
+    const char = input[index] ?? ''
+    const before = input.slice(0, index).trim()
+    const after = input.slice(index + 1).trim()
+
+    if (!after) return -1
+    if ((char === '\n' || char === '\r') && getLastNonEmptyLine(before).endsWith(',')) continue
+    if (before && containsDeclarationLikeStatement(before)) return index + 1
   }
 
   return -1
@@ -478,6 +555,6 @@ function isCompleteDeclarationToken(value: string): boolean {
   if (token.endsWith(',') || token.endsWith(':')) return false
   if (findTopLevelColon(token) > 0) return true
   const call = parseFunctionCall(token)
-  if (call) return SMART_DECLARATION_FUNCTIONS.has(call.name) || !isNativeCssFunction(call.name)
+  if (call) return true
   return /^[a-zA-Z_][\w-]*$/.test(token)
 }

@@ -1087,23 +1087,43 @@ describe('CSS lexer utilities', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'minifyCssText preserves a required token boundary when a removed block comment separates identifier-like tokens such as foo/**/bar',
+      () => {
+        expect(minifyCssText('foo/**/bar{color:red;}')).toBe('foo bar{color:red}')
+      },
     )
-    it.todo(
+    it(
       'stripCipoComments preserves CRLF as one logical line ending instead of potentially emitting an extra newline after a removed line comment',
+      () => {
+        expect(stripCipoComments('color:red;// note\r\nbackground:blue;')).toBe('color:red;\r\nbackground:blue;')
+      },
     )
-    it.todo(
+    it(
       'stripCipoComments distinguishes hash-style Cipó comments from valid CSS id selectors beginning at the start of a line',
+      () => {
+        expect(stripCipoComments('#app { color:red; }')).toBe('#app { color:red; }')
+        expect(stripCipoComments('# comment\ncolor:red;')).toBe('\ncolor:red;')
+      },
     )
-    it.todo(
+    it(
       'manglePrivateCustomPropertiesSafe distinguishes custom-property tokens from matching text in URL-like unquoted payloads when required by CSS grammar',
+      () => {
+        expect(manglePrivateCustomPropertiesSafe('.a{--private-token:red;background:url(/--private-token/image.png);color:var(--private-token)}', /^--private-/)).toContain('url(/--private-token/image.png)')
+      },
     )
-    it.todo(
+    it(
       'minifyCssText uses a more selective token-boundary classifier instead of preserving whitespace between every pair of non-punctuation tokens',
+      () => {
+        expect(minifyCssText('.a { margin: 0  1rem; }')).toBe('.a{margin:0 1rem}')
+        expect(minifyCssText('.a { color : red ; }')).toBe('.a{color:red}')
+      },
     )
-    it.todo(
+    it(
       'canonicalizeCssForIdentity documents whether unterminated comments should canonicalize identically to the valid prefix before the comment',
+      () => {
+        expect(canonicalizeCssForIdentity('color:red;/* unfinished')).toBe('color:red;')
+      },
     )
   })
 })
