@@ -1,8 +1,9 @@
+import { computed } from "@rodkisten/broto/reactivity";
 import { appendValue } from "@rodkisten/fabrica/dom";
 import { toDataAttributeName } from "@rodkisten/fabrica/dom-special-attributes";
 import { isSignal } from "@rodkisten/fabrica/guards";
 import { resolveRuntimeComponent } from "@rodkisten/fabrica/runtime-context";
-import { readValue } from "@rodkisten/fabrica/value";
+import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
 import type { RenderValue } from "@rodkisten/fabrica/types";
 import {
   NODE_TEXT,
@@ -76,11 +77,7 @@ export function appendCompiledNode(
   if (component) {
     appendValue(
       parent,
-      createCompiledElement(
-        component,
-        readCompiledComponentProps(node.props, values, component),
-        ...collectCompiledChildValues(node.children, values),
-      ),
+      createCompiledComponentRenderValue(node, component, values),
     );
     return;
   }
@@ -102,6 +99,62 @@ export function appendCompiledNode(
   applyCompiledProps(element, props);
   for (const child of node.children) appendCompiledNode(element, child, values);
   parent.appendChild(element);
+}
+
+function createCompiledComponentRenderValue(
+  node: Extract<RuntimeNode, { readonly type: "element" }>,
+  component: RuntimeComponent,
+  values: readonly RenderValue[],
+): RenderValue {
+  const render = (): RenderValue =>
+    createCompiledElement(
+      component,
+      readCompiledComponentProps(node.props, values, component),
+      ...collectCompiledChildValues(node.children, values),
+    ) as RenderValue;
+
+  // Match the runtime html`` path: component factories are re-invoked when a
+  // dynamic prop reads a signal or reactive expression. This is especially
+  // important for styled intrinsic components, whose DOM attributes are created
+  // inside the component factory rather than bound by the parent template.
+  return hasReactiveCompiledComponentInputs(node.props, values)
+    ? computed(render, { name: `fabrica.compiledComponent.${component.name || "anonymous"}` })
+    : render();
+}
+
+function hasReactiveCompiledComponentInputs(
+  props: readonly RuntimeProp[],
+  values: readonly RenderValue[],
+): boolean {
+  for (const prop of props) {
+    if (prop.type === "spread") {
+      const spread = values[prop.index];
+      if (hasReactiveValue(spread) || hasReactiveRecordValue(spread)) return true;
+      continue;
+    }
+
+    if (prop.type === "value") {
+      if (hasReactiveValue(values[prop.index])) return true;
+      continue;
+    }
+
+    if (prop.type === "compound") {
+      for (const index of prop.indices) {
+        if (hasReactiveValue(values[index])) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function hasReactiveRecordValue(value: unknown): boolean {
+  const resolved = readValue(value);
+  if (!resolved || typeof resolved !== "object" || Array.isArray(resolved)) return false;
+
+  for (const item of Object.values(resolved as Record<string, unknown>)) {
+    if (hasReactiveValue(item)) return true;
+  }
+  return false;
 }
 
 function readCompiledComponentProps(
@@ -264,13 +317,7 @@ function collectCompiledChildValue(
 
   const component = resolveCompiledComponentTag(node.tag);
   if (component) {
-    output.push(
-      createCompiledElement(
-        component,
-        readCompiledComponentProps(node.props, values, component),
-        ...collectCompiledChildValues(node.children, values),
-      ),
-    );
+    output.push(createCompiledComponentRenderValue(node, component, values));
     return;
   }
 

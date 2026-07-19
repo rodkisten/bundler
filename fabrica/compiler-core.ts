@@ -172,6 +172,7 @@ function compileSourceFragment(
       const dynamicCompiled = compiled
         ? null
         : compileDynamicTemplateToExpression(
+            tag,
             templateParts.strings,
             expressions,
             options.directComponentReferences ?? false,
@@ -180,6 +181,7 @@ function compileSourceFragment(
         compiled?.expression ??
         dynamicCompiled ??
         emitCompiledTemplateFallbackExpression(
+          tag,
           templateParts.strings,
           expressions,
         );
@@ -315,6 +317,7 @@ function compileStaticTemplateToExpression(
 }
 
 function compileDynamicTemplateToExpression(
+  tag: string,
   strings: readonly string[],
   expressions: readonly string[],
   directComponentReferences: boolean,
@@ -323,7 +326,7 @@ function compileDynamicTemplateToExpression(
   const source = buildCompiledRuntimeSource(strings);
   const nodes = parseCompiledNodes(source, { allowUppercaseTags: true });
   if (!nodes) return null;
-  return `createCompiledTemplate(${serializeDefinition({ nodes }, directComponentReferences)}${expressions.length ? `, ${expressions.join(", ")}` : ""})`;
+  return `createCompiledTemplate(${tag}, ${serializeDefinition({ nodes }, directComponentReferences)}${expressions.length ? `, ${expressions.join(", ")}` : ""})`;
 }
 
 /** Parses a single-root static HTML fragment; rejects forests and unbalanced tags. */
@@ -457,12 +460,13 @@ function serializeCompactProp(prop: CompiledProp): string {
 }
 
 function emitCompiledTemplateFallbackExpression(
+  tag: string,
   strings: readonly string[],
   expressions: readonly string[],
 ): string {
   const args = strings.map((item) => JSON.stringify(item)).join(", ");
   const values = expressions.join(", ");
-  return `createCompiledTemplate([${args}] as unknown as TemplateStringsArray${values ? `, ${values}` : ""})`;
+  return `createCompiledTemplate(${tag}, [${args}] as unknown as TemplateStringsArray${values ? `, ${values}` : ""})`;
 }
 
 function readTemplateParts(

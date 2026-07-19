@@ -1,8 +1,10 @@
+import { effect } from '@rodkisten/broto/reactivity'
 import { registerCleanup } from '@rodkisten/fabrica/dom-cleanup'
 import { bindEvent } from '@rodkisten/fabrica/events'
 import { setPropertyOrAttribute } from '@rodkisten/fabrica/props'
 import type { ComponentPayload, ElementPayload, RenderValue } from '@rodkisten/fabrica/types'
-import { applySpecialAttribute, createSpecialAttributeState } from "@rodkisten/fabrica/dom-special-attributes";
+import { bindSpecialAttribute } from '@rodkisten/fabrica/dom-special-attributes'
+import { hasReactiveValue, readValue } from '@rodkisten/fabrica/value'
 
 /** Callback used by payload materializers to append nested children. */
 export type AppendRenderValue = (parentNode: Node, value: RenderValue, beforeNode?: Node | null) => void
@@ -97,21 +99,25 @@ export function applyPayloadProps(element: Element, props: Record<string, unknow
       continue
     }
 
-    if (applySpecialAttribute(element, key, propValue, createSpecialAttributeState())) {
+    if (bindSpecialAttribute(element, key, propValue)) {
       continue
     }
 
     if (key === 'class' || key === 'className') {
-      const className = stringifyAttributeValue('class', propValue)
-      if (className) element.setAttribute('class', className)
-      else element.removeAttribute('class')
+      bindPayloadValue(element, key, propValue, (resolved) => {
+        const className = stringifyAttributeValue('class', resolved)
+        if (className) element.setAttribute('class', className)
+        else element.removeAttribute('class')
+      })
       continue
     }
 
     if (key === 'style') {
-      const styleText = stringifyAttributeValue('style', propValue)
-      if (styleText) element.setAttribute('style', styleText)
-      else element.removeAttribute('style')
+      bindPayloadValue(element, key, propValue, (resolved) => {
+        const styleText = stringifyAttributeValue('style', resolved)
+        if (styleText) element.setAttribute('style', styleText)
+        else element.removeAttribute('style')
+      })
       continue
     }
 
@@ -151,30 +157,41 @@ export function applyPayloadProps(element: Element, props: Record<string, unknow
     }
 
     if (key.startsWith('data-') || key.startsWith('aria-')) {
-      if (propValue == null) element.removeAttribute(key)
-      else element.setAttribute(key, String(propValue))
+      bindPayloadValue(element, key, propValue, (resolved) => {
+        if (resolved == null) element.removeAttribute(key)
+        else element.setAttribute(key, String(resolved))
+      })
       continue
     }
 
-    if (propValue == null || propValue === false) {
-      element.removeAttribute(key)
-      continue
-    }
-
-    if (propValue === true) {
-      element.setAttribute(key, '')
-      continue
-    }
-
-    if (!key.startsWith('data-') && !key.startsWith('aria-') && key in element) {
-      try {
-        ;(element as unknown as Record<string, unknown>)[key] = propValue
-        continue
-      } catch {}
-    }
-
-    element.setAttribute(key, stringifyAttributeValue(key, propValue))
+    bindPayloadValue(element, key, propValue, (resolved) => {
+      setPropertyOrAttribute(element, key, resolved)
+    })
   }
+}
+
+/**
+ * Resolves reactive component payload props without treating event callbacks as
+ * ordinary values. Event/ref branches are handled before this helper is called.
+ */
+function bindPayloadValue(
+  element: Element,
+  name: string,
+  value: unknown,
+  apply: (resolved: unknown) => void,
+): void {
+  const update = (): void => apply(readValue(value))
+
+  if (!hasReactiveValue(value)) {
+    update()
+    return
+  }
+
+  const dispose = effect(update, {
+    name: `fabrica.payloadProp.${name}`,
+    scheduler: 'sync',
+  })
+  registerCleanup(element, dispose)
 }
 
 /** Applies a payload ref and registers its cleanup if one is returned. */

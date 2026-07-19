@@ -5,6 +5,7 @@ import {
 } from "@rodkisten/fabrica/dom";
 import { collectCleanupNodes } from "@rodkisten/fabrica/dom-cleanup";
 import {
+  FABRICA_HTML_RUNTIME,
   getCurrentFabricaRuntime,
   runWithCurrentFabricaRuntime,
   runWithFabricaRuntime,
@@ -13,6 +14,7 @@ import type {
   FabricaRuntimeContext,
   HtmlArtifact,
   HtmlResult,
+  HtmlTemplateTag,
   RenderValue,
 } from "@rodkisten/fabrica/types";
 import { TEMPLATE_CACHE_KEY_SEPARATOR } from "@rodkisten/fabrica/compiler-constants";
@@ -64,8 +66,31 @@ const runtimeTemplateCache = new Map<string, RuntimeCompiledTemplate | null>();
 export function createCompiledTemplate(
   input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
   ...values: readonly RenderValue[]
+): HtmlResult;
+export function createCompiledTemplate(
+  tag: HtmlTemplateTag,
+  input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
+  ...values: readonly RenderValue[]
+): HtmlResult;
+export function createCompiledTemplate(
+  inputOrTag:
+    | HtmlTemplateTag
+    | RuntimeCompiledTemplateInput
+    | TemplateStringsArray
+    | readonly string[],
+  ...inputAndValues: readonly unknown[]
 ): HtmlResult {
-  return runWithCurrentFabricaRuntime(() => {
+  const tagged = typeof inputOrTag === "function";
+  const input = (tagged ? inputAndValues[0] : inputOrTag) as
+    | RuntimeCompiledTemplateInput
+    | TemplateStringsArray
+    | readonly string[];
+  const values = (tagged ? inputAndValues.slice(1) : inputAndValues) as readonly RenderValue[];
+  const boundRuntime = tagged
+    ? (Reflect.get(inputOrTag, FABRICA_HTML_RUNTIME) as FabricaRuntimeContext | undefined)
+    : undefined;
+
+  const materialize = (): HtmlResult => {
     const runtime = getCurrentFabricaRuntime();
     const runtimeDefinition = isRuntimeCompiledTemplate(input);
     const normalizedStrings = runtimeDefinition
@@ -109,7 +134,11 @@ export function createCompiledTemplate(
       }
       throw error;
     }
-  });
+  };
+
+  return boundRuntime
+    ? runWithFabricaRuntime(boundRuntime, materialize)
+    : runWithCurrentFabricaRuntime(materialize);
 }
 
 function createCompiledHtmlArtifact(
