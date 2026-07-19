@@ -27,7 +27,7 @@ describe("Fábrica recursive compiled templates", () => {
     expect(result.code).toContain("RodElementsStylesView");
     expect(result.code).toContain("RodElementsStyleRule");
     expect(result.code).toContain("RodElementsStyleSource");
-    expect(result.code.match(/createCompiledTemplate\(\[/g)).toHaveLength(3);
+    expect(result.code.match(/createCompiledTemplate\(html,\s*\[/g)).toHaveLength(3);
 
     // Each manifest entry counts only its own top-level slots. Nested `${}`
     // expressions belong to their nested template instead of inflating the parent.
