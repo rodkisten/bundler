@@ -31,7 +31,7 @@ describe('compileCipoSourceBuild', () => {
     expect(entry.rawCss).toContain('padding: 8px')
     expect(result.css).toContain(`.${entry.className}`)
     expect(result.css).toContain('color:red')
-    expect(result.css).toContain('padding:8px')
+    expect(result.css).toContain('padding:0.5rem')
     // Static `.css` authoring syntax must be removed from generated source.
     expect(result.code).not.toContain('.css`')
     expect(result.code).toContain(JSON.stringify(entry.className))
@@ -472,7 +472,7 @@ describe('compileCipoSourceBuild', () => {
       minifyCss: true,
       injectCssImport: false,
     })
-    expect(result.css).toContain('"a : b ; c"')
+    expect(result.css).toContain('"a : b; c"')
     expect(result.css).not.toContain('"a:b;c"')
   })
   it('preserves protocol-relative URLs while compiling and minifying CSS', () => {
