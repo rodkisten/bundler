@@ -1326,23 +1326,50 @@ describe('core CSS source transforms', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'expandWithCompat ignores @with text inside quoted CSS strings and comments',
+      () => {
+        const input = 'content:"@with(bg(red))";/* @with(bg(blue)) */'
+        expect(expandWithCompat(input, [])).toBe(input)
+      },
     )
-    it.todo(
+    it(
       'expandWithCompat validates that @with is a standalone directive boundary instead of matching identifiers such as custom@with(...)',
+      () => {
+        const input = 'custom@with(bg(red));'
+        expect(expandWithCompat(input, [])).toBe(input)
+      },
     )
-    it.todo(
+    it(
       'readTopLevelStatement treats CSS comments as opaque lexical content when semicolons or newlines occur inside comments',
+      () => {
+        mocks.runtime.aliasRegistry.set('glass', 'color:red')
+        const input = `/* glass;\n glass */\nbutton{color:blue;}`
+        expect(expandStandaloneAliases(input, [])).toBe(input)
+      },
     )
-    it.todo(
+    it(
       'readTopLevelStatement and findMatchingParen use escape parity instead of checking only the immediately preceding backslash',
+      () => {
+        const input = String.raw`content:"x\\";@with(bg(red))`
+        expect(expandWithCompat(input, [])).toContain('background:red;')
+      },
     )
-    it.todo(
+    it(
       'alias expansion understands braces so standalone-looking lines inside arbitrary native CSS blocks cannot be misclassified when the transform is given full stylesheet text',
+      () => {
+        mocks.runtime.aliasRegistry.set('glass', 'color:red')
+        const input = `.native{\n  glass;\n}`
+        expect(expandStandaloneAliases(input, [])).toBe(input)
+      },
     )
-    it.todo(
+    it(
       'cyclic alias expansion does not leave an incidental newline as the serialized cycle result',
+      () => {
+        mocks.runtime.aliasRegistry.set('first', 'second')
+        mocks.runtime.aliasRegistry.set('second', 'first')
+        expect(stringifyAlias('first')).toBe('')
+      },
     )
   })
 })

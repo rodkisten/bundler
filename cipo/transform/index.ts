@@ -7,7 +7,8 @@ import { resolveHelpers } from '../values'
 import { isPlainObject, parseFunctionCall, splitTopLevel, warn } from '../utils'
 import { styleObjectToCss } from '../style-object'
 import { getTypedInitialValue, isTypedValue } from '../properties'
-import { stripCipoComments } from '../syntax/css-lexer'
+import { minifyCssText, stripCipoComments } from '../syntax/css-lexer'
+import { findMatching, isEscapedAt, isIdentifierPart } from '../runtime-dsl/shared'
 
 /**
  * Builds a CSS source string from template strings and interpolations.
@@ -27,12 +28,12 @@ export function buildCss(strings: TemplateStringsArray, values: readonly unknown
 
   for (let index = 0; index < strings.length; index += 1) {
     output += strings[index]
-    if (index >= values.length) continue
+    if (index >= strings.length - 1 || index >= values.length) continue
 
     const value = values[index]
     if (isCssLikeArtifact(value)) output += value.rawCss
     else if (isTypedValue(value)) output += getTypedInitialValue(value)
-    else if (isPlainObject(value)) output += styleObjectToCss(value as CipoStyleObject)
+    else if (isStyleObjectInterpolation(value)) output += styleObjectToCss(value as CipoStyleObject)
     else output += String(value ?? '')
   }
 
@@ -150,28 +151,36 @@ export function expandWithCompat(input: string, warnings: CipoWarning[]): string
   let index = 0
 
   while (index < input.length) {
-    const atIndex = input.indexOf('@with', index)
+    const atIndex = findNextWithDirective(input, index)
     if (atIndex < 0) {
       output += input.slice(index)
       break
     }
 
     output += input.slice(index, atIndex)
-    const openIndex = input.indexOf('(', atIndex)
-    if (openIndex < 0) {
-      output += input.slice(atIndex)
-      break
+    let openIndex = atIndex + '@with'.length
+    while (openIndex < input.length && /\s/.test(input[openIndex] ?? '')) openIndex += 1
+
+    if (input[openIndex] !== '(') {
+      output += input.slice(atIndex, openIndex)
+      index = openIndex
+      continue
     }
 
-    const closeIndex = findMatchingParen(input, openIndex)
+    const closeIndex = findMatching(input, openIndex, '(', ')')
     if (closeIndex < 0) {
-      warn(runtime, warnings, 'invalid-with', '@with(...) is missing a closing parenthesis.', input.slice(atIndex))
+      warn(
+        runtime,
+        warnings,
+        'invalid-with',
+        '@with(...) is missing a closing parenthesis.',
+        input.slice(atIndex),
+      )
       output += input.slice(atIndex)
       break
     }
 
-    const args = input.slice(openIndex + 1, closeIndex)
-    output += expandWithArguments(args, warnings)
+    output += expandWithArguments(input.slice(openIndex + 1, closeIndex), warnings)
 
     let next = closeIndex + 1
     if (input[next] === ';') next += 1
@@ -181,22 +190,30 @@ export function expandWithCompat(input: string, warnings: CipoWarning[]): string
   return output
 }
 
-/**
- * Reads a single top-level statement without recursing.
- *
- * @param input - Source string.
- * @param startIndex - Start index.
- * @returns Statement text and next index.
- */
-function readTopLevelStatement(input: string, startIndex: number): { readonly text: string; readonly nextIndex: number } {
-  let depth = 0
+function findNextWithDirective(input: string, startIndex: number): number {
   let quote: '"' | "'" | null = null
+  let blockComment = false
 
   for (let index = startIndex; index < input.length; index += 1) {
-    const char = input[index]
+    const char = input[index] ?? ''
+    const next = input[index + 1] ?? ''
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false
+        index += 1
+      }
+      continue
+    }
 
     if (quote) {
-      if (char === quote && input[index - 1] !== '\\') quote = null
+      if (char === quote && !isEscapedAt(input, index)) quote = null
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      blockComment = true
+      index += 1
       continue
     }
 
@@ -205,14 +222,71 @@ function readTopLevelStatement(input: string, startIndex: number): { readonly te
       continue
     }
 
-    if (char === '(' || char === '[') depth += 1
-    else if (char === ')' || char === ']') depth = Math.max(0, depth - 1)
+    if (!input.startsWith('@with', index)) continue
+    const before = input[index - 1] ?? ''
+    const after = input[index + '@with'.length] ?? ''
+    if ((before && isIdentifierPart(before)) || (after && isIdentifierPart(after))) continue
+    return index
+  }
 
-    if (char === ';' && depth === 0) {
-      return { text: input.slice(startIndex, index + 1), nextIndex: index + 1 }
+  return -1
+}
+
+/**
+ * Reads a single top-level statement without recursing.
+ *
+ * @param input - Source string.
+ * @param startIndex - Start index.
+ * @returns Statement text and next index.
+ */
+function readTopLevelStatement(
+  input: string,
+  startIndex: number,
+): { readonly text: string; readonly nextIndex: number } {
+  const stack: string[] = []
+  let quote: '"' | "'" | null = null
+  let blockComment = false
+
+  for (let index = startIndex; index < input.length; index += 1) {
+    const char = input[index] ?? ''
+    const next = input[index + 1] ?? ''
+
+    if (blockComment) {
+      if (char === '*' && next === '/') {
+        blockComment = false
+        index += 1
+      }
+      continue
     }
 
-    if ((char === '\n' || char === '\r') && depth === 0) {
+    if (quote) {
+      if (char === quote && !isEscapedAt(input, index)) quote = null
+      continue
+    }
+
+    if (char === '/' && next === '*') {
+      blockComment = true
+      index += 1
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (char === '(') stack.push(')')
+    else if (char === '[') stack.push(']')
+    else if ((char === ')' || char === ']') && stack.at(-1) === char) stack.pop()
+    else if (char === '{' && stack.length === 0) {
+      const close = findMatching(input, index, '{', '}')
+      if (close < 0) return { text: input.slice(startIndex), nextIndex: input.length }
+      return { text: input.slice(startIndex, close + 1), nextIndex: close + 1 }
+    }
+
+    if (stack.length > 0) continue
+
+    if (char === ';' || char === '\n' || char === '\r') {
       return { text: input.slice(startIndex, index + 1), nextIndex: index + 1 }
     }
   }
@@ -228,7 +302,8 @@ function readTopLevelStatement(input: string, startIndex: number): { readonly te
  * @returns Alias name without `$`, or empty string.
  */
 export function getStandaloneAliasName(source: string): string {
-  let normalized = source.endsWith(';') ? source.slice(0, -1).trim() : source.trim()
+  const trimmed = source.trim()
+  let normalized = trimmed.endsWith(';') ? trimmed.slice(0, -1).trim() : trimmed
   if (normalized[0] === '$') normalized = normalized.slice(1)
   return /^[a-zA-Z_][\w-]*$/.test(normalized) ? normalized : ''
 }
@@ -266,7 +341,7 @@ function expandWithArguments(args: string, warnings: CipoWarning[]): string {
       continue
     }
 
-    output += `${call.name}:${call.args.join(',')};`
+    output += `${call.name}:${minifyCssText(call.args.join(','))};`
   }
 
   return output
@@ -328,8 +403,11 @@ function expandAliasesInString(input: string, warnings: CipoWarning[], stack: Se
     const aliasName = getStandaloneAliasName(trimmed)
 
     if (aliasName && runtime.aliasRegistry.has(aliasName)) {
-      output += preserveLeadingWhitespace(raw) + stringifyAliasWithStack(aliasName, warnings, stack)
-      if (!output.endsWith('\n')) output += '\n'
+      const expanded = stringifyAliasWithStack(aliasName, warnings, stack)
+      if (expanded) {
+        output += preserveLeadingWhitespace(raw) + expanded
+        if (!output.endsWith('\n')) output += '\n'
+      }
     } else {
       output += raw
       if (raw.trim() && !raw.trim().endsWith(';') && !raw.trim().endsWith('}')) output += ';'
@@ -347,6 +425,11 @@ function expandAliasesInString(input: string, warnings: CipoWarning[], stack: Se
  * @param value - Interpolated value.
  * @returns Whether it has raw CSS.
  */
+function isStyleObjectInterpolation(value: unknown): value is CipoStyleObject {
+  if (!isPlainObject(value)) return false
+  return !Object.prototype.hasOwnProperty.call(value, 'toString')
+}
+
 function isCssLikeArtifact(value: unknown): value is { readonly rawCss: string } {
   return isPlainObject(value) && typeof value.rawCss === 'string'
 }
@@ -359,20 +442,5 @@ function isCssLikeArtifact(value: unknown): value is { readonly rawCss: string }
  * @returns Closing index or -1.
  */
 function findMatchingParen(input: string, openIndex: number): number {
-  let depth = 0
-  let quote: '"' | "'" | null = null
-
-  for (let index = openIndex; index < input.length; index += 1) {
-    const char = input[index]
-    if (quote) {
-      if (char === quote && input[index - 1] !== '\\') quote = null
-      continue
-    }
-    if (char === '"' || char === "'") { quote = char; continue }
-    if (char === '(') depth += 1
-    else if (char === ')') depth -= 1
-    if (depth === 0) return index
-  }
-
-  return -1
+  return findMatching(input, openIndex, '(', ')')
 }
