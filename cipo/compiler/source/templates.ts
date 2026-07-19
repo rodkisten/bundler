@@ -56,7 +56,13 @@ export function findBareCssTemplates(
   visitSourceTree(sourceFile, (node) => {
     if (!ts.isTaggedTemplateExpression(node)) return
     const tag = unwrapExpression(node.tag)
-    if (!ts.isIdentifier(tag) || !isCipoImportedOrUnboundBinding(tag, checker, CSS_IMPORTED_NAMES, CSS_UNBOUND_NAMES)) return
+    const isBareBinding = ts.isIdentifier(tag)
+      && isCipoImportedOrUnboundBinding(tag, checker, CSS_IMPORTED_NAMES, CSS_UNBOUND_NAMES)
+    const isNamespaceBinding = ts.isPropertyAccessExpression(tag)
+      && tag.name.text === 'css'
+      && ts.isIdentifier(unwrapExpression(tag.expression))
+      && isCipoNamespaceImport(unwrapExpression(tag.expression) as ts.Identifier, checker)
+    if (!isBareBinding && !isNamespaceBinding) return
     const start = node.getStart(sourceFile)
     const end = node.getEnd()
     if (overlapsAny(start, end, existingEdits)) return
@@ -113,11 +119,25 @@ function isCipoImportedOrUnboundBinding(
   if (!symbol) return allowedUnboundNames.has(identifier.text)
 
   return (symbol.declarations ?? []).some((declaration) => {
+    if (ts.isNamespaceImport(declaration)) return isCipoNamespaceImport(identifier, checker)
     if (!ts.isImportSpecifier(declaration) || declaration.isTypeOnly) return false
     const importDeclaration = declaration.parent.parent.parent
     if (!ts.isImportDeclaration(importDeclaration) || !ts.isStringLiteral(importDeclaration.moduleSpecifier)) return false
+    if (importDeclaration.importClause?.isTypeOnly) return false
     if (importDeclaration.moduleSpecifier.text !== '@rodkisten/cipo') return false
     return importedNames.has(declaration.propertyName?.text ?? declaration.name.text)
+  })
+}
+
+function isCipoNamespaceImport(identifier: ts.Identifier, checker: ts.TypeChecker): boolean {
+  const symbol = checker.getSymbolAtLocation(identifier)
+  return (symbol?.declarations ?? []).some((declaration) => {
+    if (!ts.isNamespaceImport(declaration)) return false
+    const importDeclaration = declaration.parent.parent
+    return ts.isImportDeclaration(importDeclaration)
+      && !importDeclaration.importClause?.isTypeOnly
+      && ts.isStringLiteral(importDeclaration.moduleSpecifier)
+      && importDeclaration.moduleSpecifier.text === '@rodkisten/cipo'
   })
 }
 

@@ -797,17 +797,36 @@ describe('compiler source imports', () => {
     })
   })
   describe('source transformation regression contracts', () => {
-    it.todo(
+    it(
       'preserves directive prologues such as "use client" before injecting a new import',
+      () => {
+        const result = ensureNamedImport('"use client";\nconst value = 1', 'helper', 'pkg')
+        expect(result.indexOf('"use client"')).toBeLessThan(result.indexOf('import { helper }'))
+      },
     )
-    it.todo(
+    it(
       'preserves a shebang as the first line when injecting a new import',
+      () => {
+        const result = ensureNamedImport('#!/usr/bin/env node\nconst value = 1', 'helper', 'pkg')
+        expect(result.startsWith('#!/usr/bin/env node\n')).toBe(true)
+        expect(result).toContain('import { helper } from "pkg";')
+      },
     )
-    it.todo(
+    it(
       'removeUnusedNamedImports resolves references by symbol so a shadowed local identifier does not keep an unused import alive',
+      () => {
+        const source = `import { compile } from 'pkg'
+        function run(compile: string) { return compile }`
+        expect(removeUnusedNamedImports(source, new Set(['compile']))).not.toContain('import { compile }')
+      },
     )
-    it.todo(
+    it(
       'removeUnusedNamedImports does not count a property-access name such as runtime.compile as a reference to an imported compile binding',
+      () => {
+        const source = `import { compile } from 'pkg'
+        const value = runtime.compile`
+        expect(removeUnusedNamedImports(source, new Set(['compile']))).not.toContain('import { compile }')
+      },
     )
   })
 })

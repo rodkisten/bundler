@@ -111,8 +111,11 @@ export function ensureNamedImportBinding(
     }
   }
 
+  const insertionIndex = getImportInsertionIndex(source, sourceFile)
+  const importCode = `import { ${specifier} } from ${JSON.stringify(importPath)};\n`
+
   return {
-    code: `import { ${specifier} } from ${JSON.stringify(importPath)};\n${source}`,
+    code: `${source.slice(0, insertionIndex)}${importCode}${source.slice(insertionIndex)}`,
     localName,
     changed: true,
   }
@@ -129,9 +132,10 @@ export function removeUnusedNamedImports(
 ): string {
   if (candidateLocalNames.size === 0) return source
 
-  const sourceFile = createSourceFile(source, filename)
+  const { sourceFile, checker } = createSingleFileProgram(source, filename)
   const referenceCounts = countExecutableIdentifierReferences(
     sourceFile,
+    checker,
     candidateLocalNames,
   )
   const edits: SourceEdit[] = []
@@ -422,22 +426,44 @@ function chooseAvailableBinding(
 
 function countExecutableIdentifierReferences(
   sourceFile: ts.SourceFile,
+  checker: ts.TypeChecker,
   candidates: ReadonlySet<string>,
 ): Map<string, number> {
   const counts = new Map<string, number>()
+  const importedSymbols = new Map<string, ts.Symbol>()
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    const bindings = getNamedImports(statement.importClause)
+    if (!bindings) continue
+
+    for (const element of bindings.elements) {
+      if (!candidates.has(element.name.text)) continue
+      const symbol = checker.getSymbolAtLocation(element.name)
+      if (symbol) importedSymbols.set(element.name.text, symbol)
+    }
+  }
 
   visitSourceTree(sourceFile, (node) => {
     if (!ts.isIdentifier(node)) return
     if (!candidates.has(node.text)) return
     if (isImportIdentifier(node)) return
+    if (isPropertyAccessPropertyName(node)) return
 
-    counts.set(
-      node.text,
-      (counts.get(node.text) ?? 0) + 1,
-    )
+    const importedSymbol = importedSymbols.get(node.text)
+    if (!importedSymbol) return
+
+    const symbol = checker.getSymbolAtLocation(node)
+    if (symbol !== importedSymbol) return
+
+    counts.set(node.text, (counts.get(node.text) ?? 0) + 1)
   })
 
   return counts
+}
+
+function isPropertyAccessPropertyName(node: ts.Identifier): boolean {
+  return ts.isPropertyAccessExpression(node.parent) && node.parent.name === node
 }
 
 function isImportIdentifier(
@@ -461,6 +487,29 @@ function isImportIdentifier(
   }
 
   return false
+}
+
+function getImportInsertionIndex(source: string, sourceFile: ts.SourceFile): number {
+  let insertionIndex = source.startsWith('#!')
+    ? Math.max(0, source.indexOf('\n') + 1)
+    : 0
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isStringLiteral(statement.expression)) break
+    insertionIndex = statement.getEnd()
+
+    while (insertionIndex < source.length && /[ \t]/.test(source[insertionIndex] ?? '')) {
+      insertionIndex += 1
+    }
+
+    if (source[insertionIndex] === '\r' && source[insertionIndex + 1] === '\n') {
+      insertionIndex += 2
+    } else if (source[insertionIndex] === '\n' || source[insertionIndex] === '\r') {
+      insertionIndex += 1
+    }
+  }
+
+  return insertionIndex
 }
 
 function removeListElementEdit<T extends ts.Node>(
