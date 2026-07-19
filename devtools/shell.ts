@@ -650,7 +650,7 @@ export function renderShell(
   });
 
   const dispose = renderInto(target, html`
-    <${DevtoolsContext.Provider} .value=${shared}>
+    <${DevtoolsContext.Provider} props=${{ value: shared }}>
       <RodDevtoolsShell .refs=${refs} />
     </${DevtoolsContext.Provider}>
   `);
