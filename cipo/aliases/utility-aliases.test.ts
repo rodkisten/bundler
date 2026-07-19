@@ -756,14 +756,12 @@ describe('built-in utility aliases', () => {
     )
   })
   describe('rendering utilities', () => {
-    it('expands gpu rendering optimization', () => {
+    it('leaves gpu to the smart declaration expander', () => {
       expect(
         resolveBuiltInUtilityAlias(
           'gpu',
         ),
-      ).toBe(
-        'transform:translateZ(0);backface-visibility:hidden;will-change:transform;',
-      )
+      ).toBeUndefined()
     })
     it.each([
       [
