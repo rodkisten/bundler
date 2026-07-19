@@ -198,7 +198,8 @@ export function findNextTopLevelAt(input: string, start: number): number {
     }
 
     if (isClosingDelimiter(char)) {
-      if (stack.at(-1) === char) stack.pop()
+      if (stack.at(-1) !== char) return -1
+      stack.pop()
       continue
     }
 
