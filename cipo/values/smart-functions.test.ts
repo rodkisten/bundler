@@ -21,7 +21,7 @@ vi.mock('../utils', async () => {
       mocks.createDeclaration,
   }
 })
-import { createSmartDeclarationExpander } from './smart-declarations'
+import { createSmartDeclarationExpander } from './smart-functions'
 describe('smart declaration expander', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1481,24 +1481,53 @@ describe('smart declaration expander', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
-      'defines whether positional arguments should be supported by stack, cluster, center, cover and sidebar instead of currently being stored as unused value/_N entries',
-    )
-    it.todo(
-      'validates arbitrary position property names before emitting declarations from named pos() arguments',
-    )
-    it.todo(
-      'defines whether tap(pinch-zoom) should be supported now that pinch-zoom is a valid touch-action keyword',
-    )
-    it.todo(
-      'defines whether grid-template areas should pass through value normalization or preserve raw quoted syntax permanently',
-    )
-    it.todo(
-      'defines whether size helper named declarations should preserve source order relative to the positional width or height declaration',
-    )
-    it.todo(
-      'validates direct keyword helpers such as select, scroll, overscroll, scrollbar and snap before emitting arbitrary values',
-    )
+    it('supports positional convenience arguments for layout helpers', () => {
+      const expand = createExpander()
+      expect(expand('stack', ['2rem'])).toContain('gap:normalized(gap|2rem|spacing);')
+      expect(expand('cluster', ['1rem'])).toContain('gap:normalized(gap|1rem|spacing);')
+      expect(expand('center', ['60rem'])).toContain('max-width:normalized(max-width|60rem|spacing);')
+      expect(expand('cover', ['100dvh'])).toContain('min-height:normalized(min-height|100dvh|spacing);')
+      expect(expand('sidebar', ['20rem', '2rem'])).toContain('flex-basis:normalized(flex-basis|20rem|spacing);')
+    })
+    it('ignores unsafe or unsupported named position properties', () => {
+      const expand = createExpander()
+      const result = expand('pos', ['fixed', 'color:red', 'top:0'])
+      expect(result).toContain('position:fixed;')
+      expect(result).toContain('top:normalized(top|0|spacing);')
+      expect(result).not.toContain('color:')
+    })
+    it('supports pinch-zoom as a valid tap touch-action value', () => {
+      expect(createExpander()('tap', ['pinch-zoom'])).toBe('touch-action:pinch-zoom;')
+    })
+    it('preserves quoted grid-template areas syntax without generic value normalization', () => {
+      const normalizeValue = createNormalizer()
+      const result = createExpander({ normalizeValue })(
+        'grid-template',
+        ['areas:"header header" "main aside"'],
+      )
+      expect(result).toContain('grid-template-areas:"header header" "main aside";')
+      expect(normalizeValue).not.toHaveBeenCalledWith(
+        'grid-template-areas',
+        expect.anything(),
+        expect.anything(),
+      )
+    })
+    it('emits positional size declarations before named min/max constraints in canonical order', () => {
+      const result = createExpander()('w', ['20rem', 'min:10rem', 'max:30rem'])
+      expect(result.indexOf('width:')).toBeLessThan(result.indexOf('min-width:'))
+      expect(result.indexOf('min-width:')).toBeLessThan(result.indexOf('max-width:'))
+    })
+    it.each([
+      ['select', 'user-select:auto;'],
+      ['scroll', 'scroll-behavior:smooth;'],
+      ['overscroll', 'overscroll-behavior:auto;'],
+      ['scrollbar', 'scrollbar-width:thin;'],
+      ['snap', 'scroll-snap-type:x mandatory;'],
+    ])('falls back safely for invalid %s keyword values', (helper, expected) => {
+      const result = createExpander()(helper, ['definitely-invalid'])
+      expect(result).toBe(expected)
+      expect(result).not.toContain('definitely-invalid')
+    })
   })
 })
 interface CreateExpanderOptions {

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
       prefix: 'cp',
       minify: false,
     },
+    warningSink: [] as Array<{ code: string; message: string; source?: string }>,
     helperRegistry:
       new Map<
         string,
@@ -28,13 +29,14 @@ vi.mock('../helpers', () => ({
 vi.mock('../runtime', () => ({
   runtime: mocks.runtime,
 }))
-import { createHelperResolver } from './helper-resolver'
+import { createHelperResolver } from './helper-resolution'
 describe('helper resolver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.runtime.helperRegistry.clear()
     mocks.runtime.config.prefix = 'cp'
     mocks.runtime.config.minify = false
+    mocks.runtime.warningSink = []
     mocks.normalizePxValues.mockImplementation(
       (value: string) =>
         `px(${value})`,
@@ -1013,23 +1015,53 @@ describe('helper resolver', () => {
     })
   })
   describe('regression contracts', () => {
-    it.todo(
+    it(
       'does not expand helper-like syntax inside double-quoted or single-quoted strings',
+      () => {
+        mocks.runtime.helperRegistry.set('alpha', (args) => `resolved(${args})`)
+        const resolveHelpers = createResolver()
+        expect(resolveHelpers(`content:"alpha(red)";other:'alpha(blue)'`)).toBe(`px(content:"alpha(red)";other:'alpha(blue)')`)
+      },
     )
-    it.todo(
+    it(
       'does not expand helper-like syntax inside CSS comments',
+      () => {
+        mocks.runtime.helperRegistry.set('alpha', (args) => `resolved(${args})`)
+        const resolveHelpers = createResolver()
+        expect(resolveHelpers('/* alpha(red) */ color:blue')).toBe('px(/* alpha(red) */ color:blue)')
+      },
     )
-    it.todo(
+    it(
       'uses escape parity instead of checking only the immediately preceding backslash when matching helper parentheses',
+      () => {
+        mocks.runtime.helperRegistry.set('alpha', (args) => `resolved(${args})`)
+        const resolveHelpers = createResolver()
+        const input = String.raw`content:"x\\";alpha(red)`
+        expect(resolveHelpers(input)).toContain('resolved(red)')
+      },
     )
-    it.todo(
+    it(
       'emits a diagnostic or exposes convergence status when helper expansion still changes after the twelve-pass safety limit',
+      () => {
+        mocks.runtime.helperRegistry.set('loop', () => 'loop()x')
+        const resolveHelpers = createResolver()
+        resolveHelpers('loop()')
+        expect(mocks.runtime.warningSink.some((warning) => warning.code === 'cipo-helper-expansion-limit')).toBe(true)
+      },
     )
-    it.todo(
+    it(
       'defines whether legacy x: helper syntax may contain whitespace between the prefix, helper name and opening parenthesis',
+      () => {
+        mocks.runtime.helperRegistry.set('alpha', (args) => `resolved(${args})`)
+        expect(createResolver()('x:  alpha  (red)')).toBe('px(resolved(red))')
+      },
     )
-    it.todo(
+    it(
       'shares identifier and balanced-parentheses scanning with the runtime DSL lexer instead of maintaining another local scanner',
+      () => {
+        mocks.runtime.helperRegistry.set('alpha', (args) => `resolved(${args})`)
+        expect(createResolver()('alpha(fn([a,b], c))')).toBe('px(resolved(fn([a,b], c)))')
+      },
     )
   })
 })
