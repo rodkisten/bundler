@@ -37,7 +37,7 @@ export function buildConfigTemplate(strings: TemplateStringsArray, values: reado
   let output = ''
   for (let index = 0; index < strings.length; index += 1) {
     output += strings[index] ?? ''
-    if (index < values.length) output += String(values[index] ?? '')
+    if (index < strings.length - 1 && index < values.length) output += String(values[index] ?? '')
   }
   return output
 }
