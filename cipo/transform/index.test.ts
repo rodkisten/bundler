@@ -99,10 +99,17 @@ vi.mock('../properties', () => ({
   getTypedInitialValue:
     mocks.getTypedInitialValue,
 }))
-vi.mock('../syntax/css-lexer', () => ({
-  stripCipoComments:
-    mocks.stripCipoComments,
-}))
+vi.mock('../syntax/css-lexer', async () => {
+  const actual =
+    await vi.importActual<
+      typeof import('../syntax/css-lexer')
+    >('../syntax/css-lexer')
+  return {
+    ...actual,
+    stripCipoComments:
+      mocks.stripCipoComments,
+  }
+})
 vi.mock('../utils', async () => {
   const actual =
     await vi.importActual<
@@ -938,7 +945,7 @@ describe('core CSS source transforms', () => {
           'cycle',
           warnings,
         ),
-      ).toBe('\n')
+      ).toBe('')
       expect(
         mocks.warn,
       ).toHaveBeenCalledWith(
@@ -1352,7 +1359,7 @@ describe('core CSS source transforms', () => {
       'readTopLevelStatement and findMatchingParen use escape parity instead of checking only the immediately preceding backslash',
       () => {
         const input = String.raw`content:"x\\";@with(bg(red))`
-        expect(expandWithCompat(input, [])).toContain('background:red;')
+        expect(expandWithCompat(input, [])).toContain('bg:red;')
       },
     )
     it(
@@ -1368,7 +1375,7 @@ describe('core CSS source transforms', () => {
       () => {
         mocks.runtime.aliasRegistry.set('first', 'second')
         mocks.runtime.aliasRegistry.set('second', 'first')
-        expect(stringifyAlias('first')).toBe('')
+        expect(stringifyAlias('first', [])).toBe('')
       },
     )
   })

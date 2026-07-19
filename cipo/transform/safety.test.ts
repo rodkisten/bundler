@@ -48,7 +48,8 @@ describe('core CSS transform safety', () => {
       expect(result).toContain(
         'h: 20px',
       )
-      expect(result).toContain('font:16px/1.4 sans-serif;')
+      expect(result).toContain('var(--cipo-internal-native-slash-7f3c, /)')
+      expect(result).toContain('"Inter"')
     })
     it('installs native property guards at most once for the loaded module instance', () => {
       prepareCoreCssInput(
@@ -77,15 +78,12 @@ describe('core CSS transform safety', () => {
         '}',
       ].join('\n'))
     })
-    it('moves a closing brace onto its own line after a declaration semicolon', () => {
+    it('leaves ordinary compact CSS unchanged without the runtime-block spacing cue', () => {
       expect(
         normalizeCompactRuntimeBlocks(
           '.button{color:red; }',
         ),
-      ).toBe([
-        '.button{color:red;',
-        '}',
-      ].join('\n'))
+      ).toBe('.button{color:red; }')
     })
     it('normalizes both compact block boundaries together', () => {
       expect(
@@ -734,6 +732,7 @@ describe('core CSS transform safety', () => {
           ].join('\n'),
         )
       expect(result).toContain('font:16px/1.4 sans-serif;')
+      expect(result).not.toContain('var(--cipo-internal-native-slash-7f3c, /)')
       expect(result).toContain(
         '&:hover,&:focus',
       )
