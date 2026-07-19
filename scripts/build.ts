@@ -842,6 +842,14 @@ export async function main(): Promise<void> {
   );
 
   await debugStep(
+    "Copying Cipó landing page",
+    () =>
+      copyLanding(
+        "cipo",
+      ),
+  );
+
+  await debugStep(
     "Building Nascente documentation",
     buildNascenteDocs,
   );
@@ -1071,7 +1079,7 @@ async function buildCipoEntryWithVite(
       () =>
         Promise.all([
           import("vite"),
-          import("@rodkisten/cipo/vite"),
+          import("@rodkisten/cipo/vite-index"),
         ]),
     );
 
