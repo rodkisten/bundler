@@ -1,1 +1,1 @@
-export * from './integrations/vite/plugin'
+export * from './vite/index'

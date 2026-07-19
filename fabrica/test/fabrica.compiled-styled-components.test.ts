@@ -76,6 +76,113 @@ describe("compiled templates with styled Fabrica components", () => {
     expect(onInput).toHaveBeenCalledTimes(1);
     expect(getCssText()).toContain(input?.className.split(/\s+/)[0] ?? "missing-class");
   });
+  it("uses the html tag owning runtime when a compiled template is created before render", () => {
+    const fabrica = createFabrica({ name: "compiled-bound-runtime", isolated: true });
+    const styled = createStyled({ fabrica });
+
+    styled.textarea("BoundRuntimeField").css`
+      resize: vertical;
+    `;
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "BoundRuntimeField",
+          props: [{ type: "static", name: "aria-label", value: "Bound field" }],
+          children: [],
+        },
+      ],
+    };
+
+    // Compiled template expressions execute before render() enters the factory runtime.
+    const template = createCompiledTemplate(fabrica.html, definition);
+    fabrica.render(host, template);
+
+    expect(host.querySelector("textarea")?.getAttribute("aria-label")).toBe("Bound field");
+    expect(host.querySelector("boundruntimefield")).toBeNull();
+  });
+
+  it("re-renders compiled styled component tags when reactive props change", () => {
+    const fabrica = createFabrica({ name: "compiled-styled-reactive", isolated: true });
+    const styled = createStyled({ fabrica });
+    const active = fabrica.signal(false);
+
+    styled.div("ReactiveStyledBox").css`
+      display: block;
+    `;
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "ReactiveStyledBox",
+          props: [{ type: "value", name: ":active", index: 0 }],
+          children: [],
+        },
+      ],
+    };
+
+    fabrica.run(() =>
+      fabrica.render(host, createCompiledTemplate(definition, active)),
+    );
+
+    expect(host.querySelector("div")?.dataset.active).toBe("false");
+
+    active.set(true);
+
+    expect(host.querySelector("div")?.dataset.active).toBe("true");
+  });
+
+  it("binds reactive function props forwarded through compiled styled payloads", () => {
+    const fabrica = createFabrica({ name: "compiled-styled-payload-props", isolated: true });
+    const styled = createStyled({ fabrica });
+    const active = fabrica.signal(false);
+
+    styled.button("ReactivePayloadButton").css`
+      display: block;
+    `;
+
+    const definition: RuntimeCompiledTemplate = {
+      nodes: [
+        {
+          type: "element",
+          tag: "ReactivePayloadButton",
+          props: [
+            { type: "value", name: ":toolTab", index: 0 },
+            { type: "value", name: "aria-selected", index: 1 },
+            { type: "value", name: "hidden", index: 2 },
+          ],
+          children: [],
+        },
+      ],
+    };
+
+    fabrica.run(() =>
+      fabrica.render(
+        host,
+        createCompiledTemplate(
+          definition,
+          () => active() ? "console" : "elements",
+          () => String(active()),
+          () => !active(),
+        ),
+      ),
+    );
+
+    const button = host.querySelector("button") as HTMLButtonElement;
+    expect(button.dataset.toolTab).toBe("elements");
+    expect(button.getAttribute("aria-selected")).toBe("false");
+    expect(button.hidden).toBe(true);
+
+    active.set(true);
+
+    expect(host.querySelector("button")).toBe(button);
+    expect(button.dataset.toolTab).toBe("console");
+    expect(button.getAttribute("aria-selected")).toBe("true");
+    expect(button.hidden).toBe(false);
+  });
+
   it("assigns arbitrary dot bindings as properties without stringifying objects", () => {
     const payload = { id: 42, nested: { active: true } };
     const callback = vi.fn();

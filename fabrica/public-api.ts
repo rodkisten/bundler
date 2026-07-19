@@ -30,6 +30,7 @@ import { install as installGlobal, noConflict as restoreGlobals } from "@rodkist
 import { config } from "@rodkisten/fabrica/install-state";
 import { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "@rodkisten/fabrica/raw";
 import {
+  FABRICA_HTML_RUNTIME,
   runWithFabricaRuntime,
   setDefaultFabricaRuntime,
 } from "@rodkisten/fabrica/runtime-context";
@@ -272,6 +273,20 @@ export function createFabricaApi(
     strings: TemplateStringsArray,
     ...values: RenderValue[]
   ) => runWithFabricaRuntime(runtime, () => baseJsx.html(strings, ...values));
+
+  // Build-time compiled templates execute at expression evaluation time, before
+  // render() can enter the instance runtime. Keep the owning runtime on both tag
+  // functions so createCompiledTemplate() can preserve isolated registries.
+  Object.defineProperty(instanceHtmlTag, FABRICA_HTML_RUNTIME, {
+    configurable: false,
+    enumerable: false,
+    value: runtime,
+  });
+  Object.defineProperty(instanceJsxHtmlTag, FABRICA_HTML_RUNTIME, {
+    configurable: false,
+    enumerable: false,
+    value: runtime,
+  });
   const instanceEvent = createEventHelper();
   const instanceHtml: HtmlApi = Object.assign(instanceHtmlTag, {
     jsx: instanceJsxHtmlTag,

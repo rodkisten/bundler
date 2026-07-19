@@ -109,6 +109,7 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
+      styledImportModules: ["@rodkisten/devtools/core/runtime"],
       // The compiler intentionally follows the entire reachable workspace graph.
       // DevTools imports Maquina and shared Fábrica Elements components, so path
       // filtering here would leave nested styled templates uncompiled.

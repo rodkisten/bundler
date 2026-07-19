@@ -31,6 +31,7 @@ on:
           - maquina
           - nascente
           - all
+
       release_channel:
         type: choice
         description: "Publish until"
@@ -39,6 +40,7 @@ on:
           - canary
           - production
           - both
+
       test_mode:
         type: choice
         description: "Tests"
@@ -47,27 +49,31 @@ on:
           - auto
           - always
           - never
+
       should_typecheck:
         type: boolean
         description: "Run typecheck?"
         default: true
+
       should_benchmark:
         type: boolean
         description: "Run benchmarks?"
         default: false
+
       should_deploy_pages:
         type: boolean
         description: "Deploy to GitHub Pages?"
         default: true
+
       force_clean_deploy:
         type: boolean
         description: "Delete the previous published files before deploy?"
         default: false
+
       debug_tests:
         type: boolean
         description: "Debug tests (verbose)?"
         default: false
-        
 
   workflow_call:
     inputs:
@@ -75,37 +81,46 @@ on:
         type: string
         required: false
         default: auto
+
       release_channel:
         type: string
         required: false
         default: canary
+
       test_mode:
         type: string
         required: false
         default: never
+
       should_typecheck:
         type: boolean
         required: false
         default: true
+
       should_benchmark:
         type: boolean
         required: false
         default: false
+
       should_deploy_pages:
         type: boolean
         required: false
         default: true
+
       force_clean_deploy:
         type: boolean
         required: false
         default: false
+
       debug_tests:
         type: boolean
         required: false
         default: false
+
     secrets:
       GIST_TOKEN:
         required: false
+
       GIST_ID:
         required: false
 
@@ -127,7 +142,6 @@ env:
   DEVTOOLS_DIST_DIR: dist
   PAGES_STATE_ARTIFACT: browser-pages-state
   MAIN_FULL_INTERVAL_SECONDS: "300"
-  
 
 jobs:
   scope:
@@ -201,11 +215,15 @@ jobs:
     env:
       GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
       GIST_ID: ${{ secrets.GIST_ID }}
+
       RODERUDA_BUILD_SHA: ${{ github.sha }}
+
       TZ: America/Sao_Paulo
+
       BUILD_SCOPE: ${{ needs.scope.outputs.build_scope }}
       RELEASE_CHANNEL: ${{ needs.scope.outputs.release_channel }}
-      DEBUG_TESTS: ${inputs.debug_tests}
+
+      DEBUG_TESTS: ${{ inputs.debug_tests }}
 
     steps:
       - name: 📥 Checkout source
@@ -213,7 +231,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: 🪼Setup pnpm
+      - name: 🪼 Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -401,24 +419,34 @@ jobs:
           NODE
 
       - name: 🔎 Typecheck
-        if: ${{ inputs.should_typecheck != 'false' }}
+        if: ${{ inputs.should_typecheck != false }}
         shell: bash
         env:
           NO_COLOR: "1"
           FORCE_COLOR: "0"
         run: |
           set -o pipefail
+
           TYPECHECK_LOG="${RUNNER_TEMP}/typecheck-output.log"
+
           echo "🔎 TypeScript CLI:"
           pnpm exec tsc --version
+
           echo "🔎 TypeScript CLI path:"
           command -v tsc || true
+
           # Keep the full typecheck visible in the regular Actions log while
           # capturing it for the job summary when compilation fails.
           set +e
-          pnpm typecheck 2>&1 | tee "${TYPECHECK_LOG}"
+
+          pnpm typecheck \
+            2>&1 \
+            | tee "${TYPECHECK_LOG}"
+
           TYPECHECK_EXIT_CODE=${PIPESTATUS[0]}
+
           set -e
+
           if [ "${TYPECHECK_EXIT_CODE}" -ne 0 ]; then
             {
               echo "## ❌ Typecheck failed"
@@ -428,8 +456,9 @@ jobs:
               echo '```'
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+
           exit "${TYPECHECK_EXIT_CODE}"
-          
+
       - name: 🧪 Run tests
         if: ${{ needs.scope.outputs.should_test == 'true' }}
         continue-on-error: ${{ github.ref_name != 'main' }}
@@ -441,15 +470,21 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+
           TEST_LOG="${RUNNER_TEMP}/vitest-output.log"
           FAILED_TEST_LOG="${RUNNER_TEMP}/vitest-failures.log"
+
           # Keep the complete Vitest output visible in the regular job log.
           set +e
+
           node scripts/workflows/publish-browser-bundle.mjs run-tests \
             2>&1 \
             | tee "${TEST_LOG}"
+
           TEST_EXIT_CODE=${PIPESTATUS[0]}
+
           set -e
+
           if [ "${TEST_EXIT_CODE}" -ne 0 ]; then
             # Extract only Vitest's useful failure section:
             #
@@ -467,16 +502,20 @@ jobs:
               /Failed (Suites|Tests)/ {
                 capturing = 1
               }
+
               capturing && /^[[:space:]]*Test Files[[:space:]]/ {
                 exit
               }
+
               capturing {
                 print
               }
             ' "${TEST_LOG}" > "${FAILED_TEST_LOG}"
+
             {
               echo "## ❌ Vitest failed"
               echo
+
               if [ -s "${FAILED_TEST_LOG}" ]; then
                 echo '```text'
                 cat "${FAILED_TEST_LOG}"
@@ -498,18 +537,157 @@ jobs:
               fi
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+
           exit "${TEST_EXIT_CODE}"
 
       - name: ⚡ Run optional benchmarks
         if: ${{ inputs.should_benchmark == true }}
         continue-on-error: true
         run: node scripts/workflows/publish-browser-bundle.mjs run-benchmarks
+
+      # BUILD_INFO is created before the build so build scripts can access it
+      # through process.env.BUILD_INFO.
+      - name: 🏷️ Prepare build info
+        id: build_metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Etc/GMT+3 is UTC-3. The sign is intentionally inverted by the
+          # IANA Etc/GMT naming convention.
+          BUILD_DATE="$(
+            TZ=Etc/GMT+3 \
+              date '+%d/%m/%Y %H:%M:%S GMT-3'
+          )"
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BUILD_INFO="${BUILD_DATE} | commit ${GITHUB_SHA}"
+
+          # Make BUILD_INFO available to every subsequent workflow step.
+          echo "BUILD_INFO=${BUILD_INFO}" >> "${GITHUB_ENV}"
+
+          {
+            echo "date=${BUILD_DATE}"
+            echo "short_sha=${SHORT_SHA}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "🏷️ BUILD_INFO=${BUILD_INFO}"
+
       - name: 🏗️ Build selected project
         run: node scripts/workflows/publish-browser-bundle.mjs build
 
       - name: 🐤 Create canary aliases
         if: ${{ env.RELEASE_CHANNEL == 'canary' || env.RELEASE_CHANNEL == 'both' }}
         run: node scripts/workflows/publish-browser-bundle.mjs create-canary
+
+      # Gist publication is intentionally disabled for pull requests.
+      # Builds that do not produce RodEruda bundles simply skip this operation.
+      - name: 🔎 Check RodEruda Gist publication
+        id: gist
+     #   if: ${{ github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GIST_TOKEN:-}" ]]; then
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+
+            echo \
+              "::notice::Gist publication skipped because GIST_TOKEN is not configured."
+
+            exit 0
+          fi
+
+          if [[ -z "${GIST_ID:-}" ]]; then
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
+
+            echo \
+              "::notice::Gist publication skipped because GIST_ID is not configured."
+
+            exit 0
+          fi
+
+          required_files=(
+            "dist/roderuda.js"
+            "dist/roderuda.min.js"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -s "${file}" ]]; then
+              echo "enabled=false" >> "${GITHUB_OUTPUT}"
+
+              echo \
+                "::notice::Gist publication skipped because ${file} was not produced by this build."
+
+              exit 0
+            fi
+          done
+
+          # Build metadata is kept outside dist so publication delta detection
+          # is not affected by Gist-only metadata.
+          cat > "${RUNNER_TEMP}/roderuda-build.json" <<JSON
+          {
+            "commit": "${GITHUB_SHA}",
+            "commitShort": "${GITHUB_SHA::7}",
+            "builtAt": "${{ steps.build_metadata.outputs.date }}",
+            "timezone": "GMT-3",
+            "buildInfo": "${BUILD_INFO}",
+            "scope": "${BUILD_SCOPE}",
+            "releaseChannel": "${RELEASE_CHANNEL}",
+            "repository": "${GITHUB_REPOSITORY}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}"
+          }
+          JSON
+
+          echo "enabled=true" >> "${GITHUB_OUTPUT}"
+
+          echo "📦 RodEruda Gist publication enabled."
+          echo "🏷️ ${BUILD_INFO}"
+          echo "🧭 Scope: ${BUILD_SCOPE}"
+          echo "🚢 Channel: ${RELEASE_CHANNEL}"
+
+      - name: 📤 Upload RodEruda bundles to Gist
+        if: ${{ steps.gist.outputs.enabled == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Construct the request body using jq --rawfile so large JavaScript
+          # bundles never need to be passed as shell command-line arguments.
+          jq \
+            --null-input \
+            --arg description \
+              "RodEruda | ${BUILD_INFO}" \
+            --rawfile roderuda \
+              dist/roderuda.js \
+            --rawfile roderuda_min \
+              dist/roderuda.min.js \
+            --rawfile build \
+              "${RUNNER_TEMP}/roderuda-build.json" \
+            '{
+              description: $description,
+              files: {
+                "roderuda.js": {
+                  content: $roderuda
+                },
+                "roderuda.min.js": {
+                  content: $roderuda_min
+                },
+                "build.json": {
+                  content: $build
+                }
+              }
+            }' \
+          | gh api \
+              --method PATCH \
+              "gists/${GIST_ID}" \
+              --input -
+
+          echo "✅ RodEruda Gist updated."
+          echo "🏷️ ${BUILD_INFO}"
 
       - name: 📁 Collect changed publication files
         id: delta
@@ -530,11 +708,11 @@ jobs:
         run: node scripts/workflows/publish-browser-bundle.mjs restore-pages-state
 
       - name: 🧬 Merge publication without deleting previous files
+        if: ${{ needs.scope.outputs.should_deploy == 'true' }}
+        id: publication
         env:
           FORCE_CLEAN_DEPLOY: ${{ inputs.force_clean_deploy }}
           DELTA_PATH: ${{ steps.delta.outputs.path }}
-        if: ${{ needs.scope.outputs.should_deploy == 'true' }}
-        id: publication
         run: node scripts/workflows/publish-browser-bundle.mjs merge-publication
 
       - name: 💾 Persist merged Pages state
@@ -557,11 +735,13 @@ jobs:
     needs:
       - scope
       - build
+
     if: >-
       ${{
         needs.build.result == 'success'
         && needs.scope.outputs.should_deploy == 'true'
       }}
+
     runs-on: ubuntu-24.04
 
     environment:

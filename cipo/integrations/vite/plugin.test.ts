@@ -321,6 +321,16 @@ describe('cipoVite', () => {
         ),
       ).toBeNull()
     })
+    it('resolves the compiled runtime import emitted by the virtual style module', () => {
+      const plugin = cipoVite()
+      const result = callHook(
+        plugin.resolveId,
+        {},
+        '@rodkisten/cipo/compiled-runtime',
+        '\0cipo:compiled-style-tag.js',
+      )
+      expect(result).toContain('compiled-runtime')
+    })
     it('loads the style-tag runtime module with the global stylesheet sentinel', () => {
       const plugin = cipoVite()
       const result = callHook(
@@ -328,12 +338,11 @@ describe('cipoVite', () => {
         {},
         '\0cipo:compiled-style-tag.js',
       )
-      expect(result).not.toContain('@rodkisten/cipo/compiled-runtime')
-      expect(result).toContain('document.createElement("style")')
+      expect(result).toContain('@rodkisten/cipo/compiled-runtime')
+      expect(result).toContain('insertCss')
       expect(result).toContain(
         '__CIPO_COMPILED_GLOBAL_STYLESHEET__',
       )
-      expect(result).toContain('style.textContent')
     })
     it('returns null when loading an unrelated module', () => {
       const plugin = cipoVite()

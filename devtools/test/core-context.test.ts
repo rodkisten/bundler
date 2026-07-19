@@ -22,12 +22,12 @@ describe("DevTools shared context", () => {
 
     const shared = createDevtoolsContextValue(host, false);
 
-    const Reader = component<{ name: string }>(
+    const Reader = component(
       "CoreDevtoolsContextReader",
-      (props, ctx) => {
+      (_props, ctx) => {
         const state = ctx.requireContext(DevtoolsContext);
         return html`
-          <span :reader=${props.name}>
+          <span data-context-reader>
             ${state.host === host ? "shared" : "missing"}
           </span>
         `;
@@ -35,16 +35,15 @@ describe("DevTools shared context", () => {
     );
 
     const dispose = render(root, html`
-      <${DevtoolsContext.Provider} props=${{ value: shared }}>
-        <section data-panel="first"><${Reader} name="first" /></section>
-        <section data-panel="second"><${Reader} name="second" /></section>
+      <${DevtoolsContext.Provider} .value=${shared}>
+        <section data-panel="first"><CoreDevtoolsContextReader /></section>
+        <section data-panel="second"><CoreDevtoolsContextReader /></section>
       </${DevtoolsContext.Provider}>
     `);
 
-    expect(root.querySelector('[data-reader="first"]')?.textContent)
-      .toContain("shared");
-    expect(root.querySelector('[data-reader="second"]')?.textContent)
-      .toContain("shared");
+    const readers = root.querySelectorAll('[data-context-reader]');
+    expect(readers).toHaveLength(2);
+    expect(Array.from(readers, (node) => node.textContent?.trim())).toEqual(["shared", "shared"]);
 
     dispose();
   });

@@ -3,6 +3,9 @@ import type { ComponentRegistry, FabricaRuntimeContext } from "@rodkisten/fabric
 let activeRuntime: FabricaRuntimeContext | undefined;
 let defaultRuntime: FabricaRuntimeContext | undefined;
 
+/** Shared metadata key used to bind compiled html tags to their Fabrica instance. */
+export const FABRICA_HTML_RUNTIME = Symbol.for("rod.fabrica.html-runtime");
+
 /** Sets the singleton fallback used by compatibility exports. */
 export function setDefaultFabricaRuntime(runtime: FabricaRuntimeContext): void {
   defaultRuntime = runtime;
