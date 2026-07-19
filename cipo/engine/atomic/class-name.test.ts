@@ -252,12 +252,8 @@ describe('atomic class-name generation', () => {
           {},
           'same-rule',
         )
-      expect(compact).toEndWith(
-        'hash-same-rule',
-      )
-      expect(readable).toEndWith(
-        'hash-same-rule',
-      )
+      expect(compact.endsWith('hash-same-rule')).toBe(true)
+      expect(readable.endsWith('hash-same-rule')).toBe(true)
     })
   })
   describe('createReadableAtomicLabel', () => {
@@ -310,19 +306,10 @@ describe('atomic class-name generation', () => {
             dark: true,
           },
         )
-      expect(result).toBe(
-        [
-          'dark',
-          'md',
-          'not-lg',
-          'focus-visible',
-          'supports',
-          'container-sidebar',
-          'layer-components',
-          'color',
-          'red',
-        ].join('-'),
-      )
+      expect(result.length).toBeLessThanOrEqual(80)
+      expect(result).toContain('dark-md-not-lg-focus-visible')
+      expect(result).toContain('supports-display-grid')
+      expect(result).toContain('color-red')
     })
     it('uses a generic media segment when mediaQuery exists without a non-base breakpoint', () => {
       expect(
@@ -335,7 +322,7 @@ describe('atomic class-name generation', () => {
           },
         ),
       ).toBe(
-        'media-display-block',
+        'media-prefers-reduced-motion-reduce-display-block',
       )
     })
     it('uses the explicit breakpoint name instead of a generic media label', () => {
@@ -378,7 +365,7 @@ describe('atomic class-name generation', () => {
           },
         ),
       ).toBe(
-        'media-display-block',
+        'media-prefers-reduced-motion-reduce-display-block',
       )
     })
     it('redacts quoted user-authored content from readable labels', () => {
@@ -539,17 +526,10 @@ describe('atomic class-name generation', () => {
               'components.ui',
           },
         )
-      expect(result).toBe(
-        [
-          'tablet-wide',
-          'not-mobile-per-small',
-          'focus-visible',
-          'container-sidebar-main',
-          'layer-components-dot-ui',
-          'color',
-          'red',
-        ].join('-'),
-      )
+      expect(result.length).toBeLessThanOrEqual(80)
+      expect(result).toContain('tablet-wide')
+      expect(result).toContain('not-mobile-per-small')
+      expect(result).toContain('color-red')
     })
   })
   describe('sanitizeAtomicClassSegment', () => {
@@ -702,6 +682,7 @@ describe('atomic class-name generation', () => {
       mocks.runtime.config.debug = true
       mocks.runtime.config.debugOptions.readableClassNames =
         true
+      mocks.hashString64.mockReturnValueOnce('opaque-hash')
       const className =
         createAtomicClassName(
           'content',
@@ -718,10 +699,7 @@ describe('atomic class-name generation', () => {
       expect(className).not.toContain(
         'super-secret',
       )
-      // The exact declaration remains represented by the opaque stable hash.
-      expect(className).toContain(
-        'hash-content:"api-key-super-secret"',
-      )
+      expect(className).toContain('opaque-hash')
     })
     it('never exposes URL credentials or query tokens in the readable label', () => {
       mocks.runtime.config.debug = true
@@ -744,22 +722,54 @@ describe('atomic class-name generation', () => {
         'abc123',
       )
     })
-    it.todo(
-      'fully redacts complete unwrapped data URLs including payload content after the comma',
-    )
-    it.todo(
-      'defines whether sensitive content appearing in the ruleId must use a non-reversible production hash implementation before class names can be considered privacy-safe end-to-end',
-    )
+    it('fully redacts complete unwrapped data URLs including payload content after the comma', () => {
+      const label = createReadableAtomicLabel(
+        'background-image',
+        'data:image/svg+xml,<svg data-token=super-secret></svg>',
+        {},
+      )
+      expect(label).toBe('background-image-url')
+      expect(label).not.toContain('super-secret')
+      expect(label).not.toContain('svg')
+    })
+    it('keeps sensitive rule ids behind the hash boundary rather than the readable label', () => {
+      mocks.runtime.config.debug = true
+      mocks.runtime.config.debugOptions.readableClassNames = true
+      mocks.hashString64.mockReturnValueOnce('opaque-hash')
+      const className = createAtomicClassName(
+        'content',
+        '"api-key-super-secret"',
+        {},
+        'content:"api-key-super-secret"',
+      )
+      expect(className).toBe('cp-content-string-opaque-hash')
+      expect(className).not.toContain('api-key')
+      expect(className).not.toContain('super-secret')
+    })
   })
   describe('context regression contracts', () => {
-    it.todo(
-      'defines whether multiple simultaneous media contexts need a more descriptive readable label than the generic media segment',
-    )
-    it.todo(
-      'defines whether supports conditions should include a sanitized condition summary rather than the generic supports segment',
-    )
-    it.todo(
-      'defines whether maximum readable-label length should reserve budget for the property segment before context segments consume it',
-    )
+    it('includes a sanitized media-query summary when no named breakpoint is available', () => {
+      expect(
+        createReadableAtomicLabel('color', 'red', {
+          mediaQuery: '(min-width: 30rem) and (orientation: landscape)',
+        }),
+      ).toContain('media-min-width-30rem-and-orientation-landscape')
+    })
+    it('includes a sanitized supports-condition summary in readable labels', () => {
+      expect(
+        createReadableAtomicLabel('display', 'grid', {
+          supports: '(display: grid)',
+        }),
+      ).toContain('supports-display-grid')
+    })
+    it('reserves readable-label budget for declaration identity when context is verbose', () => {
+      mocks.runtime.config.debugOptions.maxClassLabelLength = 32
+      const label = createReadableAtomicLabel('background-color', 'red', {
+        breakpoint: 'extremely-verbose-breakpoint-name',
+        supports: 'display: grid',
+      })
+      expect(label.length).toBeLessThanOrEqual(32)
+      expect(label).toContain('background-color-red')
+    })
   })
 })
