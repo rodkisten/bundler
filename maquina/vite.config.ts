@@ -8,6 +8,7 @@ import {
   createIifeBuildBanner,
   readPackageVersion,
 } from "../scripts/build-metadata";
+import { buildViteInfo } from "../scripts/vite-build-info";
 
 const maquinaDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(maquinaDir, "..");
@@ -47,6 +48,10 @@ export default defineConfig({
     },
   },
   plugins: [
+    buildInfoVite({
+      packageName: "maquina",
+    }),
+
     cipoVite({
       root: repoRoot,
       mode: "build",
