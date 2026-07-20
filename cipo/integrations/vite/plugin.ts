@@ -76,8 +76,8 @@ export interface CipoViteCompiledInlineOptions {
   readonly configCss?: string
 
   /**
-   * Identifier bindings known to contain exactly `configCss` and safe to
-   * lower.
+   * Bindings or exact expressions known to resolve to `configCss` at runtime.
+   * Trusted expressions are matched structurally before the source is compiled.
    */
   readonly configRuntimeBindings?: readonly string[]
 
@@ -1223,26 +1223,32 @@ function compileRuntimeConfigCalls(
           argument.text,
         )
     } else if (
-      ts.isIdentifier(
+      configuredPayload
+      && isTrustedRuntimeConfigArgument(
         argument,
-      )
-      && configuredPayload
-      && configuredBindings.has(
-        argument.text,
+        source,
+        configuredBindings,
       )
     ) {
       /**
-       * Identifier calls are lowered only when the caller explicitly declares
-       * that the binding represents the same source supplied through
-       * `configCss`. This prevents unrelated runtime configuration from being
-       * replaced merely because it calls the same API.
+       * Trusted identifiers and property-access expressions are lowered only
+       * when the integration explicitly declares that they resolve to the same
+       * source supplied through `configCss`. This is required for compiled
+       * stylesheet artifacts such as `devtoolsStyles.cssText`, whose runtime
+       * value no longer contains the original CSS-first configuration blocks.
        */
       payload =
         configuredPayload
 
-      removableBindings.add(
-        argument.text,
-      )
+      if (
+        ts.isIdentifier(
+          argument,
+        )
+      ) {
+        removableBindings.add(
+          argument.text,
+        )
+      }
     }
 
     if (
@@ -1310,6 +1316,67 @@ function compileRuntimeConfigCalls(
     changed:
       true,
   }
+}
+
+/**
+ * Checks whether a runtime configuration argument is explicitly trusted.
+ *
+ * @remarks
+ * Identifier bindings cover traditional `configureFromCss(configCss)` calls.
+ * Property and element access support compiled artifacts such as
+ * `configureFromCss(styles.cssText)`, where the original CSS-first source has
+ * already been consumed by the build compiler before runtime.
+ */
+function isTrustedRuntimeConfigArgument(
+  argument: ts.Expression,
+  source: string,
+  configuredBindings: ReadonlySet<string>,
+): boolean {
+  if (
+    ts.isIdentifier(
+      argument,
+    )
+  ) {
+    return configuredBindings.has(
+      argument.text,
+    )
+  }
+
+  if (
+    !ts.isPropertyAccessExpression(
+      argument,
+    )
+    && !ts.isElementAccessExpression(
+      argument,
+    )
+  ) {
+    return false
+  }
+
+  const expression =
+    source.slice(
+      argument.getStart(),
+      argument.getEnd(),
+    ).replace(
+      /\s+/g,
+      '',
+    )
+
+  for (
+    const configuredBinding
+    of configuredBindings
+  ) {
+    if (
+      configuredBinding.replace(
+        /\s+/g,
+        '',
+      ) === expression
+    ) {
+      return true
+    }
+  }
+
+  return false
 }
 
 function createBuildNamespace(
