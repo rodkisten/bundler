@@ -44,7 +44,12 @@ export function normalizeRuntimeVariableMath(input: string): string {
 
     if (char === '(') stack.push(')')
     else if (char === '[') stack.push(']')
-    else if ((char === ')' || char === ']') && stack.at(-1) === char) stack.pop()
+    else if (
+      (char === ')' || char === ']')
+      && stack.at(-1) === char
+    ) {
+      stack.pop()
+    }
 
     if (stack.length > 0) continue
 
@@ -76,10 +81,29 @@ function normalizeRuntimeDeclarationChunk(chunk: string): string {
   const colon = findTopLevelChar(chunk, ':')
   if (colon <= 0) return chunk
 
+  const property = chunk.slice(0, colon).trim()
+  if (!isRuntimeDeclarationProperty(property)) return chunk
+
   const before = chunk.slice(0, colon + 1)
   const value = chunk.slice(colon + 1).trim()
   if (!value) return chunk
   return `${before} ${normalizeRuntimeExpression(value)}`
+}
+
+/**
+ * Distinguishes declaration names from selectors that contain a colon.
+ *
+ * @remarks
+ * Full stylesheet input can contain indented pseudo-selectors such as `:host`
+ * and `.button:hover`. Treating those chunks as declarations makes operators
+ * inside selector lists look like arithmetic and can corrupt them into values
+ * such as `:calc(host *,)`. Only native/custom property-shaped names are valid
+ * declaration prefixes here.
+ */
+function isRuntimeDeclarationProperty(property: string): boolean {
+  if (!property) return false
+  if (/^--[A-Za-z0-9_-]+$/.test(property)) return true
+  return /^-?[A-Za-z_][A-Za-z0-9_-]*$/.test(property)
 }
 
 export function normalizeRuntimeExpression(value: string): string {
@@ -127,7 +151,11 @@ function replaceRuntimeVars(value: string): string {
       continue
     }
 
-    if (char === '$' && next === '$' && isIdentifierStart(value[index + 2] ?? '')) {
+    if (
+      char === '$'
+      && next === '$'
+      && isIdentifierStart(value[index + 2] ?? '')
+    ) {
       const start = index + 2
       const end = readIdentifierEnd(value, start)
       const name = toKebabMixed(value.slice(start, end).replace(/[._]+/g, '-'))
