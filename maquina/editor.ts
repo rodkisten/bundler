@@ -254,14 +254,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
               textareaRef = node;
             })}
             .value=${options.value}
-            placeholder=${options.placeholder ?? ""}
+            .placeholder=${options.placeholder ?? ""}
             aria-label=${options.ariaLabel ?? "Code editor"}
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-            autocorrect="off"
-            inputmode="text"
-            wrap=${options.lineWrapping === false ? "off" : "soft"}
+            .spellcheck="false"
+            .autocapitalize="off"
+            .autocomplete="off"
+            .autocorrect="off"
+            .inputmode="text"
+            .wrap=${options.lineWrapping === false ? "off" : "soft"}
             :gramm="false"
             :gramm_editor="false"
             :enable-grammarly="false"
