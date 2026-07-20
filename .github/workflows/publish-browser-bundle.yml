@@ -662,19 +662,19 @@ jobs:
             --null-input \
             --arg description \
               "RodEruda | ${BUILD_INFO}" \
-            --rawfile roderuda \
-              dist/roderuda.js \
-            --rawfile roderuda_min \
-              dist/roderuda.min.js \
+            --rawfile devtools \
+              dist/devtools.js \
+            --rawfile devtools_min \
+              dist/devtools.min.js \
             --rawfile build \
               "${RUNNER_TEMP}/roderuda-build.json" \
             '{
               description: $description,
               files: {
-                "roderuda.js": {
+                "devtools.js": {
                   content: $roderuda
                 },
-                "roderuda.min.js": {
+                "devtools.min.js": {
                   content: $roderuda_min
                 },
                 "build.json": {
