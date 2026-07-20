@@ -1,7 +1,7 @@
 /**
  * @tool Bundle
  * @global Rod
- * @package bundlr
+ * @package rod
  * @tags namespace browser userscripts
  * @description Umbrella browser namespace that can aggregate your root tools when you want one global.
  */
