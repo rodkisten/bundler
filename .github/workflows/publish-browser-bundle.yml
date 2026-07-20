@@ -626,7 +626,7 @@ jobs:
 
           # Build metadata is kept outside dist so publication delta detection
           # is not affected by Gist-only metadata.
-          cat > "${RUNNER_TEMP}/roderuda-build.json" <<JSON
+          cat > "${RUNNER_TEMP}/devtools-build.json" <<JSON
           {
             "commit": "${GITHUB_SHA}",
             "commitShort": "${GITHUB_SHA::7}",
@@ -667,15 +667,15 @@ jobs:
             --rawfile devtools_min \
               dist/devtools.min.js \
             --rawfile build \
-              "${RUNNER_TEMP}/roderuda-build.json" \
+              "${RUNNER_TEMP}/devtools-build.json" \
             '{
               description: $description,
               files: {
                 "devtools.js": {
-                  content: $roderuda
+                  content: $devtools
                 },
                 "devtools.min.js": {
-                  content: $roderuda_min
+                  content: $devtools_min
                 },
                 "build.json": {
                   content: $build
