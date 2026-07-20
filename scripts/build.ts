@@ -933,10 +933,10 @@ function filterRequestedEntries(
   if (
     unknownEntries.length > 0
   ) {
-    throw new Error(
+    debugLog("error", new Error(
       `Unknown BUILD_ENTRIES value(s): ${unknownEntries.join(", ")}. `
       + `Available entries: ${[...availableNames].sort().join(", ")}.`,
-    );
+    ));
   }
 
   return entries.filter(
