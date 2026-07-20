@@ -1,10 +1,5 @@
-import {
-  configureFromCss,
-  setRuntimeStyleTarget,
-} from "@rodkisten/cipo";
-import {
-  devtoolsCipoConfigCss,
-} from "@rodkisten/devtools/cipo-config";
+import { configureFromCss, setRuntimeStyleTarget } from "@rodkisten/cipo";
+import { devtoolsCipoConfigCss } from "@rodkisten/devtools/cipo-config";
 
 /**
  * Installs the canonical DevTools Cipó configuration in the active runtime.

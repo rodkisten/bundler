@@ -248,75 +248,46 @@ export function installDevtoolsStyles(
    */
   setRuntimeStyleTarget(target);
 
-  const parent =
-    target instanceof Document
-      ? target.head
-      : target;
+  const parent = target instanceof Document ? target.head : target;
 
   /*
    * Remove installation tags created by an earlier DevTools mount without
    * touching Cipó's canonical runtime sink.
    */
   forEachArray(
-    parent.querySelectorAll?.(
-      'style[data-roderuda-devtools-style="true"]',
-    ),
+    parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]'),
     (node) => node.remove(),
   );
 
-  const artifacts: CipoInjectableStyleArtifact[] = [
-    devtoolsStyles,
-  ];
+  const artifacts: CipoInjectableStyleArtifact[] = [devtoolsStyles];
 
-  appendArrayValues(
-    artifacts,
-    additionalStyles,
-  );
+  appendArrayValues(artifacts, additionalStyles);
 
   /*
    * Keep Cipó's default rule-level deduplication enabled. This is especially
    * important when several panels reference the same shared styled component.
    */
-  const style =
-    injectStyle(
-      target,
-      artifacts,
-      {
-        position: "prepend",
-      },
-    );
+  const style = injectStyle(target, artifacts, {
+    position: "prepend",
+  });
 
-  style.dataset.roderudaDevtoolsStyle =
-    "true";
+  style.dataset.roderudaDevtoolsStyle = "true";
 
   /*
    * A temporary sink can exist in document.head when styled modules are
    * evaluated before the ShadowRoot is available. Retargeting should normally
    * move/reuse it; this cleanup only handles a genuinely orphaned copy.
    */
-  if (
-    !(target instanceof Document)
-  ) {
-    const orphan =
-      document.getElementById(
-        STYLE_ELEMENT_ID,
-      );
+  if (!(target instanceof Document)) {
+    const orphan = document.getElementById(STYLE_ELEMENT_ID);
 
-    if (
-      orphan
-      && orphan !== style
-      && orphan.parentElement === document.head
-    ) {
+    if (orphan && orphan !== style && orphan.parentElement === document.head) {
       orphan.remove();
     }
   }
 
-  if (
-    !style.textContent?.trim()
-  ) {
-    throw new Error(
-      "[RodEruda] Unable to install global DevTools styles",
-    );
+  if (!style.textContent?.trim()) {
+    throw new Error("[RodEruda] Unable to install global DevTools styles");
   }
 
   return style;
