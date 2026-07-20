@@ -1,0 +1,42 @@
+name: 📦 Package with node_modules
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: 📦 Install and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v7
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: 📚 Install dependencies
+        run: pnpm install
+
+      - name: 📦 Upload repository with node_modules
+        uses: actions/upload-artifact@v7
+        with:
+          name: repository-with-node-modules
+          path: |
+            .
+            !.git
+            !.git/**
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 9
