@@ -143,8 +143,7 @@ const VIRTUAL_CSS_PUBLIC_ID = 'cipo:compiled-style-tag.js'
 const GLOBAL_STYLESHEET_SENTINEL =
   '__CIPO_COMPILED_GLOBAL_STYLESHEET__'
 
-const CIPO_COMPILED_RUNTIME =
-  '@rodkisten/cipo/compiled-runtime'
+const CIPO_COMPILED_RUNTIME = '@rodkisten/cipo/compiled-runtime'
 
 /**
  * Absolute source/runtime module used only when resolving the import emitted
@@ -165,8 +164,7 @@ const CIPO_COMPILED_RUNTIME_FILE = fileURLToPath(
   ),
 )
 
-const CIPO_COMPILER =
-  '@rodkisten/cipo/compiler'
+const CIPO_COMPILER = '@rodkisten/cipo/compiler'
 
 const FABRICA_COMPILER_RUNTIME =
   '@rodkisten/fabrica/compiler-runtime'
