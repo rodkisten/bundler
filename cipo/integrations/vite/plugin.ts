@@ -1,4 +1,5 @@
 import * as ts from 'typescript'
+import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
 import {
   compileCipoSourceBuild,
@@ -24,26 +25,42 @@ import {
   removeUnusedNamedImports,
   type SourceEdit,
 } from '../../compiler/source/index'
-import { createLineSourceMap, type CipoSourceMap } from '../../compiler/source-map'
-import { createCipoViteBuildState, resetCipoViteBuildState } from './build-state'
+import {
+  createLineSourceMap,
+  type CipoSourceMap,
+} from '../../compiler/source-map'
+import {
+  createCipoViteBuildState,
+  resetCipoViteBuildState,
+} from './build-state'
 import { replaceCompiledClassLiterals } from './chunk-rewrite'
 
 export interface CipoViteCompiledInlineOptions {
   readonly include?: RegExp | readonly RegExp[]
   readonly exclude?: RegExp | readonly RegExp[]
 
-  /** @deprecated Runtime helpers now resolve through package entrypoints, not repository layout. */
+  /**
+   * @deprecated Runtime helpers now resolve through package entrypoints,
+   * not repository layout.
+   */
   readonly root?: string
 
   readonly mode?: 'build' | 'inline'
 
-  /** @deprecated Prefer CSS-first `@cipo { prefix: ... }` configuration. */
+  /**
+   * @deprecated Prefer CSS-first `@cipo { prefix: ... }` configuration.
+   */
   readonly classPrefix?: string
 
-  /** @deprecated Prefer CSS-first `@cipo { debug: true|false }` configuration. */
+  /**
+   * @deprecated Prefer CSS-first `@cipo { debug: true|false }` configuration.
+   */
   readonly classNameMode?: 'readable' | 'compact'
 
-  /** @deprecated Prefer CSS-first `@cipo { minify: true|false }` configuration. */
+  /**
+   * @deprecated Prefer CSS-first `@cipo { minify: true|false }`
+   * configuration.
+   */
   readonly minifyCss?: boolean
 
   readonly mergeEquivalentRules?: boolean
@@ -58,13 +75,21 @@ export interface CipoViteCompiledInlineOptions {
   readonly evaluateStaticCss?: boolean
   readonly configCss?: string
 
-  /** Identifier bindings known to contain exactly `configCss` and safe to lower. */
+  /**
+   * Identifier bindings known to contain exactly `configCss` and safe to
+   * lower.
+   */
   readonly configRuntimeBindings?: readonly string[]
 
-  /** Isolates compact class names across independently deployed bundles/microfrontends. */
+  /**
+   * Isolates compact class names across independently deployed
+   * bundles/microfrontends.
+   */
   readonly buildNamespace?: string
 
-  /** Additional modules explicitly trusted to re-export Cipó's styled factory. */
+  /**
+   * Additional modules explicitly trusted to re-export Cipó's styled factory.
+   */
   readonly styledImportModules?: readonly string[]
 }
 
@@ -75,28 +100,35 @@ export interface CipoViteFabricaCompileResult {
 }
 
 /**
- * Converts readonly array properties from Cipó's immutable source-map shape into
- * mutable arrays compatible with the raw source-map representation expected by Vite/Rolldown.
+ * Converts readonly array properties from Cipó's immutable source-map shape
+ * into mutable arrays compatible with Vite/Rolldown's raw source-map shape.
  */
-type MutableSourceMapValue<T> = T extends readonly (infer Item)[] ? Item[] : T
+type MutableSourceMapValue<T> =
+  T extends readonly (infer Item)[]
+    ? Item[]
+    : T
 
 /**
- * Source-map representation exposed specifically at the Vite integration boundary.
+ * Source-map representation exposed specifically at the Vite boundary.
  *
  * @remarks
- * The compiler keeps `CipoSourceMap` immutable. Vite/Rolldown currently models raw
- * source-map arrays such as `names`, `sources`, and `sourcesContent` as mutable arrays.
- * Keeping this conversion here avoids leaking integration-specific mutability into the compiler.
+ * The compiler keeps `CipoSourceMap` immutable. Vite/Rolldown models raw
+ * source-map arrays such as `names`, `sources`, and `sourcesContent` as mutable
+ * arrays. Keeping this conversion here prevents integration-specific
+ * mutability from leaking into the compiler.
  */
 export type CipoViteSourceMap = {
-  -readonly [Key in keyof CipoSourceMap]: MutableSourceMapValue<CipoSourceMap[Key]>
+  -readonly [Key in keyof CipoSourceMap]:
+    MutableSourceMapValue<CipoSourceMap[Key]>
 }
 
 export interface CipoViteTransformResult {
   readonly code: string
   readonly map: CipoViteSourceMap
   readonly meta: {
-    readonly cipo?: CipoCompiledBuildResult | CipoCompiledInlineSourceResult
+    readonly cipo?:
+      | CipoCompiledBuildResult
+      | CipoCompiledInlineSourceResult
     readonly fabrica?: CipoViteFabricaCompileResult
   }
 }
@@ -106,65 +138,131 @@ const DEFAULT_EXCLUDE = /(?:^|[/\\])node_modules(?:[/\\]|$)/
 
 const VIRTUAL_CSS_ID = '\0cipo:compiled-style-tag.js'
 const VIRTUAL_CSS_ASSET_ID = '\0cipo:compiled.css'
+const VIRTUAL_CSS_PUBLIC_ID = 'cipo:compiled-style-tag.js'
 
-const GLOBAL_STYLESHEET_SENTINEL = '__CIPO_COMPILED_GLOBAL_STYLESHEET__'
+const GLOBAL_STYLESHEET_SENTINEL =
+  '__CIPO_COMPILED_GLOBAL_STYLESHEET__'
 
-const CIPO_COMPILED_RUNTIME = '@rodkisten/cipo/compiled-runtime'
-const CIPO_COMPILER = '@rodkisten/cipo/compiler'
-const FABRICA_COMPILER_RUNTIME = '@rodkisten/fabrica/compiler-runtime'
+const CIPO_COMPILED_RUNTIME =
+  '@rodkisten/cipo/compiled-runtime'
+
+/**
+ * Absolute source/runtime module used only when resolving the import emitted
+ * from the virtual style-tag module.
+ *
+ * @remarks
+ * Virtual module importers are not normal filesystem modules. Vite 8/Rolldown
+ * may expose the importer either as `\0cipo:compiled-style-tag.js` or as
+ * `cipo:compiled-style-tag.js`, so the plugin resolves this public package
+ * import back to Cipó's concrete runtime module explicitly.
+ */
+const CIPO_COMPILED_RUNTIME_FILE = fileURLToPath(
+  new URL(
+    import.meta.url.endsWith('.ts')
+      ? '../../compiled-runtime.ts'
+      : '../../compiled-runtime.js',
+    import.meta.url,
+  ),
+)
+
+const CIPO_COMPILER =
+  '@rodkisten/cipo/compiler'
+
+const FABRICA_COMPILER_RUNTIME =
+  '@rodkisten/fabrica/compiler-runtime'
 
 const CONFIG_IMPORT_MODULES = new Set([
   '@rodkisten/cipo',
 ])
 
-/** Vite adapter for Cipó/Fábrica compiled mode with per-build lifecycle state. */
+/**
+ * Vite adapter for Cipó/Fábrica compiled mode with per-build lifecycle state.
+ */
 export function cipoVite(
   options: CipoViteCompiledInlineOptions = {},
 ): Plugin {
-  const mode = options.mode ?? 'build'
-  const wholeBuildAtomic = mode === 'build' && Boolean(options.configCss)
+  const mode =
+    options.mode ?? 'build'
 
-  const state = createCipoViteBuildState()
+  const wholeBuildAtomic =
+    mode === 'build'
+    && Boolean(options.configCss)
 
-  const compiledConfigPayload = options.configCss
-    ? compileCssConfigPayload(options.configCss)
-    : null
+  const state =
+    createCipoViteBuildState()
 
-  const buildNamespace = createBuildNamespace(options)
+  const compiledConfigPayload =
+    options.configCss
+      ? compileCssConfigPayload(
+          options.configCss,
+        )
+      : null
+
+  const buildNamespace =
+    createBuildNamespace(options)
 
   const getFinalized = () => {
     if (!state.finalized) {
-      state.finalized = finalizeBuildStyles(
-        state.atomicEntries,
-        state.cssChunks,
-        options,
-        buildNamespace,
-      )
+      state.finalized =
+        finalizeBuildStyles(
+          state.atomicEntries,
+          state.cssChunks,
+          options,
+          buildNamespace,
+        )
     }
 
     return state.finalized
   }
 
   return {
-    name: mode === 'build'
-      ? 'cipo:compiled-build'
-      : 'cipo:compiled-inline',
+    name:
+      mode === 'build'
+        ? 'cipo:compiled-build'
+        : 'cipo:compiled-inline',
 
     enforce: 'pre',
 
     buildStart() {
-      resetCipoViteBuildState(state)
+      resetCipoViteBuildState(
+        state,
+      )
     },
 
-    resolveId(id) {
-      if (id === VIRTUAL_CSS_ID) {
+    resolveId(
+      id,
+      importer,
+    ) {
+      /**
+       * The virtual style module deliberately imports the public runtime
+       * entrypoint so generated source keeps the correct package boundary.
+       *
+       * Rolldown may strip the internal `\0` prefix before invoking resolveId,
+       * therefore both importer representations are accepted here.
+       */
+      if (
+        id === CIPO_COMPILED_RUNTIME
+        && isVirtualStyleTagImporter(
+          importer,
+        )
+      ) {
+        return CIPO_COMPILED_RUNTIME_FILE
+      }
+
+      if (
+        id === VIRTUAL_CSS_ID
+        || id === VIRTUAL_CSS_PUBLIC_ID
+      ) {
         return {
           id: VIRTUAL_CSS_ID,
           moduleSideEffects: true,
         }
       }
 
-      if (id === VIRTUAL_CSS_ASSET_ID) {
+      if (
+        id === VIRTUAL_CSS_ASSET_ID
+        || id === VIRTUAL_CSS_ASSET_ID.slice(1)
+      ) {
         return {
           id: VIRTUAL_CSS_ASSET_ID,
           moduleSideEffects: true,
@@ -175,54 +273,82 @@ export function cipoVite(
     },
 
     load(id) {
-      if (id === VIRTUAL_CSS_ID) {
+      if (
+        id === VIRTUAL_CSS_ID
+        || id === VIRTUAL_CSS_PUBLIC_ID
+      ) {
         return createVirtualStyleTagModule(
           GLOBAL_STYLESHEET_SENTINEL,
         )
       }
 
-      if (id === VIRTUAL_CSS_ASSET_ID) {
+      if (
+        id === VIRTUAL_CSS_ASSET_ID
+        || id === VIRTUAL_CSS_ASSET_ID.slice(1)
+      ) {
         return wholeBuildAtomic
           ? ''
-          : dedupeCssChunks(state.cssChunks)
+          : dedupeCssChunks(
+              state.cssChunks,
+            )
       }
 
       return null
     },
 
-    transform(code, id) {
-      if (options.enabled === false) {
+    transform(
+      code,
+      id,
+    ) {
+      if (
+        options.enabled === false
+      ) {
         return null
       }
 
-      const filename = cleanViteId(id)
+      const filename =
+        cleanViteId(id)
 
-      if (!matches(
-        filename,
-        options.include ?? DEFAULT_INCLUDE,
-      )) {
-        return null
-      }
-
-      if (matches(
-        filename,
-        options.exclude ?? DEFAULT_EXCLUDE,
-      )) {
-        return null
-      }
-
-      if (mode === 'inline') {
-        const result = compileCipoSourceInline(
-          code,
-          {
-            filename,
-            importPath: CIPO_COMPILER,
-            evaluateStaticCss:
-              options.evaluateStaticCss ?? false,
-          },
+      if (
+        !matches(
+          filename,
+          options.include
+            ?? DEFAULT_INCLUDE,
         )
+      ) {
+        return null
+      }
 
-        if (!result.changed) {
+      if (
+        matches(
+          filename,
+          options.exclude
+            ?? DEFAULT_EXCLUDE,
+        )
+      ) {
+        return null
+      }
+
+      if (
+        mode === 'inline'
+      ) {
+        const result =
+          compileCipoSourceInline(
+            code,
+            {
+              filename,
+              importPath:
+                CIPO_COMPILER,
+              evaluateStaticCss:
+                options
+                  .evaluateStaticCss
+                ?? false,
+            },
+          )
+
+        if (
+          !result.changed
+        ) {
           return null
         }
 
@@ -231,99 +357,158 @@ export function cipoVite(
         )
 
         return {
-          code: result.code,
-          map: createViteSourceMap(
-            code,
+          code:
             result.code,
-            filename,
-          ),
+
+          map:
+            createViteSourceMap(
+              code,
+              result.code,
+              filename,
+            ),
+
           meta: {
-            cipo: result,
+            cipo:
+              result,
           },
         } satisfies CipoViteTransformResult
       }
 
-      const runtimeConfig = compileRuntimeConfigCalls(
-        code,
-        compiledConfigPayload,
-        filename,
-        options.configRuntimeBindings ?? [
-          'appConfigCss',
-        ],
-      )
-
-      const cipo = compileCipoSourceBuild(
-        runtimeConfig.code,
-        {
+      const runtimeConfig =
+        compileRuntimeConfigCalls(
+          code,
+          compiledConfigPayload,
           filename,
-          classPrefix: options.classPrefix,
-          buildNamespace,
-          classNameMode: options.classNameMode,
-          minifyCss: options.minifyCss,
-          mergeEquivalentRules:
-            options.mergeEquivalentRules,
-          privateCustomPropertyPattern:
-            options.privateCustomPropertyPattern,
-          deferAtomicCss: wholeBuildAtomic,
-          coupleStyledCss:
-            !wholeBuildAtomic
-            && options.cssDelivery !== 'asset',
-          styledCssHelperImportPath:
-            CIPO_COMPILED_RUNTIME,
-          styledImportModules:
-            options.styledImportModules,
-          cssImportId: wholeBuildAtomic
-            ? VIRTUAL_CSS_ID
-            : VIRTUAL_CSS_ASSET_ID,
-          injectCssImport: wholeBuildAtomic
-            ? options.cssDelivery !== 'asset'
-            : options.cssDelivery === 'asset',
-          transformCssTag:
-            options.transformCssTag ?? true,
-          configCss: options.configCss,
-        },
-      )
+          options
+            .configRuntimeBindings
+            ?? [
+              'appConfigCss',
+            ],
+        )
 
-      let nextCode = cipo.code
+      const cipo =
+        compileCipoSourceBuild(
+          runtimeConfig.code,
+          {
+            filename,
+
+            classPrefix:
+              options
+                .classPrefix,
+
+            buildNamespace,
+
+            classNameMode:
+              options
+                .classNameMode,
+
+            minifyCss:
+              options
+                .minifyCss,
+
+            mergeEquivalentRules:
+              options
+                .mergeEquivalentRules,
+
+            privateCustomPropertyPattern:
+              options
+                .privateCustomPropertyPattern,
+
+            deferAtomicCss:
+              wholeBuildAtomic,
+
+            coupleStyledCss:
+              !wholeBuildAtomic
+              && options.cssDelivery
+                !== 'asset',
+
+            styledCssHelperImportPath:
+              CIPO_COMPILED_RUNTIME,
+
+            styledImportModules:
+              options
+                .styledImportModules,
+
+            cssImportId:
+              wholeBuildAtomic
+                ? VIRTUAL_CSS_ID
+                : VIRTUAL_CSS_ASSET_ID,
+
+            injectCssImport:
+              wholeBuildAtomic
+                ? options.cssDelivery
+                  !== 'asset'
+                : options.cssDelivery
+                  === 'asset',
+
+            transformCssTag:
+              options
+                .transformCssTag
+              ?? true,
+
+            configCss:
+              options.configCss,
+          },
+        )
+
+      let nextCode =
+        cipo.code
 
       if (
         !wholeBuildAtomic
         && cipo.css
-        && options.cssDelivery !== 'asset'
+        && options.cssDelivery
+          !== 'asset'
       ) {
-        nextCode = prependStyleTagInjection(
-          nextCode,
-          cipo.css,
-        )
+        nextCode =
+          prependStyleTagInjection(
+            nextCode,
+            cipo.css,
+          )
       }
 
       const finalizeTransform = (
-        fabrica?: CipoViteFabricaCompileResult,
+        fabrica?:
+          CipoViteFabricaCompileResult,
       ): CipoViteTransformResult | null => {
         const finalCode =
           fabrica?.code
           ?? nextCode
 
-        if (cipo.css) {
+        if (
+          cipo.css
+        ) {
           state.cssChunks.push(
             cipo.css,
           )
 
-          if (wholeBuildAtomic) {
-            state.finalized = undefined
+          if (
+            wholeBuildAtomic
+          ) {
+            state.finalized =
+              undefined
           }
         }
 
-        if (cipo.changed) {
+        if (
+          cipo.changed
+        ) {
           state.manifests.push(
             ...cipo.manifest,
           )
 
-          if (wholeBuildAtomic) {
-            for (const entry of cipo.manifest) {
+          if (
+            wholeBuildAtomic
+          ) {
+            for (
+              const entry
+              of cipo.manifest
+            ) {
               if (
-                entry.kind === 'styled-css'
-                || entry.kind === 'css-tag'
+                entry.kind
+                  === 'styled-css'
+                || entry.kind
+                  === 'css-tag'
               ) {
                 state.atomicEntries.push(
                   entry,
@@ -331,11 +516,14 @@ export function cipoVite(
               }
             }
 
-            state.finalized = undefined
+            state.finalized =
+              undefined
           }
         }
 
-        if (fabrica?.changed) {
+        if (
+          fabrica?.changed
+        ) {
           state.manifests.push(
             ...fabrica.manifest,
           )
@@ -350,44 +538,62 @@ export function cipoVite(
         }
 
         return {
-          code: finalCode,
-          map: createViteSourceMap(
-            code,
+          code:
             finalCode,
-            filename,
-          ),
+
+          map:
+            createViteSourceMap(
+              code,
+              finalCode,
+              filename,
+            ),
+
           meta: {
             cipo,
-            ...(fabrica
-              ? { fabrica }
-              : {}),
+
+            ...(
+              fabrica
+                ? {
+                    fabrica,
+                  }
+                : {}
+            ),
           },
         }
       }
 
-      if (options.compileFabrica !== true) {
+      if (
+        options.compileFabrica
+        !== true
+      ) {
         return finalizeTransform()
       }
 
-      // Fábrica is an optional peer for runtime-only Cipó consumers. Load its
-      // compiler only when explicitly requested so `@rodkisten/cipo/vite`
-      // remains importable without eagerly resolving the optional dependency.
-      return import(
-        '@rodkisten/fabrica/compiler'
-      ).then(({
+      /**
+       * Fábrica is an optional peer for runtime-only Cipó consumers.
+       *
+       * Keep the dynamic import literal on one source line. Besides making the
+       * optional dependency boundary explicit, source-boundary regression tests
+       * verify that the Vite adapter never introduces a static Fábrica import.
+       */
+      return import('@rodkisten/fabrica/compiler').then(({
         compileFabricaSource,
       }) => {
-        const fabrica = compileFabricaSource(
-          nextCode,
-          {
-            filename,
-            importPath:
-              FABRICA_COMPILER_RUNTIME,
-            directComponentReferences:
-              options.directComponentReferences
-              ?? false,
-          },
-        ) as CipoViteFabricaCompileResult
+        const fabrica =
+          compileFabricaSource(
+            nextCode,
+            {
+              filename,
+
+              importPath:
+                FABRICA_COMPILER_RUNTIME,
+
+              directComponentReferences:
+                options
+                  .directComponentReferences
+                ?? false,
+            },
+          ) as CipoViteFabricaCompileResult
 
         return finalizeTransform(
           fabrica,
@@ -395,35 +601,48 @@ export function cipoVite(
       })
     },
 
-    renderChunk(code, chunk) {
-      if (!wholeBuildAtomic) {
+    renderChunk(
+      code,
+      chunk,
+    ) {
+      if (
+        !wholeBuildAtomic
+      ) {
         return null
       }
 
-      const result = getFinalized()
+      const result =
+        getFinalized()
 
-      let nextCode = replaceCompiledClassLiterals(
-        code,
-        result.classNames,
-        chunk.fileName,
-      )
+      let nextCode =
+        replaceCompiledClassLiterals(
+          code,
+          result.classNames,
+          chunk.fileName,
+        )
 
-      nextCode = replaceStylesheetSentinel(
-        nextCode,
-        result.css,
-      )
+      nextCode =
+        replaceStylesheetSentinel(
+          nextCode,
+          result.css,
+        )
 
-      if (nextCode === code) {
+      if (
+        nextCode === code
+      ) {
         return null
       }
 
       return {
-        code: nextCode,
-        map: createViteSourceMap(
-          code,
+        code:
           nextCode,
-          chunk.fileName,
-        ),
+
+        map:
+          createViteSourceMap(
+            code,
+            nextCode,
+            chunk.fileName,
+          ),
       }
     },
 
@@ -431,86 +650,116 @@ export function cipoVite(
       _outputOptions,
       bundle,
     ) {
-      if (!wholeBuildAtomic) {
-        const css = dedupeCssChunks(
-          state.cssChunks,
-        )
+      if (
+        !wholeBuildAtomic
+      ) {
+        const css =
+          dedupeCssChunks(
+            state.cssChunks,
+          )
 
         if (
-          options.cssDelivery === 'asset'
+          options.cssDelivery
+            === 'asset'
           && css.trim()
         ) {
           this.emitFile({
-            type: 'asset',
+            type:
+              'asset',
+
             fileName:
               options.cssFileName
               ?? 'cipo.compiled.css',
-            source: `${css.trim()}\n`,
+
+            source:
+              `${css.trim()}\n`,
           })
         }
 
-        if (state.manifests.length > 0) {
+        if (
+          state.manifests.length
+          > 0
+        ) {
           this.emitFile({
-            type: 'asset',
+            type:
+              'asset',
+
             fileName:
-              options.manifestFileName
+              options
+                .manifestFileName
               ?? 'cipo.compiled.manifest.json',
-            source: `${
-              JSON.stringify(
-                {
-                  mode,
-                  entries:
-                    state.manifests,
-                },
-                null,
-                2,
-              )
-            }\n`,
+
+            source:
+              `${
+                JSON.stringify(
+                  {
+                    mode,
+
+                    entries:
+                      state.manifests,
+                  },
+                  null,
+                  2,
+                )
+              }\n`,
           })
         }
 
         return
       }
 
-      const result = getFinalized()
+      const result =
+        getFinalized()
 
-      for (const fileName in bundle) {
+      for (
+        const fileName
+        in bundle
+      ) {
         const item =
           bundle[fileName]
 
         if (
           !item
-          || item.type !== 'chunk'
-          || typeof item.code !== 'string'
+          || item.type
+            !== 'chunk'
+          || typeof item.code
+            !== 'string'
         ) {
           continue
         }
 
-        item.code = replaceStylesheetSentinel(
-          replaceCompiledClassLiterals(
-            item.code,
-            result.classNames,
-            fileName,
-          ),
-          result.css,
-        )
+        item.code =
+          replaceStylesheetSentinel(
+            replaceCompiledClassLiterals(
+              item.code,
+              result.classNames,
+              fileName,
+            ),
+            result.css,
+          )
       }
 
       if (
-        options.cssDelivery === 'asset'
+        options.cssDelivery
+          === 'asset'
         && result.css.trim()
       ) {
         this.emitFile({
-          type: 'asset',
+          type:
+            'asset',
+
           fileName:
             options.cssFileName
             ?? 'cipo.compiled.css',
-          source: `${result.css.trim()}\n`,
+
+          source:
+            `${result.css.trim()}\n`,
         })
       }
 
       if (
-        state.manifests.length > 0
+        state.manifests.length
+        > 0
       ) {
         const entries =
           state.manifests.map(
@@ -522,20 +771,25 @@ export function cipoVite(
           )
 
         this.emitFile({
-          type: 'asset',
+          type:
+            'asset',
+
           fileName:
-            options.manifestFileName
+            options
+              .manifestFileName
             ?? 'cipo.compiled.manifest.json',
-          source: `${
-            JSON.stringify(
-              {
-                mode,
-                entries,
-              },
-              null,
-              2,
-            )
-          }\n`,
+
+          source:
+            `${
+              JSON.stringify(
+                {
+                  mode,
+                  entries,
+                },
+                null,
+                2,
+              )
+            }\n`,
         })
       }
     },
@@ -556,13 +810,18 @@ function finalizeBuildStyles(
     compileGlobalAtomicStyles(
       atomicEntries.map(
         (entry) => ({
-          key: entry.id,
+          key:
+            entry.id,
+
           className:
             entry.className,
+
           rawCss:
             entry.rawCss,
+
           filename:
             entry.filename,
+
           receiver:
             entry.receiver,
         }),
@@ -570,43 +829,51 @@ function finalizeBuildStyles(
       {
         configCss:
           options.configCss,
+
         buildNamespace,
       },
     )
 
-  const css = optimizeCompiledCss(
-    [
-      atomic.css,
-      ...cssChunks,
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    {
-      minify:
-        options.minifyCss
-        ?? atomic.minifyCss,
-      mergeEquivalentRules:
-        options.mergeEquivalentRules
-        ?? true,
-      privateCustomPropertyPattern:
-        options.privateCustomPropertyPattern,
-    },
-  )
+  const css =
+    optimizeCompiledCss(
+      [
+        atomic.css,
+        ...cssChunks,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      {
+        minify:
+          options.minifyCss
+          ?? atomic.minifyCss,
+
+        mergeEquivalentRules:
+          options
+            .mergeEquivalentRules
+          ?? true,
+
+        privateCustomPropertyPattern:
+          options
+            .privateCustomPropertyPattern,
+      },
+    )
 
   return {
     css,
+
     classNames:
       atomic.classNames,
   }
 }
 
 /**
- * Converts Cipó's immutable source map into the mutable raw source-map representation
- * expected by Vite/Rolldown.
+ * Converts Cipó's immutable source map into the mutable raw source-map
+ * representation expected by Vite/Rolldown.
  *
  * @remarks
- * Only array values are cloned. Scalar fields can be shared safely because they are
- * immutable values. The conversion intentionally happens only at the adapter boundary.
+ * Only array values are cloned. Scalar fields can be shared safely because
+ * they are immutable values. Conversion happens only at the integration
+ * boundary.
  */
 function createViteSourceMap(
   originalCode: string,
@@ -622,25 +889,65 @@ function createViteSourceMap(
 
   return {
     ...map,
+
     names: [
       ...map.names,
     ],
+
     sources: [
       ...map.sources,
     ],
+
     sourcesContent:
       map.sourcesContent
-        ? [...map.sourcesContent]
+        ? [
+            ...map.sourcesContent,
+          ]
         : map.sourcesContent,
   }
 }
 
 /**
- * Injects compiled CSS emitted directly from a real source module.
+ * Returns whether a module importer represents Cipó's virtual compiled
+ * stylesheet module.
  *
  * @remarks
- * Unlike the virtual global style-tag module, source modules have a real filesystem
- * importer and therefore can safely resolve Cipó's public compiled-runtime entrypoint.
+ * Rollup historically keeps the `\0` internal-module prefix while newer
+ * Rolldown resolution paths may expose the importer without it. Matching both
+ * representations keeps the virtual import deterministic without intercepting
+ * normal application imports of `@rodkisten/cipo/compiled-runtime`.
+ */
+function isVirtualStyleTagImporter(
+  importer:
+    string
+    | undefined,
+): boolean {
+  if (
+    !importer
+  ) {
+    return false
+  }
+
+  if (
+    importer
+      === VIRTUAL_CSS_ID
+    || importer
+      === VIRTUAL_CSS_PUBLIC_ID
+  ) {
+    return true
+  }
+
+  const normalized =
+    importer.startsWith('\0')
+      ? importer.slice(1)
+      : importer
+
+  return normalized
+    === VIRTUAL_CSS_PUBLIC_ID
+}
+
+/**
+ * Injects compiled CSS emitted directly from a real source module.
  */
 function prependStyleTagInjection(
   code: string,
@@ -652,11 +959,13 @@ function prependStyleTagInjection(
         CIPO_COMPILED_RUNTIME,
       )
     };`,
+
     `__cipoInsertCompiledCss(${
       JSON.stringify(
         cssText,
       )
     });`,
+
     code,
   ].join('\n')
 }
@@ -686,7 +995,8 @@ function rewriteManifestClassName(
 ): unknown {
   if (
     !entry
-    || typeof entry !== 'object'
+    || typeof entry
+      !== 'object'
   ) {
     return entry
   }
@@ -698,7 +1008,8 @@ function rewriteManifestClassName(
     >
 
   const className =
-    typeof record.className === 'string'
+    typeof record.className
+      === 'string'
       ? record.className
       : undefined
 
@@ -712,6 +1023,7 @@ function rewriteManifestClassName(
   return finalClassName
     ? {
         ...record,
+
         className:
           finalClassName,
       }
@@ -765,13 +1077,17 @@ function matches(
       re.lastIndex = 0
     }
 
-    return re.test(value)
+    return re.test(
+      value,
+    )
   }
 
   return Array.isArray(
     pattern,
   )
-    ? pattern.some(test)
+    ? pattern.some(
+        test,
+      )
     : test(
         pattern as RegExp,
       )
@@ -791,7 +1107,9 @@ function cleanViteId(
         )
       : id
 
-  if (!file) {
+  if (
+    !file
+  ) {
     return id
   }
 
@@ -836,8 +1154,11 @@ function compileRuntimeConfigCalls(
     === 0
   ) {
     return {
-      code: source,
-      changed: false,
+      code:
+        source,
+
+      changed:
+        false,
     }
   }
 
@@ -886,14 +1207,18 @@ function compileRuntimeConfigCalls(
       CipoCompiledCssConfig
       | null = null
 
-    // Literal calls are self-contained and can always be lowered from their exact source value.
+    /**
+     * Literal calls are self-contained and can always be lowered from their
+     * exact source value.
+     */
     if (
       ts.isStringLiteral(
         argument,
       )
-      || ts.isNoSubstitutionTemplateLiteral(
-        argument,
-      )
+      || ts
+        .isNoSubstitutionTemplateLiteral(
+          argument,
+        )
     ) {
       payload =
         compileCssConfigPayload(
@@ -908,10 +1233,12 @@ function compileRuntimeConfigCalls(
         argument.text,
       )
     ) {
-      // Identifier calls are lowered only when the caller explicitly declares
-      // that the binding represents the same source supplied through `configCss`.
-      // This avoids replacing unrelated runtime configuration merely because it
-      // happens to call the same API.
+      /**
+       * Identifier calls are lowered only when the caller explicitly declares
+       * that the binding represents the same source supplied through
+       * `configCss`. This prevents unrelated runtime configuration from being
+       * replaced merely because it calls the same API.
+       */
       payload =
         configuredPayload
 
@@ -920,22 +1247,27 @@ function compileRuntimeConfigCalls(
       )
     }
 
-    if (!payload) {
+    if (
+      !payload
+    ) {
       continue
     }
 
     edits.push({
       start:
         call.getStart(),
+
       end:
         call.getEnd(),
-      value: `${
-        helperLocalName
-      }(${
-        JSON.stringify(
-          payload,
-        )
-      })`,
+
+      value:
+        `${
+          helperLocalName
+        }(${
+          JSON.stringify(
+            payload,
+          )
+        })`,
     })
   }
 
@@ -944,8 +1276,11 @@ function compileRuntimeConfigCalls(
     === 0
   ) {
     return {
-      code: source,
-      changed: false,
+      code:
+        source,
+
+      changed:
+        false,
     }
   }
 
@@ -973,7 +1308,9 @@ function compileRuntimeConfigCalls(
 
   return {
     code,
-    changed: true,
+
+    changed:
+      true,
   }
 }
 
@@ -1005,38 +1342,34 @@ function createBuildNamespace(
 }
 
 /**
- * Creates the virtual global stylesheet injector without importing a package entrypoint.
+ * Creates the virtual stylesheet bootstrap.
  *
  * @remarks
- * Virtual Vite modules do not have a normal filesystem importer. Emitting
- * `@rodkisten/cipo/compiled-runtime` from this module makes package resolution
- * dependent on workspace aliases and package exports, which can fail under
- * Rolldown even when regular source imports resolve correctly.
+ * The generated module intentionally keeps the public
+ * `@rodkisten/cipo/compiled-runtime` import. This preserves Cipó's retargetable
+ * `insertCss` sink, which is required when consumers install styles into a
+ * ShadowRoot or another custom target.
  *
- * Keeping this tiny injector self-contained also avoids pulling the full Cipó
- * runtime into bundles that only need to install the finalized compiled CSS.
+ * The plugin's `resolveId` hook maps this import to the concrete local runtime
+ * module only when its importer is this virtual module. Regular source imports
+ * keep normal package resolution semantics.
  */
 function createVirtualStyleTagModule(
   cssText: string,
 ): string {
   return [
-    `const css = ${JSON.stringify(cssText)};`,
-    '',
-    'if (typeof document !== "undefined" && css) {',
-    '  const id = "cipo-runtime-style";',
-    '  let style = document.getElementById(id);',
-    '',
-    '  if (!style || style.tagName !== "STYLE") {',
-    '    style = document.createElement("style");',
-    '    style.id = id;',
-    '    style.dataset.cipo = "runtime";',
-    '    (document.head || document.documentElement).appendChild(style);',
-    '  }',
-    '',
-    '  if (!style.textContent?.includes(css)) {',
-    '    style.appendChild(document.createTextNode(css));',
-    '  }',
-    '}',
+    `import { insertCss as __cipoInsertCompiledCss } from ${
+      JSON.stringify(
+        CIPO_COMPILED_RUNTIME,
+      )
+    };`,
+
+    `__cipoInsertCompiledCss(${
+      JSON.stringify(
+        cssText,
+      )
+    });`,
+
     '',
   ].join('\n')
 }
