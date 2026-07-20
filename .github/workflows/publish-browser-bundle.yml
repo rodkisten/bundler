@@ -651,6 +651,7 @@ jobs:
       - name: 📤 Upload RodEruda bundles to Gist
         if: ${{ steps.gist.outputs.enabled == 'true' }}
         shell: bash
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
