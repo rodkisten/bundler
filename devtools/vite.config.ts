@@ -10,9 +10,11 @@ import {
   createIifeBuildBanner,
   readPackageVersion,
 } from "../scripts/build-metadata";
-import { devtoolsStyles } from "./core-style";
+import { devtoolsCipoConfigCss } from "./cipo-config";
 
-const devtoolsDir = dirname(fileURLToPath(import.meta.url));
+const devtoolsDir = dirname(
+  fileURLToPath(import.meta.url),
+);
 const repoRoot = resolve(devtoolsDir, "..");
 
 const buildInfo = createBuildMetadata({
@@ -39,7 +41,10 @@ function devtoolsLandingPlugin(): Plugin {
         buildDevtoolsLanding(),
         copyFile(
           resolve(repoRoot, "dist/devtools.iife.js"),
-          resolve(repoRoot, "dist/devtools.iife.min.js"),
+          resolve(
+            repoRoot,
+            "dist/devtools.iife.min.js",
+          ),
         ),
       ]);
     },
@@ -123,7 +128,10 @@ export default defineConfig({
       styledImportModules: [
         "@rodkisten/devtools/core/runtime",
       ],
-      configCss: devtoolsStyles.cssText,
+      configRuntimeBindings: [
+        "devtoolsCipoConfigCss",
+      ],
+      configCss: devtoolsCipoConfigCss,
     }),
   ],
 });
