@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import { buildDevtoolsLanding } from "../scripts/build-devtools-landing";
+import { buildInfoVite } from "../scripts/vite-build-info";
 import {
   createBuildMetadata,
   createIifeBuildBanner,
@@ -13,6 +14,7 @@ import { devtoolsStyles } from "./core-style";
 
 const devtoolsDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(devtoolsDir, "..");
+
 const buildInfo = createBuildMetadata({
   root: repoRoot,
   version: readPackageVersion(repoRoot),
@@ -33,9 +35,6 @@ function devtoolsLandingPlugin(): Plugin {
     apply: "build",
 
     async closeBundle() {
-      // The standalone Vite build is the authoritative optimized DevTools output.
-      // Keep the historical `.min.js` publication alias in sync with that output
-      // so the earlier root build cannot leave a stale per-component-CSS bundle.
       await Promise.all([
         buildDevtoolsLanding(),
         copyFile(
@@ -47,12 +46,10 @@ function devtoolsLandingPlugin(): Plugin {
   };
 }
 
-
 export default defineConfig({
   root: devtoolsDir,
 
   resolve: {
-    // Vite 8 resolves compilerOptions.paths natively; keep aliases centralized in tsconfig.
     tsconfigPaths: true,
   },
 
@@ -74,21 +71,27 @@ export default defineConfig({
     sourcemap: true,
     outDir: resolve(repoRoot, "dist"),
     emptyOutDir: false,
+
     rollupOptions: {
       treeshake: {
         moduleSideEffects: false,
         propertyReadSideEffects: false,
       },
+
       output: {
         banner: (chunk) =>
-          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
+          chunk.fileName.endsWith(".iife.js")
+            ? iifeBanner
+            : "",
       },
     },
+
     lib: {
       entry: resolve(devtoolsDir, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
       name: "DevTools",
-      fileName: (format: string) => `devtools.${format}.js`,
+      fileName: (format: string) =>
+        `devtools.${format}.js`,
     },
   },
 
@@ -97,11 +100,19 @@ export default defineConfig({
     minifySyntax: true,
     minifyWhitespace: true,
     drop: ["debugger"],
-    pure: ["console.debug", "console.trace"],
+    pure: [
+      "console.debug",
+      "console.trace",
+    ],
   },
 
   plugins: [
+    buildInfoVite({
+      packageName: "devtools",
+    }),
+
     devtoolsLandingPlugin(),
+
     cipoVite({
       root: repoRoot,
       mode: "build",
@@ -109,11 +120,9 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      styledImportModules: ["@rodkisten/devtools/core/runtime"],
-      // The compiler intentionally follows the entire reachable workspace graph.
-      // DevTools imports Maquina and shared Fábrica Elements components, so path
-      // filtering here would leave nested styled templates uncompiled.
-      // Class naming, minification, atomic promotion and tokens all come from CSS.
+      styledImportModules: [
+        "@rodkisten/devtools/core/runtime",
+      ],
       configCss: devtoolsStyles.cssText,
     }),
   ],
