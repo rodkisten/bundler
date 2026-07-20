@@ -29,6 +29,7 @@ import {
 import { discoverRootEntries } from "./discover-entries";
 import { devtoolsCipoConfigCss } from "../devtools/cipo-config";
 import { maquinaCipoConfigCss } from "../maquina/cipo-config";
+import { buildInfoVite } from "./vite-build-info";
 
 const GLOBAL_NAMESPACE = readEnv("BUILD_GLOBAL_NAMESPACE", "Rod");
 const SHOULD_WRITE_META = readBooleanEnv("BUILD_META", true);
@@ -1120,6 +1121,9 @@ async function buildCipoEntryWithVite(
       },
 
       plugins: [
+        buildInfoVite({
+          packageName: entry.name,
+        }),
         cipoVite({
           root:
             ROOT_DIR,
