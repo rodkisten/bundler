@@ -88,7 +88,7 @@ export function buildInfoVite(
         ";if (typeof window !== \"undefined\") {",
         `  window[${JSON.stringify(globalName)}] = ${serialized};`,
         "};",
-        "console.log(\"🐬 ${globalName}: \", \"${serialized}\");"
+        `console.log("🐬 ${globalName}: ", ${serialized});`
         "",
       ].join("\n");
 
