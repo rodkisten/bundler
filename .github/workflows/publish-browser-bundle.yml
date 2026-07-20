@@ -424,6 +424,7 @@ jobs:
         env:
           NO_COLOR: "1"
           FORCE_COLOR: "0"
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' }} 
         run: |
           set -o pipefail
 
