@@ -81,12 +81,13 @@ export function buildInfoVite(
         env[envName];
 
       const buildInfo = parseBuildInfo(rawBuildInfo);
-      const serialized = JSON.stringify(buildInfo);
+      const serialized = JSON.stringify(buildInfo || {});
 
+      const globalNameString = JSON.stringify(globalName || {});
       const injection = [
         "",
         ";if (typeof window !== \"undefined\") {",
-        `  window[${JSON.stringify(globalName)}] = ${serialized};`,
+        `  window[${globalNameString}] = ${serialized};`,
         "};",
         `console.log("🐬 ${globalName}: ", ${serialized});`
         "",
