@@ -466,8 +466,8 @@ jobs:
         timeout-minutes: 5
         env:
           # ANSI sequences make extraction and Markdown summaries harder to read.
-          NO_COLOR: "1"
-          FORCE_COLOR: "0"
+          NO_COLOR: "0"
+          FORCE_COLOR: "1"
         shell: bash
         run: |
           set -o pipefail
