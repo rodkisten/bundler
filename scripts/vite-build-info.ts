@@ -1,4 +1,4 @@
-import { loadEnv, type Plugin, type ResolvedConfig } from "vite";
+import { loadEnv, type Plugin } from "vite";
 
 export interface BuildInfoViteOptions {
   readonly packageName: string;
@@ -15,7 +15,7 @@ function normalizePackageName(packageName: string): string {
 
 function parseBuildInfo(value: string | undefined): unknown {
   if (value === undefined || value === "") {
-    return null;
+    return {};
   }
 
   try {
@@ -54,22 +54,14 @@ export function buildInfoVite(
   const normalizedName = normalizePackageName(options.packageName);
   const globalName = `__BUILD_INFO_${normalizedName}__`;
 
-  let config: ResolvedConfig;
+  let serializedBuildInfo = "{}";
 
   return {
-    name: "rodkisten-build-info",
+    name: `rodkisten-build-info:${normalizedName.toLowerCase()}`,
     apply: "build",
     enforce: "pre",
 
-    configResolved(resolvedConfig) {
-      config = resolvedConfig;
-    },
-
-    renderChunk(code, chunk) {
-      if (!chunk.isEntry) {
-        return null;
-      }
-
+    configResolved(config) {
       const env = loadEnv(
         config.mode,
         config.envDir,
@@ -81,15 +73,29 @@ export function buildInfoVite(
         env[envName];
 
       const buildInfo = parseBuildInfo(rawBuildInfo);
-      const serialized = JSON.stringify(buildInfo || {});
 
-      const globalNameString = JSON.stringify(globalName || {});
+      serializedBuildInfo = JSON.stringify(
+        buildInfo ?? {},
+      );
+    },
+
+    renderChunk(code, chunk) {
+      if (!chunk.isEntry) {
+        return null;
+      }
+
+      const serializedGlobalName =
+        JSON.stringify(globalName);
+
       const injection = [
         "",
         ";if (typeof window !== \"undefined\") {",
-        `  window[${globalNameString}] = ${serialized};`,
-        "};",
-        `console.log("🐬 ${globalName}: ", ${serialized});`
+        `  window[${serializedGlobalName}] = ${serializedBuildInfo};`,
+        `  console.log(`,
+        `    "🐬 ${globalName}:",`,
+        `    window[${serializedGlobalName}],`,
+        `  );`,
+        "}",
         "",
       ].join("\n");
 
