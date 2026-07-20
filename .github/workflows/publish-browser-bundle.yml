@@ -755,8 +755,8 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      #- name: 🔔 Notify Pushcut
-      #  if: ${{ success() }}
-      #  env:
-      #    WORKFLOW_ID: ${{ github.workflow_ref }}
-      #  run: node scripts/workflows/publish-browser-bundle.mjs notify-pushcut
+      - name: 🔔 Notify Pushcut
+        if: ${{ success() }}
+        env:
+          WORKFLOW_ID: ${{ github.workflow_ref }}
+        run: node scripts/workflows/publish-browser-bundle.mjs notify-pushcut
