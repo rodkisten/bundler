@@ -5,7 +5,8 @@ import type {
 } from "@rodkisten/devtools/types";
 import { filterArray, includesArray } from "@rodkisten/nascente";
 
-export const DEFAULT_DEVTOOLS_BUNDLE_URL = "https://rod.migos.club/bundler/devtools.iife.js";
+export const DEFAULT_DEVTOOLS_BUNDLE_URL = "index.js";
+// export const DEFAULT_DEVTOOLS_BUNDLE_URL = "https://rod.migos.club/bundler/devtools.iife.js";
 export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
 
 export const LANDING_PANEL_NAMES = [
@@ -101,6 +102,7 @@ export interface LandingGlobalCandidate {
   readonly DevTools?: unknown;
   readonly Rod?: unknown;
   readonly RodDevtools?: unknown;
+  readonly __ROD_DEVTOOLS__?: unknown;
   readonly eruda?: unknown;
 }
 
@@ -162,6 +164,7 @@ export const DEFAULT_LANDING_TOKENS: LandingTokenState = Object.freeze({
 });
 
 export function normalizeInjectableScriptUrl(value: string): string {
+  // const url = new URL(value.trim(), globalThis.location?.href ?? "https://rod.migos.club/");
   const url = new URL(value.trim(), globalThis.location?.href ?? "https://rod.migos.club/");
 
   if (!/^https?:$/.test(url.protocol)) {
@@ -287,6 +290,7 @@ export function createLandingBookmarklet(state: DevtoolsLandingState): string {
 
 export function resolveInjectableDevtoolsApi(scope: LandingGlobalCandidate): InjectableDevtoolsApi | null {
   const candidates: unknown[] = [
+    scope.__ROD_DEVTOOLS__,
     scope.api,
     scope.default,
     objectValue(scope.default, "api"),

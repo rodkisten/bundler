@@ -1,14 +1,12 @@
-import { sheet } from "@rodkisten/cipo";
-import { STYLE_ELEMENT_ID } from "@rodkisten/cipo";
-import {
-  injectStyle,
-  setRuntimeStyleTarget,
-} from "@rodkisten/cipo";
 import type {
   CipoCssArtifact,
   CipoInjectableStyleArtifact,
   CipoInlineCssArtifact,
   CipoStylesheetArtifact,
+} from "@rodkisten/cipo";
+import {
+  injectStyle,
+  setRuntimeStyleTarget, sheet, STYLE_ELEMENT_ID
 } from "@rodkisten/cipo";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
 import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
@@ -45,6 +43,7 @@ export const devtoolsStyles = sheet.css`
     color-mode: oklch;
     theme-root: :host;
     theme-validation: warn;
+    min-theme-uses: 4;
   }
 
   @theme {
@@ -302,7 +301,7 @@ export const devtoolsStyles = sheet.css`
     }
   }
 `;
-
+///DEVTOOLS_STYLES
 /**
  * Side-effect export used by modules that only need to ensure the global
  * DevTools theme and tokens have been evaluated.
@@ -410,3 +409,6 @@ export function installDevtoolsStyles(
 
   return style;
 }
+
+
+console.log("devtoolsStyles", devtoolsStyles.cssText);

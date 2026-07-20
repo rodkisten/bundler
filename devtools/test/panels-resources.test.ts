@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SourcePayload, ToolContext } from "@rodkisten/devtools/types";
-import { Resources } from "@rodkisten/devtools/panels/resources";
 import { render } from "@rodkisten/devtools/core/runtime";
+import { Resources } from "@rodkisten/devtools/panels/resources";
+import type { SourcePayload, ToolContext } from "@rodkisten/devtools/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function createFixture(): {
   tool: Resources;

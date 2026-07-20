@@ -1,12 +1,9 @@
 import "@rodkisten/devtools/core/cipo-bootstrap";
 import {
-  renderShell,
-  type ShellRefs,
-} from "@rodkisten/devtools/core/shell";
-import {
   createDevtoolsContextValue,
   type DevtoolsContextValue,
 } from "@rodkisten/devtools/core/context";
+import { DevTools } from "@rodkisten/devtools/core/controller";
 import {
   configureDebug,
   debugError,
@@ -17,15 +14,16 @@ import {
   getDebugConfig,
 } from "@rodkisten/devtools/core/debug";
 import {
-  detectMobile,
-  isDevtoolsNode,
-  viewportScale,
-} from "@rodkisten/devtools/core/utils";
-import {
   applyImportantStyle,
   forceAppendToPage,
 } from "@rodkisten/devtools/core/dom";
+import { EntryBtn } from "@rodkisten/devtools/core/entry-button";
 import { NativeProtocol } from "@rodkisten/devtools/core/protocol";
+import { styledRegistry } from "@rodkisten/devtools/core/runtime";
+import {
+  renderShell,
+  type ShellRefs,
+} from "@rodkisten/devtools/core/shell";
 import { installDevtoolsStyles } from "@rodkisten/devtools/core/style";
 import {
   applyTheme,
@@ -33,8 +31,11 @@ import {
   resolveTheme,
   themes,
 } from "@rodkisten/devtools/core/theme";
-import { DevTools } from "@rodkisten/devtools/core/controller";
-import { EntryBtn } from "@rodkisten/devtools/core/entry-button";
+import {
+  detectMobile,
+  isDevtoolsNode,
+  viewportScale,
+} from "@rodkisten/devtools/core/utils";
 import { Console } from "@rodkisten/devtools/panels/console";
 import { Elements } from "@rodkisten/devtools/panels/elements";
 import { Info } from "@rodkisten/devtools/panels/info";
@@ -43,7 +44,6 @@ import { Resources } from "@rodkisten/devtools/panels/resources";
 import { Settings } from "@rodkisten/devtools/panels/settings";
 import { Snippets } from "@rodkisten/devtools/panels/snippets";
 import { Sources } from "@rodkisten/devtools/panels/sources";
-import { styledRegistry } from "@rodkisten/devtools/core/runtime";
 import { Tool } from "@rodkisten/devtools/tool";
 import type {
   DevtoolsInitOptions,
@@ -60,7 +60,7 @@ import {
   uniq,
 } from "@rodkisten/nascente";
 
-export const VERSION = "4.0.0-native";
+export const VERSION = "1.0.0";
 
 /**
  * Maximum rendered width for compact boot values such as Location and URL
@@ -578,11 +578,13 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
         styledRegistry.cssArtifacts,
       );
 
-      debugLog("runtime", "styles installed", {
+      debugInfo("runtime", "styles installed", {
         style: Boolean(this.style),
+        styles: this.style?.textContent,
         root: this.rootTarget instanceof ShadowRoot
           ? "shadow"
           : "light",
+        rootTarget: this.rootTarget,
       });
 
       this.chobitsu.setHost(this.host);
@@ -1474,32 +1476,25 @@ export const devtools = api;
 export const eruda = api;
 
 export {
+  applyTheme,
   Console,
   DevTools,
   Elements,
   EntryBtn,
-  Info,
-  NativeProtocol,
-  Network,
-  Resources,
+  Info, isDarkTheme, NativeProtocol,
+  Network, resolveTheme, Resources,
   Settings,
   Snippets,
-  Sources,
-  Tool,
-  applyTheme,
-  isDarkTheme,
-  resolveTheme,
-  themes,
+  Sources, themes, Tool
 };
 
-export {
-  DevtoolsContext,
-  createDevtoolsContextValue,
-} from "@rodkisten/devtools/core/context";
+  export {
+    createDevtoolsContextValue, DevtoolsContext
+  } from "@rodkisten/devtools/core/context";
 
 export type {
   DevtoolsContextValue,
-  DevtoolsToolRegistration,
+  DevtoolsToolRegistration
 } from "@rodkisten/devtools/core/context";
 
 export type * from "@rodkisten/devtools/types";

@@ -213,12 +213,7 @@
       return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     };
     
-    if(isLocalDevelopment()) {
-      await import("./index.ts");
-      await import("./landing.ts");
-    } else {
-      await import("./landing.ts");
-    }
+    await import("./landing.ts");
   }
   try {
     await main();

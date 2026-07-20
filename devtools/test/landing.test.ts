@@ -91,6 +91,7 @@ describe("DevTools landing configuration", () => {
     expect(resolveInjectableDevtoolsApi({ DevTools: { api } })).toBe(api);
     expect(resolveInjectableDevtoolsApi({ DevTools: { default: { api } } })).toBe(api);
     expect(resolveInjectableDevtoolsApi({ Rod: { DevTools: { api } } })).toBe(api);
+    expect(resolveInjectableDevtoolsApi({ __ROD_DEVTOOLS__: api })).toBe(api);
   });
 
   it("exports the public design token contract as CSS custom properties", () => {

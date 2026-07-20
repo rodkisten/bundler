@@ -1,4 +1,7 @@
 import { configure } from './config'
+import type { Mutable, PreparedCssConfig } from './config-css/contracts'
+import { clearPreparedCssConfigCache, getPreparedCssConfig } from './config-css/parse'
+import { buildConfigTemplate, clearObject, mergeConfigPatch, mergeTheme, normalizeConfigName } from './config-css/shared'
 import { insertCss } from './injection'
 import { registerAlias } from './plugin-registry'
 import { property } from './properties'
@@ -6,9 +9,6 @@ import { runtime } from './runtime'
 import { theme } from './theme'
 import type { CipoConfig, CipoCssConfigResult, CipoPropertyDefinition, CipoTheme, CipoWarning, RuntimeState } from './types'
 import { warn } from './utils'
-import type { Mutable, PreparedCssConfig } from './config-css/contracts'
-import { clearPreparedCssConfigCache, getPreparedCssConfig } from './config-css/parse'
-import { buildConfigTemplate, clearObject, mergeConfigPatch, mergeTheme, normalizeConfigName } from './config-css/shared'
 
 export type CipoConfigPreset = string | (() => string | void) | CipoConfig
 export type CipoConfigPlugin = (api: CipoCssConfigureApi) => string | void
@@ -31,8 +31,8 @@ interface AppliedCssConfig {
   readonly result: CipoCssConfigResult
 }
 
-export type { CipoCssConfigResult } from './types'
 export { compileCssConfigPayload } from './config-css/parse'
+export type { CipoCssConfigResult } from './types'
 
 const presetRegistry = new Map<string, CipoConfigPreset>()
 const configPluginRegistry = new Map<string, CipoConfigPlugin>()
@@ -105,7 +105,10 @@ export function configureFromCss(input: string): CipoCssConfigResult {
     themeVersion: runtime.themeVersion,
     registryVersion: runtime.registryVersion,
     result,
-  })
+  });
+
+  console.log("Cipo configureFromCss result", result);
+  
   return result
 }
 

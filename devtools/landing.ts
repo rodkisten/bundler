@@ -178,12 +178,7 @@ async function injectConfiguredTools(): Promise<void> {
     }
 
     if (state.loadDevtools) {
-      await loadExternalScript({
-        id: "rod-landing-devtools-script",
-        url: state.bundleUrl,
-        cacheBust: state.cacheBust,
-        replaceExisting: state.reinitialize,
-      });
+      await ensureDevtoolsBundleLoaded(state);
 
       const api = resolveApiFromWindow();
       if (!api) throw new Error("RodEruda loaded, but its public API could not be resolved.");
@@ -224,6 +219,18 @@ function openDevtools(): void {
   activeApi = api;
   setStatus("VISIBLE", `Opened the ${initialTool} panel.`, "success");
 }
+
+
+
+function isLocalDevelopment(): boolean {
+  return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
+if (isLocalDevelopment()) {
+  void injectConfiguredTools();
+}
+
+
 
 function hideDevtools(): void {
   const api = activeApi ?? resolveApiFromWindow();
@@ -441,6 +448,22 @@ function applyLandingTokens(tokens: LandingTokenState): void {
   root.setProperty("--landing-radius", `${tokens.radius}px`);
   root.setProperty("--landing-shadow-offset", `${tokens.shadowOffset}px`);
   root.setProperty("--landing-noise-opacity", String(tokens.noiseOpacity));
+}
+
+async function ensureDevtoolsBundleLoaded(state: DevtoolsLandingState): Promise<void> {
+  if (resolveApiFromWindow()) return;
+
+  if (isLocalDevelopment()) {
+    await import("./index");
+    return;
+  }
+
+  await loadExternalScript({
+    id: "rod-landing-devtools-script",
+    url: state.bundleUrl,
+    cacheBust: state.cacheBust,
+    replaceExisting: state.reinitialize,
+  });
 }
 
 async function loadExternalScript(options: ScriptLoadOptions): Promise<void> {
