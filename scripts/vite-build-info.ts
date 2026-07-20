@@ -59,7 +59,7 @@ export function buildInfoVite(
   return {
     name: "rodkisten-build-info",
     apply: "build",
-    enforce: "post",
+    enforce: "pre",
 
     configResolved(resolvedConfig) {
       config = resolvedConfig;
@@ -87,7 +87,8 @@ export function buildInfoVite(
         "",
         ";if (typeof window !== \"undefined\") {",
         `  window[${JSON.stringify(globalName)}] = ${serialized};`,
-        "}",
+        "};",
+        "console.log(\"🐬 ${globalName}: \", \"${serialized}\");"
         "",
       ].join("\n");
 
