@@ -609,8 +609,8 @@ jobs:
           fi
 
           required_files=(
-            "dist/devtools.iife.js"
-            "dist/devtools.iife.min.js"
+            "./devtools.iife.js"
+            "./devtools.iife.min.js"
           )
 
           for file in "${required_files[@]}"; do
