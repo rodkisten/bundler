@@ -1,5 +1,5 @@
 /**
- * @tool Bundle
+ * @tool Rod
  * @global Rod
  * @package rod
  * @tags namespace browser userscripts
