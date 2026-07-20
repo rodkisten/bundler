@@ -44,10 +44,7 @@ export function normalizeRuntimeVariableMath(input: string): string {
 
     if (char === '(') stack.push(')')
     else if (char === '[') stack.push(']')
-    else if (
-      (char === ')' || char === ']')
-      && stack.at(-1) === char
-    ) {
+    else if ((char === ')' || char === ']') && stack.at(-1) === char) {
       stack.pop()
     }
 
@@ -102,6 +99,7 @@ function normalizeRuntimeDeclarationChunk(chunk: string): string {
  */
 function isRuntimeDeclarationProperty(property: string): boolean {
   if (!property) return false
+  if (/^\$\$[A-Za-z_][A-Za-z0-9_.-]*$/.test(property)) return true
   if (/^--[A-Za-z0-9_-]+$/.test(property)) return true
   return /^-?[A-Za-z_][A-Za-z0-9_-]*$/.test(property)
 }
@@ -152,9 +150,9 @@ function replaceRuntimeVars(value: string): string {
     }
 
     if (
-      char === '$'
-      && next === '$'
-      && isIdentifierStart(value[index + 2] ?? '')
+      char === '$' &&
+      next === '$' &&
+      isIdentifierStart(value[index + 2] ?? '')
     ) {
       const start = index + 2
       const end = readIdentifierEnd(value, start)
