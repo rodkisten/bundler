@@ -464,10 +464,10 @@ jobs:
         if: ${{ needs.scope.outputs.should_test == 'true' }}
         continue-on-error: ${{ github.ref_name != 'main' || github.event_name == 'workflow_dispatch' }}
         timeout-minutes: 5
-        env:
+        #env:
           # ANSI sequences make extraction and Markdown summaries harder to read.
-          NO_COLOR: "0"
-          FORCE_COLOR: "1"
+          #NO_COLOR: "1"
+          #FORCE_COLOR: "0"
         shell: bash
         run: |
           set -o pipefail
