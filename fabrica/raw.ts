@@ -1,4 +1,4 @@
-import type { RawHtml } from "@rodkisten/fabrica/types";
+import type { RawHtml } from "./types.js";
 
 /**
  * Creates a trusted raw HTML wrapper.
