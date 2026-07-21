@@ -1,0 +1,353 @@
+import { $ } from "../bag.js";
+import { batch, computed, effect, signal } from "@rodkisten/broto/reactivity";
+import {
+  clearComponents as clearDefaultComponents,
+  component as defaultComponent,
+  createRuntimeComponent,
+  defineComponent,
+  listComponents as listDefaultComponents,
+  registerComponent as registerDefaultComponent,
+  resolveComponent as resolveDefaultComponent,
+  unregisterComponent as unregisterDefaultComponent,
+} from "../component.js";
+import {
+  createComponentRegistry,
+  defaultComponentRegistry,
+  normalizeComponentName,
+  resolveRegistry,
+} from "../component-registry.js";
+import { warnDeprecated } from "../deprecations.js";
+import { boundary } from "../boundary.js";
+import { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "../context.js";
+import { css } from "../css.js";
+import { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "../debug.js";
+import { createEventHelper } from "../event-typing.js";
+import { bind, childrenToArray, classMap, eventOptions, fragment, keyed, memoView, model, portal, ref, repeat, slot, styleMap, suspense, virtualRepeat, when } from "../directives.js";
+import { getHtmlArtifact, html as baseHtml, mountPreservingChildren as baseMountPreservingChildren, isHtmlResult, jsx as baseJsx, mount as baseMount, render as baseRender } from "../render/dom.js";
+import { onDispose, onError, onMount, onUnmount } from "../lifecycle.js";
+import { defineElement, elements } from "../elements.js";
+import { install as installGlobal, noConflict as restoreGlobals } from "../install.js";
+import { config } from "../install-state.js";
+import { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "../raw.js";
+import {
+  FABRICA_HTML_RUNTIME,
+  runWithFabricaRuntime,
+  setDefaultFabricaRuntime,
+} from "../core/runtime-context.js";
+import type {
+  Component,
+  ComponentDefinitionOptions,
+  ComponentFactory,
+  ComponentLike,
+  ComponentPack,
+  ComponentRegistry,
+  ComponentUseOptions,
+  DomBag,
+  FabricaInstanceOptions,
+  FabricaRuntimeContext,
+  InstallOptions,
+  RawHtml,
+  RegistryImportMode,
+  RenderValue,
+  HtmlTemplateTag,
+} from "../types.js";
+import {
+  createInstanceId,
+  getNamedInstance,
+  normalizeInstanceKey,
+  setNamedInstance,
+} from "./instance-store.js";
+import { createComponentPack, isComponentPack } from "./packs.js";
+import { attachDollarApi } from "./dollar.js";
+import type { FabricaApi, HtmlApi } from "./types.js";
+
+Object.assign(baseHtml, {
+  raw: rawHtml,
+  sanitized: sanitizedHtml,
+  trusted: trustedHtml,
+  unsafe: unsafeHtml,
+  artifact: getHtmlArtifact,
+  isResult: isHtmlResult,
+});
+
+/** Creates a fully isolated Fabrica instance unless a registry is supplied. */
+export function createFabrica(options: FabricaInstanceOptions = {}): FabricaApi {
+  return createFabricaApi(options);
+}
+
+/** Returns one realm-wide named instance, creating it on first access. */
+export function getOrCreateFabrica(
+  key: string,
+  options: FabricaInstanceOptions = {},
+): FabricaApi {
+  const normalizedKey = normalizeInstanceKey(key);
+  if (!normalizedKey) throw new Error("[Fabrica] getOrCreate() needs a non-empty key.");
+
+  const existing = getNamedInstance<FabricaApi>(normalizedKey);
+  if (existing) return existing;
+
+  const created = createFabricaApi({
+    ...options,
+    name: options.name || normalizedKey,
+  });
+  setNamedInstance(normalizedKey, created);
+  return created;
+}
+
+/** Creates the default singleton used by package-level compatibility exports. */
+export function createDefaultFabricaApi(): FabricaApi {
+  return createFabricaApi({
+    name: "default",
+    registry: defaultComponentRegistry,
+    attachDollar: true,
+  }, true);
+}
+
+/** Creates one frozen instance API around a mutable lightweight runtime record. */
+export function createFabricaApi(
+  options: FabricaInstanceOptions = {},
+  defaultInstance = false,
+): FabricaApi {
+  const name = String(options.name || (defaultInstance ? "default" : "instance")).trim() || "instance";
+  const runtime: FabricaRuntimeContext = {
+    id: createInstanceId(name),
+    name,
+    registry: options.isolated
+      ? createComponentRegistry({ name: `${name}:registry` })
+      : options.registry ?? createComponentRegistry({ name: `${name}:registry` }),
+  };
+
+  const instanceHtmlTag: HtmlTemplateTag = (
+    strings: TemplateStringsArray,
+    ...values: RenderValue[]
+  ) => runWithFabricaRuntime(runtime, () => baseHtml(strings, ...values));
+  const instanceJsxHtmlTag: HtmlTemplateTag = (
+    strings: TemplateStringsArray,
+    ...values: RenderValue[]
+  ) => runWithFabricaRuntime(runtime, () => baseJsx.html(strings, ...values));
+
+  // Build-time compiled templates execute at expression evaluation time, before
+  // render() can enter the instance runtime. Keep the owning runtime on both tag
+  // functions so createCompiledTemplate() can preserve isolated registries.
+  Object.defineProperty(instanceHtmlTag, FABRICA_HTML_RUNTIME, {
+    configurable: false,
+    enumerable: false,
+    value: runtime,
+  });
+  Object.defineProperty(instanceJsxHtmlTag, FABRICA_HTML_RUNTIME, {
+    configurable: false,
+    enumerable: false,
+    value: runtime,
+  });
+  const instanceEvent = createEventHelper();
+  const instanceHtml: HtmlApi = Object.assign(instanceHtmlTag, {
+    jsx: instanceJsxHtmlTag,
+    raw: rawHtml,
+    sanitized: sanitizedHtml,
+    trusted: trustedHtml,
+    unsafe: unsafeHtml,
+    artifact: getHtmlArtifact,
+    isResult: isHtmlResult,
+  });
+
+  const instanceJsx = Object.freeze({ html: instanceJsxHtmlTag });
+  const instanceRender = ((container, value) =>
+    runWithFabricaRuntime(runtime, () => baseRender(container, value))) as typeof baseRender;
+  const instanceMount = ((container, value) =>
+    runWithFabricaRuntime(runtime, () => baseMount(container, value))) as typeof baseMount;
+  const instanceMountPreservingChildren = ((container, value) =>
+    runWithFabricaRuntime(runtime, () => baseMountPreservingChildren(container, value))) as typeof baseMountPreservingChildren;
+
+  const instanceComponent = ((
+    nameOrFactory: string | ComponentFactory,
+    maybeFactory?: ComponentFactory,
+    componentOptions?: ComponentDefinitionOptions,
+  ) => runWithFabricaRuntime(runtime, () =>
+    createRuntimeComponent(runtime, nameOrFactory, maybeFactory, componentOptions),
+  )) as FabricaApi["component"];
+
+  let api!: FabricaApi;
+
+  const use = <T extends ComponentLike | ComponentPack>(
+    value: T,
+    useOptions: ComponentUseOptions = {},
+  ): T => {
+    const include = useOptions.include ? new Set(useOptions.include) : null;
+    const exclude = useOptions.exclude ? new Set(useOptions.exclude) : null;
+    const namespace = normalizeComponentName(useOptions.namespace);
+
+    if (isComponentPack(value)) {
+      for (const [name, component] of value.components) {
+        if (include && !include.has(name)) continue;
+        if (exclude?.has(name)) continue;
+        runtime.registry.register(namespace ? `${namespace}${name}` : name, component, useOptions);
+      }
+      return value;
+    }
+
+    const componentName = normalizeComponentName(
+      useOptions.name || (value as Component).registryName || (value as Component).displayName,
+    );
+    if (!componentName) {
+      throw new Error("[Fabrica] instance.use() needs a named component or options.name.");
+    }
+    runtime.registry.register(namespace ? `${namespace}${componentName}` : componentName, value, useOptions);
+    return value;
+  };
+
+  const importRegistry = (
+    source: FabricaApi | ComponentRegistry,
+    importOptions: { mode?: RegistryImportMode; collision?: ComponentUseOptions["collision"]; namespace?: string } = {},
+  ): FabricaApi => {
+    const sourceRegistry = resolveRegistry(source);
+    if (!sourceRegistry) throw new TypeError("[Fabrica] importRegistry() expects a Fabrica instance or component registry.");
+
+    const mode = importOptions.mode ?? "snapshot";
+    if (mode === "reference") runtime.registry = sourceRegistry;
+    else if (mode === "fork") runtime.registry = sourceRegistry.fork(`${name}:registry`);
+    else if (mode === "isolated") runtime.registry = createComponentRegistry({ name: `${name}:registry` });
+    else runtime.registry.import(sourceRegistry, importOptions);
+
+    return api;
+  };
+
+  const fork = (
+    forkOptions: Omit<FabricaInstanceOptions, "registry"> & { registry?: ComponentRegistry | RegistryImportMode } = {},
+  ): FabricaApi => {
+    const mode = typeof forkOptions.registry === "string" ? forkOptions.registry : "fork";
+    let registry: ComponentRegistry;
+
+    if (typeof forkOptions.registry === "object") registry = forkOptions.registry;
+    else if (mode === "reference") registry = runtime.registry;
+    else if (mode === "snapshot") registry = runtime.registry.snapshot(`${forkOptions.name || name}:registry`);
+    else if (mode === "isolated") registry = createComponentRegistry({ name: `${forkOptions.name || name}:registry` });
+    else registry = runtime.registry.fork(`${forkOptions.name || name}:registry`);
+
+    return createFabricaApi({
+      ...forkOptions,
+      name: forkOptions.name || `${name}:fork`,
+      registry,
+      attachDollar: false,
+    });
+  };
+
+  api = {
+    __kind: "fabricaInstance",
+    id: runtime.id,
+    name: runtime.name,
+    get registry() {
+      return runtime.registry;
+    },
+    html: instanceHtml,
+    render: instanceRender,
+    mount: instanceMount,
+    mountPreservingChildren: instanceMountPreservingChildren,
+    jsx: instanceJsx,
+    component: instanceComponent,
+    defineComponent,
+    signal,
+    computed,
+    effect,
+    batch,
+    registerComponent(name, componentValue) {
+      warnDeprecated(
+        `instance.registerComponent:${runtime.id}`,
+        "[Fabrica] instance.registerComponent(name, component) is deprecated. Use instance.component(\"Name\", factory), instance.use(definition), or instance.registry.register(name, component).",
+      );
+      return runtime.registry.register(name, componentValue);
+    },
+    unregisterComponent(name) {
+      return runtime.registry.unregister(name);
+    },
+    resolveComponent(name) {
+      return runtime.registry.resolve(name);
+    },
+    listComponents() {
+      return runtime.registry.list();
+    },
+    clearComponents() {
+      runtime.registry.clear();
+    },
+    use,
+    importRegistry,
+    fork,
+    run(callback) {
+      return runWithFabricaRuntime(runtime, callback);
+    },
+    create: createFabrica,
+    getOrCreate: getOrCreateFabrica,
+    createRegistry: createComponentRegistry,
+    createComponentPack,
+    boundary,
+    onMount,
+    onUnmount,
+    onDispose,
+    onError,
+    createContext: createFabricaContext,
+    createRequiredContext: createRequiredFabricaContext,
+    createReactiveContext: createReactiveFabricaContext,
+    createContextProvider,
+    createReactiveContextProvider,
+    provide,
+    provideReactiveContext,
+    useContext,
+    requireContext,
+    useRequiredContext,
+    useReactiveContext,
+    requireReactiveContext,
+    hasContext,
+    when,
+    repeat,
+    virtualRepeat,
+    portal,
+    suspense,
+    bind,
+    model,
+    keyed,
+    event: instanceEvent,
+    eventOptions,
+    fragment,
+    childrenToArray,
+    slot,
+    memoView,
+    ref,
+    classMap,
+    styleMap,
+    css,
+    elements,
+    defineElement,
+    $,
+    config,
+    install(installOptions?: InstallOptions): FabricaApi {
+      return installGlobal(api, installOptions);
+    },
+    noConflict(): FabricaApi {
+      return restoreGlobals(api);
+    },
+    setDebug,
+    debug,
+    debugRecords,
+    clearDebugRecords,
+    subscribeDebug,
+  };
+
+  runtime.api = api;
+
+  if (defaultInstance || options.setAsDefault) setDefaultFabricaRuntime(runtime);
+  if (options.attachDollar || defaultInstance) attachDollarApi(api);
+
+  return Object.freeze(api);
+}
+
+/** Compatibility aliases used by existing imports. */
+export {
+  defaultComponent,
+  registerDefaultComponent,
+  unregisterDefaultComponent,
+  resolveDefaultComponent,
+  listDefaultComponents,
+  clearDefaultComponents,
+};
+
+/** Convenience public aliases used in examples. */
+export type { DomBag, InstallOptions, RawHtml, RenderValue };
