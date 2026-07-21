@@ -1,0 +1,70 @@
++  readonly mode: DebugEventMode;
++  readonly target?: string;
++  readonly currentTarget?: string;
++};
++
++/** Runtime debug records currently emitted by Fábrica. */
++export type DebugRecord = DebugEventRecord;
++
++/** Subscriber invoked synchronously when debug mode emits a record. */
++export type DebugListener = (record: DebugRecord) => void;
+diff --git a/fabrica/types/directives.ts b/fabrica/types/directives.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e8a8ef3e1e76886f66b34e4591b519ace1d8044
+--- /dev/null
++++ b/fabrica/types/directives.ts
+@@ -0,0 +1,185 @@
++import type {
++  Cleanup,
++  ReactiveExpression,
++  Signal,
++} from "@rodkisten/broto/types";
++import type { RenderValue } from "./render.js";
++
++/** Base directive contract. */
++export type Directive = {
++  readonly __kind: "directive";
++  readonly kind: string;
++};
++
++/** Conditional directive. */
++export type WhenDirective = Directive & {
++  readonly kind: "when";
++  condition:
++    | unknown
++    | Signal<unknown>
++    | ReactiveExpression<unknown>;
++  truthy: () => RenderValue;
++  falsy?: () => RenderValue;
++};
++
++/** Portal directive that renders children into an external target. */
++export type PortalDirective = Directive & {
++  readonly kind: "portal";
++  target:
++    | Element
++    | DocumentFragment
++    | ShadowRoot
++    | (() => Element | DocumentFragment | ShadowRoot | null);
++  value: RenderValue | (() => RenderValue);
++};
++
++/** Suspense directive for resource-like values. */
++export type SuspenseDirective = Directive & {
++  readonly kind: "suspense";
++  source: unknown;
++  pending: () => RenderValue;
++  resolved: (value: unknown) => RenderValue;
++  rejected?: (error: unknown) => RenderValue;
++};
++
++/** Two-way binding directive for form controls. */
++export type BindDirective<Value = unknown> = Directive & {
++  readonly kind: "bind";
++  signal: Signal<Value>;
++  event?: string;
++  from?: (element: Element) => Value;
++  to?: (value: Value) => unknown;
++};
++
++/** Keyed child directive that remounts c
