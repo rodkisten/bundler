@@ -1,0 +1,1080 @@
+    if (!container.firstChild) return render(container, value);
+-    return mount(container, value);
+-  });
+-}
+-
+-/**
+- * Appends a render value without clearing existing children.
+- *
+- * @param container - Target container.
+- * @param value - Render value.
+- * @returns Dispose callback.
+- */
+-export function mount(
+-  container: Element | DocumentFragment | ShadowRoot,
+-  value: RenderValue,
+-): () => void {
+-  return runWithCurrentFabricaRuntime(() => {
+-    const start = document.createComment("fabrica:mount:start");
+-    const end = document.createComment("fabrica:mount:end");
+-
+-    container.appendChild(start);
+-    appendValue(container, value);
+-    container.appendChild(end);
+-
+-    return () => {
+-      disposeRange(start, end);
+-      removeRange(start, end);
+-    };
+-  });
+-}
+-
+-/**
+- * Appends a render value to a node.
+- *
+- * @param parentNode - Parent node.
+- * @param value - Render value.
+- * @param beforeNode - Optional insertion anchor.
+- * @returns void.
+- */
+-export function appendValue(
+-  parentNode: Node | null,
+-  value: RenderValue,
+-  beforeNode: Node | null = null,
+-): void {
+-  if (!parentNode) return;
+-
+-  if (value == null || value === false || value === true) {
+-    return;
+-  }
+-
+-  if (Array.isArray(value)) {
+-    const length = value.length;
+-    for (let index = 0; index < length; index += 1) appendValue(parentNode, value[index], beforeNode);
+-    return;
+-  }
+-
+-  if (isHtmlResult(value) || isDomNode(value)) {
+-    transferDelegatedEventRoot(value, parentNode);
+-    parentNode.insertBefore(value, beforeNode);
+-    return;
+-  }
+-
+-  if (isComponentPayload(value)) {
+-    appendValue(parentNode, materializeComponentPayload(value as ComponentPayload) as RenderValue, beforeNode);
+-    return;
+-  }
+-
+-  if (isElementPayload(value)) {
+-    parentNode.insertBefore(materializeElementPayload(value as ElementPayload, appendValue), beforeNode);
+-    return;
+-  }
+-
+-  if (isDomBag(value)) {
+-    parentNode.insertBefore(value.el, beforeNode);
+-    return;
+-  }
+-
+-  if (isComponentRenderRequest(value)) {
+-    parentNode.insertBefore(materializeComponent(value), beforeNode);
+-    return;
+-  }
+-
+-  if (isComponent(value)) {
+-    appendValue(parentNode, value(), beforeNode);
+-    return;
+-  }
+-
+-  if (isRawHtml(value)) {
+-    const fragment = createRawHtmlFragment(value.value);
+-    parentNode.insertBefore(fragment, beforeNode);
+-    return;
+-  }
+-
+-  if (isDirective(value)) {
+-    const marker = document.createComment("fabrica:directive");
+-    parentNode.insertBefore(marker, beforeNode);
+-    const part = createChildPart(marker);
+-    part.set(value);
+-    return;
+-  }
+-
+-  if (isSignal(value)) {
+-    const marker = document.createComment("fabrica:signal");
+-    parentNode.insertBefore(marker, beforeNode);
+-    const part = createChildPart(marker);
+-    part.set(value);
+-    return;
+-  }
+-
+-  if (typeof value === "function") {
+-    const marker = document.createComment("fabrica:expr");
+-    parentNode.insertBefore(marker, beforeNode);
+-    const part = createChildPart(marker);
+-    part.set(value);
+-    return;
+-  }
+-
+-  parentNode.insertBefore(
+-    document.createTextNode(String(value)),
+-    beforeNode,
+-  );
+-}
+-
+-/**
+- * Applies compiled template parts to a cloned fragment.
+- *
+- * @param fragment - Template clone.
+- * @param parts - Compiled parts.
+- * @param values - Runtime values.
+- * @returns void.
+- */
+-function applyParts(
+-  fragment: DocumentFragment,
+-  parts: readonly TemplatePart[],
+-  values: readonly RenderValue[],
+-  hasComponents: boolean,
+-): void {
+-  let index = 0;
+-
+-  while (index < parts.length) {
+-    const part = parts[index]!;
+-
+-    if (part.type === "component") {
+-      const nextIndex = applyComponentParts(fragment, parts, index, values);
+-      if (nextIndex > index) {
+-        index = nextIndex;
+-        continue;
+-      }
+-    }
+-
+-    if (part.type === "componentProp") {
+-      index += 1;
+-      continue;
+-    }
+-
+-    const node = resolvePath(fragment, part.path);
+-    if (!node) {
+-      index += 1;
+-      continue;
+-    }
+-
+-    if (part.type === "child") {
+-      const childPart = createChildPart(node);
+-      childPart.set(values[part.index]);
+-    } else if (part.type === "attribute") {
+-      bindAttributePart(node, part, values);
+-    } else if (part.type === "property") {
+-      bindPropertyPart(node, part.name, values[part.index]);
+-    } else if (part.type === "booleanAttribute") {
+-      bindBooleanAttributePart(node, part.name, values[part.index]);
+-    } else if (part.type === "event") {
+-      bindEvent(node, part.name, values[part.index]);
+-    } else if (part.type === "spread") {
+-      bindSpreadPart(node, values[part.index]);
+-    } else if (part.type === "conditionalClass") {
+-      bindConditionalClassPart(node, part.name, values[part.index]);
+-    }
+-
+-    index += 1;
+-  }
+-
+-  if (!hasComponents) return;
+-  removeRemainingComponentPlaceholders(fragment);
+-}
+-
+-function applyComponentParts(
+-  fragment: DocumentFragment,
+-  parts: readonly TemplatePart[],
+-  index: number,
+-  values: readonly RenderValue[],
+-): number {
+-  const part = parts[index];
+-  if (!part || part.type !== "component") return index;
+-
+-  const node = resolvePath(fragment, part.path);
+-  if (!node) return index;
+-
+-  const componentElement = node as Element;
+-  const staticProps: Record<string, unknown> = {};
+-  for (const attribute of part.staticProps) {
+-    staticProps[normalizeStaticComponentPropName(attribute.name)] = attribute.value;
+-  }
+-
+-  const runtime = getCurrentFabricaRuntime();
+-  const dynamicParts: DynamicComponentPropPart[] = [];
+-  let nextIndex = index + 1;
+-
+-  while (nextIndex < parts.length) {
+-    const next = parts[nextIndex];
+-    if (next?.type !== "componentProp" || next.componentIndex !== part.componentIndex) break;
+-    dynamicParts.push(next);
+-    nextIndex += 1;
+-  }
+-
+-  // Fast path: most compiled component tags only have static props or raw `${signal}`
+-  // bindings. Avoid allocating a computed node until at least one prop actually
+-  // needs reactive derivation.
+-  let needsReactiveProps = false;
+-  for (const dynamicPart of dynamicParts) {
+-    if (componentPropPartIsReactive(dynamicPart, values)) {
+-      needsReactiveProps = true;
+-      break;
+-    }
+-  }
+-
+-  const buildProps = (): Record<string, unknown> => {
+-    const props: Record<string, unknown> = { ...staticProps };
+-
+-    for (const dynamicPart of dynamicParts) {
+-      if (isDynamicComponentSpreadPropPart(dynamicPart)) {
+-        mergeComponentSpreadProps(props, values[dynamicPart.index]);
+-        continue;
+-      }
+-
+-      const name = normalizeComponentPropName(dynamicPart.name);
+-      const value = buildComponentPropValue(
+-        dynamicPart,
+-        values,
+-        name,
+-      );
+-
+-      if (name === "props") {
+-        mergeComponentSpreadProps(props, value);
+-      } else if (name === ":data") {
+-        mergeComponentDataProps(props, value);
+-      } else {
+-        props[name] = value;
+-      }
+-    }
+-
+-    return props;
+-  };
+-
+-  const dynamicProps = needsReactiveProps
+-    ? computed(
+-        buildProps,
+-        { name: `fabrica.componentProps.${part.tag}` },
+-      )
+-    : null;
+-
+-  const props = needsReactiveProps ? dynamicProps!() : buildProps();
+-  if (dynamicProps) {
+-    Object.defineProperty(props, "__fabricaDynamicProps", {
+-      configurable: false,
+-      enumerable: false,
+-      value: dynamicProps,
+-    });
+-  }
+-
+-  const children = extractComponentChildren(componentElement, runtime);
+-  const reference = part.referenceIndex == null ? undefined : values[part.referenceIndex];
+-  const resolvedComponent =
+-    (typeof reference === "function" ? reference : undefined) ??
+-    runtime.registry.resolve(part.tag);
+-
+-  if (!resolvedComponent) {
+-    throw new Error(
+-      `[Fabrica] Unknown component <${part.tag}> in runtime "${runtime.name}". ` +
+-        `Pass a component reference or register it on this Fabrica instance.`,
+-    );
+-  }
+-
+-  const replacement = invokeComponentLike(resolvedComponent, { ...props, children }) as RenderValue;
+-  componentElement.replaceWith(document.createComment("fabrica:component:placeholder"));
+-  const placeholder = resolvePath(fragment, part.path);
+-  if (!placeholder) return nextIndex;
+-  placeholder.replaceWith(materializeComponentResult(replacement));
+-
+-  return nextIndex;
+-}
+-
+-/**
+- * Normalizes one component prop name from template syntax.
+- *
+- * @param name - Raw template attribute name.
+- * @returns Prop object key.
+- */
+-function normalizeComponentPropName(name: string): string {
+-  if (name.startsWith("@")) return eventAttributeToPropName(name.slice(1));
+-  if (name.startsWith(".")) return name.slice(1);
+-  if (name.startsWith("?")) return name.slice(1);
+-  if (name === ":data") return name;
+-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
+-  return normalizeStaticComponentPropName(name);
+-}
+-
+-function normalizeStaticComponentPropName(name: string): string {
+-  if (name === "classname") return "className";
+-  if (name === "htmlfor") return "htmlFor";
+-  if (name === "tabindex") return "tabIndex";
+-  if (name === "readonly") return "readOnly";
+-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
+-  return name;
+-}
+-
+-function eventAttributeToPropName(rawName: string): string {
+-  const dotIndex = rawName.indexOf(".");
+-  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
+-  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
+-}
+-
+-function componentPropPartIsReactive(
+-  part: DynamicComponentPropPart,
+-  values: readonly RenderValue[],
+-): boolean {
+-  if (isDynamicComponentSpreadPropPart(part)) {
+-    return hasReactiveValue(values[part.index]);
+-  }
+-
+-  if (part.raw) {
+-    const rawValue = values[part.indices[0] ?? -1];
+-    const propName = normalizeComponentPropName(part.name);
+-    const preserveSignal =
+-      part.preserveSignal ||
+-      (part.preserveSignalProps?.includes(propName) ?? false);
+-    if (preserveSignal && isSignal(rawValue)) return false;
+-    return hasReactiveValue(rawValue);
+-  }
+-
+-  for (const valueIndex of part.indices) {
+-    if (hasReactiveValue(values[valueIndex])) return true;
+-  }
+-
+-  return false;
+-}
+-
+-function buildComponentPropValue(
+-  part: Exclude<DynamicComponentPropPart, { spread: true }>,
+-  values: readonly RenderValue[],
+-  propName: string,
+-): unknown {
+-  if (part.raw) {
+-    const rawValue = values[part.indices[0] ?? -1];
+-    const preserveSignal =
+-      part.preserveSignal ||
+-      (part.preserveSignalProps?.includes(propName) ?? false);
+-    if (preserveSignal && isSignal(rawValue)) return rawValue;
+-    return readValue(rawValue);
+-  }
+-
+-  let output = part.strings[0] ?? "";
+-
+-  for (let index = 0; index < part.indices.length; index += 1) {
+-    output += stringifyComponentPropValue(
+-      readValue(values[part.indices[index]!]),
+-    );
+-    output += part.strings[index + 1] ?? "";
+-  }
+-
+-  return output;
+-}
+-
+-function stringifyComponentPropValue(value: unknown): string {
+-  if (value == null || value === false) return "";
+-  if (value === true) return "true";
+-  if (isDomNode(value)) return value.textContent ?? "";
+-  return String(value);
+-}
+-
+-function mergeComponentSpreadProps(
+-  target: Record<string, unknown>,
+-  value: unknown,
+-): void {
+-  const resolved = readValue(value);
+-  if (!resolved || typeof resolved !== "object") return;
+-
+-  for (const [name, item] of Object.entries(
+-    resolved as Record<string, unknown>,
+-  )) {
+-    target[normalizeComponentPropName(name)] = readValue(item);
+-  }
+-}
+-
+-function mergeComponentDataProps(
+-  target: Record<string, unknown>,
+-  value: unknown,
+-): void {
+-  const resolved = readValue(value);
+-  if (!resolved || typeof resolved !== "object") return;
+-
+-  const data = resolved as Record<string, unknown>;
+-
+-  for (const key in data) {
+-    const literal = key.startsWith(":");
+-    const rawName = literal ? `"${key.slice(1)}"` : key;
+-    target[toDataAttributeName(rawName)] = readValue(data[key]);
+-  }
+-}
+-
+-function extractComponentChildren(
+-  element: Element,
+-  runtime: FabricaRuntimeContext,
+-): DocumentFragment {
+-  const fragment = document.createDocumentFragment();
+-  fragment.append(...Array.from(element.childNodes));
+-
+-  const parts = compileParts(element);
+-
+-  if (parts.length > 0) {
+-    deferredComponentChildren.set(fragment, {
+-      parts,
+-      values: [],
+-      hasComponents: parts.some((part) => part.type === "component"),
+-      runtime,
+-    });
+-  }
+-
+-  return fragment;
+-}
+-
+-function materializeComponentResult(value: RenderValue): Node {
+-  if (isDomNode(value)) return value;
+-
+-  const fragment = document.createDocumentFragment();
+-  appendValue(fragment, value);
+-  return fragment;
+-}
+-
+-function removeRemainingComponentPlaceholders(root: ParentNode): void {
+-  const placeholders = root.querySelectorAll?.("fabrica-component");
+-  if (!placeholders) return;
+-  for (const placeholder of placeholders) placeholder.remove();
+-}
+-
+-function createRawHtmlFragment(htmlText: string): DocumentFragment {
+-  const cached = rawHtmlTemplateCache.get(htmlText);
+-  if (cached) {
+-    rawHtmlTemplateCache.delete(htmlText);
+-    rawHtmlTemplateCache.set(htmlText, cached);
+-    return cached.content.cloneNode(true) as DocumentFragment;
+-  }
+-
+-  const template = document.createElement("template");
+-  template.innerHTML = htmlText;
+-  rawHtmlTemplateCache.set(htmlText, template);
+-
+-  if (rawHtmlTemplateCache.size > RAW_HTML_TEMPLATE_CACHE_LIMIT) {
+-    const oldest = rawHtmlTemplateCache.keys().next().value as string | undefined;
+-    if (oldest !== undefined) rawHtmlTemplateCache.delete(oldest);
+-  }
+-
+-  return template.content.cloneNode(true) as DocumentFragment;
+-}
+-
+-function createChildPart(marker: Node) {
+-  const start = document.createComment(PART_START);
+-  const end = document.createComment(PART_END);
+-  const runtime = getCurrentFabricaRuntime();
+-
+-  marker.replaceWith(start, end);
+-
+-  let currentValue: unknown;
+-  let currentNode: Node | null = null;
+-  let currentList: Node[] | null = null;
+-  let disposeReactive: (() => void) | null = null;
+-  let directiveController: DirectiveController | null = null;
+-
+-  const clear = (): void => {
+-    if (currentNode && currentNode.parentNode) {
+-      disposeTree(currentNode);
+-      currentNode.remove();
+-    } else if (currentList) {
+-      for (const node of currentList) {
+-        disposeTree(node);
+-        node.parentNode?.removeChild(node);
+-      }
+-    } else {
+-      clearRange(start, end);
+-    }
+-
+-    currentNode = null;
+-    currentList = null;
+-  };
+-
+-  const insertValue = (value: RenderValue): void => {
+-    if (!end.parentNode) return;
+-
+-    if (Array.isArray(value)) {
+-      const flat = flattenRenderArray(value);
+-      reconcileArray(flat);
+-      return;
+-    }
+-
+-    if (isDirective(value)) {
+-      if (!directiveController || directiveController.kind !== value.kind) {
+-        directiveController?.dispose();
+-        clear();
+-        directiveController = createDirectiveController(start, end, value);
+-      }
+-
+-      directiveController.update(value);
+-      return;
+-    }
+-
+-    if (isRawHtml(value)) {
+-      clear();
+-      const fragment = createRawHtmlFragment(value.value);
+-      end.parentNode.insertBefore(fragment, end);
+-      currentNode = null;
+-      currentList = null;
+-      currentValue = value;
+-      return;
+-    }
+-
+-    if (value == null || value === false || value === true) {
+-      clear();
+-      return;
+-    }
+-
+-    if (isComponentPayload(value)) {
+-      insertValue(materializeComponentPayload(value as ComponentPayload) as RenderValue);
+-      return;
+-    }
+-
+-    if (isElementPayload(value)) {
+-      insertValue(materializeElementPayload(value as ElementPayload, appendValue));
+-      return;
+-    }
+-
+-    if (isDomBag(value)) {
+-      insertNode(value.el);
+-      return;
+-    }
+-
+-    if (isComponentRenderRequest(value)) {
+-      insertNode(materializeComponent(value));
+-      return;
+-    }
+-
+-    if (isComponent(value)) {
+-      insertValue(value());
+-      return;
+-    }
+-
+-    if (isHtmlResult(value) || isDomNode(value)) {
+-      insertNode(value);
+-      return;
+-    }
+-
+-    const text = String(value);
+-
+-    if (currentNode?.nodeType === Node.TEXT_NODE) {
+-      if (currentNode.nodeValue !== text) currentNode.nodeValue = text;
+-      return;
+-    }
+-
+-    clear();
+-    const textNode = document.createTextNode(text);
+-    end.parentNode.insertBefore(textNode, end);
+-    currentNode = textNode;
+-  };
+-
+-  const insertNode = (node: Node): void => {
+-    if (currentNode === node && node.parentNode === end.parentNode) {
+-      return;
+-    }
+-
+-    clear();
+-    if (isHtmlResult(node) || node instanceof DocumentFragment) {
+-      transferDelegatedEventRoot(node, end.parentNode);
+-    }
+-    end.parentNode?.insertBefore(node, end);
+-    currentNode = node;
+-  };
+-
+-  const reconcileArray = (values: RenderValue[]): void => {
+-    const newNodes: Node[] = [];
+-
+-    for (const item of values) {
+-      if (item == null || item === false || item === true) continue;
+-
+-      if (isDomNode(item)) {
+-        newNodes.push(item);
+-      } else if (isDomBag(item)) {
+-        newNodes.push(item.el);
+-      } else {
+-        newNodes.push(document.createTextNode(String(readValue(item))));
+-      }
+-    }
+-
+-    if (currentList) {
+-      let anchor: Node = end;
+-
+-      for (let index = newNodes.length - 1; index >= 0; index -= 1) {
+-        const node = newNodes[index]!;
+-        if (node.nextSibling !== anchor || node.parentNode !== end.parentNode) {
+-          end.parentNode?.insertBefore(node, anchor);
+-        }
+-        anchor = node;
+-      }
+-
+-      for (const node of currentList) {
+-        if (!newNodes.includes(node) && node.parentNode) {
+-          disposeTree(node);
+-          node.remove();
+-        }
+-      }
+-
+-      currentList = newNodes;
+-      currentNode = null;
+-      return;
+-    }
+-
+-    clear();
+-
+-    const fragment = document.createDocumentFragment();
+-    for (const node of newNodes) fragment.appendChild(node);
+-    end.parentNode?.insertBefore(fragment, end);
+-    currentList = newNodes;
+-  };
+-
+-  const set = (value: RenderValue | undefined): void => {
+-    disposeReactive?.();
+-    disposeReactive = null;
+-
+-    if (isSignal(value)) {
+-      disposeReactive = effect(
+-        () => {
+-          const next = value();
+-          if (Object.is(currentValue, next)) return;
+-          currentValue = next;
+-          insertValue(next as RenderValue);
+-        },
+-        { name: "fabrica.childPart" },
+-      );
+-      return;
+-    }
+-
+-    if (typeof value === "function" && !isComponent(value)) {
+-      disposeReactive = effect(
+-        () => {
+-          const next = value();
+-          if (Object.is(currentValue, next)) return;
+-          currentValue = next;
+-          insertValue(next as RenderValue);
+-        },
+-        { name: "fabrica.expressionPart" },
+-      );
+-      return;
+-    }
+-
+-    if (Object.is(currentValue, value)) return;
+-
+-    currentValue = value;
+-    insertValue(value as RenderValue);
+-  };
+-
+-  registerCleanup(start, () => {
+-    disposeReactive?.();
+-    directiveController?.dispose();
+-  });
+-
+-  return { start, end, set };
+-}
+-
+-function bindAttributePart(
+-  node: Node,
+-  part: Extract<TemplatePart, { type: "attribute" }>,
+-  values: readonly RenderValue[],
+-): void {
+-  if (!isDomElement(node)) return;
+-
+-  if (part.raw) {
+-    const value = values[part.index];
+-
+-    if (isDirective(value) && value.kind === "bind") {
+-      bindModelPart(node, part.name, value as unknown as BindDirective);
+-      return;
+-    }
+-
+-    if (part.name === "ref") {
+-      bindRefPart(node, value);
+-      return;
+-    }
+-
+-    if (bindSpecialAttribute(node, part.name, value)) {
+-      return;
+-    }
+-
+-    if (part.name.startsWith("@")) {
+-      bindEvent(node, part.name.slice(1), value);
+-      return;
+-    }
+-  }
+-
+-  const update = (): void => {
+-    let next = part.strings[0] ?? "";
+-
+-    for (let index = 0; index < part.indices.length; index += 1) {
+-      next += stringifyAttributeValue(
+-        part.name,
+-        readValue(values[part.indices[index]!]),
+-      );
+-      next += part.strings[index + 1] ?? "";
+-    }
+-
+-    applyAttributeValue(node, part.name, next);
+-  };
+-
+-  const reactive = part.indices.some((index) =>
+-    hasReactiveValue(values[index]),
+-  );
+-
+-  if (!reactive) {
+-    update();
+-    return;
+-  }
+-
+-  registerCleanup(
+-    node,
+-    effect(update, {
+-      name: `fabrica.attribute.${part.name}`,
+-      scheduler: "sync",
+-    }),
+-  );
+-}
+-
+-function bindPropertyPart(
+-  node: Node,
+-  name: string,
+-  value: RenderValue | undefined,
+-): void {
+-  if (!isDomElement(node)) return;
+-  let previous: unknown = Symbol("initial-property");
+-
+-  const update = (): void => {
+-    const next = readValue(value);
+-    if (Object.is(previous, next)) return;
+-    previous = next;
+-
+-    try {
+-      (node as unknown as Record<string, unknown>)[name] = next;
+-    } catch (error) {
+-      throw new TypeError(
+-        `[Fabrica] Unable to assign property ".${name}" on <${node.tagName.toLowerCase()}>: ${
+-          error instanceof Error ? error.message : String(error)
+-        }`,
+-      );
+-    }
+-  };
+-
+-  if (!hasReactiveValue(value)) {
+-    update();
+-    return;
+-  }
+-
+-  registerCleanup(
+-    node,
+-    effect(update, {
+-      name: `fabrica.property.${name}`,
+-      scheduler: "sync",
+-    }),
+-  );
+-}
+-
+-function bindBooleanAttributePart(
+-  node: Node,
+-  name: string,
+-  value: RenderValue | undefined,
+-): void {
+-  if (!isDomElement(node)) return;
+-  let previous: boolean | null = null;
+-
+-  const update = (): void => {
+-    const next = Boolean(readValue(value));
+-    if (previous === next) return;
+-    previous = next;
+-
+-    if (next) node.setAttribute(name, "");
+-    else node.removeAttribute(name);
+-  };
+-
+-  if (!hasReactiveValue(value)) {
+-    update();
+-    return;
+-  }
+-
+-  registerCleanup(
+-    node,
+-    effect(update, {
+-      name: `fabrica.booleanAttribute.${name}`,
+-      scheduler: "sync",
+-    }),
+-  );
+-}
+-
+-function bindRefPart(
+-  node: Node,
+-  value: RenderValue | undefined,
+-): void {
+-  if (!isDomElement(node)) return;
+-
+-  const resolved = isRefDirective(value) ? value.callback : value;
+-
+-  if (typeof resolved === "function") {
+-    const cleanup = (resolved as RefCallback<Element>)(node);
+-    if (typeof cleanup === "function") registerCleanup(node, cleanup);
+-    return;
+-  }
+-
+-  if (
+-    resolved &&
+-    typeof resolved === "object" &&
+-    "current" in resolved
+-  ) {
+-    (resolved as { current: Element | null }).current = node;
+-  }
+-}
+-
+-function bindConditionalClassPart(
+-  node: Node,
+-  className: string,
+-  value: RenderValue | undefined,
+-): void {
+-  if (!isDomElement(node)) return;
+-  let previous: boolean | null = null;
+-
+-  const update = (): void => {
+-    const next = Boolean(readValue(value));
+-    if (previous === next) return;
+-    previous = next;
+-    node.classList.toggle(className, next);
+-  };
+-
+-  if (!hasReactiveValue(value)) {
+-    update();
+-    return;
+-  }
+-
+-  registerCleanup(
+-    node,
+-    effect(update, {
+-      name: `fabrica.classToggle.${className}`,
+-      scheduler: "sync",
+-    }),
+-  );
+-}
+-
+-function applyAttributeValue(
+-  element: Element,
+-  name: string,
+-  next: unknown,
+-): void {
+-  if (isClassMapDirective(next) && name === "class") {
+-    applyClassMap(element, next.value, null);
+-    return;
+-  }
+-
+-  if (isStyleMapDirective(next) && name === "style") {
+-    applyStyleMap(element, next.value, null);
+-    return;
+-  }
+-
+-  if (next == null || next === false) {
+-    if (name === "class") {
+-      if (element instanceof HTMLElement || element instanceof SVGElement) {
+-        element.removeAttribute("class");
+-      }
+-
+-      return;
+-    }
+-
+-    if (name === "style" && "style" in element) {
+-      (element as HTMLElement).style.cssText = "";
+-      return;
+-    }
+-
+-    element.removeAttribute(name);
+-    return;
+-  }
+-
+-  const stringValue = stringifyAttributeValue(name, next);
+-
+-  if (name === "class") {
+-    element.setAttribute("class", stringValue);
+-    return;
+-  }
+-
+-  if (name === "style" && "style" in element) {
+-    (element as HTMLElement).style.cssText = stringValue;
+-    return;
+-  }
+-
+-  element.setAttribute(name, stringValue);
+-}
+-
+-function flattenRenderArray(
+-  value: readonly RenderValue[],
+-  output: RenderValue[] = [],
+-): RenderValue[] {
+-  for (const item of value) {
+-    if (Array.isArray(item)) flattenRenderArray(item, output);
+-    else output.push(item);
+-  }
+-
+-  return output;
+-}
+-
+-function activateDeferredComponentChildren(
+-  fragment: DocumentFragment,
+-): void {
+-  const deferred = deferredComponentChildren.get(fragment);
+-  if (!deferred) return;
+-  deferredComponentChildren.delete(fragment);
+-
+-  runWithFabricaRuntime(deferred.runtime, () => {
+-    applyParts(
+-      fragment,
+-      deferred.parts,
+-      deferred.values,
+-      deferred.hasComponents,
+-    );
+-  });
+-}
+-
+-function appendDeferredAwareValue(
+-  parentNode: Node | null,
+-  value: RenderValue,
+-  beforeNode: Node | null = null,
+-): void {
+-  if (value instanceof DocumentFragment) {
+-    activateDeferredComponentChildren(value);
+-  }
+-
+-  appendValue(parentNode, value, beforeNode);
+-}
+-
+-function materializeComponentRequest(
+-  request: ComponentRenderRequest,
+-): DocumentFragment {
+-  return materializeComponent(request);
+-}
+-
+-function removeNode(node: Node): void {
+-  if (node.parentNode) node.parentNode.removeChild(node);
+-}
+-
+-function createNodeRange(): {
+-  start: Comment;
+-  end: Comment;
+-} {
+-  return {
+-    start: document.createComment("fabrica:range:start"),
+-    end: document.createComment("fabrica:range:end"),
+-  };
+-}
+-
+-function ensureParentNode(
+-  node: Node,
+-): Node | null {
+-  return node.parentNode;
+-}
+-
+-function insertBefore(
+-  parent: Node,
+-  node: Node,
+-  before: Node | null,
+-): void {
+-  parent.insertBefore(node, before);
+-}
+-
+-function replaceNode(
+-  node: Node,
+-  replacement: Node,
+-): void {
+-  node.parentNode?.replaceChild(replacement, node);
+-}
+-
+-function isCommentNode(node: Node): node is Comment {
+-  return node.nodeType === Node.COMMENT_NODE;
+-}
+-
+-function isTextNode(node: Node): node is Text {
+-  return node.nodeType === Node.TEXT_NODE;
+-}
+-
+-function isDocumentFragment(node: Node): node is DocumentFragment {
+-  return node.nodeType === Node.DOCUMENT_FRAGMENT_NODE;
+-}
+-
+-function setTextNodeValue(node: Text, value: string): void {
+-  if (node.data !== value) node.data = value;
+-}
+-
+-function ensureComment(node: Node, value: string): Comment {
+-  if (isCommentNode(node)) return node;
+-  const comment = document.createComment(value);
+-  replaceNode(node, comment);
+-  return comment;
+-}
+-
+-function appendComponentValue(
+-  parentNode: Node | null,
+-  value: RenderValue,
+-  beforeNode: Node | null = null,
+-): void {
+-  appendDeferredAwareValue(parentNode, value, beforeNode);
+-}
+-
+-function mountComponentRequest(
+-  request: ComponentRenderRequest,
+-): DocumentFragment {
+-  return materializeComponentRequest(request);
+-}
+-
+-function resolveComponentValue(
+-  value: unknown,
+-): RenderValue {
+-  return value as RenderValue;
+-}
+-
+-function normalizeRenderValue(
+-  value: RenderValue,
+-): RenderValue {
+-  return value;
+-}
+-
+-void batch;
+-void signal;
+-void createOwner;
+-void disposeOwner;
+-void getOwner;
+-void runWithOwner;
+-void RepeatDirective;
+-void RepeatRecord;
+-void PortalDirective;
+-void SuspenseDirective;
+-void BindDirective;
+-void EventOptionsDirective;
+-void KeyedDirective;
+-void VirtualRepeatDirective;
+-void WhenDirective;
+-void Cleanup;
+-void RefCallback;
+-void removeNode;
+-void createNodeRange;
+-void ensureParentNode;
+-void insertBefore;
+-void replaceNode;
+-void isCommentNode;
+-void isTextNode;
+-void isDocumentFragment;
+-void setTextNodeValue;
+-void ensureComment;
+-void appendComponentValue;
+-void mountComponentRequest;
+-void resolveComponentValue;
+-void normalizeRenderValue;
+diff --git a/fabrica/elements.ts b/fabrica/elements.ts
+index c1694a3ee5b6a26ef9ab023135ec0c765e0fd4a9..7021b4ec604f2c9f70048b0fd80aa19fbdb96788 100644
+--- a/fabrica/elements.ts
++++ b/fabrica/elements.ts
+@@ -1,5 +1,5 @@
+-import { createComponentPack, getOrCreateFabrica } from "@rodkisten/fabrica/public-api";
+-import type { Component, ComponentPack } from "@rodkisten/fabrica/types";
++import { createComponentPack, getOrCreateFabrica } from "./public-api.js";
++import type { Component, ComponentPack } from "./types.js";
+ import {
+   builtinFabricaElements,
+   createFabricaElements,
