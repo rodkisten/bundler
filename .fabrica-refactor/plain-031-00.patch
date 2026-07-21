@@ -1,0 +1,197 @@
+Fábrica recursive compiled templates", () => {
+   it("compiles nested html templates inside interpolation expressions to a fixed compiled tree", () => {
+diff --git a/fabrica/test/fabrica.component-render.test.ts b/fabrica/test/fabrica.component-render.test.ts
+index 28a25521864208418d5df6a2ba44aedde5bdf838..80406bcea56be87382738e92c3a74d9d1e27a01d 100644
+--- a/fabrica/test/fabrica.component-render.test.ts
++++ b/fabrica/test/fabrica.component-render.test.ts
+@@ -3,7 +3,7 @@
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ import { flushSync, signal } from "@rodkisten/broto";
+ import { clearComponents, component, html, render } from "@rodkisten/fabrica";
+-import type { RenderValue } from "@rodkisten/fabrica/types";
++import type { RenderValue } from "../types.js";
+ 
+ let host: HTMLDivElement;
+ 
+diff --git a/fabrica/test/fabrica.dom-directives.test.ts b/fabrica/test/fabrica.dom-directives.test.ts
+index 46594a82191e682e474d2fba9509e528073a357c..7680d0f1fa881504aeec77c3a2a17900f94e1f3c 100644
+--- a/fabrica/test/fabrica.dom-directives.test.ts
++++ b/fabrica/test/fabrica.dom-directives.test.ts
+@@ -1,8 +1,8 @@
+ // @vitest-environment jsdom
+ import { describe, expect, it } from "vitest";
+ import { signal } from "@rodkisten/broto/reactivity";
+-import { createDirectiveController } from "@rodkisten/fabrica/dom-directives";
+-import { when, repeat } from "@rodkisten/fabrica/directives";
++import { createDirectiveController } from "../directives/runtime.js";
++import { when, repeat } from "../directives.js";
+ 
+ describe("Fabrica DOM directive controllers", () => {
+   function range() {
+diff --git a/fabrica/test/fabrica.dom-spread.test.ts b/fabrica/test/fabrica.dom-spread.test.ts
+index 4a5115c334ff348f7a9d4b83248633333d41bec2..437dadf2d91a1b9d286959c642de4ad14a877bcb 100644
+--- a/fabrica/test/fabrica.dom-spread.test.ts
++++ b/fabrica/test/fabrica.dom-spread.test.ts
+@@ -1,6 +1,6 @@
+ // @vitest-environment jsdom
+ import { describe, expect, it, vi } from "vitest";
+-import { applySpreadValue, cleanupSpreadState } from "@rodkisten/fabrica/dom-spread";
++import { applySpreadValue, cleanupSpreadState } from "../bindings/spread.js";
+ 
+ describe("Fabrica DOM spread helpers", () => {
+   it("applies attributes, dataset, classes, style and events", () => {
+@@ -40,3 +40,50 @@ describe("Fabrica DOM spread helpers", () => {
+     cleanupSpreadState(button, next);
+   });
+ });
++
++describe("Fabrica spread nested ownership", () => {
++  it("removes stale attrs and dataset entries when nested maps change", () => {
++    const element = document.createElement("button");
++    let state = applySpreadValue(
++      element,
++      {
++        attrs: { title: "first", "aria-label": "first" },
++        dataset: { testId: "one", stable: "yes" },
++      },
++      { keys: new Set(), events: new Map(), refCleanup: null },
++    );
++
++    state = applySpreadValue(
++      element,
++      {
++        attrs: { "aria-label": "second" },
++        dataset: { stable: "yes" },
++      },
++      state,
++    );
++
++    expect(element.hasAttribute("title")).toBe(false);
++    expect(element.getAttribute("aria-label")).toBe("second");
++    expect(element.dataset.testId).toBeUndefined();
++    expect(element.dataset.stable).toBe("yes");
++
++    cleanupSpreadState(element, state);
++  });
++
++  it("cleans nested attrs and dataset when their top-level keys disappear", () => {
++    const element = document.createElement("button");
++    const state = applySpreadValue(
++      element,
++      {
++        attrs: { title: "owned" },
++        dataset: { testId: "owned" },
++      },
++      { keys: new Set(), events: new Map(), refCleanup: null },
++    );
++
++    applySpreadValue(element, {}, state);
++
++    expect(element.hasAttribute("title")).toBe(false);
++    expect(element.dataset.testId).toBeUndefined();
++  });
++});
+diff --git a/fabrica/test/fabrica.event-typing.test.ts b/fabrica/test/fabrica.event-typing.test.ts
+index e918c09a15616027d7e17948d7a19160388f7a07..58ac6ab6160ef3028365ab583619a7d361b8d936 100644
+--- a/fabrica/test/fabrica.event-typing.test.ts
++++ b/fabrica/test/fabrica.event-typing.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "vitest";
+-import { createEventHelper } from "@rodkisten/fabrica/event-typing";
++import { createEventHelper } from "../event-typing.js";
+ 
+ describe("typed template events", () => {
+   it("keeps named native handlers as zero-cost identities", () => {
+diff --git a/fabrica/test/fabrica.html-result.test.ts b/fabrica/test/fabrica.html-result.test.ts
+index 6299d348830fe4e6eb89acc8ee5124fc2310b42d..b6f4f909dfe9b75f4378ae452e25063215ac68f8 100644
+--- a/fabrica/test/fabrica.html-result.test.ts
++++ b/fabrica/test/fabrica.html-result.test.ts
+@@ -3,13 +3,15 @@
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ import {
+   FABRICA_HTML_ARTIFACT,
+-  createCompiledTemplate,
+   createFabrica,
+   getHtmlArtifact,
+   html,
+   isHtmlResult,
+   render,
+ } from "@rodkisten/fabrica";
++import {
++  createCompiledTemplate,
++} from "@rodkisten/fabrica/compiler-runtime";
+ 
+ let host: HTMLDivElement;
+ 
+diff --git a/fabrica/test/fabrica.install.test.ts b/fabrica/test/fabrica.install.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..057e3ff174cf507597176b132c9a639b30ee6a94
+--- /dev/null
++++ b/fabrica/test/fabrica.install.test.ts
+@@ -0,0 +1,120 @@
++/** @vitest-environment jsdom */
++
++import { afterEach, describe, expect, it } from "vitest";
++import { createFabricaApi } from "@rodkisten/fabrica";
++
++const TEST_ALIASES = [
++  "$fabricaInstallTest",
++  "$fabricaInstallNested",
++  "$fabricaInstallExternal",
++] as const;
++
++type MutableGlobals = typeof globalThis &
++  Record<string, unknown>;
++
++const globals = globalThis as MutableGlobals;
++const snapshots = new Map<
++  string,
++  { existed: boolean; value: unknown }
++>();
++const fabricaSnapshot = {
++  existed: "Fabrica" in globals,
++  value: globals.Fabrica,
++};
++
++for (const alias of TEST_ALIASES) {
++  snapshots.set(alias, {
++    existed: alias in globals,
++    value: globals[alias],
++  });
++}
++
++afterEach(() => {
++  if (fabricaSnapshot.existed) {
++    globals.Fabrica = fabricaSnapshot.value;
++  } else {
++    delete globals.Fabrica;
++  }
++
++  for (const alias of TEST_ALIASES) {
++    const snapshot = snapshots.get(alias)!;
++    if (snapshot.existed) globals[alias] = snapshot.value;
++    else delete globals[alias];
++  }
++});
++
++describe("Fabrica global installation lifecycle", () => {
++  it("restores custom aliases captured at installation time", () => {
++    const alias = TEST_ALIASES[0];
++    const previous = { owner: "before-fabrica" };
++    globals[alias] = previous;
++
++    const api = createFabricaApi();
++    api.install({
++      exposeDollarEl: true,
++      dollarAlias: alias,
++      forceAlias: true,
++    });
++
++    expect(globals[alias]).toBe(api.$);
++
++    api.noConflict();
++
++    expect(globals[alias]).toBe(previous);
++  });
++
++  it("unwinds nested installations in last-in-first-out order", () => {
