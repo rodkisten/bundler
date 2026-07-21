@@ -1,0 +1,112 @@
+diff --git a/fabrica/test/install-lifecycle.test.ts b/fabrica/test/install-lifecycle.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfcb5cf5511be290cc4e31b08d98ccc809a4f70e
+--- /dev/null
++++ b/fabrica/test/install-lifecycle.test.ts
+@@ -0,0 +1,73 @@
++import { afterEach, describe, expect, it } from "vitest";
++import { create } from "../index.js";
++
++const aliases = ["$rod", "$rodEl"];
++
++afterEach(() => {
++  for (const alias of aliases) Reflect.deleteProperty(globalThis, alias);
++  Reflect.deleteProperty(globalThis, "Fabrica");
++});
++
++describe("global installation lifecycle", () => {
++  it("captures globals when install runs instead of module evaluation time", () => {
++    const previous = { marker: "previous" };
++    globalThis.Fabrica = previous as never;
++
++    const instance = create({ name: "install-lifecycle" });
++    instance.install({
++      dollarAlias: false,
++      dollarElAlias: false,
++    });
++
++    expect(globalThis.Fabrica).toBe(instance);
++    instance.noConflict();
++    expect(globalThis.Fabrica).toBe(previous);
++  });
++
++  it("restores custom aliases installed by the instance", () => {
++    const previousDollar = { marker: "dollar" };
++    const previousDollarEl = { marker: "dollar-el" };
++    globalThis.$rod = previousDollar as never;
++    globalThis.$rodEl = previousDollarEl as never;
++
++    const instance = create({ name: "custom-aliases" });
++    instance.install({
++      dollarAlias: "$rod",
++      dollarElAlias: "$rodEl",
++    });
++
++    expect(globalThis.$rod).toBe(instance.$);
++    expect(globalThis.$rodEl).toBe(instance.$);
++
++    instance.noConflict();
++    expect(globalThis.$rod).toBe(previousDollar);
++    expect(globalThis.$rodEl).toBe(previousDollarEl);
++  });
++
++  it("does not overwrite a global replaced after installation", () => {
++    const instance = create({ name: "external-replacement" });
++    instance.install({
++      dollarAlias: "$rod",
++      dollarElAlias: false,
++    });
++
++    const external = { marker: "external" };
++    globalThis.$rod = external as never;
++    instance.noConflict();
++
++    expect(globalThis.$rod).toBe(external);
++  });
++
++  it("resets install aliases between separate installations", () => {
++    const first = create({ name: "first-install" });
++    first.install({ dollarAlias: "$rod", dollarElAlias: false });
++    first.noConflict();
++
++    const second = create({ name: "second-install" });
++    second.install({ dollarElAlias: false });
++
++    expect(globalThis.$rod).toBeUndefined();
++    expect(globalThis.$).toBe(second.$);
++    second.noConflict();
++  });
++});
+diff --git a/fabrica/test/mount-preserving-children.test.ts b/fabrica/test/mount-preserving-children.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..4fb83166a572ec72b98426fe3c2447fe1909df10
+--- /dev/null
++++ b/fabrica/test/mount-preserving-children.test.ts
+@@ -0,0 +1,31 @@
++import { describe, expect, it } from "vitest";
++import {
++  html,
++  mountPreservingChildren,
++} from "../index.js";
++
++describe("mountPreservingChildren", () => {
++  it("preserves existing nodes and owns only the appended range", () => {
++    const host = document.createElement("div");
++    const server = document.createElement("span");
++    server.textContent = "server";
++    host.append(server);
++
++    const dispose = mountPreservingChildren(
++      host,
++      html`<button>client</button>`,
++    );
++
++    expect(host.firstElementChild).toBe(server);
++    expect(host.textContent).toContain("server");
++    expect(host.textContent).toContain("client");
++
++    dispose();
++    expect(host.firstElementChild).toBe(server);
++    expect(host.textContent).toBe("server");
++  });
++});
