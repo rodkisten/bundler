@@ -488,6 +488,7 @@ export interface NetworkContextValue {
 
 export interface ResourcesContextValue {
   readonly revision: Signal<number>;
+  setContentViewport(node: HTMLElement | null): void;
   renderContent(): RenderValue;
   renderJsonDialog(): RenderValue;
 }
