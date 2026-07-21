@@ -91,7 +91,6 @@ export function compileFabricaSource(
 ): FabricaCompileSourceResult {
   const filename = options.filename ?? "source.tsx";
   const sourceFile = createSourceFile(source, filename);
-  const checker = createSingleFileChecker(sourceFile, filename);
   const importPath = options.importPath ?? DEFAULT_IMPORT_PATH;
   const helper = resolveCompilerHelper(sourceFile, importPath);
   const configuredTags = new Set([
@@ -111,7 +110,7 @@ export function compileFabricaSource(
     filename,
     0,
     context,
-    checker,
+    sourceFile,
   );
 
   if (!compiled.changed) {
@@ -143,12 +142,19 @@ function compileSourceFragment(
   filename: string,
   sourceOffset: number,
   context: CompileContext,
-  parentChecker?: ts.TypeChecker,
+  parsedSourceFile?: ts.SourceFile,
 ): CompileFragmentResult {
-  const sourceFile = createSourceFile(source, filename);
-  const checker = sourceOffset === 0 && parentChecker
-    ? parentChecker
-    : createSingleFileChecker(sourceFile, filename);
+  /**
+   * The checker must be created for the exact SourceFile nodes visited below.
+   *
+   * TypeScript 6 assumes every node passed to `getSymbolAtLocation()` belongs
+   * to the Program that created the checker. Re-parsing the source and then
+   * querying it with a checker created for an older SourceFile can crash inside
+   * TypeScript's resolver instead of returning an unresolved symbol.
+   */
+  const sourceFile =
+    parsedSourceFile ?? createSourceFile(source, filename);
+  const checker = createSingleFileChecker(sourceFile, filename);
   const templates: ts.TaggedTemplateExpression[] = [];
 
   const visit = (node: ts.Node): void => {
