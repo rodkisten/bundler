@@ -8,16 +8,16 @@ export type {
   RuntimeComponent,
   RuntimeNode,
   RuntimeProp,
-} from "@rodkisten/fabrica/compiler-runtime-types";
+} from "./compiler/runtime/types.js";
 export {
   applyCompiledProps,
   createCompiledElement,
   createCompiledFragment,
-} from "@rodkisten/fabrica/compiler-runtime-element";
-export { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
+} from "./compiler/runtime/element.js";
+export { createCompiledTemplate } from "./compiler-runtime.js";
 export type {
   FabricaCompileSourceOptions,
   FabricaCompileSourceResult,
   FabricaCompiledTemplateManifestEntry,
-} from "@rodkisten/fabrica/compiler-core";
-export { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
+} from "./compiler/transform.js";
+export { compileFabricaSource } from "./compiler/transform.js";
