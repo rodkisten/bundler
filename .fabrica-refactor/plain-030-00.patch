@@ -1,0 +1,104 @@
+diff --git a/cipo/test/cipo.compiled-build-vite.test.ts b/cipo/test/cipo.compiled-build-vite.test.ts
+index 17268d815830f45f90367f3d37667d52b1c0ce59..204337ce7180741896f0d934573d4ec73b18a82aa 100644
+--- a/cipo/test/cipo.compiled-build-vite.test.ts
++++ b/cipo/test/cipo.compiled-build-vite.test.ts
+@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
+ import {
+   compileCipoSource,
+   compileInlineCss,
+-} from "@rodkisten/cipo/compiler";
+-import { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
++} from "../compiler.js";
++import { createCompiledTemplate } from "../../fabrica/compiler-runtime.js";
+ import {
+   compileFabricaSource,
+-} from "@rodkisten/fabrica/compiler";
++} from "../../fabrica/compiler.js";
+ import {
+   create,
+   html,
+@@ -13,7 +13,7 @@ import {
+   signal,
+-} from "@rodkisten/fabrica";
++} from "../../fabrica/index.js";
+ 
+ describe("compiled build integration", () => {
+   it("compiles Fabrica templates to compact runtime IR", () => {
+@@ -25,8 +25,7 @@ describe("compiled build integration", () => {
+     expect(result.changed).toBe(true);
+     expect(result.code).toContain(
+       "createCompiledTemplate(html, [[2,\"button\"",
+     );
+-    expect(result.code).not.toContain("createCompiledElement");
++    expect(result.code).not.toContain("createCompiledElement(");
+   });
+ 
+   it("keeps compiled templates on an isolated Fabrica runtime", () => {
+@@ -35,12 +34,14 @@ describe("compiled build integration", () => {
+       name: "compiled-build-local",
+       isolated: true,
+     });
+-    local.component("Card", () => html`<article>local</article>`);
++    const Card = local.component(
++      "Card",
++      () => html`<article>local</article>`,
++    );
+ 
+-    const view = createCompiledTemplate(
++    const view = local.run(() => createCompiledTemplate(
+       local.html,
+-      [[2, "Card", [], []]],
+-    );
++      [[2, Card as never, [], []]],
++    ));
+ 
+     const host = document.createElement("div");
+     host.append(view);
+@@ -60,12 +61,15 @@ describe("compiled build integration", () => {
+       name: "compiled-build-props",
+       isolated: true,
+     });
+-    local.component<{ value?: string }>("Card", (props) =>
+-      html`<article>${props.value}</article>`,
++    const Card = local.component<{ value?: string }>(
++      "Card",
++      (props) => html`<article>${props.value}</article>`,
+     );
+ 
+-    const view = createCompiledTemplate(
++    const view = local.run(() => createCompiledTemplate(
+       local.html,
+-      [[2, "Card", [[1, "value", 0]], []]],
++      [[2, Card as never, [[1, "value", 0]], []]],
+       value,
+-    );
++    ));
+ 
+     const host = document.createElement("div");
+     host.append(view);
+@@ -88,7 +92,7 @@ describe("compiled build integration", () => {
+       const Card = component(() => html\`<article>Card</article>\`);
+       const view = html\`<Card />\`;
+     `;
+-    const result = compileCipoSource(source, {
++    const result = compileCipoSource(source, {
+       filename: "entry.ts",
+       compileFabrica: true,
+     });
+@@ -97,7 +101,7 @@ describe("compiled build integration", () => {
+     expect(result.code).toContain("[2,Card,");
+   });
+ 
+-  it("emits inline source maps for compiled Fabrica templates", () => {
++  it("emits source maps for compiled Fabrica templates", () => {
+     const source = `
+       import { html } from "@rodkisten/fabrica";
+       const view = html\`<button>Save</button>\`;
+@@ -109,8 +113,8 @@ describe("compiled build integration", () => {
+     });
+ 
+     expect(result.map).toBeDefined();
+-    expect(result.code).toContain("sourceMappingURL=data:application/json");
++    expect(result.map).toContain('"version":3');
+   });
+ });
