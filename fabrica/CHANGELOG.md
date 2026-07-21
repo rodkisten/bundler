@@ -1,6 +1,129 @@
 # Fábrica Changelog
 
 
+## Unreleased - Structural runtime/compiler convergence
+
+### Breaking changes
+
+- Removed the misleading `hydrate()` API. The previous implementation appended
+  a second client-owned range after existing markup and did not perform SSR
+  hydration. Use `mountPreservingChildren()` for that explicit behavior.
+- Made `@rodkisten/fabrica` side-effect free. Importing the root package no
+  longer installs `globalThis.Fabrica`, `$`, or `$el`; applications that require
+  browser globals must import `@rodkisten/fabrica/browser` or call `install()`.
+- Removed compiler APIs from the root entrypoint. Build integrations import
+  `@rodkisten/fabrica/compiler`; generated browser code imports the runtime-only
+  `@rodkisten/fabrica/compiler-runtime` helper surface.
+- Removed wildcard package subpath exports. Only documented runtime, browser,
+  compiler, compiler-runtime, and package metadata entrypoints are public.
+- Object-prop `html` / `unsafeHTML` sinks now require an explicit `RawHtml`
+  wrapper instead of accepting arbitrary strings.
+
+### Architecture
+
+- Reorganized the runtime into `core/`, `bindings/`, `render/`, `template/`,
+  `directives/`, `compiler/`, and domain-focused `types/` modules.
+- Reduced `render/dom.ts` to a compatibility facade. Root rendering, value and
+  child-part materialization, template materialization, component-part binding,
+  deferred child activation, payloads, cleanup, and HTML-result metadata now
+  live in focused modules.
+- Split the former monolithic template implementation into cache, source/micro-
+  JSX transformation, and DOM-part compilation modules.
+- Extracted keyed repeat reconciliation and LIS logic from the general directive
+  runtime.
+- Split the 600-line public/internal type surface into focused render,
+  component, directive, template, event, debug, and DOM contracts while keeping
+  `types.ts` as the stable public barrel.
+- Broke the renderer/directive dependency cycle by injecting the minimal
+  `appendValue` / owned-mount capabilities required by directive controllers.
+- Replaced duplicated DOM prop semantics with a shared binding kernel used by
+  interpreted templates, compiled templates, payloads, and spreads.
+- Split the public instance factory into `api/` modules for API contracts,
+  instance storage, component packs, and the legacy `$` bridge, leaving
+  `public-api.ts` as a thin facade.
+- Decomposed directive execution into focused controllers for `when`, keyed
+  content, repeat, virtual repeat, portals, and suspense, with a minimal
+  injected renderer host.
+- Removed all runtime import cycles. The remaining recursive dependency is
+  type-only and models the recursive `RenderValue` domain algebra.
+
+### Compiler
+
+- Replaced the textual tagged-template source scanner with a TypeScript AST
+  transform.
+- Split source lowering into AST hosting, lexical binding resolution, helper
+  import management, IR serialization, HTML parsing, and a small transform
+  orchestrator so compiler phases can evolve independently.
+- Added syntactic import/alias resolution plus lexical-shadow checks so unrelated
+  or shadowed `html` tags are not transformed.
+- Preserved shebangs and directive prologues such as `"use client"` when helper
+  imports are injected.
+- Added collision-free helper binding generation and direct-component reference
+  validation against visible value bindings.
+- Added recursive AST lowering for nested Fábrica templates inside JavaScript
+  template interpolation expressions.
+- Consolidated build/runtime compact HTML parsing and made tag-end scanning
+  quote-aware.
+- Replaced the unbounded joined-string runtime template cache with callsite
+  `WeakMap` caching and a bounded dynamic-string cache.
+- Removed catch-all compiled-runtime fallback. Known unsupported shapes may
+  deopt; unexpected materialization errors now surface instead of silently
+  changing execution paths.
+
+### Runtime/compiler parity
+
+- Routed compiled plain attributes through the same reactive binding primitive
+  as interpreted templates.
+- Restored reactive compiled `.property`, `?boolean`, and `class:*` semantics.
+- Routed compiled spreads through the canonical spread reconciler.
+- Unified callback and object-ref lifecycle. Callback cleanup is preserved and
+  object refs reset to `null` on disposal in all rendering paths.
+- Added deep spread ownership for `attrs`, `dataset`, events, refs, and special
+  attributes so stale nested state is removed correctly.
+- Persisted special-attribute state across object-prop patches and added class/
+  style map state reuse without retaining DOM nodes strongly.
+
+### Package and build boundaries
+
+- Added `@rodkisten/cipo/runtime-inline` and moved Fábrica `$css` / `$style`
+  runtime compilation away from `@rodkisten/cipo/compiler`.
+- Changed the Fábrica TypeScript build output to `dist/` instead of emitting
+  JavaScript and declaration artifacts beside source files.
+- Added explicit package exports for root, runtime, browser, compiler, and
+  compiler-runtime entrypoints.
+- Reworked global installation to capture previous globals at install time,
+  restore custom aliases, support nested LIFO installs, avoid overwriting
+  globals taken over by other libraries, and reset runtime options to defaults
+  between installs.
+
+### Diagnostics and source maps
+
+- Added transform-aware, column-anchored source-map generation for Cipó/Fábrica
+  build transforms while retaining the previous line-map helper for compatible
+  consumers.
+
+### Tests
+
+- Added interpreted-versus-compiled parity coverage for reactive attributes,
+  properties, booleans, conditional classes, spreads, ref cleanup, and object
+  ref reset.
+- Added AST compiler regressions for `"use client"`, shebangs, helper collisions,
+  unrelated tags, aliases, lexical shadowing, nested templates, regex/comment
+  interpolation syntax, quoted `>` attributes, and direct component references.
+- Added spread regressions for stale nested `attrs` and `dataset` ownership.
+- Added global installation lifecycle coverage for custom aliases, nested
+  installs, external global takeover, and configuration reset.
+- Added object-prop patch coverage for class/style reconciliation, special data
+  attributes, and explicit raw HTML sinks.
+
+### Documentation
+
+- Added `ARCHITECTURE.md` with dependency, ownership, package-surface, cache, and
+  runtime/compiler invariants.
+- Added `COMPILER.md` documenting the AST pipeline, binding resolution,
+  deoptimization rules, runtime boundary, and parity testing contract.
+
+
 ## Unreleased - Automatic event delegation and debug telemetry
 
 ### Fixed
