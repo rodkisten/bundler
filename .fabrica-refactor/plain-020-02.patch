@@ -1,0 +1,53 @@
+-  part?: Extract<TemplatePart, { type: "component" }>,
+-  dynamicPropParts: DynamicComponentPropPart[] = [],
+-): void {
+-  if (!(node instanceof HTMLTemplateElement)) {
+-    return;
+-  }
+-
+-  const runtime = getCurrentFabricaRuntime();
+-  const componentName = part?.name || readComponentName(node);
+-  const componentValue = typeof value === "function"
+-    ? value
+-    : componentName
+-      ? runtime.registry.resolve(componentName)
+-      : undefined;
+-  const marker = document.createComment(componentName ? `fabrica:component-tag:${componentName}` : "fabrica:component-tag");
+-
+-  node.parentNode?.insertBefore(marker, node);
+-  node.remove();
+-
+-  const childPart = createChildPart(marker);
+-
+-  if (typeof componentValue !== "function") {
+-    childPart.set(createMissingComponentFallback(componentName || "unknown") as RenderValue);
+-    return;
+-  }
+-
+-  const owner = createOwner({ parent: getOwner(), name: `fabrica.componentTag:${componentName || "anonymous"}` });
+-  registerCleanup(childPart.start, () => disposeOwner(owner));
+-
+-  const renderComponent = (): void => {
+-    runWithFabricaRuntime(runtime, () => {
+-      const staticProps = part?.staticProps;
+-      const dynamicProps = dynamicPropParts.length > 0
+-        ? readDynamicComponentProps(dynamicPropParts, values, componentValue)
+-        : null;
+-      const hasCompiledChildren = Boolean(part?.hasStaticChildren || (part?.orderedChildParts?.length ?? 0) > 0);
+-      const props = dynamicProps
+-        ? { ...(staticProps ?? null), ...dynamicProps }
+-        : hasCompiledChildren
+-          ? staticProps
+-            ? { ...staticProps }
+-            : {}
+-          : staticProps ?? {};
+-      const hasMeaningfulChildren = hasCompiledChildren
+-        && hasPotentialComponentChildren(part, values, node.content);
+-
+-      /**
+-       * Keep the historical DocumentFragment children contract while delaying
+-       * nested part binding until the fragment is appended under this owner.
+-       */
+-      let children: DocumentFragment | null = null;
+-
+-      if (hasMeaningfu
