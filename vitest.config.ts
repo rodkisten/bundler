@@ -42,8 +42,8 @@ export default defineConfig({
   },
 
   test: {
-    testTimeout: 15_000,
-    hookTimeout: 15_000,
+    testTimeout: 5_000,
+    hookTimeout: 5_000,
 
     // Enable the debug reporter only when DEBUG_TESTS=true. Its output uses
     // regular stdout so the latest START/heartbeat line remains visible when
@@ -53,7 +53,7 @@ export default defineConfig({
     reporters: IS_GITHUB_ACTIONS
       ? [
           ...(DEBUG_TESTS ? [new VitestDebugReporter()] : []),
-          "verbose",
+         // "verbose",
           "github-actions",
           "hanging-process",
         ]
