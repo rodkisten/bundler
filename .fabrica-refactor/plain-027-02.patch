@@ -1,0 +1,83 @@
++      resolvedValue == null ||
++      resolvedValue === false ||
++      resolvedValue === true
++    ) {
++      if (currentType !== "empty") {
++        clearRange(start, end);
++        currentType = "empty";
++        currentText = "";
++        textNode = null;
++        currentNode = null;
++      }
++
++      return;
++    }
++
++    if (Array.isArray(resolvedValue)) {
++      clearRange(start, end);
++
++      for (let index = 0; index < resolvedValue.length; index += 1) {
++        appendValue(end.parentNode, resolvedValue[index], end);
++      }
++
++      currentType = "array";
++      currentText = "";
++      textNode = null;
++      currentNode = null;
++      return;
++    }
++
++    if (isRawHtml(resolvedValue)) {
++      if (
++        currentType === "raw" &&
++        currentText === resolvedValue.value
++      ) {
++        return;
++      }
++
++      clearRange(start, end);
++      end.parentNode?.insertBefore(
++        cloneRawHtmlContent(resolvedValue.value),
++        end,
++      );
++      currentType = "raw";
++      currentText = resolvedValue.value;
++      textNode = null;
++      currentNode = null;
++      return;
++    }
++
++    if (
++      isComponent(resolvedValue) ||
++      isComponentRenderRequest(resolvedValue) ||
++      isElementPayload(resolvedValue) ||
++      isComponentPayload(resolvedValue) ||
++      isDomBag(resolvedValue)
++    ) {
++      clearRange(start, end);
++      appendValue(end.parentNode, resolvedValue, end);
++      currentType = "renderable";
++      currentText = "";
++      textNode = null;
++      currentNode = null;
++      return;
++    }
++
++    if (isDomNode(resolvedValue)) {
++      if (
++        currentType === "node" &&
++        currentNode === resolvedValue
++      ) {
++        return;
++      }
++
++      clearRange(start, end);
++      appendValue(end.parentNode, resolvedValue, end);
++      currentType = "node";
++      currentText = "";
++      textNode = null;
++      currentNode = resolvedValue;
++      return;
++    }
++
++    const nextText = String(resolvedValue);
