@@ -1,0 +1,565 @@
+== "dataset") {
++    clearTrackedDataset(element, previous);
++    return;
++  }
++
++  if (key === "ref") {
++    previous.refCleanup?.();
++    previous.refCleanup = null;
++    return;
++  }
++
++  if (isSpecialAttributeName(key)) {
++    const state = previous.special!.get(key);
++    if (state) clearSpecialAttributeState(element, state);
++    previous.special!.delete(key);
++    return;
++  }
++
++  if (key === "on" || key.startsWith("on") || key.startsWith("@")) {
++    removeEventsFromSource(previous, key);
++    return;
++  }
++
++  if (
++    !key.startsWith("data-") &&
++    !key.startsWith("aria-") &&
++    key in element &&
++    typeof (element as unknown as Record<string, unknown>)[key] === "boolean"
++  ) {
++    (element as unknown as Record<string, unknown>)[key] = false;
++  }
++
++  element.removeAttribute(key);
++}
++
++function createSpreadBindingState(): SpreadBindingState {
++  return ensureSpreadBindingState({
++    keys: new Set<string>(),
++    events: new Map<string, EventListener>(),
++    refCleanup: null,
++  });
++}
++
++function ensureSpreadBindingState(
++  state: SpreadBindingState,
++): SpreadBindingState {
++  state.values ??= new Map<string, unknown>();
++  state.eventCleanups ??= new Map<string, () => void>();
++  state.eventVersions ??= new Map<string, number>();
++  state.eventSources ??= new Map<string, string>();
++  state.attrs ??= new Set<string>();
++  state.dataset ??= new Set<string>();
++  state.special ??= new Map<string, SpecialAttributeState>();
++  return state;
++}
++
++function reconcileSpreadAttributes(
++  element: Element,
++  value: unknown,
++  state: SpreadBindingState,
++): void {
++  const nextNames = new Set<string>();
++  if (value && typeof value === "object") {
++    for (const [name, item] of Object.entries(
++      value as Record<string, unknown>,
++    )) {
++      nextNames.add(name);
++      setPropertyOrAttribute(element, name, readValue(item));
++    }
++  }
++
++  for (const name of state.attrs!) {
++    if (!nextNames.has(name)) removeNestedAttribute(element, name);
++  }
++  state.attrs = nextNames;
++}
++
++function reconcileSpreadDataset(
++  element: Element,
++  value: unknown,
++  state: SpreadBindingState,
++): void {
++  if (!(element instanceof HTMLElement)) return;
++
++  const nextNames = new Set<string>();
++  if (value && typeof value === "object") {
++    for (const [name, item] of Object.entries(
++      value as Record<string, unknown>,
++    )) {
++      nextNames.add(name);
++      const resolved = readValue(item);
++      if (resolved == null) delete element.dataset[name];
++      else element.dataset[name] = String(resolved);
++    }
++  }
++
++  for (const name of state.dataset!) {
++    if (!nextNames.has(name)) delete element.dataset[name];
++  }
++  state.dataset = nextNames;
++}
++
++function reconcileEventMap(
++  element: Element,
++  value: unknown,
++  previous: SpreadBindingState,
++  next: SpreadBindingState,
++  eventVersion: number,
++): void {
++  if (!value || typeof value !== "object") {
++    removeEventsFromSource(previous, "on");
++    return;
++  }
++
++  for (const [eventName, listener] of Object.entries(
++    value as Record<string, unknown>,
++  )) {
++    setSpreadEvent(
++      element,
++      eventName,
++      listener,
++      previous,
++      next,
++      eventVersion,
++      "on",
++    );
++  }
++}
++
++function removeStaleSpreadEvents(
++  element: Element,
++  state: SpreadBindingState,
++  eventVersion: number,
++): void {
++  void element;
++  for (const key of Array.from(state.events.keys())) {
++    if (state.eventVersions!.get(key) === eventVersion) continue;
++    state.eventCleanups!.get(key)?.();
++    state.events.delete(key);
++    state.eventCleanups!.delete(key);
++    state.eventVersions!.delete(key);
++    state.eventSources!.delete(key);
++  }
++}
++
++function removeEventsFromSource(
++  state: SpreadBindingState,
++  source: string,
++): void {
++  for (const [key, eventSource] of Array.from(state.eventSources!)) {
++    if (eventSource !== source) continue;
++    state.eventCleanups!.get(key)?.();
++    state.events.delete(key);
++    state.eventCleanups!.delete(key);
++    state.eventVersions!.delete(key);
++    state.eventSources!.delete(key);
++  }
++}
++
++function clearTrackedAttributes(
++  element: Element,
++  state: SpreadBindingState,
++): void {
++  for (const name of state.attrs!) removeNestedAttribute(element, name);
++  state.attrs!.clear();
++}
++
++function clearTrackedDataset(
++  element: Element,
++  state: SpreadBindingState,
++): void {
++  if (element instanceof HTMLElement) {
++    for (const name of state.dataset!) delete element.dataset[name];
++  }
++  state.dataset!.clear();
++}
++
++function removeNestedAttribute(element: Element, name: string): void {
++  if (
++    !name.startsWith("data-") &&
++    !name.startsWith("aria-") &&
++    name in element &&
++    typeof (element as unknown as Record<string, unknown>)[name] === "boolean"
++  ) {
++    (element as unknown as Record<string, unknown>)[name] = false;
++  }
++  element.removeAttribute(name);
++}
++
++function canSkipSpreadProperty(key: string): boolean {
++  return (
++    key !== "ref" &&
++    key !== "attrs" &&
++    key !== "dataset" &&
++    key !== "on" &&
++    !isSpecialAttributeName(key) &&
++    !key.startsWith("@") &&
++    !(key.startsWith("on") && key.length > 2)
++  );
++}
+diff --git a/fabrica/boundary.ts b/fabrica/boundary.ts
+index 0a6389f7cc9dcc7348d7549eb3a5ba73b353de9d..837f7e37c01610f36ef5f1a01558ff96b213ad90 100644
+--- a/fabrica/boundary.ts
++++ b/fabrica/boundary.ts
+@@ -1,7 +1,7 @@
+ import { onOwnerError } from "@rodkisten/broto/owner";
+ import { signal } from "@rodkisten/broto/reactivity";
+-import { component } from "@rodkisten/fabrica/component";
+-import type { BoundaryOptions, RenderValue } from "@rodkisten/fabrica/types";
++import { component } from "./component.js";
++import type { BoundaryOptions, RenderValue } from "./types.js";
+ 
+ /**
+  * Creates an error boundary component.
+diff --git a/fabrica/browser-entry.ts b/fabrica/browser-entry.ts
+index a7445743d6167b56b540d2d085fd4f4f58fb26e7..a246f0b4febbec610a62dba78538c39995afec21 100644
+--- a/fabrica/browser-entry.ts
++++ b/fabrica/browser-entry.ts
+@@ -3,7 +3,12 @@
+  * @global Fabrica
+  * @package fabrica
+  * @tags dom reactive templates userscripts
+- * @description Fine-grained reactive DOM runtime bundled as a standalone browser global.
++ * @description Fine-grained reactive DOM runtime as a browser global.
+  */
+-export * from "@rodkisten/fabrica";
+-export { default } from "@rodkisten/fabrica";
++export * from "./index.js";
++
++import Fabrica from "./index.js";
++
++Fabrica.install();
++
++export default Fabrica;
+diff --git a/fabrica/compiler-core.ts b/fabrica/compiler-core.ts
+deleted file mode 100644
+index ff6a957b0537ff807a8cf1608f954463f7f6b455..0000000000000000000000000000000000000000
+--- a/fabrica/compiler-core.ts
++++ /dev/null
+@@ -1,564 +0,0 @@
+-import {
+-  ATTR_TOKEN_RE,
+-  DIRECT_COMPONENT_IDENT_RE,
+-  IMPORT_CREATE_ELEMENT_RE,
+-  IMPORT_CREATE_TEMPLATE_RE,
+-  NODE_ELEMENT,
+-  NODE_TEXT,
+-  NODE_VALUE,
+-  OPEN_TAG_RE,
+-  PROP_COMPOUND,
+-  PROP_SPREAD,
+-  PROP_STATIC,
+-  PROP_VALUE,
+-  UPPERCASE_TAG_RE,
+-} from "@rodkisten/fabrica/compiler-constants";
+-import {
+-  buildCompiledRuntimeSource,
+-  containsUnsupportedTemplateShape,
+-  parseCompiledNodes,
+-  type CompiledNode,
+-  type CompiledProp,
+-} from "@rodkisten/fabrica/compiler-parse";
+-import {
+-  applyEdits,
+-  findTemplateEnd,
+-  isTagBoundary,
+-  isVoidTag,
+-  normalizeAttributeName,
+-  type SourceEdit,
+-  unquote,
+-} from "@rodkisten/fabrica/compiler-utils";
+-
+-// Re-export defaults used only by this module — avoid circular imports by inlining.
+-const COMPILER_DEFAULT_IMPORT_PATH = "./compiler-runtime";
+-const COMPILER_HTML_TAGS = ["html"];
+-const COMPILER_JSX_HTML_TAGS = ["jsx.html", "html.jsx"];
+-
+-export interface FabricaCompileSourceOptions {
+-  readonly filename?: string;
+-  readonly importPath?: string;
+-  readonly htmlTags?: readonly string[];
+-  readonly jsxHtmlTags?: readonly string[];
+-  /** Emits uppercase component tags as direct lexical references for tree-shaking. */
+-  readonly directComponentReferences?: boolean;
+-}
+-
+-export interface FabricaCompileSourceResult {
+-  readonly code: string;
+-  readonly changed: boolean;
+-  readonly manifest: readonly FabricaCompiledTemplateManifestEntry[];
+-}
+-
+-export interface FabricaCompiledTemplateManifestEntry {
+-  readonly id: string;
+-  readonly filename?: string;
+-  readonly start: number;
+-  readonly end: number;
+-  readonly tag: string;
+-  readonly dynamicValues: number;
+-  readonly fallback: boolean;
+-}
+-
+-interface InternalManifestEntry {
+-  readonly filename?: string;
+-  readonly start: number;
+-  readonly end: number;
+-  readonly tag: string;
+-  readonly dynamicValues: number;
+-  readonly fallback: boolean;
+-}
+-
+-interface CompileFragmentResult {
+-  readonly code: string;
+-  readonly changed: boolean;
+-}
+-
+-interface TemplateExpressionPart {
+-  readonly value: string;
+-  /** Start offset relative to the source fragment passed to `readTemplateParts`. */
+-  readonly start: number;
+-}
+-
+-interface TemplateParts {
+-  readonly strings: string[];
+-  readonly expressions: TemplateExpressionPart[];
+-}
+-
+-/**
+- * Compiles Fábrica `html` / `jsx.html` template tags into runtime-backed expressions.
+- *
+- * Nested tagged templates inside `${...}` expressions are compiled recursively before
+- * their parent expression is emitted. This keeps map/ternary/component sub-templates
+- * on the same compiled path instead of leaving runtime `html``...`` ` islands behind.
+- */
+-export function compileFabricaSource(
+-  source: string,
+-  options: FabricaCompileSourceOptions = {},
+-): FabricaCompileSourceResult {
+-  const manifestEntries: InternalManifestEntry[] = [];
+-  const tags = Array.from(
+-    new Set([
+-      ...(options.htmlTags ?? COMPILER_HTML_TAGS),
+-      ...(options.jsxHtmlTags ?? COMPILER_JSX_HTML_TAGS),
+-    ]),
+-  );
+-  const compiled = compileSourceFragment(
+-    source,
+-    options,
+-    tags,
+-    manifestEntries,
+-    0,
+-  );
+-
+-  if (!compiled.changed) {
+-    return { code: source, changed: false, manifest: [] };
+-  }
+-
+-  const manifest = manifestEntries
+-    .slice()
+-    .sort((a, b) => a.start - b.start || b.end - a.end)
+-    .map((entry, index) => ({
+-      id: `fabrica-compiled-${index + 1}`,
+-      ...entry,
+-    }));
+-  const code = ensureCompiledImport(
+-    compiled.code,
+-    options.importPath ?? COMPILER_DEFAULT_IMPORT_PATH,
+-  );
+-  return { code, changed: true, manifest };
+-}
+-
+-function compileSourceFragment(
+-  source: string,
+-  options: FabricaCompileSourceOptions,
+-  tags: readonly string[],
+-  manifest: InternalManifestEntry[],
+-  sourceOffset: number,
+-): CompileFragmentResult {
+-  const edits: SourceEdit[] = [];
+-
+-  for (const tag of tags) {
+-    let searchFrom = 0;
+-    const marker = `${tag}\``;
+-    while (searchFrom < source.length) {
+-      const start = source.indexOf(marker, searchFrom);
+-      if (start < 0) break;
+-      if (!isTagBoundary(source, start) || !isExecutableSourcePosition(source, start)) {
+-        searchFrom = start + marker.length;
+-        continue;
+-      }
+-      const templateStart = start + tag.length;
+-      const templateEnd = findTemplateEnd(source, templateStart);
+-      if (templateEnd < 0) {
+-        searchFrom = start + marker.length;
+-        continue;
+-      }
+-
+-      const raw = source.slice(templateStart + 1, templateEnd);
+-      const templateParts = readTemplateParts(source, templateStart, templateEnd);
+-      const expressions = templateParts.expressions.map((part) =>
+-        compileSourceFragment(
+-          part.value,
+-          options,
+-          tags,
+-          manifest,
+-          sourceOffset + part.start,
+-        ).code,
+-      );
+-      const dynamicValues = expressions.length;
+-      const compiled =
+-        dynamicValues === 0 ? compileStaticTemplateToExpression(raw) : null;
+-      const dynamicCompiled = compiled
+-        ? null
+-        : compileDynamicTemplateToExpression(
+-            tag,
+-            templateParts.strings,
+-            expressions,
+-            options.directComponentReferences ?? false,
+-          );
+-      const expression =
+-        compiled?.expression ??
+-        dynamicCompiled ??
+-        emitCompiledTemplateFallbackExpression(
+-          tag,
+-          templateParts.strings,
+-          expressions,
+-        );
+-
+-      edits.push({ start, end: templateEnd + 1, value: expression });
+-      manifest.push({
+-        ...(options.filename ? { filename: options.filename } : {}),
+-        start: sourceOffset + start,
+-        end: sourceOffset + templateEnd + 1,
+-        tag: compiled?.rootTag ?? "template",
+-        dynamicValues,
+-        fallback: dynamicCompiled == null && compiled == null,
+-      });
+-      searchFrom = templateEnd + 1;
+-    }
+-  }
+-
+-  if (edits.length === 0) return { code: source, changed: false };
+-  return {
+-    code: applyEdits(
+-      source,
+-      edits.sort((a, b) => a.start - b.start),
+-    ),
+-    changed: true,
+-  };
+-}
+-
+-
+-/**
+- * Returns whether an offset belongs to executable source instead of documentation
+- * or a quoted literal. The compiler intentionally performs lightweight lexical
+- * filtering here before its template-specific parser takes over.
+- *
+- * This prevents examples such as `html``...``` inside TSDoc, comments, strings,
+- * and unrelated template literals from being mistaken for real Fábrica tags.
+- * Nested Fábrica templates inside `${...}` expressions are still handled by the
+- * recursive expression compilation performed after the outer template is parsed.
+- */
+-function isExecutableSourcePosition(source: string, target: number): boolean {
+-  type LexicalState = "code" | "line-comment" | "block-comment" | "single-quote" | "double-quote" | "template";
+-
+-  let state: LexicalState = "code";
+-  let escaped = false;
+-
+-  for (let index = 0; index < target; index += 1) {
+-    const char = source[index]!;
+-    const next = source[index + 1];
+-
+-    if (state === "line-comment") {
+-      if (char === "\n" || char === "\r") state = "code";
+-      continue;
+-    }
+-
+-    if (state === "block-comment") {
+-      if (char === "*" && next === "/") {
+-        state = "code";
+-        index += 1;
+-      }
+-      continue;
+-    }
+-
+-    if (state === "single-quote" || state === "double-quote" || state === "template") {
+-      if (escaped) {
+-        escaped = false;
+-        continue;
+-      }
+-
+-      if (char === "\\") {
+-        escaped = true;
+-        continue;
+-      }
+-
+-      const quote = state === "single-quote" ? "'" : state === "double-quote" ? '"' : "`";
+-      if (char === quote) state = "code";
+-      continue;
+-    }
+-
+-    if (char === "/" && next === "/") {
+-      state = "line-comment";
+-      index += 1;
+-      continue;
+-    }
+-
+-    if (char === "/" && next === "*") {
+-      state = "block-comment";
+-      index += 1;
+-      continue;
+-    }
+-
+-    if (char === "'") {
+-      state = "single-quote";
+-      continue;
+-    }
+-
+-    if (char === '"') {
+-      state = "double-quote";
+-      continue;
+-    }
+-
+-    if (char === "`") state = "template";
+-  }
+-
+-  return state === "code";
+-}
+-
+-interface CompiledTemplateExpression {
+-  readonly expression: string;
+-  readonly rootTag: string;
+-}
+-
+-interface ParsedNode {
+-  type: "element";
+-  tag: string;
+-  props: Record<string, string | true>;
+-  children: ParsedChild[];
+-}
+-type ParsedChild = ParsedNode | { type: "text"; value: string };
+-
+-function compileStaticTemplateToExpression(
+-  raw: string,
+-): CompiledTemplateExpression | null {
+-  if (
+-    raw.includes("${") ||
+-    raw.includes("<!") ||
+-    raw.includes("<template") ||
+-    raw.includes("</${")
+-  ) {
+-    return null;
+-  }
+-  const root = parseSingleRoot(raw.trim());
+-  if (!root) return null;
+-  return { expression: emitNode(root), rootTag: root.tag };
+-}
+-
+-function compileDynamicTemplateToExpression(
+-  tag: string,
+-  strings: readonly string[],
+-  expressions: readonly string[],
+-  directComponentReferences: boolean,
+-): string | null {
+-  if (containsUnsupportedTemplateSha
