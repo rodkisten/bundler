@@ -18,7 +18,7 @@ import {
   styleMap,
   virtualRepeat,
 } from "@rodkisten/fabrica";
-import type { RenderValue } from "@rodkisten/fabrica/types";
+import type { RenderValue } from "../types.js";
 import {
   assertAtomicCssArtifact,
   css as cipoCss,
