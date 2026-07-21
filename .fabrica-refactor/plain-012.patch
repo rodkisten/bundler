@@ -1,0 +1,490 @@
+on(statement)) {
++      const clause = statement.importClause;
++      if (clause?.name) names.add(clause.name.text);
++      const bindings = clause?.namedBindings;
++      if (bindings && ts.isNamespaceImport(bindings)) {
++        names.add(bindings.name.text);
++      } else if (bindings) {
++        for (const element of bindings.elements) names.add(element.name.text);
++      }
++      continue;
++    }
++
++    if (ts.isVariableStatement(statement)) {
++      for (const declaration of statement.declarationList.declarations) {
++        collectBindingName(declaration.name, names);
++      }
++      continue;
++    }
++
++    if (
++      (ts.isFunctionDeclaration(statement) ||
++        ts.isClassDeclaration(statement) ||
++        ts.isEnumDeclaration(statement)) &&
++      statement.name
++    ) {
++      names.add(statement.name.text);
++    }
++  }
++
++  return names;
++}
++
++function collectBindingName(
++  name: ts.BindingName,
++  output: Set<string>,
++): void {
++  if (ts.isIdentifier(name)) {
++    output.add(name.text);
++    return;
++  }
++  for (const element of name.elements) {
++    if (ts.isOmittedExpression(element)) continue;
++    collectBindingName(element.name, output);
++  }
++}
+diff --git a/fabrica/compiler/runtime/element.ts b/fabrica/compiler/runtime/element.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..aaa6a047a5ef26a73b142f08684c9b34929ca207
+--- /dev/null
++++ b/fabrica/compiler/runtime/element.ts
+@@ -0,0 +1,58 @@
++import { bindTemplateAttribute } from "../../bindings/attribute.js";
++import { appendValue } from "../../render/dom.js";
++import { invokeComponentLike } from "../../render/payload.js";
++import { createElementForTag } from "../utils.js";
++import type { RenderValue } from "../../types.js";
++import type {
++  FabricaCompiledElementProps,
++} from "./types.js";
++
++/**
++ * Creates an element through the canonical Fábrica binding kernel.
++ *
++ * Compiled templates are an execution optimization, not a second renderer.
++ * Every prop therefore flows through `bindTemplateAttribute`, exactly like an
++ * interpreted `html`` ` template, preserving reactivity and cleanup behavior.
++ */
++export function createCompiledElement(
++  tag: string | ((props: FabricaCompiledElementProps) => RenderValue),
++  props: FabricaCompiledElementProps | null,
++  ...children: readonly RenderValue[]
++): RenderValue {
++  if (typeof tag === "function") {
++    return invokeComponentLike(
++      tag,
++      { ...(props ?? {}), children },
++    ) as RenderValue;
++  }
++
++  const element = createElementForTag(tag);
++  applyCompiledProps(element, props);
++  for (const child of children) appendValue(element, child);
++  return element;
++}
++
++/** Creates a document fragment from already compiled children. */
++export function createCompiledFragment(
++  ...children: readonly RenderValue[]
++): DocumentFragment {
++  const fragment = document.createDocumentFragment();
++  for (const child of children) appendValue(fragment, child);
++  return fragment;
++}
++
++/**
++ * Applies compiled template props through the same attribute binder as the
++ * interpreted renderer.
++ */
++export function applyCompiledProps(
++  element: Element,
++  props: FabricaCompiledElementProps | null | undefined,
++): void {
++  if (!props) return;
++
++  for (const [name, value] of Object.entries(props)) {
++    if (name === "children") continue;
++    bindTemplateAttribute(element, name, value as RenderValue);
++  }
++}
+diff --git a/fabrica/compiler-runtime-entities.ts b/fabrica/compiler/runtime/entities.ts
+similarity index 100%
+rename from fabrica/compiler-runtime-entities.ts
+rename to fabrica/compiler/runtime/entities.ts
+diff --git a/fabrica/compiler/runtime/index.ts b/fabrica/compiler/runtime/index.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..231b8b9e8a2944997ecc53bd7dfa407508815280
+--- /dev/null
++++ b/fabrica/compiler/runtime/index.ts
+@@ -0,0 +1,232 @@
++import { html } from "../../render/dom.js";
++import {
++  createHtmlResult,
++  pruneInsignificantWhitespace,
++} from "../../render/html-result.js";
++import { collectCleanupNodes } from "../../render/cleanup.js";
++import {
++  FABRICA_HTML_RUNTIME,
++  getCurrentFabricaRuntime,
++  runWithCurrentFabricaRuntime,
++  runWithFabricaRuntime,
++} from "../../core/runtime-context.js";
++import type {
++  FabricaRuntimeContext,
++  HtmlArtifact,
++  HtmlResult,
++  HtmlTemplateTag,
++  RenderValue,
++} from "../../types.js";
++import {
++  buildCompiledRuntimeSource,
++  containsUnsupportedTemplateShape,
++  parseCompiledNodes,
++} from "../html-parser.js";
++import { normalizeTemplateStrings } from "../utils.js";
++import {
++  appendCompiledNode,
++  normalizeCompactNode,
++} from "./materialize.js";
++import type {
++  RuntimeCompiledTemplate,
++  RuntimeCompiledTemplateInput,
++  RuntimeNode,
++} from "./types.js";
++
++export type {
++  CompactRuntimeCompiledTemplate,
++  CompactRuntimeNode,
++  CompactRuntimeProp,
++  FabricaCompiledElementProps,
++  RuntimeCompiledTemplate,
++  RuntimeCompiledTemplateInput,
++  RuntimeComponent,
++  RuntimeElementNode,
++  RuntimeNode,
++  RuntimeProp,
++  RuntimeTextNode,
++  RuntimeValueNode,
++} from "./types.js";
++
++export {
++  applyCompiledProps,
++  createCompiledElement,
++  createCompiledFragment,
++} from "./element.js";
++
++const CALLSITE_TEMPLATE_CACHE = new WeakMap<
++  TemplateStringsArray,
++  RuntimeCompiledTemplate | null
++>();
++const DYNAMIC_TEMPLATE_CACHE = new Map<
++  string,
++  RuntimeCompiledTemplate | null
++>();
++const DYNAMIC_TEMPLATE_CACHE_LIMIT = 256;
++
++/**
++ * Runtime helper used by the build transform for dynamic templates.
++ *
++ * Parses the template once into a compact tree and materializes each call with
++ * the current interpolation values. Unsupported shapes fall back to `html`` `.
++ */
++export function createCompiledTemplate(
++  input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
++  ...values: readonly RenderValue[]
++): HtmlResult;
++export function createCompiledTemplate(
++  tag: HtmlTemplateTag,
++  input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
++  ...values: readonly RenderValue[]
++): HtmlResult;
++export function createCompiledTemplate(
++  inputOrTag:
++    | HtmlTemplateTag
++    | RuntimeCompiledTemplateInput
++    | TemplateStringsArray
++    | readonly string[],
++  ...inputAndValues: readonly unknown[]
++): HtmlResult {
++  const tagged = typeof inputOrTag === "function";
++  const input = (tagged ? inputAndValues[0] : inputOrTag) as
++    | RuntimeCompiledTemplateInput
++    | TemplateStringsArray
++    | readonly string[];
++  const values = (tagged ? inputAndValues.slice(1) : inputAndValues) as readonly RenderValue[];
++  const boundRuntime = tagged
++    ? (Reflect.get(inputOrTag, FABRICA_HTML_RUNTIME) as FabricaRuntimeContext | undefined)
++    : undefined;
++
++  const materialize = (): HtmlResult => {
++    const runtime = getCurrentFabricaRuntime();
++    const runtimeDefinition = isRuntimeCompiledTemplate(input);
++    const normalizedStrings = runtimeDefinition
++      ? null
++      : normalizeTemplateStrings(input);
++    const compiled = runtimeDefinition
++      ? normalizeRuntimeCompiledTemplate(input)
++      : getCachedCompiledRuntimeTemplate(input, normalizedStrings!);
++
++    if (!compiled) {
++      return html(normalizedStrings!, ...values);
++    }
++
++    const fragment = document.createDocumentFragment();
++    const collected = collectCleanupNodes(() => {
++      for (const node of compiled.nodes) {
++        appendCompiledNode(fragment, node, values);
++      }
++    });
++
++    pruneInsignificantWhitespace(fragment);
++
++    return createHtmlResult(
++      fragment,
++      createCompiledHtmlArtifact(
++        runtimeDefinition ? input : normalizedStrings!,
++        values,
++        runtime,
++      ),
++      {
++        cleanupNodes: collected.nodes,
++        dynamic: collected.nodes.length > 0,
++      },
++    );
++  };
++
++  return boundRuntime
++    ? runWithFabricaRuntime(boundRuntime, materialize)
++    : runWithCurrentFabricaRuntime(materialize);
++}
++
++function createCompiledHtmlArtifact(
++  input: RuntimeCompiledTemplateInput | TemplateStringsArray,
++  values: readonly RenderValue[],
++  runtime: FabricaRuntimeContext,
++): HtmlArtifact {
++  const capturedValues = Object.freeze(
++    Array.from(values),
++  ) as readonly RenderValue[];
++  const artifactStrings = Object.freeze(
++    isRuntimeCompiledTemplate(input) ? [] : Array.from(input),
++  );
++
++  return Object.freeze({
++    kind: "fabrica.html" as const,
++    strings: artifactStrings,
++    values: capturedValues,
++    jsx: false,
++    materialize: () =>
++      runWithFabricaRuntime(runtime, () =>
++        createCompiledTemplate(input, ...capturedValues),
++      ),
++  });
++}
++
++function isRuntimeCompiledTemplate(
++  value: unknown,
++): value is RuntimeCompiledTemplateInput {
++  if (!value || typeof value !== "object") return false;
++  if (Array.isArray((value as { nodes?: unknown }).nodes)) return true;
++  if (!Array.isArray(value)) return false;
++  // Compact definitions are arrays of tuple nodes; template strings are string[].
++  return value.length === 0 || Array.isArray(value[0]);
++}
++
++function normalizeRuntimeCompiledTemplate(
++  input: RuntimeCompiledTemplateInput,
++): RuntimeCompiledTemplate {
++  if (!Array.isArray(input)) return input as RuntimeCompiledTemplate;
++  return { nodes: input.map(normalizeCompactNode) };
++}
++
++function getCachedCompiledRuntimeTemplate(
++  input: TemplateStringsArray | readonly string[],
++  strings: TemplateStringsArray,
++): RuntimeCompiledTemplate | null {
++  if (isTemplateStringsArray(input)) {
++    if (CALLSITE_TEMPLATE_CACHE.has(input)) {
++      return CALLSITE_TEMPLATE_CACHE.get(input) ?? null;
++    }
++    const compiled = compileRuntimeTemplate(strings);
++    CALLSITE_TEMPLATE_CACHE.set(input, compiled);
++    return compiled;
++  }
++
++  const key = JSON.stringify(Array.from(strings));
++  if (DYNAMIC_TEMPLATE_CACHE.has(key)) {
++    const cached = DYNAMIC_TEMPLATE_CACHE.get(key) ?? null;
++    DYNAMIC_TEMPLATE_CACHE.delete(key);
++    DYNAMIC_TEMPLATE_CACHE.set(key, cached);
++    return cached;
++  }
++
++  const compiled = compileRuntimeTemplate(strings);
++  DYNAMIC_TEMPLATE_CACHE.set(key, compiled);
++  if (DYNAMIC_TEMPLATE_CACHE.size > DYNAMIC_TEMPLATE_CACHE_LIMIT) {
++    const oldest = DYNAMIC_TEMPLATE_CACHE.keys().next().value as
++      | string
++      | undefined;
++    if (oldest !== undefined) DYNAMIC_TEMPLATE_CACHE.delete(oldest);
++  }
++  return compiled;
++}
++
++function isTemplateStringsArray(
++  value: TemplateStringsArray | readonly string[],
++): value is TemplateStringsArray {
++  return Array.isArray(value) && Array.isArray(
++    (value as { raw?: unknown }).raw,
++  );
++}
++
++function compileRuntimeTemplate(
++  strings: readonly string[],
++): RuntimeCompiledTemplate | null {
++  if (containsUnsupportedTemplateShape(strings)) return null;
++  const source = buildCompiledRuntimeSource(strings);
++  const roots = parseCompiledNodes<string | ((props: never) => RenderValue)>(
++    source,
++  );
++  return roots ? { nodes: roots as RuntimeNode[] } : null;
++}
+diff --git a/fabrica/compiler-runtime-hydrate.ts b/fabrica/compiler/runtime/materialize.ts
+similarity index 70%
+rename from fabrica/compiler-runtime-hydrate.ts
+rename to fabrica/compiler/runtime/materialize.ts
+index b0fc9f15a31533379b876b08498bb87d097b2733..392965816e8ae2ff4a0dac43a8ce69f07693916f 100644
+--- a/fabrica/compiler-runtime-hydrate.ts
++++ b/fabrica/compiler/runtime/materialize.ts
+@@ -1,10 +1,15 @@
+ import { computed } from "@rodkisten/broto/reactivity";
+-import { appendValue } from "@rodkisten/fabrica/dom";
+-import { toDataAttributeName } from "@rodkisten/fabrica/dom-special-attributes";
+-import { isSignal } from "@rodkisten/fabrica/guards";
+-import { resolveRuntimeComponent } from "@rodkisten/fabrica/runtime-context";
+-import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
+-import type { RenderValue } from "@rodkisten/fabrica/types";
++import { appendValue } from "../../render/dom.js";
++import {
++  mergeComponentDataProps,
++  mergeComponentSpreadProps,
++  normalizeComponentPropName,
++} from "../../bindings/component-props.js";
++import { bindSpreadPart } from "../../bindings/spread.js";
++import { isSignal } from "../../guards.js";
++import { resolveRuntimeComponent } from "../../core/runtime-context.js";
++import { hasReactiveValue, readValue } from "../../core/value.js";
++import type { RenderValue } from "../../types.js";
+ import {
+   NODE_TEXT,
+   NODE_VALUE,
+@@ -13,13 +18,13 @@ import {
+   PROP_STATIC,
+   PROP_VALUE,
+   UPPERCASE_TAG_RE,
+-} from "@rodkisten/fabrica/compiler-constants";
+-import { createElementForTag } from "@rodkisten/fabrica/compiler-utils";
++} from "../constants.js";
++import { createElementForTag } from "../utils.js";
+ import {
+   applyCompiledProps,
+   createCompiledElement,
+-} from "@rodkisten/fabrica/compiler-runtime-element";
+-import { decodeHtmlEntities } from "@rodkisten/fabrica/compiler-runtime-entities";
++} from "./element.js";
++import { decodeHtmlEntities } from "./entities.js";
+ import type {
+   CompactRuntimeNode,
+   CompactRuntimeProp,
+@@ -27,7 +32,7 @@ import type {
+   RuntimeComponent,
+   RuntimeNode,
+   RuntimeProp,
+-} from "@rodkisten/fabrica/compiler-runtime-types";
++} from "./types.js";
+ 
+ export function normalizeCompactNode(node: CompactRuntimeNode): RuntimeNode {
+   if (node[0] === NODE_TEXT) return { type: "text", value: node[1] };
+@@ -87,13 +92,10 @@ export function appendCompiledNode(
+ 
+   for (const prop of node.props) {
+     if (prop.type === "spread") {
+-      applyCompiledProps(
+-        element,
+-        values[prop.index] as FabricaCompiledElementProps,
+-      );
++      bindSpreadPart(element, values[prop.index]);
+       continue;
+     }
+-    props[prop.name] = readCompiledPropValue(prop, values);
++    props[prop.name] = readCompiledAttributeBindingValue(prop, values);
+   }
+ 
+   applyCompiledProps(element, props);
+@@ -166,11 +168,15 @@ function readCompiledComponentProps(
+ 
+   for (const prop of props) {
+     if (prop.type === "spread") {
+-      mergeCompiledComponentSpreadProps(output, values[prop.index]);
++      mergeComponentSpreadProps(
++        output,
++        readValue(values[prop.index]),
++        resolveComponentItemValue,
++      );
+       continue;
+     }
+ 
+-    const name = normalizeCompiledComponentPropName(prop.name);
++    const name = normalizeComponentPropName(prop.name);
+     const rawValue = prop.type === "value" ? values[prop.index] : undefined;
+     const preservedProps = (
+       componentValue as { preserveSignalProps?: ReadonlySet<string> } | null
+@@ -182,9 +188,17 @@ function readCompiledComponentProps(
+         ? rawValue()
+         : readCompiledPropValue(prop, values);
+     if (name === "props") {
+-      mergeCompiledComponentSpreadProps(output, value);
++      mergeComponentSpreadProps(
++        output,
++        readValue(value),
++        resolveComponentItemValue,
++      );
+     } else if (name === ":data") {
+-      mergeCompiledComponentDataProps(output, value);
++      mergeComponentDataProps(
++        output,
++        readValue(value),
++        resolveComponentItemValue,
++      );
+     } else {
+       output[name] = value;
+     }
+@@ -193,56 +207,38 @@ function readCompiledComponentProps(
+   return output;
+ }
+ 
+-function mergeCompiledComponentSpreadProps(
+-  target: Record<string, unknown>,
+-  value: unknown,
+-): void {
+-  const resolved = readValue(value);
+-  if (!resolved || typeof resolved !== "object") return;
+-
+-  for (const [name, item] of Object.entries(
+-    resolved as Record<string, unknown>,
+-  )) {
+-    target[normalizeCompiledComponentPropName(name)] = isSignal(item)
+-      ? item()
+-      : item;
+-  }
++function resolveComponentItemValue(value: unknown): unknown {
++  return isSignal(value) ? value() : value;
+ }
+ 
+-function mergeCompiledComponentDataProps(
+-  target: Record<string, unknown>,
+-  value: unknown,
+-): void {
+-  const resolved = readValue(value);
+-  if (!resolved || typeof resolved !== "object") return;
+-  const source = resolved as Record
