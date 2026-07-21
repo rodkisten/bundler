@@ -12,9 +12,13 @@ function runtimeFromWindow(): typeof devtools | undefined {
   const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
 
   return (
-    (api as { devtools?: typeof devtools; default?: typeof devtools } | undefined)?.devtools
-    ?? (api as { default?: typeof devtools } | undefined)?.default
-    ?? api
+    (
+      api as
+        | { devtools?: typeof devtools; default?: typeof devtools }
+        | undefined
+    )?.devtools ??
+    (api as { default?: typeof devtools } | undefined)?.default ??
+    api
   );
 }
 
@@ -31,7 +35,9 @@ function expectCompiledDevtoolsBundle(bundle: string): void {
   expect(bundle).toContain("createCompiledTemplate");
 
   expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
-  expect(bundle).not.toMatch(/styled(?:\$\d+)?\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
+  expect(bundle).not.toMatch(
+    /styled(?:\$\d+)?\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s,
+  );
   expect(bundle).not.toContain("@theme {");
   expect(bundle).not.toContain("@breakpoints {");
   expect(bundle).not.toContain("theme-validation: warn");
@@ -40,7 +46,8 @@ function expectCompiledDevtoolsBundle(bundle: string): void {
   // Production class and component identifiers are intentionally eligible for
   // compaction/mangling. Runtime smoke assertions below prove that every panel
   // still mounts, so the bundle check should not require debug display names.
-  // TSDoc examples may contain `.css`` text; executable Rod styled templates must not.
+  // TSDoc examples may contain `.css`` text. Executable Rod styled
+  // templates must not remain in the compiled bundle.
 }
 
 function expectStylesInjected(root: ShadowRoot): void {
@@ -50,16 +57,33 @@ function expectStylesInjected(root: ShadowRoot): void {
 
   expect(styleText.length).toBeGreaterThan(1000);
   expect(styleText).toContain("var(--rd-colors-");
-  const compiledClass = Array.from(root.querySelectorAll<HTMLElement>("[class]"))
+  const compiledClass = Array.from(
+    root.querySelectorAll<HTMLElement>("[class]"),
+  )
     .flatMap((element) => Array.from(element.classList))
-    .find((className) => className.startsWith("rd-") && styleText.includes(`.${className}`));
+    .find(
+      (className) =>
+        className.startsWith("rd-") && styleText.includes(`.${className}`),
+    );
 
   expect(compiledClass).toBeDefined();
-  expect(root.querySelector("#cipo-runtime-style, style[data-cipo='runtime']")).toBeInstanceOf(HTMLStyleElement);
+  expect(
+    root.querySelector("#cipo-runtime-style, style[data-cipo='runtime']"),
+  ).toBeInstanceOf(HTMLStyleElement);
   expect(document.getElementById("cipo-runtime-style")).toBeNull();
 
-  const tokenPattern =
-    /(?:^|[^A-Za-z0-9_-])\$(?:background|backgroundDark|border|primary|foreground|accent|comment|danger|success|selectedForeground|highlight|contrast|operator|tag|attr|string|var)\b|\$font\.(?:ui|mono)\b|\$shadow\.[a-zA-Z_][\w.]*|\$\$(?:safeBottom|controlHeight)\b/g;
+  const tokenPattern = new RegExp(
+    [
+      "(?:^|[^A-Za-z0-9_-])\\$",
+      "(?:background|backgroundDark|border|primary|foreground|accent|",
+      "comment|danger|success|selectedForeground|highlight|contrast|",
+      "operator|tag|attr|string|var)\\b",
+      "|\\$font\\.(?:ui|mono)\\b",
+      "|\\$shadow\\.[a-zA-Z_][\\w.]*",
+      "|\\$\\$(?:safeBottom|controlHeight)\\b",
+    ].join(""),
+    "g",
+  );
 
   const leakedTokens = [...styleText.matchAll(tokenPattern)].map((match) => {
     const index = match.index ?? 0;
@@ -78,7 +102,10 @@ function expectVisiblePanel(root: ShadowRoot, name: string): HTMLElement {
 
   expect(panel, `panel "${name}" should exist`).toBeInstanceOf(HTMLElement);
   expect(panel?.hidden, `panel "${name}" should not be hidden`).toBe(false);
-  expect(panel?.childElementCount, `panel "${name}" should render children`).toBeGreaterThan(0);
+  expect(
+    panel?.childElementCount,
+    `panel "${name}" should render children`,
+  ).toBeGreaterThan(0);
   return panel!;
 }
 
@@ -104,8 +131,13 @@ function expectPanelMounted(root: ShadowRoot, name: string): HTMLElement {
   const panel = root.querySelector<HTMLElement>(`[data-tool="${name}"]`);
 
   expect(tab, `tab "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
-  expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(HTMLElement);
-  expect(panel?.childElementCount, `panel "${name}" should have rendered content`).toBeGreaterThan(0);
+  expect(panel, `panel "${name}" should be rendered`).toBeInstanceOf(
+    HTMLElement,
+  );
+  expect(
+    panel?.childElementCount,
+    `panel "${name}" should have rendered content`,
+  ).toBeGreaterThan(0);
 
   return panel!;
 }
@@ -113,7 +145,10 @@ function expectPanelMounted(root: ShadowRoot, name: string): HTMLElement {
 describe("RodEruda IIFE bundle mount", () => {
   beforeEach(() => {
     polyfillBrowserApis();
-    document.documentElement.innerHTML = "<head><title>Fixture</title></head><body><main id='app'>Hello</main></body>";
+    document.documentElement.innerHTML = [
+      "<head><title>Fixture</title></head>",
+      "<body><main id='app'>Hello</main></body>",
+    ].join("");
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -123,173 +158,253 @@ describe("RodEruda IIFE bundle mount", () => {
     vi.restoreAllMocks();
   });
 
-  it("mounts the shell and renders styled Fabrica panels from the built IIFE bundle", async () => {
-    fs.rmSync(bundlePath, { force: true });
+  it(
+    "mounts the shell and renders styled Fabrica panels from the built " +
+      "IIFE bundle",
+    async () => {
+      fs.rmSync(bundlePath, { force: true });
 
-    const { build } = await import("vite");
-    const config = (await import("@rodkisten/devtools/vite.config")).default as any;
+      const { build } = await import("vite");
+      const config = (await import("@rodkisten/devtools/vite.config"))
+        .default as any;
 
-    await build({
-      ...config,
-      configFile: false,
-      build: {
-        ...config.build,
-        emptyOutDir: false,
-        outDir: path.resolve(process.cwd(), "dist"),
-        minify: false,
-        lib: {
-          ...config.build.lib,
-          formats: ["iife"],
-          fileName: () => "devtools.iife.js",
+      await build({
+        ...config,
+        configFile: false,
+        plugins: (config.plugins ?? []).filter(
+          (plugin: { name?: string } | null | false) =>
+            plugin && plugin.name !== "roderuda-devtools-landing",
+        ),
+        build: {
+          ...config.build,
+          emptyOutDir: false,
+          outDir: path.resolve(process.cwd(), "dist"),
+          minify: false,
+          lib: {
+            ...config.build.lib,
+            formats: ["iife"],
+            fileName: () => "devtools.iife.js",
+          },
         },
-      },
-    });
+      });
 
-    expect(fs.existsSync(bundlePath)).toBe(true);
+      expect(fs.existsSync(bundlePath)).toBe(true);
 
-    const bundle = fs.readFileSync(bundlePath, "utf8");
+      const bundle = fs.readFileSync(bundlePath, "utf8");
 
-    expectCompiledDevtoolsBundle(bundle);
+      expectCompiledDevtoolsBundle(bundle);
 
-    window.eval(bundle);
+      window.eval(bundle);
 
-    const runtime = runtimeFromWindow();
-    expect(runtime).toBeDefined();
+      const runtime = runtimeFromWindow();
+      expect(runtime).toBeDefined();
 
-    runtime!.init({
-      autoScale: false,
-      tool: ["console", "elements", "network", "resources", "sources", "info"],
-      debug: false,
-    });
+      runtime!.init({
+        autoScale: false,
+        tool: [
+          "console",
+          "elements",
+          "network",
+          "resources",
+          "sources",
+          "info",
+        ],
+        debug: false,
+      });
 
-    expect(runtime!.isInitialized()).toBe(true);
-    expect(runtime!.get("console")).toBeDefined();
-    expect(runtime!.get("elements")).toBeDefined();
-    expect(runtime!.get("network")).toBeDefined();
-    expect(runtime!.get("resources")).toBeDefined();
-    expect(runtime!.get("sources")).toBeDefined();
-    expect(runtime!.get("info")).toBeDefined();
+      expect(runtime!.isInitialized()).toBe(true);
+      expect(runtime!.get("console")).toBeDefined();
+      expect(runtime!.get("elements")).toBeDefined();
+      expect(runtime!.get("network")).toBeDefined();
+      expect(runtime!.get("resources")).toBeDefined();
+      expect(runtime!.get("sources")).toBeDefined();
+      expect(runtime!.get("info")).toBeDefined();
 
-    const root = shadowRoot();
+      const root = shadowRoot();
 
-    expect(root.querySelector("[data-roderuda-root]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-roderuda-shell-ref='entryButton']")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-roderuda-shell-ref='devtools']")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-roderuda-shell-ref='tools']")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("fabrica-component-error")).toBeNull();
-    expect(root.querySelector("[data-roderuda-shell-ref='tabbar']")?.textContent).not.toContain("[object Object]");
+      expect(root.querySelector("[data-roderuda-root]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(
+        root.querySelector("[data-roderuda-shell-ref='entryButton']"),
+      ).toBeInstanceOf(HTMLElement);
+      expect(
+        root.querySelector("[data-roderuda-shell-ref='devtools']"),
+      ).toBeInstanceOf(HTMLElement);
+      expect(
+        root.querySelector("[data-roderuda-shell-ref='tabbar']"),
+      ).toBeInstanceOf(HTMLElement);
+      expect(
+        root.querySelector("[data-roderuda-shell-ref='tools']"),
+      ).toBeInstanceOf(HTMLElement);
+      expect(root.querySelector("fabrica-component-error")).toBeNull();
+      expect(
+        root.querySelector("[data-roderuda-shell-ref='tabbar']")?.textContent,
+      ).not.toContain("[object Object]");
 
-    const entry = root.querySelector<HTMLButtonElement>(
-      "[data-roderuda-shell-ref='entryButton']",
-    );
-    const dock = root.querySelector<HTMLElement>(
-      "[data-roderuda-shell-ref='devtools']",
-    );
+      const entry = root.querySelector<HTMLButtonElement>(
+        "[data-roderuda-shell-ref='entryButton']",
+      );
+      const dock = root.querySelector<HTMLElement>(
+        "[data-roderuda-shell-ref='devtools']",
+      );
 
-    expect(entry).toBeInstanceOf(HTMLButtonElement);
-    expect(dock).toBeInstanceOf(HTMLElement);
-    expect(runtime!.get()?.isVisible()).toBe(false);
-    expect(dock?.dataset.active).toBe("false");
+      expect(entry).toBeInstanceOf(HTMLButtonElement);
+      expect(dock).toBeInstanceOf(HTMLElement);
+      expect(runtime!.get()?.isVisible()).toBe(false);
+      expect(dock?.dataset.active).toBe("false");
 
-    // Exercise the production IIFE path. EntryBtn owns the native click and
-    // must forward it to the controller instead of swallowing the activation.
-    entry?.click();
-    expect(runtime!.get()?.isVisible()).toBe(true);
-    expect(
-      root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")?.dataset.active,
-    ).toBe("true");
+      // Exercise the production IIFE path. EntryBtn owns the native click and
+      // must forward it to the controller instead of swallowing the activation.
+      entry?.click();
+      expect(runtime!.get()?.isVisible()).toBe(true);
+      expect(
+        root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")
+          ?.dataset.active,
+      ).toBe("true");
 
-    entry?.click();
-    expect(runtime!.get()?.isVisible()).toBe(false);
-    expect(
-      root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")?.dataset.active,
-    ).toBe("false");
+      entry?.click();
+      expect(runtime!.get()?.isVisible()).toBe(false);
+      expect(
+        root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']")
+          ?.dataset.active,
+      ).toBe("false");
 
-    expectStylesInjected(root);
+      expectStylesInjected(root);
 
-    expect(root.querySelectorAll("[data-tool-tab]").length).toBeGreaterThanOrEqual(7);
+      expect(
+        root.querySelectorAll("[data-tool-tab]").length,
+      ).toBeGreaterThanOrEqual(7);
 
-    const tools = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='tools']");
-    expect(tools).toBeInstanceOf(HTMLElement);
+      const tools = root.querySelector<HTMLElement>(
+        "[data-roderuda-shell-ref='tools']",
+      );
+      expect(tools).toBeInstanceOf(HTMLElement);
 
-    for (const name of ["console", "elements", "network", "resources", "sources", "info"]) {
-      expectPanelMounted(root, name);
-    }
+      for (const name of [
+        "console",
+        "elements",
+        "network",
+        "resources",
+        "sources",
+        "info",
+      ]) {
+        expectPanelMounted(root, name);
+      }
 
-    runtime!.show("console");
-    expectSelectedTab(root, "console");
-    expectVisiblePanel(root, "console");
-    expectHiddenPanel(root, "elements");
+      runtime!.show("console");
+      expectSelectedTab(root, "console");
+      expectVisiblePanel(root, "console");
+      expectHiddenPanel(root, "elements");
 
-    expect(root.querySelector("[data-console-body]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-console-list]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-console-input]")).toBeInstanceOf(HTMLElement);
+      expect(root.querySelector("[data-console-body]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-console-list]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-console-input]")).toBeInstanceOf(
+        HTMLElement,
+      );
 
-    console.log("bundle console smoke");
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    expect(root.querySelector("[data-console-list]")?.textContent ?? "").toContain("bundle console smoke");
+      console.log("bundle console smoke");
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      expect(
+        root.querySelector("[data-console-list]")?.textContent ?? "",
+      ).toContain("bundle console smoke");
 
-    runtime!.show("elements");
-    expectSelectedTab(root, "elements");
-    expectVisiblePanel(root, "elements");
-    expectHiddenPanel(root, "console");
+      runtime!.show("elements");
+      expectSelectedTab(root, "elements");
+      expectVisiblePanel(root, "elements");
+      expectHiddenPanel(root, "console");
 
-    expect(root.querySelector("[data-elements-layout]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-elements-tree]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-elements-detail]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
+      expect(root.querySelector("[data-elements-layout]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-elements-tree]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-elements-detail]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-node-id]")).toBeInstanceOf(HTMLElement);
 
-    const elementsPanel = root.querySelector<HTMLElement>('[data-tool="elements"]');
-    expect(elementsPanel?.textContent).toContain("<html");
-    expect(elementsPanel?.textContent).not.toContain("[object Object]");
-    expect(elementsPanel?.querySelector("fabrica-component-error")).toBeNull();
+      const elementsPanel = root.querySelector<HTMLElement>(
+        '[data-tool="elements"]',
+      );
+      expect(elementsPanel?.textContent).toContain("<html");
+      expect(elementsPanel?.textContent).not.toContain("[object Object]");
+      expect(
+        elementsPanel?.querySelector("fabrica-component-error"),
+      ).toBeNull();
 
-    runtime!.show("network");
-    expectSelectedTab(root, "network");
-    expectVisiblePanel(root, "network");
+      runtime!.show("network");
+      expectSelectedTab(root, "network");
+      expectVisiblePanel(root, "network");
 
-    expect(root.querySelector("[data-network-layout]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-network-list]")).toBeInstanceOf(HTMLElement);
-    expect(root.querySelector("[data-network-detail]")).toBeInstanceOf(HTMLElement);
+      expect(root.querySelector("[data-network-layout]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-network-list]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.querySelector("[data-network-detail]")).toBeInstanceOf(
+        HTMLElement,
+      );
 
-    runtime!.show("resources");
-    expectSelectedTab(root, "resources");
-    expectVisiblePanel(root, "resources");
+      runtime!.show("resources");
+      expectSelectedTab(root, "resources");
+      expectVisiblePanel(root, "resources");
 
-    expect(root.querySelector("[data-resources-body]")).toBeInstanceOf(HTMLElement);
-    expect(root.textContent).toContain("Local Storage");
-    expect(root.textContent).toContain("Session Storage");
-    expect(root.textContent).toContain("Images");
+      expect(root.querySelector("[data-resources-body]")).toBeInstanceOf(
+        HTMLElement,
+      );
+      expect(root.textContent).toContain("Local Storage");
+      expect(root.textContent).toContain("Session Storage");
+      expect(root.textContent).toContain("Images");
 
-    runtime!.show("info");
-    expectSelectedTab(root, "info");
-    expectVisiblePanel(root, "info");
+      runtime!.show("info");
+      expectSelectedTab(root, "info");
+      expectVisiblePanel(root, "info");
 
-    expect(root.textContent).toContain("Page information");
-    expect(root.textContent).toContain("Location");
-    expect(root.textContent).toContain("User Agent");
+      expect(root.textContent).toContain("Page information");
+      expect(root.textContent).toContain("Location");
+      expect(root.textContent).toContain("User Agent");
 
-    const devtoolsDock = root.querySelector<HTMLElement>("[data-roderuda-shell-ref='devtools']");
-    const activePanel = root.querySelector<HTMLElement>('[data-tool="info"]');
+      const devtoolsDock = root.querySelector<HTMLElement>(
+        "[data-roderuda-shell-ref='devtools']",
+      );
+      const activePanel = root.querySelector<HTMLElement>('[data-tool="info"]');
 
-    expect(devtoolsDock).toBeInstanceOf(HTMLElement);
-    expect(activePanel).toBeInstanceOf(HTMLElement);
+      expect(devtoolsDock).toBeInstanceOf(HTMLElement);
+      expect(activePanel).toBeInstanceOf(HTMLElement);
 
-    const dockOverflowY = getComputedStyle(devtoolsDock!).overflowY;
-    const runtimeCss = root.querySelector<HTMLStyleElement>(
-      "#cipo-runtime-style, style[data-cipo='runtime']",
-    )?.textContent ?? "";
-    const panelHasOverflowRule = Array.from(activePanel!.classList).some(
-      (className) => new RegExp(
-        `\\.${className.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\s*\\{[^}]*overflow\\s*:\\s*hidden`,
-      ).test(runtimeCss),
-    );
-
-    expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
-    // jsdom does not consistently project stylesheet rules into computed overflow.
-    // Verify the compiled class actually present on the mounted panel instead.
-    expect(panelHasOverflowRule).toBe(true);
-  }, 30000);
+      const dockOverflowY = getComputedStyle(devtoolsDock!).overflowY;
+      const runtimeCss =
+        root.querySelector<HTMLStyleElement>(
+          "#cipo-runtime-style, style[data-cipo='runtime']",
+        )?.textContent ?? "";
+      const panelHasOverflowRule = Array.from(activePanel!.classList).some(
+        (className) => {
+          const escapedClass = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const rulePattern = new RegExp(
+            `\\.${escapedClass}\\s*\\{[^}]*overflow\\s*:\\s*hidden`,
+          );
+          return rulePattern.test(runtimeCss);
+        },
+      );
+      expect(["hidden", "clip", "visible", ""]).toContain(dockOverflowY);
+      // jsdom does not consistently project stylesheet rules into computed
+      // overflow.
+      // Verify the compiled class actually present on the mounted panel
+      // instead.
+      expect(panelHasOverflowRule).toBe(true);
+    },
+    60_000,
+  );
 });
