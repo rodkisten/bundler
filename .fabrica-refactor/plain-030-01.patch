@@ -1,0 +1,224 @@
++      "createCompiledTemplate as __fabricaCreateCompiledTemplate",
++    );
++    expect(result.code).toContain(
++      "__fabricaCreateCompiledTemplate(html,",
++    );
++  });
++
++  it("does not transform a definitely unrelated local html binding", () => {
++    const source = [
++      "const html = String.raw;",
++      "const value = html`not fabrica`;",
++    ].join("\n");
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(false);
++    expect(result.code).toBe(source);
++  });
++
++  it("respects lexical shadowing of aliased html imports", () => {
++    const source = [
++      'import { html as h } from "@rodkisten/fabrica";',
++      "function render(h: typeof String.raw) {",
++      "  return h`not fabrica`;",
++      "}",
++    ].join("\n");
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(false);
++    expect(result.code).toBe(source);
++  });
++
++  it("respects lexical shadowing of configured html tags", () => {
++    const source = [
++      'import { html } from "@rodkisten/fabrica";',
++      "function render(html: typeof String.raw) {",
++      "  return html`not fabrica`;",
++      "}",
++    ].join("\n");
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(false);
++    expect(result.code).toBe(source);
++  });
++
++  it("resolves aliased Fábrica html imports", () => {
++    const result = compileFabricaSource([
++      'import { html as h } from "@rodkisten/fabrica";',
++      "const view = h`<main>Alias</main>`;",
++    ].join("\n"));
++
++    expect(result.changed).toBe(true);
++    expect(result.code).not.toContain("h`<main>");
++    expect(result.code).toContain("createCompiledTemplate(h,");
++  });
++
++  it("compiles nested Fábrica templates inside ordinary template literals", () => {
++    const result = compileFabricaSource([
++      "const text = `prefix ${html`<strong>${value}</strong>`} suffix`;",
++    ].join("\n"));
++
++    expect(result.changed).toBe(true);
++    expect(result.code).not.toContain("html`<strong>");
++    expect(result.manifest).toHaveLength(1);
++  });
++
++  it("handles regex literals and comments inside interpolation expressions", () => {
++    const result = compileFabricaSource([
++      "const view = html`<p>${/}/.test(value)",
++      "  // a brace in a comment: }",
++      "  ? html`<strong>yes</strong>`",
++      "  : html`<em>no</em>`}</p>`;",
++    ].join("\n"));
++
++    expect(result.changed).toBe(true);
++    expect(result.code).not.toMatch(/\bhtml`/);
++    expect(result.manifest).toHaveLength(3);
++  });
++
++  it("parses greater-than signs inside quoted attributes", () => {
++    const result = compileFabricaSource(
++      'const view = html`<div title="a > b">Value</div>`;',
++    );
++
++    expect(result.changed).toBe(true);
++    expect(result.manifest[0]?.fallback).toBe(false);
++    expect(result.code).toContain('"a > b"');
++  });
++
++  it("emits direct component refs only for visible value bindings", () => {
++    const result = compileFabricaSource([
++      "const Known = () => null;",
++      "const view = html`<Known /><Unknown />`;",
++    ].join("\n"), {
++      directComponentReferences: true,
++    });
++
++    expect(result.changed).toBe(true);
++    expect(result.code).toMatch(/\[0,Known,/);
++    expect(result.code).toMatch(/\[0,"Unknown",/);
++  });
++});
+diff --git a/fabrica/test/fabrica.compiler-parity.test.ts b/fabrica/test/fabrica.compiler-parity.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..6302e2457582183d81ef068b37b1a05bd0f4cf69
+--- /dev/null
++++ b/fabrica/test/fabrica.compiler-parity.test.ts
+@@ -0,0 +1,171 @@
++/** @vitest-environment jsdom */
++
++import { flushSync, signal } from "@rodkisten/broto/reactivity";
++import {
++  html,
++  render,
++  type RenderValue,
++} from "@rodkisten/fabrica";
++import {
++  createCompiledTemplate,
++} from "@rodkisten/fabrica/compiler-runtime";
++import { describe, expect, it, vi } from "vitest";
++
++const NODE_ELEMENT = 0 as const;
++const PROP_VALUE = 1 as const;
++const PROP_SPREAD = 3 as const;
++
++function compiledElement(
++  tag: string,
++  propName: string,
++  value: RenderValue,
++): ReturnType<typeof createCompiledTemplate> {
++  return createCompiledTemplate(
++    [
++      [
++        NODE_ELEMENT,
++        tag,
++        [[PROP_VALUE, propName, 0]],
++        [],
++      ],
++    ] as const,
++    value,
++  );
++}
++
++describe("Fábrica runtime/compiler semantic parity", () => {
++  it("keeps native attributes reactive in both renderers", () => {
++    const title = signal("first");
++    const runtime = html`<button title=${title}>Runtime</button>`;
++    const compiled = compiledElement("button", "title", title);
++
++    expect((runtime as unknown as HTMLElement).getAttribute("title")).toBe("first");
++    expect((compiled as unknown as HTMLElement).getAttribute("title")).toBe("first");
++
++    title.set("second");
++    flushSync();
++
++    expect((runtime as unknown as HTMLElement).getAttribute("title")).toBe("second");
++    expect((compiled as unknown as HTMLElement).getAttribute("title")).toBe("second");
++  });
++
++  it("keeps DOM property bindings reactive in both renderers", () => {
++    const value = signal("alpha");
++    const runtime = html`<input .value=${value}>` as unknown as HTMLInputElement;
++    const compiled = compiledElement(
++      "input",
++      ".value",
++      value,
++    ) as unknown as HTMLInputElement;
++
++    expect(runtime.value).toBe("alpha");
++    expect(compiled.value).toBe("alpha");
++
++    value.set("beta");
++    flushSync();
++
++    expect(runtime.value).toBe("beta");
++    expect(compiled.value).toBe("beta");
++  });
++
++  it("keeps boolean bindings reactive in both renderers", () => {
++    const disabled = signal(false);
++    const runtime = html`
++      <button ?disabled=${disabled}>Runtime</button>
++    ` as unknown as HTMLButtonElement;
++    const compiled = compiledElement(
++      "button",
++      "?disabled",
++      disabled,
++    ) as unknown as HTMLButtonElement;
++
++    expect(runtime.disabled).toBe(false);
++    expect(compiled.disabled).toBe(false);
++
++    disabled.set(true);
++    flushSync();
++
++    expect(runtime.disabled).toBe(true);
++    expect(compiled.disabled).toBe(true);
++  });
++
++  it("keeps conditional classes reactive in both renderers", () => {
++    const active = signal(false);
++    const runtime = html`
++      <button class:active=${active}>Runtime</button>
++    ` as unknown as HTMLButtonElement;
++    const compiled = compiledElement(
++      "button",
++      "class:active",
++      active,
++    ) as unknown as HTMLButtonElement;
++
++    active.set(true);
++    flushSync();
++
++    expect(runtime.classList.contains("active")).toBe(true);
++    expect(compiled.classList.contains("active")).toBe(true);
++  });
++
++  it("reconciles reactive compiled spreads", () => {
++    const props = signal<Record<string, unknown>>({
++      attrs: { title: "first" },
++      dataset: { testId: "one" },
++      disabled: true,
++    });
++    const view = createCompiledTemplate(
++      [
