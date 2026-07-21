@@ -434,13 +434,4 @@ function isCssLikeArtifact(value: unknown): value is { readonly rawCss: string }
   return isPlainObject(value) && typeof value.rawCss === 'string'
 }
 
-/**
- * Finds a matching closing parenthesis.
- *
- * @param input - Source string.
- * @param openIndex - Opening parenthesis index.
- * @returns Closing index or -1.
- */
-function findMatchingParen(input: string, openIndex: number): number {
-  return findMatching(input, openIndex, '(', ')')
-}
+
