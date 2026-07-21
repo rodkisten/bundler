@@ -1,0 +1,76 @@
++    if (part.type === "attribute") {
++      part.componentProp = true;
++      output[output.length] = {
++        name: part.name,
++        index: part.index,
++        indices: part.indices,
++        strings: part.strings,
++        raw: part.raw,
++      };
++    }
++  }
++
++  return output;
++}
++
++function compileStaticComponentProps(template: HTMLTemplateElement): Record<string, unknown> | undefined {
++  let props: Record<string, unknown> | null = null;
++
++  for (let index = 0; index < template.attributes.length; index += 1) {
++    const attribute = template.attributes[index];
++
++    if (
++      !attribute ||
++      attribute.name === "data-fabrica-component" ||
++      attribute.name === "data-fabrica-component-name" ||
++      attribute.name === "data-fabrica-explicit-component" ||
++      attribute.name === "name"
++    ) {
++      continue;
++    }
++
++    props ??= {};
++    props[normalizeStaticComponentPropName(attribute.name)] = attribute.value;
++  }
++
++  return props ?? undefined;
++}
++
++/**
++ * Reads a marker index from an attribute value.
++ *
++ * @param value - Attribute value.
++ * @returns Marker index or -1.
++ */
++function readAttributeMarkers(value: string): {
++  indices: number[];
++  strings: string[];
++  name: string;
++  raw: boolean;
++} | null {
++  const indices: number[] = [];
++  const strings: string[] = [];
++  let name = "";
++  let cursor = 0;
++
++  while (cursor < value.length) {
++    const start = value.indexOf(ATTR_MARKER_PREFIX, cursor);
++    if (start === -1) break;
++
++    const indexStart = start + ATTR_MARKER_PREFIX.length;
++    const suffix = value.indexOf(ATTR_MARKER_SUFFIX, indexStart);
++    if (suffix === -1) break;
++
++    const interpolationIndex = Number(value.slice(indexStart, suffix));
++    if (!Number.isFinite(interpolationIndex)) {
++      cursor = suffix + ATTR_MARKER_SUFFIX.length;
++      continue;
++    }
++
++    strings.push(value.slice(cursor, start));
++    indices.push(interpolationIndex);
++
++    let markerEnd = suffix + ATTR_MARKER_SUFFIX.length;
++    const nameEnd = value.indexOf(ATTR_NAME_MARKER_SUFFIX, markerEnd);
++
++    if (n
