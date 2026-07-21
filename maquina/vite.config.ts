@@ -8,7 +8,7 @@ import {
   createIifeBuildBanner,
   readPackageVersion,
 } from "../scripts/build-metadata";
-import { buildViteInfo } from "../scripts/vite-build-info";
+import { buildInfoVite } from "../scripts/vite-build-info";
 
 const maquinaDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(maquinaDir, "..");
@@ -58,9 +58,6 @@ export default defineConfig({
       enabled: true,
       cssDelivery: "style-tag",
       compileFabrica: true,
-      fabricaImportModules: [
-        "@rodkisten/maquina/components",
-      ],
       transformCssTag: true,
       configCss: maquinaCipoConfigCss,
     }),
