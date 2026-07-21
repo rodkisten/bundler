@@ -1,0 +1,22 @@
+diff --git a/fabrica/test/compiler-runtime.test.ts b/fabrica/test/compiler-runtime.test.ts
+index de7675bb19e404b92922cf073a2f178dd895ce5d..1c20d3adfc03a0dbf434227e9e045367c0e8cc41 100644
+--- a/fabrica/test/compiler-runtime.test.ts
++++ b/fabrica/test/compiler-runtime.test.ts
+@@ -43,7 +43,10 @@ describe("compiled runtime", () => {
+     local.component<{ value?: string }>("Card", (props) =>
+       html`<article>${props.value}</article>`,
+     );
+-    const view = createCompiledTemplate(
++
++    const view = local.run(() => createCompiledTemplate(
++      local.html,
++      [[2, "Card", [[1, "value", 0]], []]],
++      value,
++    ));
+-      local.html,
+-      [[2, "Card", [[1, "value", 0]], []]],
+-      value,
+-    );
+ 
+     const host = document.createElement("div");
+     host.append(view);
