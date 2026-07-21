@@ -1,0 +1,368 @@
+diff --git a/fabrica/tsconfig.build.json b/fabrica/tsconfig.build.json
+index 39cc07dd7869440309be3d3569f8f09f9896cdf3..a6f4fa096616cc7736877039fc22d951df9c6d71 100644
+--- a/fabrica/tsconfig.build.json
++++ b/fabrica/tsconfig.build.json
+@@ -1,17 +1,17 @@
+ {
+   "extends": "../tsconfig.base.json",
+   "compilerOptions": {
++    "baseUrl": ".",
++    "paths": {},
+     "allowImportingTsExtensions": false,
+     "declaration": true,
+     "declarationMap": true,
+     "emitDeclarationOnly": false,
+     "noEmit": false,
+-    "outDir": ".",
++    "outDir": "./dist",
+     "rootDir": ".",
+     "sourceMap": true
+   },
+-  "include": [
+-    "./*.ts"
+-  ],
++  "include": ["./**/*.ts"],
+   "exclude": [
+     "../node_modules",
+-    "./*.test.ts"
++    "./dist",
++    "./test/**/*.ts",
++    "./**/*.test.ts"
+   ]
+ }
+diff --git a/fabrica/types.ts b/fabrica/types.ts
+index 77d64098e819ab2dc18d5071082e19285e70dab99..275ab150a7b7fe790289e05717178e39e3e82fed 100644
+--- a/fabrica/types.ts
++++ b/fabrica/types.ts
+@@ -94,7 +94,6 @@ export type RenderValue =
+   | Primitive
+   | Node
+   | HtmlResult
+-  | CssClassArtifact
+   | CssTextArtifact
+   | Signal<unknown>
+   | ReadonlySignal<unknown>
+@@ -574,6 +573,7 @@ declare global {
+     html: typeof import("./index.js").html;
+     render: typeof import("./index.js").render;
+     mount: typeof import("./index.js").mount;
++    mountPreservingChildren: typeof import("./index.js").mountPreservingChildren;
+     component: typeof import("./index.js").component;
+     defineComponent: typeof import("./index.js").defineComponent;
+     signal: typeof import("./index.js").signal;
+@@ -609,6 +609,7 @@ declare global {
+     html: typeof import("./index.js").html;
+     render: typeof import("./index.js").render;
+     mount: typeof import("./index.js").mount;
++    mountPreservingChildren: typeof import("./index.js").mountPreservingChildren;
+     component: typeof import("./index.js").component;
+     defineComponent: typeof import("./index.js").defineComponent;
+     signal: typeof import("./index.js").signal;
+diff --git a/cipo/CHANGELOG.md b/cipo/CHANGELOG.md
+index 11de2cc6da6a868aaec9fcd1c7d7170e49342828..d981ca9017c81208959992e57b48d456a60a6294 100644
+--- a/cipo/CHANGELOG.md
++++ b/cipo/CHANGELOG.md
+@@ -2,6 +2,9 @@
+ 
+ ## Unreleased
+ 
++- Added `@rodkisten/cipo/runtime-inline` so runtime consumers can compile scoped
++  inline `$css` values without importing the source/build compiler entrypoint.
++
+ ### Added
+ 
+ - Added `@rodkisten/cipo/config` with `configure()` for runtime configuration.
+diff --git a/cipo/package.json b/cipo/package.json
+index c079f67166be2c40e081859b36e2e443741db6c5..c2b7a75160923536132b0b4e849df47edc4fc215 100644
+--- a/cipo/package.json
++++ b/cipo/package.json
+@@ -36,6 +36,11 @@
+       "import": "./compiler.js",
+       "default": "./compiler.js"
+     },
++    "./runtime-inline": {
++      "types": "./runtime-inline.d.ts",
++      "import": "./runtime-inline.js",
++      "default": "./runtime-inline.js"
++    },
+     "./compiler-runtime": {
+       "types": "./compiler-runtime.d.ts",
+       "import": "./compiler-runtime.js",
+diff --git a/cipo/runtime-inline.ts b/cipo/runtime-inline.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..5cd98b1c3f6f9041c5284e44a3dcd8e1e720f6cb
+--- /dev/null
++++ b/cipo/runtime-inline.ts
+@@ -0,0 +1,9 @@
++/**
++ * Runtime-only inline CSS compiler boundary.
++ *
++ * This entrypoint intentionally excludes source transforms, Vite integration
++ * and TypeScript compiler dependencies so DOM runtimes can consume inline CSS
++ * compilation without pulling build-time code into the application graph.
++ */
++export { compileInlineCss } from "./compiler-runtime-css.js";
+diff --git a/cipo/src/compiler/source-map.ts b/cipo/src/compiler/source-map.ts
+index 4b42fb68a805890116a122353ef25058f29d28435..27032f61161b43eb4e35e22854dac1e7a7b6ae58 100644
+--- a/cipo/src/compiler/source-map.ts
++++ b/cipo/src/compiler/source-map.ts
+@@ -1,11 +1,27 @@
+ export function createInlineSourceMap(
+   filename: string,
+   source: string,
+   generated: string,
++  anchors: readonly SourceMapAnchor[] = [],
+ ): string {
+   const lines = generated.split(/\r?\n/);
+   const sourceLines = source.split(/\r?\n/);
++  const generatedOffsets = buildLineOffsets(generated);
++  const originalOffsets = buildLineOffsets(source);
+   const mappings: string[] = [];
++  let previousSourceIndex = 0;
++  let previousOriginalLine = 0;
++  let previousOriginalColumn = 0;
++  const anchorsByLine = new Map<number, SourceMapAnchor[]>();
++
++  for (const anchor of anchors) {
++    const generatedPosition = offsetToPosition(
++      generatedOffsets,
++      anchor.generatedOffset,
++    );
++    const bucket = anchorsByLine.get(generatedPosition.line) ?? [];
++    bucket.push(anchor);
++    anchorsByLine.set(generatedPosition.line, bucket);
++  }
+ 
+   for (let index = 0; index < lines.length; index += 1) {
+     if (index === 0) {
+@@ -18,19 +34,66 @@ export function createInlineSourceMap(
+         sourceLines,
+       );
+     }
+-    const lineDelta = originalLine - (index > 1 ? index - 1 : 0);
+-    mappings.push(`AAAA${encodeVlq(lineDelta)}`);
++
++    const segments: string[] = [];
++    const lineDelta = originalLine - previousOriginalLine;
++    segments.push(
++      `${encodeVlq(0)}` +
++      `${encodeVlq(0 - previousSourceIndex)}` +
++      `${encodeVlq(lineDelta)}` +
++      `${encodeVlq(0 - previousOriginalColumn)}`,
++    );
++    previousSourceIndex = 0;
++    previousOriginalLine = originalLine;
++    previousOriginalColumn = 0;
++
++    const lineAnchors = anchorsByLine.get(index);
++    if (lineAnchors) {
++      lineAnchors.sort((a, b) => a.generatedOffset - b.generatedOffset);
++      let previousGeneratedColumn = 0;
++
++      for (const anchor of lineAnchors) {
++        const generatedPosition = offsetToPosition(
++          generatedOffsets,
++          anchor.generatedOffset,
++        );
++        const originalPosition = offsetToPosition(
++          originalOffsets,
++          anchor.originalOffset,
++        );
++        segments.push(
++          `${encodeVlq(generatedPosition.column - previousGeneratedColumn)}` +
++          `${encodeVlq(0 - previousSourceIndex)}` +
++          `${encodeVlq(originalPosition.line - previousOriginalLine)}` +
++          `${encodeVlq(originalPosition.column - previousOriginalColumn)}`,
++        );
++        previousGeneratedColumn = generatedPosition.column;
++        previousSourceIndex = 0;
++        previousOriginalLine = originalPosition.line;
++        previousOriginalColumn = originalPosition.column;
++      }
++    }
++
++    mappings.push(segments.join(","));
+   }
+ 
+   return JSON.stringify({
+     version: 3,
+     file: filename,
+-    sources: [filename],
++    sources: [normalizeSourceMapPath(filename)],
+     sourcesContent: [source],
+     names: [],
+     mappings: mappings.join(";"),
+   });
+ }
+ 
++export interface SourceMapAnchor {
++  readonly generatedOffset: number;
++  readonly originalOffset: number;
++}
++
+ function findBestOriginalLine(
+   generatedLine: string,
+   generatedLineIndex: number,
+@@ -49,6 +112,38 @@ function findBestOriginalLine(
+   return Math.min(generatedLineIndex, sourceLines.length - 1);
+ }
+ 
++function buildLineOffsets(value: string): number[] {
++  const offsets = [0];
++  for (let index = 0; index < value.length; index += 1) {
++    if (value.charCodeAt(index) === 10) offsets.push(index + 1);
++  }
++  return offsets;
++}
++
++function offsetToPosition(
++  offsets: readonly number[],
++  offset: number,
++): { readonly line: number; readonly column: number } {
++  let low = 0;
++  let high = offsets.length;
++
++  while (low + 1 < high) {
++    const middle = (low + high) >> 1;
++    if ((offsets[middle] ?? 0) <= offset) low = middle;
++    else high = middle;
++  }
++
++  return {
++    line: low,
++    column: Math.max(0, offset - (offsets[low] ?? 0)),
++  };
++}
++
++function normalizeSourceMapPath(filename: string): string {
++  return filename.replace(/\\/g, "/");
++}
++
+ const BASE64_CHARS =
+   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+ 
+diff --git a/cipo/src/compiler/source.ts b/cipo/src/compiler/source.ts
+index 1c3f855e1db4aaaf564c3139ad58b5138ee2b171..83acd92311881ef0542e0a52ff6ccdc5a75dc592 100644
+--- a/cipo/src/compiler/source.ts
++++ b/cipo/src/compiler/source.ts
+@@ -44,7 +44,7 @@ import {
+   isStaticTemplateExpression,
+   unwrapExpression,
+ } from "./ast.js";
+-import { createInlineSourceMap } from "./source-map.js";
++import { createInlineSourceMap, type SourceMapAnchor } from "./source-map.js";
+ 
+ export interface CompileSourceOptions {
+   filename?: string;
+@@ -157,7 +157,6 @@ export interface CompileCipoSourceResult {
+ }
+ 
+ const JS_LIKE_RE = /\.[cm]?[jt]sx?$/i;
+-const SOURCE_MAP_COMMENT_RE = /\n?\/\/# sourceMappingURL=data:application\/json[^\n]*$/;
+ 
+ /**
+  * Compiles Cipó tagged templates and Fabrica inline CSS authoring.
+@@ -202,7 +201,11 @@ export function compileCipoSource(
+     : compileFabricaDomSource(preCompiled, inputOptions);
+   const result = sourceResult.code;
+   const map = inputOptions.sourceMap && inputOptions.filename
+-    ? createInlineSourceMap(inputOptions.filename, source, result)
++    ? createInlineSourceMap(
++        inputOptions.filename,
++        source,
++        result,
++        createEditAnchors(source, result, preCompiled, sourceResult),
++      )
+     : undefined;
+ 
+   const manifest = [
+@@ -432,16 +435,6 @@ function compileFabricaDomSource(
+   const fabrica = compileFabricaSource(source, {
+     filename: options.filename,
+     importPath:
+-      options.fabricaImportPath ?? "@rodkisten/fabrica/compiler-runtime",
++      options.fabricaImportPath ?? "@rodkisten/fabrica/compiler-runtime",
+     directComponentReferences: true,
+   });
+ 
+@@ -455,21 +448,6 @@ function compileFabricaDomSource(
+   };
+ }
+ 
+-function stripExistingSourceMapComment(source: string): string {
+-  return source.replace(SOURCE_MAP_COMMENT_RE, "");
+-}
+-
+-function appendInlineSourceMap(code: string, map: string): string {
+-  const encoded = toBase64(map);
+-  return (
+-    stripExistingSourceMapComment(code) +
+-    `\n//# sourceMappingURL=data:application/json;base64,${encoded}`
+-  );
+-}
+-
+-function toBase64(value: string): string {
+-  if (typeof btoa === "function") {
+-    return btoa(unescape(encodeURIComponent(value)));
+-  }
+-
+-  return Buffer.from(value, "utf8").toString("base64");
+-}
+-
+ function hasFabricaSourceHint(source: string): boolean {
+   return (
+     source.includes("html`") ||
+@@ -484,3 +462,55 @@ function hasFabricaSourceHint(source: string): boolean {
+     source.includes("html.jsx`")
+   );
+ }
++
++function createEditAnchors(
++  source: string,
++  generated: string,
++  preCompiled: string,
++  sourceResult: FabricaCompileSourceResult,
++): readonly SourceMapAnchor[] {
++  const anchors: SourceMapAnchor[] = [];
++
++  for (const entry of sourceResult.manifest) {
++    const originalText = source.slice(entry.start, entry.end);
++    if (!originalText) continue;
++    const candidate = readGeneratedTemplateSearchTerm(
++      preCompiled,
++      generated,
++      entry,
++    );
++    if (!candidate) continue;
++    const generatedOffset = generated.indexOf(candidate);
++    if (generatedOffset < 0) continue;
++    anchors.push({
++      generatedOffset,
++      originalOffset: entry.start,
++    });
++  }
++
++  return anchors;
++}
++
++function readGeneratedTemplateSearchTerm(
++  preCompiled: string,
++  generated: string,
++  entry: FabricaCompiledTemplateManifestEntry,
++): string | null {
++  const tagSource = preCompiled.slice(entry.start, entry.end);
++  const literal = tagSource.match(/<([A-Za-z][\w:-]*)/);
++  if (literal) {
++    const quoted = JSON.stringify(literal[1]);
++    if (generated.includes(quoted)) return quoted;
++  }
++
++  if (entry.tag && entry.tag !== "template") {
++    const quoted = JSON.stringify(entry.tag);
++    if (generated.includes(quoted)) return quoted;
++  }
++
++  return generated.includes("createCompiledTemplate")
++    ? "createCompiledTemplate"
++    : null;
++}
