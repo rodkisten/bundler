@@ -567,36 +567,49 @@ component("RodElementsView", function RodElementsView(_props, ctx) {
         </RodSharedControlBar>
 
         <RodElementsTreeWrap :elementsTreeWrap :roderudaScrollKey="elements-tree" @scroll=${event.scroll(() => elements.onTreeScroll())}>
-          <RodElementsDomTree :elementsTree :wrap=${elements.wrapLines} ref=${(node: HTMLElement) => {
-            elements.setTreeViewport(node);
-            return () => elements.setTreeViewport(null);
-          }}>
+          <div
+            class=${DomTree.className}
+            data-elements-tree=""
+            data-wrap=${() => String(elements.wrapLines())}
+            ref=${(node: HTMLElement) => {
+              elements.setTreeViewport(node);
+              return () => elements.setTreeViewport(null);
+            }}
+          >
             ${() => {
               elements.treeRevision();
               return elements.treeView();
             }}
-          </RodElementsDomTree>
+          </div>
         </RodElementsTreeWrap>
 
-        <RodElementsCrumbs :elementsCrumbs ref=${(node: HTMLElement) => {
-          elements.setCrumbsViewport(node);
-          return () => elements.setCrumbsViewport(null);
-        }}>
+        <div
+          class=${ElementsCrumbs.className}
+          data-elements-crumbs=""
+          ref=${(node: HTMLElement) => {
+            elements.setCrumbsViewport(node);
+            return () => elements.setCrumbsViewport(null);
+          }}
+        >
           ${() => {
             elements.crumbsRevision();
             elements.selected();
             return elements.crumbsView();
           }}
-        </RodElementsCrumbs>
+        </div>
       </RodElementsTreeSide>
 
-      <RodElementsDetailPanel :elementsDetail :active=${elements.detailsOpen}>
+      <section
+        class=${DetailPanel.className}
+        data-elements-detail=""
+        data-active=${() => String(elements.detailsOpen())}
+      >
         ${() => {
           elements.detailRevision();
           elements.selected();
           return elements.detailsOpen() ? elements.detailView() : null;
         }}
-      </RodElementsDetailPanel>
+      </section>
 
       ${() => elements.contextMenuView()}
     </RodSharedPanelLayout>
