@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createFabrica } from "@rodkisten/fabrica";
-import { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
+import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
 import { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
 import type { RuntimeCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
 import { createStyled, getCssText, reset, setup } from "@rodkisten/cipo";
