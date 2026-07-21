@@ -49,6 +49,17 @@ describe("Fábrica AST compiler", () => {
     expect(result.code).toBe(source);
   });
 
+  it("keeps isolated Vite AST nodes bound to their own checker", () => {
+    const source = [
+      'import { html } from "@rodkisten/devtools/core/runtime";',
+      "export const view = html`<main>DevTools</main>`;",
+    ].join("\n");
+
+    expect(() => compileFabricaSource(source, {
+      filename: "/project/devtools/controller.ts",
+    })).not.toThrow();
+  });
+
   it("respects lexical shadowing of aliased html imports", () => {
     const source = [
       'import { html as h } from "@rodkisten/fabrica";',
