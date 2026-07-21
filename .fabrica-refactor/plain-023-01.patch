@@ -1,0 +1,369 @@
+diff --git a/fabrica/render/root.ts b/fabrica/render/root.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f27e5fdc7ea16d23946e1235251975d304280e3f
+--- /dev/null
++++ b/fabrica/render/root.ts
+@@ -0,0 +1,188 @@
++import {
++  disposeCollectedCleanups,
++  disposeRange,
++  disposeTree,
++  removeRange,
++} from "./cleanup.js";
++import {
++  connectDelegatedEventRoot,
++} from "../events.js";
++import {
++  getHtmlResultMetadata,
++  isHtmlResult,
++} from "./html-result.js";
++import { debugState } from "../debug.js";
++import {
++  runWithCurrentFabricaRuntime,
++} from "../core/runtime-context.js";
++import { readValue } from "../core/value.js";
++import { appendValue, createChildPart } from "./value.js";
++import type { RenderValue } from "../types.js";
++
++type RootRenderState =
++  | {
++      kind: "part";
++      part: ReturnType<typeof createChildPart>;
++      dispose: () => void;
++    }
++  | {
++      kind: "direct";
++      dispose: () => void;
++      cleanupNodes: Node[];
++      dynamic: boolean;
++    };
++
++const renderStates = new WeakMap<Node, RootRenderState>();
++
++/** Replaces a container content and returns a dispose function. */
++export function render(
++  container: Element | DocumentFragment | ShadowRoot,
++  value: RenderValue,
++): () => void {
++  return runWithCurrentFabricaRuntime(() => {
++    const resolvedValue = readValue(value) as RenderValue;
++    let state = renderStates.get(container);
++
++    // Fresh HtmlResults are already materialized and own their compiled parts.
++    // Mount them directly instead of routing through a generic child range.
++    if ((!state || state.kind === "direct") && isHtmlResult(resolvedValue)) {
++      state?.dispose();
++
++      const metadata = getHtmlResultMetadata(resolvedValue);
++      const cleanupNodes = metadata?.cleanupNodes ?? [];
++      const dynamic = Boolean(metadata?.dynamic || cleanupNodes.length > 0);
++
++      connectDelegatedEventRoot(container, resolvedValue);
++      container.replaceChildren(resolvedValue);
++      debugState.reconciliations += 1;
++
++      if (state?.kind === "direct") {
++        state.cleanupNodes = cleanupNodes;
++        state.dynamic = dynamic;
++        renderStates.set(container, state);
++        return state.dispose;
++      }
++
++      const directState: Extract<RootRenderState, { kind: "direct" }> = {
++        kind: "direct",
++        cleanupNodes,
++        dynamic,
++        dispose: () => {
++          if (directState.cleanupNodes.length > 0) {
++            disposeCollectedCleanups(directState.cleanupNodes);
++          } else if (directState.dynamic) {
++            disposeTree(container);
++          }
++
++          container.replaceChildren();
++          renderStates.delete(container);
++        },
++      };
++
++      renderStates.set(container, directState);
++      return directState.dispose;
++    }
++
++    if (!state || state.kind === "direct") {
++      state?.dispose();
++      disposeTree(container);
++      container.replaceChildren();
++
++      const marker = document.createComment("fabrica:render");
++      container.appendChild(marker);
++
++      const part = createChildPart(marker);
++      const dispose = (): void => {
++        disposeRange(part.start, part.end);
++        removeRange(part.start, part.end);
++        renderStates.delete(container);
++      };
++
++      state = { kind: "part", part, dispose };
++      renderStates.set(container, state);
++    }
++
++    debugState.reconciliations += 1;
++    state.part.set(resolvedValue);
++    return state.dispose;
++  });
++}
++
++/**
++ * Appends one owned range without clearing existing children.
++ *
++ * This is the canonical append-only mount primitive. The returned disposer owns
++ * only the inserted range and never removes siblings that predated the mount.
++ */
++export function mount(
++  container: Element | DocumentFragment | ShadowRoot,
++  value: RenderValue,
++): () => void {
++  return runWithCurrentFabricaRuntime(() => {
++    const start = document.createComment("fabrica:mount:start");
++    const end = document.createComment("fabrica:mount:end");
++
++    container.appendChild(start);
++    appendValue(container, value);
++    container.appendChild(end);
++
++    return () => {
++      disposeRange(start, end);
++      removeRange(start, end);
++    };
++  });
++}
++
++/**
++ * Explicitly preserves existing children and appends a new Fábrica-owned range.
++ *
++ * The previous `hydrate()` API performed exactly this operation despite its
++ * name. This function preserves that useful behavior without claiming SSR DOM
++ * hydration or node-identity attachment semantics that Fábrica does not yet
++ * implement.
++ */
++export function mountPreservingChildren(
++  container: Element | DocumentFragment | ShadowRoot,
++  value: RenderValue,
++): () => void {
++  return mount(container, value);
++}
+diff --git a/fabrica/render/template-runtime.ts b/fabrica/render/template-runtime.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7f11d999054524330c134b5990012b4abdbb9c99
+--- /dev/null
++++ b/fabrica/render/template-runtime.ts
+@@ -0,0 +1,153 @@
++import {
++  bindTemplateAttribute,
++} from "../bindings/attribute.js";
++import {
++  createAttributeBindingValue,
++} from "../bindings/interpolation.js";
++import { bindEvent } from "../events.js";
++import { bindSpreadPart } from "../bindings/spread.js";
++import { applyComponentParts } from "./component-part.js";
++import { collectCleanupNodes } from "./cleanup.js";
++import {
++  createHtmlResult,
++  getHtmlArtifact,
++  isHtmlResult,
++  pruneInsignificantWhitespace,
++} from "./html-result.js";
++import {
++  getCurrentFabricaRuntime,
++  runWithCurrentFabricaRuntime,
++  runWithFabricaRuntime,
++} from "../core/runtime-context.js";
++import {
++  getCompiledJsxTemplate,
++  getCompiledTemplate,
++  resolvePath,
++} from "../template/index.js";
++import { createChildPart, appendValue } from "./value.js";
++import {
++  FABRICA_HTML_ARTIFACT,
++  type FabricaRuntimeContext,
++  type HtmlArtifact,
++  type HtmlResult,
++  type HtmlTag,
++  type HtmlTemplateTag,
++  type RenderValue,
++  type TemplatePart,
++} from "../types.js";
++
++function createTemplateArtifact(
++  strings: TemplateStringsArray,
++  values: readonly RenderValue[],
++  jsxMode: boolean,
++  runtime: FabricaRuntimeContext,
++): HtmlArtifact {
++  const exposedStrings = Object.freeze(Array.from(strings));
++  const capturedValues = Object.freeze(
++    Array.from(values),
++  ) as readonly RenderValue[];
++
++  return Object.freeze({
++    kind: "fabrica.html" as const,
++    strings: exposedStrings,
++    values: capturedValues,
++    jsx: jsxMode,
++    materialize: () =>
++      runWithFabricaRuntime(runtime, () =>
++        materializeHtmlTemplate(strings, capturedValues, jsxMode, runtime),
++      ),
++  });
++}
++
++/** Materializes one interpreted template using the compiled DOM part plan. */
++export function materializeHtmlTemplate(
++  strings: TemplateStringsArray,
++  values: readonly RenderValue[],
++  jsxMode: boolean,
++  runtime: FabricaRuntimeContext,
++): HtmlResult {
++  const compiled = jsxMode
++    ? getCompiledJsxTemplate(strings, values)
++    : getCompiledTemplate(strings, values);
++  const fragment = compiled.template.content.cloneNode(true) as DocumentFragment;
++
++  let cleanupNodes: Node[] = [];
++  if (compiled.orderedParts.length > 0) {
++    const collected = collectCleanupNodes(() => {
++      applyParts(
++        fragment,
++        compiled.orderedParts,
++        values,
++        compiled.hasComponents,
++      );
++    });
++    cleanupNodes = collected.nodes;
++  }
++
++  pruneInsignificantWhitespace(fragment);
++
++  return createHtmlResult(
++    fragment,
++    createTemplateArtifact(strings, values, jsxMode, runtime),
++    {
++      cleanupNodes,
++      dynamic: compiled.orderedParts.length > 0 || cleanupNodes.length > 0,
++    },
++  );
++}
++
++const htmlTemplateTag: HtmlTemplateTag = (
++  strings: TemplateStringsArray,
++  ...values: RenderValue[]
++): HtmlResult =>
++  runWithCurrentFabricaRuntime(() => {
++    const runtime = getCurrentFabricaRuntime();
++    return materializeHtmlTemplate(strings, values, false, runtime);
++  });
++
++const jsxHtmlTemplateTag: HtmlTemplateTag = (
++  strings: TemplateStringsArray,
++  ...values: RenderValue[]
++): HtmlResult =>
++  runWithCurrentFabricaRuntime(() => {
++    const runtime = getCurrentFabricaRuntime();
++    return materializeHtmlTemplate(strings, values, true, runtime);
++  });
++
++/** Creates DOM from a tagged template and attaches its rematerialization artifact. */
++export const html: HtmlTag = Object.assign(htmlTemplateTag, {
++  jsx: jsxHtmlTemplateTag,
++  artifact: getHtmlArtifact,
++  isResult: isHtmlResult,
++});
++
++/** JSX-friendly namespace for `jsx.html` authoring. */
++export const jsx = Object.freeze({ html: jsxHtmlTemplateTag });
++
++function applyParts(
++  fragment: DocumentFragment,
++  parts: readonly TemplatePart[],
++  values: readonly RenderValue[],
++  hasComponents: boolean,
++): void {
++  let index = 0;
++
++  while (index < parts.length) {
++    const part = parts[index]!;
++
++    if (part.type === "component") {
++      const nextIndex = applyComponentParts(
++        fragment,
++        parts,
++        index,
++        values,
++        appendValue,
++      );
++      if (nextIndex > index) {
++        index = nextIndex;
++        continue;
++      }
++    }
++
++    if (part.type === "componentProp") {
++      index += 1;
++      continue;
++    }
++
++    const node = resolvePath(fragment, part.path);
++    if (!node) {
++      index += 1;
++      continue;
++    }
++
++    if (part.type === "child") {
++      createChildPart(node).set(values[part.index]);
++    } else if (part.type === "attribute") {
++      const element = node instanceof Element ? node : null;
++      if (element) {
++        bindTemplateAttribute(
++          element,
++          part.name,
++          createAttributeBindingValue(part, values),
++        );
++      }
++    } else if (part.type === "property") {
++      const element = node instanceof Element ? node : null;
++      if (element) {
++        bindTemplateAttribute(element, `.${part.name}`, values[part.index]);
++      }
++    } else if (part.type === "booleanAttribute") {
++      const element = node instanceof Element ? node : null;
++      if (element) {
++        bindTemplateAttribute(element, `?${part.name}`, values[part.index]);
++      }
++    } else if (part.type === "event") {
++      bindEvent(node, part.name, values[part.index]);
++    } else if (part.type === "spread") {
++      bindSpreadPart(node, values[part.index]);
++    } else if (part.type === "conditionalClass") {
++      const element = node instanceof Element ? node : null;
++      if (element) {
++        bindTemplateAttribute(
++          element,
++          `class:${part.name}`,
++          values[part.index],
++        );
++      }
++    }
++
++    index += 1;
++  }
++
++  if (!hasComponents) return;
++  const placeholders = fragment.querySelectorAll?.("fabrica-component");
++  if (!placeholders) return;
++  for (const placeholder of placeholders) placeholder.remove();
++}
++
++void FABRICA_HTML_ARTIFACT;
