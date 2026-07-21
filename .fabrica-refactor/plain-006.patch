@@ -1,0 +1,558 @@
+abrica.initial-binding-value");
++const EVENT_PROP_RE = /^on[A-Z]|^on[a-z]+$/;
++
++function applyPlainAttributeValue(
++  element: Element,
++  name: string,
++  next: unknown,
++): void {
++  if (isClassMapDirective(next) && name === "class") {
++    applyClassMap(element, next.value, null);
++    return;
++  }
++
++  if (isStyleMapDirective(next) && name === "style") {
++    applyStyleMap(element, next.value, null);
++    return;
++  }
++
++  if (next == null || next === false) {
++    if (name === "class") {
++      if (element instanceof HTMLElement || element instanceof SVGElement) {
++        element.removeAttribute("class");
++      }
++      return;
++    }
++
++    if (name === "style" && "style" in element) {
++      (element as HTMLElement).style.cssText = "";
++      return;
++    }
++
++    element.removeAttribute(name);
++    return;
++  }
++
++  const stringValue = stringifyAttributeValue(name, next);
++
++  if (name === "class") {
++    element.setAttribute("class", stringValue);
++    return;
++  }
++
++  if (name === "style" && "style" in element) {
++    (element as HTMLElement).style.cssText = stringValue;
++    return;
++  }
++
++  element.setAttribute(name, stringValue);
++}
++
++function applyBooleanAttributeValue(
++  element: Element,
++  name: string,
++  enabled: boolean,
++): void {
++  if (enabled) element.setAttribute(name, "");
++  else element.removeAttribute(name);
++}
++
++function setElementProperty(
++  element: Element,
++  name: string,
++  value: unknown,
++): void {
++  try {
++    (element as unknown as Record<string, unknown>)[name] = value;
++  } catch (error) {
++    const tag = element.tagName.toLowerCase();
++    const detail = error instanceof Error ? error.message : String(error);
++    throw new TypeError(
++      `[Fabrica] Unable to assign property ".${name}" on <${tag}>: ` +
++        detail,
++    );
++  }
++}
++
++function isEventPropName(name: string): boolean {
++  return EVENT_PROP_RE.test(name) && name.length > 2;
++}
++
++function eventNameFromProp(name: string): string {
++  const raw = name.slice(2);
++  return raw.charAt(0).toLowerCase() + raw.slice(1);
++}
+diff --git a/fabrica/bindings/component-props.ts b/fabrica/bindings/component-props.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c122f1fa46637a9189858728881b2469f46e486
+--- /dev/null
++++ b/fabrica/bindings/component-props.ts
+@@ -0,0 +1,67 @@
++import { toDataAttributeName } from "./special.js";
++
++/** Normalizes static placeholder attributes into component prop names. */
++export function normalizeStaticComponentPropName(name: string): string {
++  if (name === "classname") return "className";
++  if (name === "htmlfor") return "htmlFor";
++  if (name === "tabindex") return "tabIndex";
++  if (name === "readonly") return "readOnly";
++  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
++  return name;
++}
++
++/** Normalizes dynamic template syntax into the component prop vocabulary. */
++export function normalizeComponentPropName(name: string): string {
++  if (name.startsWith("@")) {
++    return eventAttributeToPropName(name.slice(1));
++  }
++  if (name.startsWith(".")) return name.slice(1);
++  if (name.startsWith("?")) return name.slice(1);
++  if (name === ":data") return name;
++  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
++  return normalizeStaticComponentPropName(name);
++}
++
++/** Converts `@click.modifier` syntax to a React-like component callback prop. */
++export function eventAttributeToPropName(rawName: string): string {
++  const dotIndex = rawName.indexOf(".");
++  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
++  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
++}
++
++/** Expands Fábrica's `:data` object shorthand into concrete data attributes. */
++export function mergeComponentDataProps(
++  target: Record<string, unknown>,
++  value: unknown,
++  resolve: (value: unknown) => unknown = identity,
++): void {
++  const resolved = resolve(value);
++  if (!resolved || typeof resolved !== "object") return;
++
++  const source = resolved as Record<string, unknown>;
++  for (const key in source) {
++    const literal = key.startsWith(":");
++    const rawName = literal ? `"${key.slice(1)}"` : key;
++    target[toDataAttributeName(rawName)] = resolve(source[key]);
++  }
++}
++
++/** Merges object spread props using the canonical component name normalizer. */
++export function mergeComponentSpreadProps(
++  target: Record<string, unknown>,
++  value: unknown,
++  resolve: (value: unknown) => unknown = identity,
++): void {
++  const resolved = resolve(value);
++  if (!resolved || typeof resolved !== "object") return;
++
++  for (const [name, item] of Object.entries(
++    resolved as Record<string, unknown>,
++  )) {
++    target[normalizeComponentPropName(name)] = resolve(item);
++  }
++}
++
++function identity(value: unknown): unknown {
++  return value;
++}
+diff --git a/fabrica/bindings/interpolation.ts b/fabrica/bindings/interpolation.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..163050c411ced0de2627bf04059d53eef8e10083
+--- /dev/null
++++ b/fabrica/bindings/interpolation.ts
+@@ -0,0 +1,59 @@
++import { hasReactiveValue, readValue } from "../core/value.js";
++import { isDomNode } from "../guards.js";
++import type {
++  RenderValue,
++  TemplatePart,
++} from "../types.js";
++
++/**
++ * Builds the runtime value consumed by an attribute binding descriptor.
++ *
++ * Compound attributes become lazy expressions only when one of their segments
++ * is reactive. Static compounds are flattened once and avoid creating an
++ * effect in the binding kernel.
++ */
++export function createAttributeBindingValue(
++  part: Extract<TemplatePart, { type: "attribute" }>,
++  values: readonly RenderValue[],
++): RenderValue | undefined {
++  if (part.raw) return values[part.index];
++
++  for (let index = 0; index < part.indices.length; index += 1) {
++    if (hasReactiveValue(values[part.indices[index]!] as unknown)) {
++      return (() =>
++        composeAttributeValue(
++          part.indices,
++          part.strings,
++          values,
++        )) as RenderValue;
++    }
++  }
++
++  return composeAttributeValue(part.indices, part.strings, values);
++}
++
++/** Composes static and dynamic interpolation segments into one attribute text. */
++export function composeAttributeValue(
++  indices: readonly number[],
++  strings: readonly string[],
++  values: readonly RenderValue[],
++): string {
++  let output = strings[0] ?? "";
++
++  for (let index = 0; index < indices.length; index += 1) {
++    output += stringifyAttributeSegment(
++      readValue(values[indices[index]!]),
++    );
++    output += strings[index + 1] ?? "";
++  }
++
++  return output;
++}
++
++/** Normalizes one interpolation segment using DOM-friendly text semantics. */
++export function stringifyAttributeSegment(value: unknown): string {
++  if (value == null || value === false) return "";
++  if (value === true) return "true";
++  if (isDomNode(value)) return value.textContent ?? "";
++  return String(value);
++}
+diff --git a/fabrica/maps.ts b/fabrica/bindings/maps.ts
+similarity index 96%
+rename from fabrica/maps.ts
+rename to fabrica/bindings/maps.ts
+index f0d2c9dee2cfbb4460f8058de20e9e732f788464..974a14f6b062ce7887142b4a7f7b94ed316b39ea 100644
+--- a/fabrica/maps.ts
++++ b/fabrica/bindings/maps.ts
+@@ -1,8 +1,8 @@
+-import { toKebabCase } from "@rodkisten/fabrica/css";
+-import { readValue } from "@rodkisten/fabrica/value";
++import { toKebabCase } from "../css.js";
++import { readValue } from "../core/value.js";
+ 
+ /** Previous map keys and values tracked by classMap/styleMap bindings. */
+-type MapState = {
++export type MapState = {
+   keys: Set<string>;
+   values: Map<string, unknown>;
+ };
+diff --git a/fabrica/bindings/property-or-attribute.ts b/fabrica/bindings/property-or-attribute.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d636c741bf2837c52641ea5b0cea09da53dbc343
+--- /dev/null
++++ b/fabrica/bindings/property-or-attribute.ts
+@@ -0,0 +1,89 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { hasReactiveValue, readValue } from "../core/value.js";
++import { registerCleanup } from "../render/cleanup.js";
++
++/**
++ * Applies the object-prop convention used by Fábrica payloads and prop patches.
++ *
++ * Native properties win when they exist on the target element. Data/ARIA names
++ * always remain attributes, while boolean properties mirror their presence to
++ * the corresponding attribute for predictable DOM serialization.
++ */
++export function setPropertyOrAttribute(
++  element: Element,
++  name: string,
++  value: unknown,
++): void {
++  if (name.startsWith("data-") || name.startsWith("aria-")) {
++    // Data and ARIA attributes are string-valued contracts. Preserve explicit
++    // booleans as "false"/"true" instead of treating false as absence.
++    if (value == null) element.removeAttribute(name);
++    else element.setAttribute(name, String(value));
++    return;
++  }
++
++  if (value == null || value === false) {
++    element.removeAttribute(name);
++    resetBooleanProperty(element, name, false);
++    return;
++  }
++
++  if (value === true) {
++    element.setAttribute(name, "");
++    resetBooleanProperty(element, name, true);
++    return;
++  }
++
++  if (name in element) {
++    try {
++      (element as unknown as Record<string, unknown>)[name] = value;
++      return;
++    } catch {
++      // Some host objects expose readonly or throwing setters. Attribute
++      // fallback preserves the permissive DOM-prop behavior expected here.
++    }
++  }
++
++  element.setAttribute(name, String(value));
++}
++
++/**
++ * Reactively applies a property-or-attribute value owned by an element.
++ *
++ * Event handlers and refs must be dispatched before this function because an
++ * ordinary function is intentionally treated as a reactive expression here.
++ */
++export function bindPropertyOrAttributeValue(
++  element: Element,
++  name: string,
++  value: unknown,
++): void {
++  const update = (): void => {
++    setPropertyOrAttribute(element, name, readValue(value));
++  };
++
++  if (!hasReactiveValue(value)) {
++    update();
++    return;
++  }
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.propertyOrAttribute.${name}`,
++      scheduler: "sync",
++    }),
++  );
++}
++
++function resetBooleanProperty(
++  element: Element,
++  name: string,
++  value: boolean,
++): void {
++  if (!(name in element)) return;
++
++  const record = element as unknown as Record<string, unknown>;
++  if (typeof record[name] !== "boolean") return;
++  record[name] = value;
++}
+diff --git a/fabrica/bindings/props.ts b/fabrica/bindings/props.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..336aa00fcd63a96ae6caddff578157f42599469c
+--- /dev/null
++++ b/fabrica/bindings/props.ts
+@@ -0,0 +1,323 @@
++import { readValue, stringifyValue } from "../core/value.js";
++import { bindEvent } from "../events.js";
++import { isRawHtml } from "../guards.js";
++import type { RenderValue } from "../types.js";
++import {
++  applyClassMap,
++  applyStyleMap,
++  type MapState,
++} from "./maps.js";
++import {
++  setPropertyOrAttribute,
++} from "./property-or-attribute.js";
++import {
++  applySpecialAttribute,
++  createSpecialAttributeState,
++  isSpecialAttributeName,
++  type SpecialAttributeState,
++} from "./special.js";
++
++type PropsEventBinding = {
++  listener: EventListener;
++  cleanup: () => void;
++};
++
++type PropsBindingState = {
++  classMap: MapState | null;
++  styleMap: MapState | null;
++  special: Map<string, SpecialAttributeState>;
++};
++
++/** Element event cache used by object props. */
++const elementEvents = new WeakMap<Element, Map<string, PropsEventBinding>>();
++
++/**
++ * Stateful binding metadata for repeated `applyProps()` patches.
++ *
++ * Weak ownership is intentional: applying object props must not extend an
++ * element's lifetime. The DOM node owns the observable state and garbage
++ * collection releases the bookkeeping with it.
++ */
++const elementPropsState = new WeakMap<Element, PropsBindingState>();
++
++/**
++ * Applies a patch of object props to an element.
++ *
++ * Omitted top-level keys are intentionally left unchanged. This is a patch
++ * API, not a full props reconciler. Values supplied for stateful keys such as
++ * `class`, `style`, and special attributes are reconciled against the previous
++ * value for that key. Template spreads use the dedicated spread reconciler,
++ * which also owns removal of omitted top-level keys.
++ *
++ * @param element - Target element.
++ * @param props - Props patch.
++ *
++ * @example
++ * ```ts
++ * applyProps(button, {
++ *   text: "Save",
++ *   class: { primary: true },
++ *   on: { click: save },
++ * });
++ * ```
++ */
++export function applyProps(
++  element: Element,
++  props: Record<string, unknown>,
++): void {
++  const state = getPropsBindingState(element);
++
++  for (const key in props) {
++    const value = props[key];
++
++    if (isSpecialAttributeName(key)) {
++      const specialState = getSpecialAttributeState(state, key);
++
++      if (applySpecialAttribute(element, key, value, specialState)) {
++        continue;
++      }
++    }
++
++    if (key === "text") {
++      element.textContent = stringifyValue(readValue(value));
++      continue;
++    }
++
++    if (key === "html" || key === "unsafeHTML") {
++      const resolved = readValue(value);
++
++      if (!isRawHtml(resolved)) {
++        throw new TypeError(
++          "[Fabrica] HTML props require rawHtml(), trustedHtml(), " +
++            "sanitizedHtml(), or unsafeHtml().",
++        );
++      }
++
++      element.innerHTML = resolved.value;
++      continue;
++    }
++
++    if (key === "class" || key === "className") {
++      state.classMap = applyClassValue(
++        element,
++        value,
++        state.classMap,
++      );
++      continue;
++    }
++
++    if (key === "style") {
++      state.styleMap = applyStyleValue(
++        element,
++        value,
++        state.styleMap,
++      );
++      continue;
++    }
++
++    if (key === "attrs") {
++      applyAttrs(element, value);
++      continue;
++    }
++
++    if (key === "dataset") {
++      applyDataset(element, value);
++      continue;
++    }
++
++    if (key === "on") {
++      applyEvents(element, value);
++      continue;
++    }
++
++    setPropertyOrAttribute(element, key, readValue(value));
++  }
++}
++
++/** Backward-compatible internal export for object prop consumers. */
++export { setPropertyOrAttribute };
++
++function getPropsBindingState(element: Element): PropsBindingState {
++  let state = elementPropsState.get(element);
++
++  if (!state) {
++    state = {
++      classMap: null,
++      styleMap: null,
++      special: new Map<string, SpecialAttributeState>(),
++    };
++    elementPropsState.set(element, state);
++  }
++
++  return state;
++}
++
++function getSpecialAttributeState(
++  state: PropsBindingState,
++  name: string,
++): SpecialAttributeState {
++  let specialState = state.special.get(name);
++
++  if (!specialState) {
++    specialState = createSpecialAttributeState();
++    state.special.set(name, specialState);
++  }
++
++  return specialState;
++}
++
++function applyClassValue(
++  element: Element,
++  value: unknown,
++  state: MapState | null,
++): MapState | null {
++  const resolved = readValue(value);
++
++  if (Array.isArray(resolved)) {
++    let classText = "";
++
++    for (let index = 0; index < resolved.length; index += 1) {
++      const item = resolved[index];
++
++      if (item) {
++        classText += classText ? ` ${String(item)}` : String(item);
++      }
++    }
++
++    element.setAttribute("class", classText);
++    return null;
++  }
++
++  if (
++    resolved &&
++    typeof resolved === "object" &&
++    resolved.constructor === Object
++  ) {
++    return applyClassMap(
++      element,
++      resolved as Record<string, unknown>,
++      state,
++    );
++  }
++
++  if (resolved == null || resolved === false) {
++    element.removeAttribute("class");
++    return null;
++  }
++
++  element.setAttribute("class", String(resolved));
++  return null;
++}
++
++function applyStyleValue(
++  element: Element,
++  value: unknown,
++  state: MapState | null,
++): MapS
