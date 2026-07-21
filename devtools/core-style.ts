@@ -6,7 +6,9 @@ import type {
 } from "@rodkisten/cipo";
 import {
   injectStyle,
-  setRuntimeStyleTarget, sheet, STYLE_ELEMENT_ID
+  setRuntimeStyleTarget,
+  sheet,
+  STYLE_ELEMENT_ID,
 } from "@rodkisten/cipo";
 import { bootstrapDevtoolsCipo } from "@rodkisten/devtools/core-cipo-bootstrap";
 import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
@@ -15,7 +17,7 @@ import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
 /* Global system   */
 /* *************** */
 
-// bootstrapDevtoolsCipo();
+bootstrapDevtoolsCipo();
 
 /**
  * Global DevTools stylesheet.
@@ -35,96 +37,6 @@ import { appendArrayValues, forEachArray } from "@rodkisten/nascente";
  * stylesheet from competing with compiled atomic styled-component output.
  */
 export const devtoolsStyles = sheet.css`
-  @cipo {
-    prefix: rd;
-    layers: false;
-    minify: true;
-    rem: 16px;
-    color-mode: oklch;
-    theme-root: :host;
-    theme-validation: warn;
-    min-theme-uses: 4;
-  }
-
-  @theme {
-    zIndex<number>: (
-      base: 2147483500,
-      container: 2147483510,
-      dock: 2147483520,
-      toolbar: 2147483530,
-      sticky: 2147483540,
-      dropdown: 2147483550,
-      notification: 2147483560,
-      modal: 2147483570,
-      inspector: 2147483580,
-      resizer: 2147483590,
-      entry: 2147483600
-    );
-
-    colors<color>: (
-      background: var(--background),
-      backgroundDark: var(--darker-background),
-      foreground: var(--foreground),
-      primary: var(--primary),
-      accent: var(--accent),
-      border: var(--border),
-      highlight: var(--highlight),
-      contrast: var(--contrast),
-      selectedForeground: var(--select-foreground),
-      link: var(--link-color),
-      success: #2e8b57,
-      danger: var(--console-error-foreground),
-      post: #8a63d2,
-      statusRedirect: #c18401,
-      warningBg: var(--console-warn-background),
-      warningFg: var(--console-warn-foreground),
-      warningBorder: var(--console-warn-border),
-      errorBg: var(--console-error-background),
-      errorFg: var(--console-error-foreground),
-      errorBorder: var(--console-error-border),
-      operator: var(--operator-color),
-      keyword: var(--keyword-color),
-      string: var(--string-color),
-      number: var(--number-color),
-      function: var(--function-color),
-      tag: var(--tag-name-color),
-      attr: var(--attribute-name-color),
-      var: var(--var-color),
-      comment: var(--comment-color)
-    );
-
-    spacing<size>: 0.25rem;
-
-    radius<length>: (
-      xs: 3px,
-      sm: 4px,
-      md: 5px,
-      control: 6px,
-      section: 7px,
-      notification: 8px,
-      panel: 10px,
-      modal: 10px,
-      pill: 999px
-    );
-
-    shadow<shadow>: (
-      entry: 0 4px 18px rgb(0 0 0 / .22),
-      panel: 0 -18px 60px rgb(0 0 0 / .2),
-      notification: 0 8px 30px rgb(0 0 0 / .24),
-      modal: 0 24px 90px rgb(0 0 0 / .4)
-    );
-
-    font<font>: (
-      ui: -apple-system, system-ui, BlinkMacSystemFont, ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", "Segoe UI", Tahoma, sans-serif,
-      mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace
-    );
-  }
-
-  @breakpoints {
-    xs: 520px;
-    md: 680px;
-  }
-
 
   /*
    * Runtime-only variables that are consumed across independently compiled
@@ -336,79 +248,47 @@ export function installDevtoolsStyles(
    */
   setRuntimeStyleTarget(target);
 
-  const parent =
-    target instanceof Document
-      ? target.head
-      : target;
+  const parent = target instanceof Document ? target.head : target;
 
   /*
    * Remove installation tags created by an earlier DevTools mount without
    * touching Cipó's canonical runtime sink.
    */
   forEachArray(
-    parent.querySelectorAll?.(
-      'style[data-roderuda-devtools-style="true"]',
-    ),
+    parent.querySelectorAll?.('style[data-roderuda-devtools-style="true"]'),
     (node) => node.remove(),
   );
 
-  const artifacts: CipoInjectableStyleArtifact[] = [
-    devtoolsStyles,
-  ];
+  const artifacts: CipoInjectableStyleArtifact[] = [devtoolsStyles];
 
-  appendArrayValues(
-    artifacts,
-    additionalStyles,
-  );
+  appendArrayValues(artifacts, additionalStyles);
 
   /*
    * Keep Cipó's default rule-level deduplication enabled. This is especially
    * important when several panels reference the same shared styled component.
    */
-  const style =
-    injectStyle(
-      target,
-      artifacts,
-      {
-        position: "prepend",
-      },
-    );
+  const style = injectStyle(target, artifacts, {
+    position: "prepend",
+  });
 
-  style.dataset.roderudaDevtoolsStyle =
-    "true";
+  style.dataset.roderudaDevtoolsStyle = "true";
 
   /*
    * A temporary sink can exist in document.head when styled modules are
    * evaluated before the ShadowRoot is available. Retargeting should normally
    * move/reuse it; this cleanup only handles a genuinely orphaned copy.
    */
-  if (
-    !(target instanceof Document)
-  ) {
-    const orphan =
-      document.getElementById(
-        STYLE_ELEMENT_ID,
-      );
+  if (!(target instanceof Document)) {
+    const orphan = document.getElementById(STYLE_ELEMENT_ID);
 
-    if (
-      orphan
-      && orphan !== style
-      && orphan.parentElement === document.head
-    ) {
+    if (orphan && orphan !== style && orphan.parentElement === document.head) {
       orphan.remove();
     }
   }
 
-  if (
-    !style.textContent?.trim()
-  ) {
-    throw new Error(
-      "[RodEruda] Unable to install global DevTools styles",
-    );
+  if (!style.textContent?.trim()) {
+    throw new Error("[RodEruda] Unable to install global DevTools styles");
   }
 
   return style;
 }
-
-
-console.log("devtoolsStyles", devtoolsStyles.cssText);
