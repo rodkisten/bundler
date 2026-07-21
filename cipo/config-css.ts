@@ -107,8 +107,6 @@ export function configureFromCss(input: string): CipoCssConfigResult {
     result,
   });
 
-  console.log("Cipo configureFromCss result", result);
-  
   return result
 }
 
