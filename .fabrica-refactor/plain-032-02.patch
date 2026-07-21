@@ -1,0 +1,63 @@
+-/** A deferred component invocation used by component tags and direct composition. */
+-export type ComponentRenderRequest<Props extends object = ComponentProps> = {
+-  readonly __kind: "componentRender";
+-  readonly component: Component<Props>;
+-  readonly props: Props & { children?: ComponentChildren };
+-};
+-
+-/** Reusable component function. */
+-export type Component<Props extends object = ComponentProps> = ((props?: Props & { children?: ComponentChildren }) => ComponentRenderRequest<Props>) & {
+-  readonly __kind: "component";
+-  readonly displayName?: string;
+-  readonly registryName?: string;
+-  readonly portable?: boolean;
+-  readonly factory?: ComponentFactory<Props>;
+-  register(target?: unknown, options?: ComponentUseOptions): Component<Props>;
+-  unregister(target?: unknown, name?: string): boolean;
+-};
+-
+-/** Plain element payload emitted by framework adapters such as Cipó payload mode. */
+-export type ElementPayload = {
+-  readonly tag: string;
+-  readonly props?: ComponentProps | null;
+-};
+-
+-/** Plain component payload emitted by framework adapters. */
+-export type ComponentPayload = {
+-  readonly component: unknown;
+-  readonly props?: ComponentProps | null;
+-};
+-
+-
+-/** CSS/class artifact emitted by companion libraries such as Cipó. */
+-export type CssLikeArtifact = {
+-  readonly cssText?: string;
+-  readonly compiledCss?: string;
+-  readonly className?: string;
+-  readonly classes?: string;
+-  readonly value?: string;
+-  readonly kind?: string;
+-  toString?: () => string;
+-};
+-
+-/** Plain render payload emitted by adapter-style component factories. */
+-export type RenderablePayload = ElementPayload | ComponentPayload;
+-
+-/** Template part compiled from an HTML template. */
+-export type ComponentPropPart =
+-  | {
+-      name: string;
+-      index: number;
+-      indices: number[];
+-      strings: string[];
+-      raw: boolean;
+-      spread?: false;
+-    }
+-  | {
+-      index: number;
+-      spread: true;
+-    };
+-
+-export type TemplatePart =
+-  | {
+-      type: "child";
