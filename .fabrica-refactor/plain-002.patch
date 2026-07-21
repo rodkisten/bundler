@@ -1,0 +1,422 @@
+string runtime template cache with callsite
++  `WeakMap` caching and a bounded dynamic-string cache.
++- Removed catch-all compiled-runtime fallback. Known unsupported shapes may
++  deopt; unexpected materialization errors now surface instead of silently
++  changing execution paths.
++
++### Runtime/compiler parity
++
++- Routed compiled plain attributes through the same reactive binding primitive
++  as interpreted templates.
++- Restored reactive compiled `.property`, `?boolean`, and `class:*` semantics.
++- Routed compiled spreads through the canonical spread reconciler.
++- Unified callback and object-ref lifecycle. Callback cleanup is preserved and
++  object refs reset to `null` on disposal in all rendering paths.
++- Added deep spread ownership for `attrs`, `dataset`, events, refs, and special
++  attributes so stale nested state is removed correctly.
++- Persisted special-attribute state across object-prop patches and added class/
++  style map state reuse without retaining DOM nodes strongly.
++
++### Package and build boundaries
++
++- Added `@rodkisten/cipo/runtime-inline` and moved Fábrica `$css` / `$style`
++  runtime compilation away from `@rodkisten/cipo/compiler`.
++- Changed the Fábrica TypeScript build output to `dist/` instead of emitting
++  JavaScript and declaration artifacts beside source files.
++- Added explicit package exports for root, runtime, browser, compiler, and
++  compiler-runtime entrypoints.
++- Reworked global installation to capture previous globals at install time,
++  restore custom aliases, support nested LIFO installs, avoid overwriting
++  globals taken over by other libraries, and reset runtime options to defaults
++  between installs.
++
++### Diagnostics and source maps
++
++- Added transform-aware, column-anchored source-map generation for Cipó/Fábrica
++  build transforms while retaining the previous line-map helper for compatible
++  consumers.
++
++### Tests
++
++- Added interpreted-versus-compiled parity coverage for reactive attributes,
++  properties, booleans, conditional classes, spreads, ref cleanup, and object
++  ref reset.
++- Added AST compiler regressions for `"use client"`, shebangs, helper collisions,
++  unrelated tags, aliases, lexical shadowing, nested templates, regex/comment
++  interpolation syntax, quoted `>` attributes, and direct component references.
++- Added spread regressions for stale nested `attrs` and `dataset` ownership.
++- Added global installation lifecycle coverage for custom aliases, nested
++  installs, external global takeover, and configuration reset.
++- Added object-prop patch coverage for class/style reconciliation, special data
++  attributes, and explicit raw HTML sinks.
++
++### Documentation
++
++- Added `ARCHITECTURE.md` with dependency, ownership, package-surface, cache, and
++  runtime/compiler invariants.
++- Added `COMPILER.md` documenting the AST pipeline, binding resolution,
++  deoptimization rules, runtime boundary, and parity testing contract.
++
++
+ ## Unreleased - Automatic event delegation and debug telemetry
+ 
+ ### Fixed
+diff --git a/fabrica/COMPILER.md b/fabrica/COMPILER.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..8086d053cc331d95109eb15c5a106d6f5bb99710
+--- /dev/null
++++ b/fabrica/COMPILER.md
+@@ -0,0 +1,201 @@
++# Fábrica Compiler
++
++The Fábrica compiler removes template discovery and static parsing work from
++production runtime execution while preserving runtime semantics.
++
++## Entry points
++
++Build tools import:
++
++```ts
++import {
++  compileFabricaSource,
++} from "@rodkisten/fabrica/compiler";
++```
++
++Generated browser code imports helpers from:
++
++```txt
++@rodkisten/fabrica/compiler-runtime
++```
++
++This split prevents TypeScript compiler services from entering application
++runtime bundles.
++
++## Module responsibilities
++
++The compiler is intentionally a pipeline of small phases:
++
++```txt
++compiler/
++  ast.ts          parse source and provide AST/compiler context
++  bindings.ts     resolve recognized imports and lexical visibility
++  html-parser.ts  parse compact HTML template structure
++  serialize.ts    serialize compiled template IR
++  imports.ts      allocate and inject collision-free helper bindings
++  transform.ts    orchestrate discovery, recursion, and ordered edits
++  runtime/*       browser-safe execution of compiled IR
++```
++
++`transform.ts` should remain an orchestrator. Parser rules, scope resolution,
++import mutation, and IR serialization belong to their dedicated modules so each
++phase can be tested independently.
++
++## Source transform pipeline
++
++```txt
++source text
++  -> TypeScript SourceFile AST
++  -> tagged-template candidate discovery
++  -> import/alias and lexical-shadow resolution
++  -> recursively transform nested interpolation expressions
++  -> compact HTML template parser
++  -> compiled template IR
++  -> collision-free helper references
++  -> ordered non-overlapping source edits
++  -> helper import insertion
++  -> transformed source
++```
++
++The transformer does not identify templates with textual searches such as
++`source.indexOf("html`")`. A tag is transformed only when its AST expression
++resolves to a recognized Fábrica template binding or configured tag path.
++
++## Binding resolution
++
++The transformer handles:
++
++- direct `html` imports;
++- aliases such as `html as h`;
++- configured member tag paths;
++- lexical parameter and local shadowing;
++- helper-name collisions;
++- direct component references only when a safe visible value binding exists.
++
++A local unrelated tag remains untouched:
++
++```ts
++const html = String.raw;
++html`not Fábrica`;
++```
++
++Likewise, a Fábrica import shadowed inside a function is not transformed inside
++that shadowed scope.
++
++Direct component references deliberately use lexical AST analysis rather than
++`TypeChecker.getSymbolsInScope()`. Build integrations frequently compile virtual
++files with partial module resolution, and the transform must stay deterministic
++in those environments.
++
++## Source preservation
++
++Helper imports are inserted without invalidating:
++
++- shebangs;
++- directive prologues such as `"use client"`;
++- existing imports;
++- local bindings named like compiler helpers.
++
++Nested Fábrica templates inside interpolation expressions are recursively
++transformed through AST ranges before their parent template is serialized.
++
++The Cipó/Vite integration uses transform-aware source maps with line and column
++anchors. Generated helper lines remain mapped conservatively while unchanged
++source retains substantially better column fidelity than the previous line-only
++map.
++
++## HTML template parsing
++
++Build-time and runtime compilation share the same compact parser rules. Tag-end
++scanning is quote-aware, so attributes such as this are valid:
++
++```html
++<div title="a > b">
++```
++
++The parser emits a compact IR consumed by the browser-safe compiled runtime.
++Dynamic native props eventually route through the canonical Fábrica binding
++kernel, preserving:
++
++- reactive plain attributes;
++- `.property` bindings;
++- `?boolean` bindings;
++- `class:*` bindings;
++- stateful spread diffing;
++- events;
++- callback and object refs;
++- special attributes;
++- deterministic cleanup.
++
++## Runtime parity
++
++The compiler may alter execution strategy but not observable semantics:
++
++```txt
++interpreted template -> shared binding kernel -> DOM
++compiled template    -> shared binding kernel -> DOM
++```
++
++A compiler optimization that reads a signal once where the interpreted runtime
++installs an effect is invalid, even when the initial HTML is identical.
++
++Parity tests therefore verify:
++
++1. initial DOM;
++2. signal-driven updates;
++3. event behavior where applicable;
++4. stale spread removal;
++5. ref cleanup and reset;
++6. disposal.
++
++## Deoptimization
++
++Known unsupported template shapes may return the canonical runtime template.
++That is a deliberate deoptimization.
++
++Unexpected exceptions are never swallowed into a runtime fallback. Silent
++catch-all fallback hides compiler bugs and creates unpredictable performance
++cliffs.
++
++A future diagnostics mode may report explicit deoptimization reasons, but it
++must not turn unexpected failures into silent success.
++
++## Cache policy
++
++Template-literal callsites are cached in a
++`WeakMap<TemplateStringsArray, ...>`. Dynamic string-based compilation uses a
++bounded cache. Cache keys never depend on joining template strings with a magic
++separator.
++
++## Import policy
++
++The source compiler can depend on TypeScript. Generated browser code cannot.
++This rule is enforced by the entrypoint split:
++
++```txt
++build process  -> @rodkisten/fabrica/compiler
++browser output -> @rodkisten/fabrica/compiler-runtime
++```
++
++The Fábrica runtime also cannot import `@rodkisten/cipo/compiler`. Runtime inline
++CSS compilation uses the dedicated `@rodkisten/cipo/runtime-inline` boundary.
++
++## Testing contract
++
++Every new compiler feature should include both:
++
++1. focused source-transform tests; and
++2. interpreted-versus-compiled runtime parity tests.
++
++Source-transform coverage should include syntax boundaries whenever relevant:
++
++- directives and shebangs;
++- aliases and lexical shadowing;
++- helper collisions;
++- nested template literals;
++- regex and comments inside expressions;
++- quoted HTML attributes;
++- virtual or partially resolved source files.
++
++A test that only snapshots generated source or compares initial `innerHTML` is
++not sufficient for a reactive compiler feature.
+diff --git a/fabrica/README.md b/fabrica/README.md
+index a11f97e5d92b77542ab209dca5e35f349df59f01..235d3f2e67ad80a281a86a0039ba6ba802f75449 100644
+--- a/fabrica/README.md
++++ b/fabrica/README.md
+@@ -1,37 +1,84 @@
+ # Fábrica
+ 
+-Fábrica is the HTML/UI runtime of the Rod browser ecosystem. It owns template parsing, DOM parts, rendering, directives, components, lifecycle hooks, composition and hydration-oriented UI work.
++Fábrica is the HTML/UI runtime of the Rod browser ecosystem. It owns template
++parsing, DOM parts, rendering, directives, components, lifecycle hooks, and
++composition. Reactivity lives in **Broto**: Fábrica consumes Broto signals, but
++does not own state primitives. Build-time source lowering lives behind Fábrica's
++explicit compiler entrypoint.
+ 
+-Reactivity lives in **Broto**. Fábrica consumes Broto internally and accepts Broto signals in render values, but state primitives are not owned by Fábrica.
++Architecture references:
++
++- [`ARCHITECTURE.md`](./ARCHITECTURE.md): runtime layers, ownership, and package
++  boundaries.
++- [`COMPILER.md`](./COMPILER.md): AST pipeline and compiler/runtime invariants.
++- [`REFACTOR_REPORT.md`](./REFACTOR_REPORT.md): migration map, deleted files, and
++  validation performed for the structural refactor.
+ 
+ ## Package boundaries
+ 
+ ```txt
+-Broto
+- ├── signal
+- ├── computed
+- ├── effect
+- ├── batch
+- ├── store
+- ├── graph
+- ├── scheduler
+- ├── async
+- └── resources
+-
+-Fabrica
+- ├── html
+- ├── template parser
+- ├── renderer
+- ├── directives
+- ├── DOM parts
+- ├── components
+- ├── component tags
+- ├── context
+- ├── lifecycle
+- ├── error boundaries
+- └── hydration
++Broto                              Fábrica
++ ├── reactive graph                 ├── core runtime context
++ ├── ownership                      ├── template compiler/cache
++ ├── scheduler                      ├── render root/value/parts
++ └── resources                      ├── shared DOM binding kernel
++                                    ├── directives/reconciliation
++Cipó                                ├── components/registries
++ ├── runtime CSS engine             ├── lifecycle/context/boundaries
++ ├── runtime-inline entrypoint      └── compiler (separate entrypoint)
++ └── build compiler
++```
++
++The dependency direction is deliberate:
++
++```txt
++runtime -> runtime
++compiler -> runtime + compiler services
++```
++
++Fábrica runtime code never imports Cipó's source compiler. Inline `$css` and
++`$style` bindings use `@rodkisten/cipo/runtime-inline`, which contains only the
++runtime-safe inline compiler.
++
++## Entry points and side effects
++
++Fábrica now exposes a small, explicit package surface:
++
++```ts
++import { html, render } from "@rodkisten/fabrica";
++import { html as runtimeHtml } from "@rodkisten/fabrica/runtime";
++import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
++import { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
++```
++
++`@rodkisten/fabrica` and `@rodkisten/fabrica/runtime` are side-effect free. They
++do not install `$`, `$el`, or `globalThis.Fabrica`. Applications that explicitly
++want the legacy browser-global bridge import:
++
++```ts
++import "@rodkisten/fabrica/browser";
++```
++
++The root package no longer re-exports source compiler APIs, and wildcard
++subpath exports were removed. Internal folders such as `bindings/`, `render/`,
++`template/`, and `compiler/runtime/` are implementation details rather than an
++accidental public API.
++
++## Runtime/compiler semantic invariant
++
++The primary architecture rule is:
++
++```txt
++interpreted template -> binding kernel -> DOM
++compiled template    -> binding kernel -> DOM
+ ```
+ 
++The compiler may remove parsing and discovery work, but it must not change
++observable behavior. Attribute bindings, `.property`, `?boolean`, `class:*`,
++refs, spreads, events, special attributes, cleanup, and signal updates converge
++on the same runtime primitives. The parity test suite exercises both execution
++paths against the same feature contracts.
++
+ ## Runtime performance model
+ 
+ Fábrica now uses a more aggressive compiled runtime plan while keeping the public API stable. The main rule is simple: work that can be discovered once during template compilation should not be repeated during render.
+@@ -787,14 +834,14 @@ jsx.html`<TabButton plugin=${item} />`;
+ 
+ `html.jsx` remains an alias for existing code.
+ 
+-## Composition helpers: portal, suspense, hydrate and repeat strategies
++## Composition helpers: portal, suspense, owned mounting and repeat strategies
+ 
+ Fábrica includes small composition primitives for app-scale UI:
+ 
+ ```ts
+ html`${portal(document.body, Modal())}`;
+ html`${suspense(resourceState, View, Spinner, ErrorView)}`;
+-hydrate(root, App());
++mountPreservingChildren(root, App());
+ repeat(records, (record) => record.id, Row, { strategy: 'append-only' });
+ ```
+ 
+@@ -1428,15 +1475,27 @@ Changing `store.expanded` updates only `:expanded`; changing `store.input` updat
+ 
+ The build compiler now has a compact production path for dynamic templates. Instead of serializing verbose object ASTs such as `{ type, tag, props, children }` into browser bundles, compiled templates use numeric tuple instructions. When `directComponentReferences` is enabled by the Vite integration, uppercase component tags are emitted as lexical component references instead of display-name strings. This lets Rollup/esbuild tree-shake unused components and mangle local identifiers safely.
+ 
+-Browser-facing code can import `./runtime` to avoid the compiler/source-scanner graph entirely. Compiler APIs remain available from `./compiler`, and the legacy `./index` entry stays compatible. The compact runtime still accepts the previous object instruction shape, so existing compiled fixtures and manually-authored definitions continue to work.
++Browser-facing code imports `@rodkisten/fabrica` or the explicit `/runtime`
++entrypoint without pulling the TypeScript source transformer. Source transforms
++live under `/compiler`; generated code imports only `/compiler-runtime`. The
++legacy compact object instruction shape remains accepted by the compiled runtime
++for compatibility with existing generated fixtures.
+ 
+ ```ts
++import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
++
+ compileFabricaSource(source, {
+   directComponentReferences: true,
+-})
++});
+ ```
+ 
+-A dynamic element that previously emitted verbose object keys is now represented approximately as `[0, Component, props, children]`, with text/value nodes using numeric opcodes. Static single-root templates continue to compile directly
