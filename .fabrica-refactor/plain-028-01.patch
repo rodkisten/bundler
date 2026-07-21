@@ -1,0 +1,219 @@
++  const orderedParts = parts.slice().sort((left, right) => comparePathsReverse(left.path, right.path));
++  const compiled: CompiledTemplate = {
++    template,
++    parts,
++    orderedParts,
++    hasComponents: parts.some((part) => part.type === "component"),
++  };
++
++  cache.set(strings, compiled);
++  debugState.templates += 1;
++  debugState.parts += parts.length;
++
++  return compiled;
++}
++
+diff --git a/fabrica/template/index.ts b/fabrica/template/index.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..105c631434b5557a8fc479ffaefa98301748c6f8
+--- /dev/null
++++ b/fabrica/template/index.ts
+@@ -0,0 +1,22 @@
++export {
++  getCompiledJsxTemplate,
++  getCompiledTemplate,
++  hasNamedComponentTagSyntax,
++} from "./cache.js";
++export {
++  buildTemplateSource,
++  isAttributePosition,
++  isImplicitSpreadAttributePosition,
++  isSpreadAttributePosition,
++  normalizeInterpolatedComponentSelfClosingTags,
++  normalizeQuotedDataAttributeNames,
++  normalizeStaticDataAttributeNames,
++  readAttributeBindingName,
++  transformMicroJsxChunk,
++} from "./source.js";
++export {
++  comparePathsReverse,
++  compileParts,
++  getNodePath,
++  resolvePath,
++} from "./parts.js";
+diff --git a/fabrica/template/parts.ts b/fabrica/template/parts.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..43d461b929fc4aa7f4a78ef618956fda6faebd88
+--- /dev/null
++++ b/fabrica/template/parts.ts
+@@ -0,0 +1,369 @@
++import {
++  ATTR_MARKER_PREFIX,
++  ATTR_MARKER_SUFFIX,
++  TEXT_MARKER_PREFIX,
++} from "../core/constants.js";
++import { normalizeStaticComponentPropName } from
++  "../bindings/component-props.js";
++import type {
++  ComponentPropPart,
++  TemplatePart,
++} from "../types.js";
++import { ATTR_NAME_MARKER_SUFFIX } from "./source.js";
++
++/**
++ * Compiles child, attribute and component parts from a template root.
++ *
++ * @param root - Template content root.
++ * @returns Template parts.
++ */
++export function compileParts(root: DocumentFragment): TemplatePart[] {
++  const parts: TemplatePart[] = [];
++
++  compileChildParts(root, parts);
++  compileAttributeParts(root, parts);
++  compileComponentParts(root, parts);
++
++  return parts;
++}
++
++/**
++ * Compiles child comment markers.
++ *
++ * @param root - Template root.
++ * @param parts - Parts accumulator.
++ */
++function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void {
++  const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
++
++  while (walker.nextNode()) {
++    const node = walker.currentNode;
++    const value = node.nodeValue ?? "";
++
++    if (!value.startsWith(TEXT_MARKER_PREFIX)) {
++      continue;
++    }
++
++    parts.push(withPartMeta({ type: "child", index: Number(value.slice(TEXT_MARKER_PREFIX.length)), path: getNodePath(root, node) }, parts.length));
++  }
++}
++
++/**
++ * Compiles attribute markers.
++ *
++ * @param root - Template root.
++ * @param parts - Parts accumulator.
++ */
++function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): void {
++  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
++
++  while (walker.nextNode()) {
++    const element = walker.currentNode as Element;
++    const attributesToRemove: string[] = [];
++
++    for (let index = 0; index < element.attributes.length; index += 1) {
++      const attribute = element.attributes[index];
++
++      if (!attribute) {
++        continue;
++      }
++
++      const markerState = readAttributeMarkers(attribute.value);
++
++      if (!markerState) {
++        continue;
++      }
++
++      attributesToRemove.push(attribute.name);
++
++      if (attribute.name === "data-fabrica-spread") {
++        parts.push(withPartMeta({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) }, parts.length));
++        continue;
++      }
++
++      parts.push(withPartMeta({
++        type: "attribute",
++        index: markerState.indices[0]!,
++        indices: markerState.indices,
++        strings: markerState.strings,
++        raw: markerState.raw,
++        path: getNodePath(root, element),
++        name: markerState.name || attribute.name,
++      }, parts.length));
++    }
++
++    for (let index = 0; index < attributesToRemove.length; index += 1) {
++      element.removeAttribute(attributesToRemove[index]!);
++    }
++  }
++}
++
++/**
++ * Compiles component placeholders created by component-tag syntax.
++ *
++ * @param root - Template root.
++ * @param parts - Parts accumulator.
++ */
++function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): void {
++  const templates = root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]");
++
++  for (let index = 0; index < templates.length; index += 1) {
++    const element = templates[index] as HTMLTemplateElement;
++    const rawIndex = element.getAttribute("data-fabrica-component");
++    const rawName = element.getAttribute("data-fabrica-component-name") || element.getAttribute("name") || "";
++    const componentIndex = rawIndex == null ? -1 : Number(rawIndex);
++
++    if (rawIndex != null && !Number.isFinite(componentIndex)) {
++      continue;
++    }
++
++    const childParts = compileParts(element.content);
++    const orderedChildParts = childParts.length > 1
++      ? childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path))
++      : childParts;
++    const componentPath = getNodePath(root, element);
++    const componentPathKey = createPathKey(componentPath);
++    const dynamicPropParts = compileDynamicComponentProps(componentPathKey, parts);
++
++    parts.push(withPartMeta({
++      type: "component",
++      index: componentIndex,
++      path: componentPath,
++      name: rawName || undefined,
++      staticProps: compileStaticComponentProps(element),
++      childParts,
++      orderedChildParts,
++      hasChildComponents: childParts.some((childPart) => childPart.type === "component"),
++      hasStaticChildren: hasMeaningfulStaticChildren(element.content),
++      dynamicPropParts,
++      hasDynamicPropParts: dynamicPropParts.length > 0,
++    }, parts.length));
++  }
++}
++
++
++function hasMeaningfulStaticChildren(fragment: DocumentFragment): boolean {
++  const children = fragment.childNodes;
++
++  for (let index = 0; index < children.length; index += 1) {
++    const child = children[index];
++    if (!child) continue;
++    if (child.nodeType === Node.ELEMENT_NODE) return true;
++    if (child.nodeType === Node.TEXT_NODE && (child.nodeValue ?? "").trim()) return true;
++  }
++
++  return false;
++}
++
++function compileDynamicComponentProps(pathKey: string, parts: TemplatePart[]): ComponentPropPart[] {
++  const output: ComponentPropPart[] = [];
++
++  for (let index = 0; index < parts.length; index += 1) {
++    const part = parts[index];
++    if (!part || part.pathKey !== pathKey) continue;
++
++    if (part.type === "spread") {
++      part.componentProp = true;
++      output[output.length] = { index: part.index, spread: true };
++      continue;
++    }
++
