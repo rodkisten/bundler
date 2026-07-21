@@ -1,6 +1,18 @@
 import { isDevtoolsNode } from "@rodkisten/devtools/utils";
-import { RESOURCE_ELEMENT_SELECTOR, type CapabilityModel, type StorageType } from "@rodkisten/devtools/panels/resources";
-import { appendArrayValues, atIterable, mapArray, someArray, splitNonEmpty, toArray, uniq } from "@rodkisten/nascente";
+import {
+  RESOURCE_ELEMENT_SELECTOR,
+  type CapabilityModel,
+  type StorageType,
+} from "@rodkisten/devtools/panels/resources";
+import {
+  appendArrayValues,
+  atIterable,
+  mapArray,
+  someArray,
+  splitNonEmpty,
+  toArray,
+  uniq,
+} from "@rodkisten/nascente";
 
 export function mutationTouchesResources(
   mutation: MutationRecord,
@@ -9,23 +21,37 @@ export function mutationTouchesResources(
   if (isDevtoolsNode(mutation.target, devtoolsHost)) return false;
 
   if (mutation.type === "attributes") {
-    return mutation.target instanceof Element
+    return isElementNode(mutation.target)
       && mutation.target.matches(RESOURCE_ELEMENT_SELECTOR);
   }
 
   const touchesResource = (node: Node): boolean => {
-    if (!(node instanceof Element) || isDevtoolsNode(node, devtoolsHost)) return false;
-    return node.matches(RESOURCE_ELEMENT_SELECTOR) || node.querySelector(RESOURCE_ELEMENT_SELECTOR) !== null;
+    if (!isElementNode(node) || isDevtoolsNode(node, devtoolsHost)) {
+      return false;
+    }
+
+    return node.matches(RESOURCE_ELEMENT_SELECTOR)
+      || node.querySelector(RESOURCE_ELEMENT_SELECTOR) !== null;
   };
 
   return someArray(mutation.addedNodes, touchesResource)
     || someArray(mutation.removedNodes, touchesResource);
 }
 
+function isElementNode(node: Node): node is Element {
+  return node.nodeType === 1
+    && typeof (node as Element).matches === "function";
+}
+
 export function collectCssRuleUrls(rules: CSSRuleList, output: string[]): void {
   for (const rule of toArray(rules)) {
     if (rule instanceof CSSStyleRule) {
-      appendArrayValues(output, extractCssUrls(`${rule.style.backgroundImage} ${rule.style.background}`));
+      appendArrayValues(
+        output,
+        extractCssUrls(
+          `${rule.style.backgroundImage} ${rule.style.background}`,
+        ),
+      );
       continue;
     }
 
@@ -56,8 +82,21 @@ export function looksLikeImageUrl(value: string): boolean {
   return /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)(?:[?#]|$)/i.test(value);
 }
 
-export function storageRows(type: StorageType, storage: Storage): Array<{ type: StorageType; key: string; value: string; json: boolean }> {
-  const rows: Array<{ type: StorageType; key: string; value: string; json: boolean }> = [];
+export function storageRows(
+  type: StorageType,
+  storage: Storage,
+): Array<{
+  type: StorageType;
+  key: string;
+  value: string;
+  json: boolean;
+}> {
+  const rows: Array<{
+    type: StorageType;
+    key: string;
+    value: string;
+    json: boolean;
+  }> = [];
 
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);
@@ -74,11 +113,18 @@ export function capabilityItems(): CapabilityModel[] {
   return mapArray([
     ["IndexedDB", typeof indexedDB !== "undefined"],
     ["Cache Storage", typeof caches !== "undefined"],
-    ["WebSQL", typeof (window as unknown as { openDatabase?: unknown }).openDatabase === "function"],
+    [
+      "WebSQL",
+      typeof (window as unknown as { openDatabase?: unknown })
+        .openDatabase === "function",
+    ],
     ["localStorage", canUseStorage("local")],
     ["sessionStorage", canUseStorage("session")],
     ["Cookies", typeof document.cookie === "string"],
-  ], ([name, available]) => ({ name: String(name), available: Boolean(available) }));
+  ], ([name, available]) => ({
+    name: String(name),
+    available: Boolean(available),
+  }));
 }
 
 export function parseCookies(): Array<{ name: string; value: string }> {
@@ -90,7 +136,10 @@ export function parseCookies(): Array<{ name: string; value: string }> {
     const value = index < 0 ? "" : chunk.slice(index + 1);
 
     try {
-      return { name: decodeURIComponent(name), value: decodeURIComponent(value) };
+      return {
+        name: decodeURIComponent(name),
+        value: decodeURIComponent(value),
+      };
     } catch {
       return { name, value };
     }
@@ -99,9 +148,15 @@ export function parseCookies(): Array<{ name: string; value: string }> {
 
 export function removeCookie(name: string): void {
   const encoded = encodeURIComponent(name);
-  const paths = ["/", location.pathname, location.pathname.replace(/\/[^/]*$/, "") || "/"];
+  const paths = [
+    "/",
+    location.pathname,
+    location.pathname.replace(/\/[^/]*$/, "") || "/",
+  ];
 
-  for (const path of uniq(paths)) document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
+  for (const path of uniq(paths)) {
+    document.cookie = `${encoded}=; Max-Age=0; path=${path}`;
+  }
 }
 
 export function safeStorage(type: StorageType): Storage {
