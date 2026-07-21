@@ -1,0 +1,306 @@
+diff --git a/fabrica/template/parts.ts b/fabrica/template/parts.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d3ba3b552bb28b2cd815143a29c17460905a0157
+--- /dev/null
++++ b/fabrica/template/parts.ts
+@@ -0,0 +1,602 @@
++import { extractEventName } from "../events.js";
++import {
++  isDynamicAttributeToken,
++  isDynamicBooleanAttributeToken,
++  isDynamicChildToken,
++  isDynamicClassToken,
++  isDynamicComponentToken,
++  isDynamicPropertyToken,
++  isDynamicSpreadToken,
++  isEventAttributeToken,
++  parseComponentPropToken,
++  parseDynamicAttributeToken,
++  parseDynamicComponentToken,
++  parseDynamicSpreadToken,
++} from "./source.js";
++import type {
++  CompiledTemplate,
++  ComponentPropPart,
++  RenderValue,
++  TemplatePart,
++} from "../types.js";
++
++type CompilePartsOptions = {
++  readonly componentTags?: ReadonlySet<string>;
++  readonly preserveSignalProps?: ReadonlyMap<string, ReadonlySet<string>>;
++};
++
++/**
++ * Compiles marker-bearing DOM into stable path-addressed template parts.
++ *
++ * This stage runs only once per tagged-template callsite. The cached paths are
++ * later resolved against cheap `template.content.cloneNode(true)` clones.
++ */
++export function compileParts(
++  root: ParentNode,
++  options: CompilePartsOptions = {},
++): TemplatePart[] {
++  const parts: TemplatePart[] = [];
++  const componentTags = options.componentTags ?? EMPTY_COMPONENT_TAGS;
++  const preserveSignalProps =
++    options.preserveSignalProps ?? EMPTY_PRESERVE_SIGNAL_PROPS;
++
++  walk(root, [], parts, componentTags, preserveSignalProps);
++  return parts;
++}
++
++/** Sorts parts once and records component presence for hot clone materialization. */
++export function finalizeCompiledTemplate(
++  template: HTMLTemplateElement,
++  parts: readonly TemplatePart[],
++): CompiledTemplate {
++  const orderedParts = [...parts].sort(compareTemplateParts);
++  return {
++    template,
++    parts,
++    orderedParts,
++    hasComponents: orderedParts.some((part) => part.type === "component"),
++  };
++}
++
++function walk(
++  parent: ParentNode,
++  path: number[],
++  parts: TemplatePart[],
++  componentTags: ReadonlySet<string>,
++  preserveSignalProps: ReadonlyMap<string, ReadonlySet<string>>,
++): void {
++  const children = Array.from(parent.childNodes);
++
++  for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
++    const child = children[childIndex]!;
++    const childPath = path.concat(childIndex);
++
++    if (child.nodeType === Node.COMMENT_NODE) {
++      compileCommentPart(child as Comment, childPath, parts);
++      continue;
++    }
++
++    if (child.nodeType !== Node.ELEMENT_NODE) continue;
++
++    const element = child as Element;
++    const componentToken = element.getAttribute("data-fabrica-component");
++    const component = componentToken
++      ? parseDynamicComponentToken(componentToken)
++      : null;
++
++    if (component) {
++      parts.push({
++        type: "component",
++        path: childPath,
++        componentIndex: component.componentIndex,
++        tag: component.tag,
++        referenceIndex: component.referenceIndex,
++        staticProps: Array.from(element.attributes)
++          .filter((attribute) => attribute.name !== "data-fabrica-component")
++          .map((attribute) => ({
++            name: attribute.name,
++            value: attribute.value,
++          })),
++      });
++
++      compileComponentPropParts(
++        element,
++        component.componentIndex,
++        component.tag,
++        parts,
++        preserveSignalProps,
++      );
++      walk(
++        element,
++        childPath,
++        parts,
++        componentTags,
++        preserveSignalProps,
++      );
++      continue;
++    }
++
++    compileElementParts(element, childPath, parts);
++    walk(
++      element,
++      childPath,
++      parts,
++      componentTags,
++      preserveSignalProps,
++    );
++  }
++}
++
++function compileCommentPart(
++  comment: Comment,
++  path: number[],
++  parts: TemplatePart[],
++): void {
++  if (!isDynamicChildToken(comment.data)) return;
++  const index = Number(comment.data.slice("fabrica-part:".length));
++  if (Number.isNaN(index)) return;
++  parts.push({ type: "child", path, index });
++}
++
++function compileElementParts(
++  element: Element,
++  path: number[],
++  parts: TemplatePart[],
++): void {
++  const attributes = Array.from(element.attributes);
++
++  for (const attribute of attributes) {
++    const { name, value } = attribute;
++
++    if (isDynamicSpreadToken(name)) {
++      const index = parseDynamicSpreadToken(name);
++      if (index != null) parts.push({ type: "spread", path, index });
++      element.removeAttribute(name);
++      continue;
++    }
++
++    if (isDynamicAttributeToken(value)) {
++      const parsed = parseDynamicAttributeToken(value);
++      if (!parsed) continue;
++
++      const raw = parsed.indices.length === 1 &&
++        parsed.strings.every((item) => item === "");
++      parts.push({
++        type: "attribute",
++        path,
++        name,
++        index: parsed.indices[0] ?? -1,
++        indices: parsed.indices,
++        strings: parsed.strings,
++        raw,
++      });
++      element.removeAttribute(name);
++      continue;
++    }
++
++    if (isDynamicPropertyToken(name)) {
++      const index = Number(value);
++      if (!Number.isNaN(index)) {
++        parts.push({
++          type: "property",
++          path,
++          name: name.slice(1),
++          index,
++        });
++      }
++      element.removeAttribute(name);
++      continue;
++    }
++
++    if (isDynamicBooleanAttributeToken(name)) {
++      const index = Number(value);
++      if (!Number.isNaN(index)) {
++        parts.push({
++          type: "booleanAttribute",
++          path,
++          name: name.slice(1),
++          index,
++        });
++      }
++      element.removeAttribute(name);
++      continue;
++    }
++
++    if (isDynamicClassToken(name)) {
++      const index = Number(value);
++      if (!Number.isNaN(index)) {
++        parts.push({
++          type: "conditionalClass",
++          path,
++          name: name.slice("class:".length),
++          index,
++        });
++      }
++      element.removeAttribute(name);
++      continue;
++    }
++
++    if (isEventAttributeToken(name)) {
++      const index = Number(value);
++      if (!Number.isNaN(index)) {
++        parts.push({
++          type: "event",
++          path,
++          name: extractEventName(name),
++          index,
++        });
++      }
++      element.removeAttribute(name);
++    }
++  }
++}
++
++function compileComponentPropParts(
++  element: Element,
++  componentIndex: number,
++  componentTag: string,
++  parts: TemplatePart[],
++  preserveSignalProps: ReadonlyMap<string, ReadonlySet<string>>,
++): void {
++  const preserved = preserveSignalProps.get(componentTag);
++
++  for (const attribute of Array.from(element.attributes)) {
++    if (attribute.name === "data-fabrica-component") continue;
++
++    const spreadIndex = parseDynamicSpreadToken(attribute.name);
++    if (spreadIndex != null) {
++      parts.push({
++        type: "componentProp",
++        componentIndex,
++        spread: true,
++        index: spreadIndex,
++      });
++      element.removeAttribute(attribute.name);
++      continue;
++    }
++
++    const parsed = parseComponentPropToken(attribute.value);
++    if (!parsed) continue;
++
++    const raw = parsed.indices.length === 1 &&
++      parsed.strings.every((item) => item === "");
++    parts.push({
++      type: "componentProp",
++      componentIndex,
++      name: attribute.name,
++      indices: parsed.indices,
++      strings: parsed.strings,
++      raw,
++      preserveSignal: raw && preserved?.has(attribute.name),
++      preserveSignalProps: preserved ? Array.from(preserved) : undefined,
++    });
++    element.removeAttribute(attribute.name);
++  }
++}
++
++function compareTemplateParts(a: TemplatePart, b: TemplatePart): number {
++  const aIndex = "componentIndex" in a ? a.componentIndex : Number.MAX_SAFE_INTEGER;
++  const bIndex = "componentIndex" in b ? b.componentIndex : Number.MAX_SAFE_INTEGER;
++  if (aIndex !== bIndex) return aIndex - bIndex;
++
++  if (a.type === "component" && b.type === "componentProp") return -1;
++  if (a.type === "componentProp" && b.type === "component") return 1;
++
++  const aPath = "path" in a ? a.path : EMPTY_PATH;
++  const bPath = "path" in b ? b.path : EMPTY_PATH;
++  const length = Math.min(aPath.length, bPath.length);
++  for (let index = 0; index < length; index += 1) {
++    const delta = aPath[index]! - bPath[index]!;
++    if (delta !== 0) return delta;
++  }
++  return aPath.length - bPath.length;
++}
++
++const EMPTY_PATH: readonly number[] = [];
++const EMPTY_COMPONENT_TAGS: ReadonlySet<string> = new Set<string>();
++const EMPTY_PRESERVE_SIGNAL_PROPS: ReadonlyMap<
++  string,
++  ReadonlySet<string>
++> = new Map();
