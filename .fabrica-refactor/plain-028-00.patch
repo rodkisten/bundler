@@ -1,0 +1,41 @@
+diff --git a/fabrica/test/compiler-runtime.test.ts b/fabrica/test/compiler-runtime.test.ts
+index 654eea79fd2df2b62ec09ca6017a6211f4df6634..de7675bb19e404b92922cf073a2f178dd895ce5d 100644
+--- a/fabrica/test/compiler-runtime.test.ts
++++ b/fabrica/test/compiler-runtime.test.ts
+@@ -1,8 +1,8 @@
+ import { describe, expect, it } from "vitest";
+ import { signal } from "@rodkisten/broto/reactivity";
+ import {
+-  createCompiledElement,
+   createCompiledTemplate,
+-} from "@rodkisten/fabrica/compiler-runtime";
++} from "../compiler-runtime.js";
++import { createCompiledElement } from "../compiler.js";
+ import {
+   create,
+   html,
+@@ -14,7 +14,7 @@ describe("compiled runtime", () => {
+     const view = createCompiledElement(
+       "button",
+       { class: "primary" },
+-      "Save",
++      "Save" as never,
+     );
+ 
+     expect(view).toBeInstanceOf(HTMLButtonElement);
+@@ -27,6 +27,7 @@ describe("compiled runtime", () => {
+   it("keeps isolated component registries when compiled templates execute", () => {
+     const local = create({ name: "compiled-local", isolated: true });
+     local.component("Card", () => html`<article>local</article>`);
++
+     const view = createCompiledTemplate(
+       local.html,
+       [[2, "Card", [], []]],
+@@ -39,6 +40,7 @@ describe("compiled runtime", () => {
+   it("preserves reactive component prop semantics", () => {
+     const local = create({ name: "compiled-props", isolated: true });
+     const value = signal("one");
++
+     local.component<{ value?: string }>("Card", (props) =>
+       html`<article>${props.value}</article>`,
+     );
