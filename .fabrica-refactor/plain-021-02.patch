@@ -1,0 +1,81 @@
+-        isElementPayload(resolvedValue) ||
+-        isComponentPayload(resolvedValue) ||
+-        isDomBag(resolvedValue)
+-      ) {
+-        clearRange(start, end);
+-        appendValue(end.parentNode, resolvedValue, end);
+-        currentType = "renderable";
+-        currentText = "";
+-        textNode = null;
+-        currentNode = null;
+-        return;
+-      }
+-
+-      if (isDomNode(resolvedValue)) {
+-        if (currentType === "node" && currentNode === resolvedValue) {
+-          return;
+-        }
+-
+-        clearRange(start, end);
+-        appendValue(end.parentNode, resolvedValue, end);
+-        currentType = "node";
+-        currentText = "";
+-        textNode = null;
+-        currentNode = resolvedValue;
+-        return;
+-      }
+-
+-      const nextText = String(resolvedValue);
+-
+-      if (currentType === "text" && textNode) {
+-        if (currentText !== nextText) {
+-          textNode.data = nextText;
+-          currentText = nextText;
+-        }
+-
+-        return;
+-      }
+-
+-      clearRange(start, end);
+-      textNode = document.createTextNode(nextText);
+-      end.parentNode?.insertBefore(textNode, end);
+-      currentType = "text";
+-      currentText = nextText;
+-      currentNode = textNode;
+-  };
+-
+-  return {
+-    start,
+-    end,
+-    set(value: RenderValue | undefined): void {
+-      runWithFabricaRuntime(runtime, () => setValue(value));
+-    },
+-  };
+-}
+-
+-/**
+- * Binds an attribute interpolation.
+- *
+- * @param node - Target node.
+- * @param rawName - Raw attribute name.
+- * @param value - Runtime value.
+- */
+-function bindAttributePart(
+-  node: Node,
+-  rawName: string,
+-  value: RenderValue | undefined,
+-): void {
+-  if (!isDomElement(node)) {
+-    return;
+-  }
+-
+-  if (isDirective(value) && value.kind === "bind") {
+-    bindModelPart(node, rawName, value as unknown as BindDirective);
+-    return;
+-  }
+-
+-  if (rawName === "ref") {
+-    const refValue = isRefDirective(value) ? value.callback : value;
+-
+-    if (typeof refValue === "function") {
+-      const cleanup = (refValue a
