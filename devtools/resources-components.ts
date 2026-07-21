@@ -1,11 +1,12 @@
 import type { CipoCssArtifact } from "@rodkisten/cipo";
 import type { ResourcesContextValue } from "@rodkisten/devtools/types";
-import { component, html,  styled } from "@rodkisten/devtools/core/runtime";
+import { component, html, styled } from "@rodkisten/devtools/core/runtime";
 import "@rodkisten/devtools/panels/shared-components";
 import { createRequiredFabricaContext } from "@rodkisten/fabrica";
 import { filterArray, flatMap } from "@rodkisten/nascente";
 
-export const ResourcesContext = createRequiredFabricaContext<ResourcesContextValue>("ResourcesContext");
+export const ResourcesContext =
+  createRequiredFabricaContext<ResourcesContextValue>("ResourcesContext");
 
 export const ResourcesSection = styled.section("RodResourcesSection").css`
   margin: 10px;
@@ -35,7 +36,9 @@ export const ResourcesSectionTitle = styled.div("RodResourcesSectionTitle").css`
   font-weight: 600;
 `;
 
-export const ResourcesSectionActions = styled.span("RodResourcesSectionActions").css`
+export const ResourcesSectionActions = styled.span(
+  "RodResourcesSectionActions",
+).css`
   display: flex;
   gap: 4px;
   margin-left: auto;
@@ -76,8 +79,18 @@ export const ResourcesTable = styled.table("RodResourcesTable").css`
   color: $foreground;
   font-size: 12px;
 
-  th { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; }
-  td { padding: 7px 8px; border-bottom: 1px solid $border; text-align: left; vertical-align: middle; }
+  th {
+    padding: 7px 8px;
+    border-bottom: 1px solid $border;
+    text-align: left;
+    vertical-align: middle;
+  }
+  td {
+    padding: 7px 8px;
+    border-bottom: 1px solid $border;
+    text-align: left;
+    vertical-align: middle;
+  }
 
   th {
     color: $primary;
@@ -120,7 +133,9 @@ export const ResourcesLinkList = styled.ul("RodResourcesLinkList").css`
   }
 `;
 
-export const ResourcesSectionContent = styled.div("RodResourcesSectionContent").css`
+export const ResourcesSectionContent = styled.div(
+  "RodResourcesSectionContent",
+).css`
   padding: 10px;
 `;
 
@@ -189,7 +204,9 @@ export const ResourcesJsonHeader = styled.div("RodResourcesJsonHeader").css`
   font-weight: 700;
 `;
 
-export const ResourcesJsonEditorHost = styled.div("RodResourcesJsonEditorHost").css`
+export const ResourcesJsonEditorHost = styled.div(
+  "RodResourcesJsonEditorHost",
+).css`
   min-height: 0;
   overflow: hidden;
 
@@ -203,7 +220,8 @@ export const ResourcesJsonActions = styled.div("RodResourcesJsonActions").css`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 8px 10px calc(var(--rd-resources-bottom-padding, 96px) + var(--rd-safe-bottom));
+  padding: 8px 10px
+    calc(var(--rd-resources-bottom-padding, 96px) + var(--rd-safe-bottom));
   border-top: 1px solid $border;
   background: $backgroundDark;
 `;
@@ -226,20 +244,25 @@ const RESOURCES_STYLED_COMPONENTS = Object.freeze([
   ResourcesJsonActions,
 ]);
 
-export const resourcesStyleArtifacts: readonly CipoCssArtifact[] = Object.freeze(
-  filterArray(flatMap(RESOURCES_STYLED_COMPONENTS, (styledComponent) => styledComponent.artifacts), (artifact): artifact is CipoCssArtifact => artifact.kind === "cipo.css"),
-);
+export const resourcesStyleArtifacts: readonly CipoCssArtifact[] =
+  Object.freeze(
+    filterArray(
+      flatMap(
+        RESOURCES_STYLED_COMPONENTS,
+        (styledComponent) => styledComponent.artifacts,
+      ),
+      (artifact): artifact is CipoCssArtifact =>
+        artifact.kind === "cipo.css",
+    ),
+  );
 
 component("RodResourcesView", function RodResourcesView(_props, ctx) {
   const resources = ctx.useRequiredContext(ResourcesContext);
 
   return html`
     <RodSharedScrollableBody :resourcesBody>
-      ${() => {
-        resources.revision();
-        return resources.renderContent();
-      }}
+      ${resources.content}
     </RodSharedScrollableBody>
-    ${() => resources.renderJsonDialog()}
+    ${resources.jsonDialog}
   `;
 });
