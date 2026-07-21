@@ -1,0 +1,394 @@
+diff --git a/cipo/CHANGELOG.md b/cipo/CHANGELOG.md
+index e6b0f0afdcad872e07e0b8ce64ae1f1eef57dec5..7190427f6fab1e582029703ae87c215066c781de 100644
+--- a/cipo/CHANGELOG.md
++++ b/cipo/CHANGELOG.md
+@@ -1,3 +1,15 @@
++## Unreleased
++
++### Fábrica runtime boundary and source maps
++
++- Added the runtime-only `@rodkisten/cipo/runtime-inline` entrypoint so Fábrica
++  special attributes can compile inline Cipó styles without importing the
++  TypeScript/source-compiler graph into browser runtime bundles.
++- Added transform-aware source-map generation with multiple column anchors on
++  surviving source lines and monotonic mappings for generated lines. The
++  previous line-only helper remains available for compatibility.
++- Updated the Vite integration to use the transform-aware source-map generator.
++
+ ## Unreleased
+ - Added a dedicated interactive Cipó landing page at `dist/cipo/index.html`, wired into the root build pipeline. The playground runs the real published browser runtime, supports live stylesheet and atomic compilation, exposes all built-in helpers through an insertion palette, and applies generated CSS to an interactive preview.
+ - Added a maximalist forest visual system with intertwined SVG vines, mobile-capped fireflies, responsive layouts, and `prefers-reduced-motion` fallbacks.
+diff --git a/cipo/compiler/source-map.ts b/cipo/compiler/source-map.ts
+index 49c1c7771afdbd7af9220804bde05de78a481b88..cca10b729c4eb6528111098c8353b8bf6667ed37 100644
+--- a/cipo/compiler/source-map.ts
++++ b/cipo/compiler/source-map.ts
+@@ -84,3 +84,114 @@ function encodeVlq(value: number): string {
+   } while (vlq > 0)
+   return output
+ }
++
++/**
++ * Builds a column-aware source map for source-to-source transforms.
++ *
++ * Exact surviving lines receive mapping anchors across the line instead of a
++ * single column-zero segment. Rewritten/generated lines fall back to the
++ * closest monotonic source line, which keeps stack traces stable while still
++ * allowing debuggers to recover useful columns for untouched source regions.
++ *
++ * This intentionally remains dependency-free. Compiler stages that own exact
++ * edit ranges can layer richer mappings later without forcing runtime packages
++ * to depend on a source-map implementation.
++ */
++export function createTransformSourceMap(
++  original: string,
++  generated: string,
++  filename: string,
++): CipoSourceMap {
++  const originalLines = original.split(/\r?\n/)
++  const generatedLines = generated.split(/\r?\n/)
++  const exactPositions = indexExactOriginalLines(originalLines)
++  const trimmedPositions = indexOriginalLines(originalLines)
++  let previousSourceIndex = 0
++  let previousOriginalLine = 0
++  let previousOriginalColumn = 0
++  let mappings = ''
++
++  for (
++    let generatedLine = 0;
++    generatedLine < generatedLines.length;
++    generatedLine += 1
++  ) {
++    if (generatedLine > 0) mappings += ';'
++
++    const generatedText = generatedLines[generatedLine] ?? ''
++    const exactLine = findBestOriginalLine(
++      exactPositions.get(generatedText),
++      previousOriginalLine,
++    )
++    const trimmedLine = findBestOriginalLine(
++      trimmedPositions.get(generatedText.trim()),
++      previousOriginalLine,
++    )
++    const resolvedLine =
++      exactLine
++      ?? trimmedLine
++      ?? Math.min(
++        previousOriginalLine,
++        Math.max(0, originalLines.length - 1),
++      )
++    const sourceText = originalLines[resolvedLine] ?? ''
++    const exact = exactLine !== undefined && sourceText === generatedText
++    const columns = exact
++      ? createColumnAnchors(generatedText)
++      : [0]
++    let previousGeneratedColumn = 0
++
++    for (let index = 0; index < columns.length; index += 1) {
++      if (index > 0) mappings += ','
++      const generatedColumn = columns[index] ?? 0
++      const originalColumn = exact
++        ? Math.min(generatedColumn, sourceText.length)
++        : 0
++      const segment = [
++        generatedColumn - previousGeneratedColumn,
++        0 - previousSourceIndex,
++        resolvedLine - previousOriginalLine,
++        originalColumn - previousOriginalColumn,
++      ]
++      mappings += segment.map(encodeVlq).join('')
++      previousGeneratedColumn = generatedColumn
++      previousSourceIndex = 0
++      previousOriginalLine = resolvedLine
++      previousOriginalColumn = originalColumn
++    }
++  }
++
++  return {
++    version: 3,
++    file: filename,
++    sources: [filename],
++    sourcesContent: [original],
++    names: [],
++    mappings,
++  }
++}
++
++function indexExactOriginalLines(
++  lines: readonly string[],
++): Map<string, number[]> {
++  const output = new Map<string, number[]>()
++  for (let index = 0; index < lines.length; index += 1) {
++    const key = lines[index] ?? ''
++    const positions = output.get(key)
++    if (positions) positions.push(index)
++    else output.set(key, [index])
++  }
++  return output
++}
++
++function createColumnAnchors(line: string): number[] {
++  if (!line) return [0]
++
++  const output = [0]
++  const stride = 16
++  for (let column = stride; column < line.length; column += stride) {
++    output.push(column)
++  }
++  if (output[output.length - 1] !== line.length) output.push(line.length)
++  return output
++}
+diff --git a/cipo/compiler/source-maps.test.ts b/cipo/compiler/source-maps.test.ts
+index f241e4b74a85512c81154ffbcf69bc1fef626d6a..7071387b0282f6afd49fa8c7cf6732bf54355179 100644
+--- a/cipo/compiler/source-maps.test.ts
++++ b/cipo/compiler/source-maps.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from 'vitest'
+-import { createLineSourceMap } from './source-map'
++import { createLineSourceMap, createTransformSourceMap } from './source-map'
+ describe('createLineSourceMap', () => {
+   it('creates a valid Source Map v3 contract with the original source embedded', () => {
+     const original = [
+@@ -612,3 +612,37 @@ function decodeVlqSegment(
+ }
+ const BASE64 =
+   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
++
++
++describe('createTransformSourceMap', () => {
++  it('emits multiple column anchors for unchanged source lines', () => {
++    const source = 'const message = "a sufficiently long unchanged line"'
++    const map = createTransformSourceMap(
++      source,
++      source,
++      '/src/columns.ts',
++    )
++
++    expect(map.mappings.split(';')[0]?.split(',').length).toBeGreaterThan(1)
++  })
++
++  it('keeps generated helper lines mapped while preserving exact source lines', () => {
++    const original = [
++      '"use client"',
++      'const view = html`<main />`',
++    ].join('\n')
++    const generated = [
++      '"use client"',
++      'import { helper } from "runtime"',
++      'const view = helper(html)',
++    ].join('\n')
++    const map = createTransformSourceMap(
++      original,
++      generated,
++      '/src/transformed.ts',
++    )
++
++    expect(map.mappings.split(';')).toHaveLength(3)
++    expect(map.sourcesContent).toEqual([original])
++  })
++})
+diff --git a/cipo/integrations/vite/plugin.ts b/cipo/integrations/vite/plugin.ts
+index e693a32f5250673b6142f8fac5ac041e09dda8b3..4cabe084ce84b06bc8df3f5eba3c3b89aeb5da26 100644
+--- a/cipo/integrations/vite/plugin.ts
++++ b/cipo/integrations/vite/plugin.ts
+@@ -26,7 +26,7 @@ import {
+   type SourceEdit,
+ } from '../../compiler/source/index'
+ import {
+-  createLineSourceMap,
++  createTransformSourceMap,
+   type CipoSourceMap,
+ } from '../../compiler/source-map'
+ import {
+@@ -879,7 +879,7 @@ function createViteSourceMap(
+   filename: string,
+ ): CipoViteSourceMap {
+   const map =
+-    createLineSourceMap(
++    createTransformSourceMap(
+       originalCode,
+       generatedCode,
+       filename,
+diff --git a/cipo/package.json b/cipo/package.json
+index 7698c5ad319eab0f98821b632ed56d5f7847a6e0..6dd5193a0b879d99817a569ff8fdbd3f0890612a 100644
+--- a/cipo/package.json
++++ b/cipo/package.json
+@@ -31,7 +31,12 @@
+       "import": "./dist/compiled-runtime.js",
+       "default": "./dist/compiled-runtime.js"
+     },
+-    "./package.json": "./package.json"
++    "./package.json": "./package.json",
++    "./runtime-inline": {
++      "types": "./dist/runtime-inline.d.ts",
++      "import": "./dist/runtime-inline.js",
++      "default": "./dist/runtime-inline.js"
++    }
+   },
+   "files": [
+     "dist",
+diff --git a/cipo/runtime-inline.ts b/cipo/runtime-inline.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6774a31c726016cd6dbe59f668fcdc5e2672836
+--- /dev/null
++++ b/cipo/runtime-inline.ts
+@@ -0,0 +1,11 @@
++/**
++ * Runtime-safe inline CSS compiler entrypoint.
++ *
++ * This module intentionally exports only the inline declaration compiler used
++ * by browser runtimes. It does not import the source compiler, TypeScript, or
++ * build-tool integrations, keeping runtime dependency graphs compiler-free.
++ */
++export {
++  collectInlineCss,
++  compileInlineCss,
++} from "./engine/inline/compile.js";
+diff --git a/cipo/syntax/parser.ts b/cipo/syntax/parser.ts
+index e04a7d91ef369e54f2a6c9d1c1f4715ee8dac937..5e2790fb204491e43ce946d7365ef104e74030fd 100644
+--- a/cipo/syntax/parser.ts
++++ b/cipo/syntax/parser.ts
+@@ -5,7 +5,6 @@ import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyD
+ import { runtime } from '../runtime'
+ import { getStandaloneAliasName, stringifyAlias } from '../transform/index'
+ 
+-const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', 'grid-flow', 'text', 'break', 'stack', 'cluster', 'center', 'cover', 'sidebar', 'scroll', 'scrollbar', 'snap', 'snap-item', 'overscroll', 'tap', 'select', 'drag', 'focus-ring', 'transition', 'animate'])
+ 
+ /**
+  * Parses transformed CSS into Cipó's tiny AST.
+diff --git a/cipo/test/cipo.compiled-build-vite.test.ts b/cipo/test/cipo.compiled-build-vite.test.ts
+index 5beac5247c8ab778dcf505631935eb37ac3cf7e7..e85b4bb8cdd2759bb11dbfd455aa39b81277a52b 100644
+--- a/cipo/test/cipo.compiled-build-vite.test.ts
++++ b/cipo/test/cipo.compiled-build-vite.test.ts
+@@ -1,9 +1,11 @@
+ /** @vitest-environment jsdom */
+ import { describe, expect, it } from 'vitest'
+ import { configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
++import { createFabrica } from '@rodkisten/fabrica'
+ import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler'
+ import { cipoVite } from '@rodkisten/cipo/vite'
+-import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica'
++import { compileFabricaSource } from '@rodkisten/fabrica/compiler'
++import { createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica/compiler-runtime'
+ 
+ describe('Cipó + Fábrica compiled build mode', () => {
+   it('compiles styled Cipó templates into real scoped CSS classes', () => {
+@@ -41,15 +43,16 @@ describe('Cipó + Fábrica compiled build mode', () => {
+     expect(result.css).toBe('')
+   })
+ 
+-  it('compiles simple Fabrica html templates to createCompiledElement', () => {
++  it('compiles simple Fabrica html templates to compact runtime instructions', () => {
+     const result = compileFabricaSource("const view = html`<button class=\"save\">Salvar</button>`", {
+       filename: '/project/src/view.ts',
+-      importPath: '../fabrica/compiler',
++      importPath: '@rodkisten/fabrica/compiler-runtime',
+     })
+ 
+     expect(result.changed).toBe(true)
+-    expect(result.code).toContain('createCompiledElement("button"')
+-    expect(result.code).toContain('{"class":"save"}')
++    expect(result.code).toContain('createCompiledTemplate')
++    expect(result.code).toContain('[[0,"button"')
++    expect(result.code).toContain('[0,"class","save"]')
+     expect(result.manifest[0]?.tag).toBe('button')
+   })
+ 
+@@ -65,25 +68,40 @@ describe('Cipó + Fábrica compiled build mode', () => {
+   })
+ 
+   it('creates dynamic DOM templates with runtime-backed @event bindings', () => {
++    const fabrica = createFabrica({ name: 'compiled-event-test', isolated: true })
++    const host = document.createElement('div')
+     let clicked = 0
+-    const view = createCompiledTemplate(['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
+-    const button = view as HTMLButtonElement
+ 
++    fabrica.render(host, createCompiledTemplate(
++      fabrica.html,
++      ['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray,
++      () => { clicked += 1 },
++      'now',
++    ))
++
++    const button = host.querySelector('button') as HTMLButtonElement
+     expect(button.tagName).toBe('BUTTON')
+     expect(button.textContent).toBe('Save now')
+     button.click()
+     expect(clicked).toBe(1)
+   })
+ 
+-  it('hydrates dynamic template spread props without emitting invalid attribute names', () => {
++  it('materializes dynamic template spread props without invalid attribute names', () => {
++    const fabrica = createFabrica({ name: 'compiled-spread-test', isolated: true })
++    const host = document.createElement('div')
+     let clicked = 0
+-    const view = createCompiledTemplate(['<button ...', '>Save</button>'] as unknown as TemplateStringsArray, {
+-      type: 'button',
+-      class: 'spread',
+-      onClick: () => { clicked += 1 },
+-    })
+-    const button = view as HTMLButtonElement
+ 
++    fabrica.render(host, createCompiledTemplate(
++      fabrica.html,
++      ['<button ...', '>Save</button>'] as unknown as TemplateStringsArray,
++      {
++        type: 'button',
++        class: 'spread',
++        onClick: () => { clicked += 1 },
++      },
++    ))
++
++    const button = host.querySelector('button') as HTMLButtonElement
+     expect(button.type).toBe('button')
+     expect(button.className).toBe('spread')
+     expect(button.getAttribute('...%%fabrica_value_0%%')).toBeNull()
+@@ -133,7 +151,8 @@ describe('Cipó + Fábrica compiled build mode', () => {
+     expect(code).toContain('attachCompiledCss')
+     expect(code).not.toContain('.css`')
+     expect(code).toContain('color:red')
+-    expect(code).toContain('createCompiledElement("section"')
++    expect(code).toContain('createCompiledTemplate')
++    expect(code).toContain('[[0,"section"')
+     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
+     expect(runtimeModule).toContain('insertCss')
+     expect(runtimeModule).toContain('__CIPO_COMPILED_GLOBAL_STYLESHEET__')
+@@ -174,6 +193,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
+ 
+   it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
+     const source = `
++      const RodProbe = () => null
+       const view = html` + '`' + `<RodProbe @click=${'${'}onClick} class="tone ${'${'}tone}" ref=${'${'}refCallback}>
+         <button .value=${'${'}value}>${'${'}label}</button>
+       </RodProbe>` + '`' + `
+@@ -181,7 +201,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
+ 
+     const result = compileFabricaSource(source, {
+       filename: '/project/src/devtools/console.ts',
+-      importPath: '../fabrica/compiler',
++      importPath: '@rodkisten/fabrica/compiler-runtime',
+       directComponentReferences: true,
+     })
+ 
+@@ -195,7 +215,9 @@ describe('Cipó + Fábrica compiled build mode', () => {
+     expect(result.code).not.toContain('ref=')
+   })
+ 
+-  it('hydrates compiled instruction payloads with components, events, refs and property bindings', () => {
++  it('materializes compiled instructions with events, refs and property bindings', () => {
++    const fabrica = createFabrica({ name: 'compiled-instructions-test', isolated: true })
++    const host = document.createElement('div')
+     let clicked = 0
+     let refNode: Element | null = null
+     const Probe = (props: Record<string, unknown>) => createCompiledElement(
+@@ -204,7 +226,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
+       props.children as never,
+     )
+ 
+-    const view = createCompiledTemplate({
++    fabrica.render(host, createCompiledTemplate(fabrica.html, {
+       nodes: [{
+         type: 'element',
+         tag: 'div',
+@@ -221,9 +243,9 @@ describe('Cipó + Fábrica compiled build mode', () => {
+           children: [{ type: 'value', index: 4 }],
