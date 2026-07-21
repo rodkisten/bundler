@@ -71,6 +71,16 @@ export interface CipoViteCompiledInlineOptions {
   readonly transformCssTag?: boolean
   readonly compileFabrica?: boolean
   readonly directComponentReferences?: boolean
+
+  /**
+   * Additional modules trusted to re-export Fábrica's `html` binding.
+   *
+   * This keeps binding-aware compilation safe for package-local runtime
+   * facades such as DevTools or Máquina without falling back to textual tag
+   * matching.
+   */
+  readonly fabricaImportModules?: readonly string[]
+
   readonly enabled?: boolean
   readonly evaluateStaticCss?: boolean
   readonly configCss?: string
@@ -590,6 +600,10 @@ export function cipoVite(
                 options
                   .directComponentReferences
                 ?? false,
+
+              fabricaImportModules:
+                options
+                  .fabricaImportModules,
             },
           ) as CipoViteFabricaCompileResult
 
