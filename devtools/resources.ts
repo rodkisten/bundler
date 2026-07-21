@@ -5,7 +5,7 @@ import { icon, isDevtoolsNode, truncate } from "@rodkisten/devtools/utils";
 import { plainText } from "@rodkisten/devtools/core/serialize";
 import { Tool } from "@rodkisten/devtools/tool";
 import type { ResourcesConfig, ResourcesContextValue, SourcePayload, ToolContext } from "@rodkisten/devtools/types";
-import { event, html } from "@rodkisten/devtools/core/runtime";
+import { event, html, render } from "@rodkisten/devtools/core/runtime";
 import { mountCodeEditor, type CodeEditorHandle } from "@rodkisten/devtools/core/code-editor";
 import { resourcesStyleArtifacts, ResourcesContext } from "@rodkisten/devtools/panels/resources-components";
 import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, formatJsonValue } from "@rodkisten/devtools/panels/resources.functions";
@@ -38,9 +38,15 @@ export class Resources extends Tool {
   private jsonEditor: CodeEditorHandle | null = null;
   private jsonEditorValue = "";
   private readonly revision = signal(0, { name: "resources.revision" });
+  private contentRoot: HTMLElement | null = null;
+  private contentDispose: Cleanup | null = null;
   private readonly jsonEditorState = signal<{ type: StorageType; key: string } | null>(null, { name: "resources.jsonEditor" });
   private readonly view: ResourcesContextValue = {
     revision: this.revision,
+    setContentViewport: (node) => {
+      this.contentRoot = node;
+      if (node && this.active) this.refresh();
+    },
     renderContent: () => this.renderContent(),
     renderJsonDialog: () => this.renderJsonDialog(),
   };
@@ -71,9 +77,15 @@ export class Resources extends Tool {
   refresh(): void {
     if (!this.active) return;
     this.revision.update((current) => current + 1);
+
+    if (!this.contentRoot) return;
+    this.contentDispose?.();
+    this.contentDispose = render(this.contentRoot, this.renderContent());
   }
 
   private renderContent(): RenderValue {
+    if (!this.active) return null;
+
     return html`
       ${this.storageSection("Local Storage", "local", safeStorage("local"))}
       ${this.storageSection("Session Storage", "session", safeStorage("session"))}
@@ -89,8 +101,8 @@ export class Resources extends Tool {
 
   override show(): void {
     super.show();
-    this.observe();
     this.refresh();
+    this.observe();
   }
 
   override hide(): void {
@@ -112,6 +124,9 @@ export class Resources extends Tool {
     window.clearTimeout(this.refreshTimer);
     this.config.off("change", this.onConfigChange);
 
+    this.contentDispose?.();
+    this.contentDispose = null;
+    this.contentRoot = null;
     this.closeJsonEditor();
     super.destroy();
   }

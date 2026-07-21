@@ -1,3 +1,4 @@
+import { getOwner, runWithOwner } from "@rodkisten/broto/owner";
 import { effect } from "@rodkisten/broto/reactivity";
 import { hasReactiveValue } from "../../core/value.js";
 import { clearRange, disposeRange, registerCleanup, removeRange } from "../../render/cleanup.js";
@@ -11,6 +12,7 @@ export function createRepeatController(
   host: DirectiveRuntimeHost,
 ): DirectiveController {
   const records = new Map<PropertyKey, RepeatRecord>();
+  const renderOwner = getOwner();
   let currentDirective: RepeatDirective<unknown, PropertyKey> | null = null;
   let disposeItems: (() => void) | null = null;
   let emptyStart: Comment | null = null;
@@ -21,11 +23,13 @@ export function createRepeatController(
       return;
     }
 
-    const hasItems = updateRepeat(
-      host,
-      end,
-      records,
-      currentDirective,
+    const hasItems = runWithOwner(renderOwner, () =>
+      updateRepeat(
+        host,
+        end,
+        records,
+        currentDirective!,
+      ),
     );
 
     if (!hasItems && currentDirective.empty) {
@@ -58,7 +62,10 @@ export function createRepeatController(
       }
 
       disposeItems = hasReactiveValue(currentDirective.items)
-        ? effect(updateList)
+        ? effect(updateList, {
+            name: "fabrica.repeat",
+            scheduler: "sync",
+          })
         : (updateList(), null);
 
       if (disposeItems) {

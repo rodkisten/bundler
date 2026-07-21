@@ -42,6 +42,13 @@ export default defineConfig({
   },
 
   test: {
+    globalSetup: [workspaceFile("scripts/vitest-global-setup.ts")],
+
+    // VM forks isolate JSDOM-heavy suites while allowing Vitest to recycle
+    // workers before long monorepo runs accumulate cross-file VM pressure.
+    pool: "vmForks",
+    maxWorkers: 4,
+    vmMemoryLimit: "384MB",
     testTimeout: 5_000,
     hookTimeout: 5_000,
 

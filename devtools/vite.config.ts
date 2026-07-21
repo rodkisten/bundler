@@ -34,7 +34,9 @@ function devtoolsLandingPlugin(): Plugin {
     name: "roderuda-devtools-landing",
     apply: "build",
 
-    async closeBundle() {
+    async writeBundle(outputOptions) {
+      if (outputOptions.format !== "iife") return;
+
       await Promise.all([
         buildDevtoolsLanding(),
         copyFile(
@@ -118,12 +120,10 @@ export default defineConfig({
       mode: "build",
       enabled: true,
       cssDelivery: "style-tag",
+      manifestFileName: "devtools.cipo.compiled.manifest.json",
       compileFabrica: true,
       transformCssTag: true,
       styledImportModules: [
-        "@rodkisten/devtools/core/runtime",
-      ],
-      fabricaImportModules: [
         "@rodkisten/devtools/core/runtime",
       ],
       configCss: devtoolsStyles.cssText,

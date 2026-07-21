@@ -525,12 +525,13 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         })}
       </RodDevtoolsEntryButton>
 
-      <RodDevtoolsDock
-        :inline=${shared.inline}
-        :active=${shared.visible}
+      <section
+        class=${DevtoolsDock.className}
+        data-inline=${String(shared.inline)}
+        data-active=${() => String(shared.visible())}
         aria-label="Developer tools"
         aria-hidden=${() => String(!shared.visible())}
-        :roderudaShellRef="devtools"
+        data-roderuda-shell-ref="devtools"
         ref=${(node: HTMLElement) => {
           refs.devtools = node;
         }}
@@ -632,7 +633,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         >
           ${shared.modal}
         </RodDevtoolsModalRoot>
-      </RodDevtoolsDock>
+      </section>
     </RodDevtoolsShellRoot>
   `;
 });

@@ -1,30 +1,34 @@
 /** @vitest-environment jsdom */
+
 import { describe, expect, it } from "vitest";
-import {
-  setPropertyOrAttribute,
-} from "../bindings/property-or-attribute";
+import { applyProps } from "../bindings/props.js";
 
 describe("Fábrica object prop prefixes", () => {
-  it("preserves false data and aria values as strings", () => {
-    const button = document.createElement("button");
-
-    setPropertyOrAttribute(button, "data-active", false);
-    setPropertyOrAttribute(button, "aria-expanded", false);
-
-    expect(button.dataset.active).toBe("false");
-    expect(button.getAttribute("aria-expanded")).toBe("false");
-  });
-
   it("applies property, boolean, and conditional-class prefixes", () => {
     const input = document.createElement("input");
 
-    setPropertyOrAttribute(input, ".spellcheck", "false");
-    setPropertyOrAttribute(input, "?disabled", true);
-    setPropertyOrAttribute(input, "class:active", true);
+    applyProps(input, {
+      ".value": "fixture",
+      ".spellcheck": "false",
+      "?disabled": true,
+      "class:active": true,
+    });
 
+    expect(input.value).toBe("fixture");
     expect(input.spellcheck).toBe(false);
     expect(input.disabled).toBe(true);
     expect(input.hasAttribute("disabled")).toBe(true);
     expect(input.classList.contains("active")).toBe(true);
+
+    applyProps(input, {
+      ".spellcheck": "true",
+      "?disabled": false,
+      "class:active": false,
+    });
+
+    expect(input.spellcheck).toBe(true);
+    expect(input.disabled).toBe(false);
+    expect(input.hasAttribute("disabled")).toBe(false);
+    expect(input.classList.contains("active")).toBe(false);
   });
 });

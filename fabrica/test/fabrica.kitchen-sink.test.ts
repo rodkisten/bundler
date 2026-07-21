@@ -438,7 +438,7 @@ describe("Fábrica kitchen sink: directives", () => {
     flushSync();
 
     expect(Array.from(host.querySelectorAll("li")).map((li) => li.getAttribute("data-key"))).toEqual(["c", "a"]);
-    expect(Array.from(host.querySelectorAll("li")).map((li) => li.textContent)).toEqual(["2:Gamma", "0:Alpha"]);
+    expect(Array.from(host.querySelectorAll("li")).map((li) => li.textContent)).toEqual(["0:Gamma!", "1:Alpha!"]);
 
     items.set([]);
     flushSync();

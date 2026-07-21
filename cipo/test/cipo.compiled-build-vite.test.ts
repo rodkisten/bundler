@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
 import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler'
 import { cipoVite } from '@rodkisten/cipo/vite'
-import { createFabrica } from '@rodkisten/fabrica'
+import Fabrica from '@rodkisten/fabrica'
 import { compileFabricaSource } from '@rodkisten/fabrica/compiler'
 import { createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica/compiler-runtime'
 
@@ -43,15 +43,14 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).toBe('')
   })
 
-  it('compiles simple Fabrica html templates to compact runtime instructions', () => {
+  it('compiles simple Fabrica html templates to compact runtime IR', () => {
     const result = compileFabricaSource("const view = html`<button class=\"save\">Salvar</button>`", {
       filename: '/project/src/view.ts',
-      importPath: '../fabrica/compiler-runtime',
+      importPath: '@rodkisten/fabrica/compiler-runtime',
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('createCompiledTemplate(html,')
-    expect(result.code).toContain('[[0,"button"')
+    expect(result.code).toContain('createCompiledTemplate(html, [[0,"button"')
     expect(result.code).toContain('[0,"class","save"]')
     expect(result.manifest[0]?.tag).toBe('button')
   })
@@ -69,22 +68,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('creates dynamic DOM templates with runtime-backed @event bindings', () => {
     let clicked = 0
-    const fabrica = createFabrica({
-      name: 'cipo-compiled-event-test',
-      isolated: true,
-    })
-    const view = createCompiledTemplate(
-      fabrica.html,
-      [
-        '<button @click=',
-        '>Save ',
-        '</button>',
-      ] as unknown as TemplateStringsArray,
-      () => {
-        clicked += 1
-      },
-      'now',
-    )
+    const view = createCompiledTemplate(Fabrica.html, ['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
     const button = view as HTMLButtonElement
 
     expect(button.tagName).toBe('BUTTON')
@@ -95,24 +79,11 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('hydrates dynamic template spread props without emitting invalid attribute names', () => {
     let clicked = 0
-    const fabrica = createFabrica({
-      name: 'cipo-compiled-spread-test',
-      isolated: true,
+    const view = createCompiledTemplate(Fabrica.html, ['<button ...', '>Save</button>'] as unknown as TemplateStringsArray, {
+      type: 'button',
+      class: 'spread',
+      onClick: () => { clicked += 1 },
     })
-    const view = createCompiledTemplate(
-      fabrica.html,
-      [
-        '<button ...',
-        '>Save</button>',
-      ] as unknown as TemplateStringsArray,
-      {
-        type: 'button',
-        class: 'spread',
-        onClick: () => {
-          clicked += 1
-        },
-      },
-    )
     const button = view as HTMLButtonElement
 
     expect(button.type).toBe('button')
@@ -164,8 +135,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(code).toContain('attachCompiledCss')
     expect(code).not.toContain('.css`')
     expect(code).toContain('color:red')
-    expect(code).toContain('createCompiledTemplate(html,')
-    expect(code).toContain('[[0,"section"')
+    expect(code).toContain('createCompiledTemplate(html, [[0,"section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
     expect(runtimeModule).toContain('__CIPO_COMPILED_GLOBAL_STYLESHEET__')
@@ -206,7 +176,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
     const source = `
-      const RodProbe = () => null;
+      const RodProbe = () => null
       const view = html` + '`' + `<RodProbe @click=${'${'}onClick} class="tone ${'${'}tone}" ref=${'${'}refCallback}>
         <button .value=${'${'}value}>${'${'}label}</button>
       </RodProbe>` + '`' + `
@@ -214,7 +184,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
     const result = compileFabricaSource(source, {
       filename: '/project/src/devtools/console.ts',
-      importPath: '../fabrica/compiler-runtime',
+      importPath: '@rodkisten/fabrica/compiler-runtime',
       directComponentReferences: true,
     })
 
@@ -231,20 +201,14 @@ describe('Cipó + Fábrica compiled build mode', () => {
   it('hydrates compiled instruction payloads with components, events, refs and property bindings', () => {
     let clicked = 0
     let refNode: Element | null = null
-    const fabrica = createFabrica({
-      name: 'cipo-compiled-instruction-test',
-      isolated: true,
-    })
     const Probe = (props: Record<string, unknown>) => createCompiledElement(
       'section',
       { class: props.class, '@click': props['@click'], ref: props.ref },
       props.children as never,
     )
 
-    const view = createCompiledTemplate(
-      fabrica.html,
-      {
-        nodes: [{
+    const view = createCompiledTemplate(Fabrica.html, {
+      nodes: [{
         type: 'element',
         tag: 'div',
         props: [],
@@ -259,18 +223,8 @@ describe('Cipó + Fábrica compiled build mode', () => {
           ],
           children: [{ type: 'value', index: 4 }],
         }],
-        }],
-      },
-      () => {
-        clicked += 1
-      },
-      'primary',
-      (node: Element) => {
-        refNode = node
-      },
-      'typed value',
-      'Save',
-    )
+      }],
+    }, () => { clicked += 1 }, 'primary', (node: Element) => { refNode = node }, 'typed value', 'Save')
 
     const button = view.querySelector('button') as HTMLButtonElement
     expect(button.className).toBe('btn primary')
