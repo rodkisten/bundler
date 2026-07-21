@@ -1,0 +1,760 @@
+tate | null {
++  const resolved = readValue(value);
++
++  if (
++    resolved &&
++    typeof resolved === "object" &&
++    resolved.constructor === Object
++  ) {
++    return applyStyleMap(
++      element,
++      resolved as Record<string, unknown>,
++      state,
++    );
++  }
++
++  if (typeof resolved === "string") {
++    element.setAttribute("style", resolved);
++    return null;
++  }
++
++  if (resolved == null || resolved === false) {
++    element.removeAttribute("style");
++  }
++
++  return null;
++}
++
++function applyAttrs(element: Element, value: unknown): void {
++  const resolved = readValue(value);
++
++  if (!resolved || typeof resolved !== "object") {
++    return;
++  }
++
++  const attrs = resolved as Record<string, unknown>;
++
++  for (const name in attrs) {
++    setPropertyOrAttribute(element, name, readValue(attrs[name]));
++  }
++}
++
++function applyDataset(element: Element, value: unknown): void {
++  const resolved = readValue(value);
++
++  if (
++    !(element instanceof HTMLElement) ||
++    !resolved ||
++    typeof resolved !== "object"
++  ) {
++    return;
++  }
++
++  const dataset = resolved as Record<string, unknown>;
++
++  for (const name in dataset) {
++    const next = readValue(dataset[name]);
++
++    if (next == null) {
++      delete element.dataset[name];
++    } else {
++      element.dataset[name] = String(next);
++    }
++  }
++}
++
++function applyEvents(element: Element, value: unknown): void {
++  const resolved = readValue(value);
++
++  if (!resolved || typeof resolved !== "object") {
++    return;
++  }
++
++  let map = elementEvents.get(element);
++
++  if (!map) {
++    map = new Map<string, PropsEventBinding>();
++    elementEvents.set(element, map);
++  }
++
++  const events = resolved as Record<string, unknown>;
++
++  for (const eventName in events) {
++    const handler = events[eventName];
++    const previous = map.get(eventName);
++
++    if (typeof handler !== "function") {
++      previous?.cleanup();
++      map.delete(eventName);
++      continue;
++    }
++
++    if (previous?.listener === handler) {
++      continue;
++    }
++
++    previous?.cleanup();
++
++    const listener = handler as EventListener;
++    map.set(eventName, {
++      listener,
++      cleanup: bindEvent(
++        element,
++        eventName,
++        listener as unknown as RenderValue,
++      ),
++    });
++  }
++}
+diff --git a/fabrica/bindings/ref.ts b/fabrica/bindings/ref.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..345433461a4c33cafc2dd11379582eec0849dbbd
+--- /dev/null
++++ b/fabrica/bindings/ref.ts
+@@ -0,0 +1,50 @@
++import { registerCleanup } from "../render/cleanup.js";
++import { isRefDirective } from "../guards.js";
++import type { RefCallback } from "../types.js";
++
++/** Cleanup returned by a ref binding. */
++export type RefBindingCleanup = () => void;
++
++/**
++ * Applies a ref and returns a cleanup that fully reverses the binding.
++ *
++ * This lower-level primitive is used by stateful reconcilers such as spread
++ * props, which must dispose an old ref immediately when a new ref replaces it.
++ */
++export function applyRefBinding(
++  element: Element,
++  value: unknown,
++): RefBindingCleanup | null {
++  const resolved = isRefDirective(value) ? value.callback : value;
++
++  if (typeof resolved === "function") {
++    const cleanup = (resolved as RefCallback<Element>)(element);
++    return typeof cleanup === "function" ? cleanup : null;
++  }
++
++  if (!resolved || typeof resolved !== "object" || !("current" in resolved)) {
++    return null;
++  }
++
++  const objectRef = resolved as { current: Element | null };
++  objectRef.current = element;
++  return () => {
++    if (objectRef.current === element) objectRef.current = null;
++  };
++}
++
++/**
++ * Binds a ref to an element and registers its cleanup with DOM ownership.
++ * Every renderer uses this function so callback and object refs share one
++ * lifecycle contract.
++ */
++export function bindRef(element: Element, value: unknown): boolean {
++  const cleanup = applyRefBinding(element, value);
++  const resolved = isRefDirective(value) ? value.callback : value;
++  const recognized =
++    typeof resolved === "function" ||
++    Boolean(resolved && typeof resolved === "object" && "current" in resolved);
++
++  if (cleanup) registerCleanup(element, cleanup);
++  return recognized;
++}
+diff --git a/fabrica/bindings/serialize.ts b/fabrica/bindings/serialize.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..1a8a46ca4a5cef764b32898a81e458bdf3a8cc71
+--- /dev/null
++++ b/fabrica/bindings/serialize.ts
+@@ -0,0 +1,50 @@
++/**
++ * Converts attribute-like values into the text representation expected by the
++ * DOM renderer. Cipó artifacts are intentionally recognized structurally so
++ * Fábrica does not need a runtime import from Cipó for class/style serialization.
++ */
++export function stringifyAttributeValue(
++  name: string,
++  value: unknown,
++): string {
++  if (value == null || value === false) return "";
++
++  if ((name === "class" || name === "className") && Array.isArray(value)) {
++    return value
++      .map((item) => stringifyAttributeValue(name, item))
++      .filter(Boolean)
++      .join(" ");
++  }
++
++  if (name === "style" && value && typeof value === "object") {
++    const styleLike = value as {
++      cssText?: unknown;
++      compiledCss?: unknown;
++      value?: unknown;
++    };
++
++    if (typeof styleLike.cssText === "string") return styleLike.cssText;
++    if (typeof styleLike.compiledCss === "string") {
++      return styleLike.compiledCss;
++    }
++    if (typeof styleLike.value === "string") return styleLike.value;
++  }
++
++  if (
++    (name === "class" || name === "className") &&
++    value &&
++    typeof value === "object"
++  ) {
++    const classLike = value as {
++      className?: unknown;
++      classes?: unknown;
++      value?: unknown;
++    };
++
++    if (typeof classLike.className === "string") return classLike.className;
++    if (typeof classLike.classes === "string") return classLike.classes;
++    if (typeof classLike.value === "string") return classLike.value;
++  }
++
++  return String(value);
++}
+diff --git a/fabrica/dom-special-attributes.ts b/fabrica/bindings/special.ts
+similarity index 95%
+rename from fabrica/dom-special-attributes.ts
+rename to fabrica/bindings/special.ts
+index b450a0bfcd5a21d211726514a9954217855fdc37..ebc79c32342a7b3f7f0bd4c2a89b3157e3b3c825 100644
+--- a/fabrica/dom-special-attributes.ts
++++ b/fabrica/bindings/special.ts
+@@ -1,7 +1,7 @@
+ import { effect } from "@rodkisten/broto/reactivity";
+-import { compileInlineCss } from "@rodkisten/cipo/compiler";
+-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
+-import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
++import { compileInlineCss } from "@rodkisten/cipo/runtime-inline";
++import { registerCleanup } from "../render/cleanup.js";
++import { hasReactiveValue, readValue } from "../core/value.js";
+ 
+ const LITERAL_DATA_ATTRIBUTE_PREFIX = "__fabrica_literal_data__";
+ 
+@@ -33,7 +33,10 @@ export function bindSpecialAttribute(element: Element, name: string, value: unkn
+   }
+ 
+   if (dispose) registerCleanup(element, dispose);
+-  registerCleanup(element, () => clearSpecialAttribute(element, state));
++  registerCleanup(
++    element,
++    () => clearSpecialAttributeState(element, state),
++  );
+   return true;
+ }
+ 
+@@ -183,7 +186,10 @@ function applyStyleProperty(element: Element, property: string, value: unknown,
+   else style.setProperty(propertyName, String(value));
+ }
+ 
+-function clearSpecialAttribute(element: Element, state: SpecialAttributeState): void {
++export function clearSpecialAttributeState(
++  element: Element,
++  state: SpecialAttributeState,
++): void {
+   for (const name of state.dataNames) element.removeAttribute(name);
+   const style = getStyle(element);
+   if (style) for (const name of state.styleNames) style.removeProperty(name);
+diff --git a/fabrica/bindings/spread.ts b/fabrica/bindings/spread.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc27fe4cb7b35b031c05476aded9c42ad8c0254b
+--- /dev/null
++++ b/fabrica/bindings/spread.ts
+@@ -0,0 +1,497 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { applyRefBinding } from "./ref.js";
++import { stringifyAttributeValue } from "./serialize.js";
++import {
++  applySpecialAttribute,
++  clearSpecialAttributeState,
++  createSpecialAttributeState,
++  isSpecialAttributeName,
++  type SpecialAttributeState,
++} from "./special.js";
++import { registerCleanup } from "../render/cleanup.js";
++import { bindEvent } from "../events.js";
++import { isDomElement } from "../guards.js";
++import { setPropertyOrAttribute } from "./property-or-attribute.js";
++import { hasReactiveValue, readValue } from "../core/value.js";
++import type { RenderValue } from "../types.js";
++
++let spreadEventDiffVersion = 0;
++
++/** Stateful reconciliation data for a single spread binding. */
++export type SpreadBindingState = {
++  keys: Set<string>;
++  values?: Map<string, unknown>;
++  events: Map<string, EventListener>;
++  eventCleanups?: Map<string, () => void>;
++  eventVersions?: Map<string, number>;
++  eventSources?: Map<string, string>;
++  refCleanup: (() => void) | null;
++  attrs?: Set<string>;
++  dataset?: Set<string>;
++  special?: Map<string, SpecialAttributeState>;
++};
++
++/**
++ * Binds `<element ...${props}>` with reactive object-level reconciliation.
++ *
++ * The state tracks nested `attrs`, `dataset`, events, refs, and special
++ * attributes. Removing a top-level spread key therefore reverses all DOM state
++ * created by that key instead of leaving stale nested attributes behind.
++ */
++export function bindSpreadPart(
++  node: Node,
++  value: RenderValue | undefined,
++): void {
++  if (!isDomElement(node)) return;
++
++  let state = createSpreadBindingState();
++  const update = (): void => {
++    state = applySpreadValue(node, readValue(value), state);
++  };
++
++  const dispose = hasReactiveValue(value)
++    ? effect(update, {
++        name: "fabrica.spreadBinding",
++        scheduler: "sync",
++      })
++    : (update(), null);
++
++  if (dispose) registerCleanup(node, dispose);
++  registerCleanup(node, () => cleanupSpreadState(node, state));
++}
++
++/** Applies one spread snapshot and removes state absent from the next snapshot. */
++export function applySpreadValue(
++  element: Element,
++  value: unknown,
++  previous: SpreadBindingState,
++): SpreadBindingState {
++  const state = ensureSpreadBindingState(previous);
++
++  if (!value || typeof value !== "object") {
++    cleanupSpreadState(element, state);
++    return state;
++  }
++
++  const props = value as Record<string, unknown>;
++  const eventVersion = ++spreadEventDiffVersion;
++
++  for (const key of Array.from(state.keys)) {
++    if (key in props) continue;
++    removeSpreadProperty(element, key, state);
++    state.values!.delete(key);
++    state.keys.delete(key);
++  }
++
++  for (const key in props) {
++    const nextValue = props[key];
++    state.keys.add(key);
++
++    if (
++      canSkipSpreadProperty(key) &&
++      Object.is(state.values!.get(key), nextValue)
++    ) {
++      continue;
++    }
++
++    state.values!.set(key, nextValue);
++    applySpreadProperty(
++      element,
++      key,
++      nextValue,
++      state,
++      state,
++      eventVersion,
++    );
++  }
++
++  removeStaleSpreadEvents(element, state, eventVersion);
++  return state;
++}
++
++/** Fully disposes the DOM state owned by a spread binding. */
++export function cleanupSpreadState(
++  element: Element,
++  state: SpreadBindingState,
++): void {
++  state = ensureSpreadBindingState(state);
++
++  for (const cleanup of state.eventCleanups!.values()) cleanup();
++  state.events.clear();
++  state.eventCleanups!.clear();
++  state.eventVersions!.clear();
++  state.eventSources!.clear();
++
++  state.refCleanup?.();
++  state.refCleanup = null;
++
++  clearTrackedAttributes(element, state);
++  clearTrackedDataset(element, state);
++
++  for (const specialState of state.special!.values()) {
++    clearSpecialAttributeState(element, specialState);
++  }
++  state.special!.clear();
++  state.values!.clear();
++  state.keys.clear();
++}
++
++/** Applies one spread prop using the shared Fábrica prop vocabulary. */
++export function applySpreadProperty(
++  element: Element,
++  key: string,
++  propValue: unknown,
++  previous: SpreadBindingState,
++  next: SpreadBindingState,
++  eventVersion = spreadEventDiffVersion,
++): void {
++  previous = ensureSpreadBindingState(previous);
++  next = ensureSpreadBindingState(next);
++
++  if (key === "children") return;
++
++  if (isSpecialAttributeName(key)) {
++    const specialState =
++      next.special!.get(key) ?? createSpecialAttributeState();
++    next.special!.set(key, specialState);
++    applySpecialAttribute(element, key, propValue, specialState);
++    return;
++  }
++
++  if (key === "class" || key === "className") {
++    const className = stringifyAttributeValue("class", propValue);
++    if (className) element.setAttribute("class", className);
++    else element.removeAttribute("class");
++    return;
++  }
++
++  if (key === "style") {
++    const styleText = stringifyAttributeValue("style", propValue);
++    if (styleText) element.setAttribute("style", styleText);
++    else element.removeAttribute("style");
++    return;
++  }
++
++  if (key === "attrs") {
++    reconcileSpreadAttributes(element, propValue, next);
++    return;
++  }
++
++  if (key === "dataset") {
++    reconcileSpreadDataset(element, propValue, next);
++    return;
++  }
++
++  if (key === "ref") {
++    previous.refCleanup?.();
++    next.refCleanup = applyRefBinding(element, propValue);
++    return;
++  }
++
++  if (key === "on") {
++    reconcileEventMap(
++      element,
++      propValue,
++      previous,
++      next,
++      eventVersion,
++    );
++    return;
++  }
++
++  if (key.startsWith("@")) {
++    setSpreadEvent(
++      element,
++      key.slice(1),
++      propValue,
++      previous,
++      next,
++      eventVersion,
++      key,
++    );
++    return;
++  }
++
++  if (key.startsWith("on") && key.length > 2) {
++    setSpreadEvent(
++      element,
++      key.slice(2).toLowerCase(),
++      propValue,
++      previous,
++      next,
++      eventVersion,
++      key,
++    );
++    return;
++  }
++
++  setPropertyOrAttribute(element, key, propValue);
++}
++
++/** Reconciles a single spread event listener. */
++export function setSpreadEvent(
++  element: Element,
++  rawEventName: string,
++  listener: unknown,
++  previous: SpreadBindingState,
++  next: SpreadBindingState,
++  eventVersion = spreadEventDiffVersion,
++  source = rawEventName,
++): void {
++  previous = ensureSpreadBindingState(previous);
++  next = ensureSpreadBindingState(next);
++
++  const bindingKey = `${source}\u0000${rawEventName}`;
++  const previousListener = previous.events.get(bindingKey);
++
++  if (typeof listener !== "function") {
++    previous.eventCleanups!.get(bindingKey)?.();
++    next.events.delete(bindingKey);
++    next.eventCleanups!.delete(bindingKey);
++    next.eventVersions!.delete(bindingKey);
++    next.eventSources!.delete(bindingKey);
++    return;
++  }
++
++  const nextListener = listener as EventListener;
++  if (previousListener !== nextListener) {
++    previous.eventCleanups!.get(bindingKey)?.();
++    next.eventCleanups!.set(
++      bindingKey,
++      bindEvent(
++        element,
++        rawEventName,
++        nextListener as unknown as RenderValue,
++        false,
++      ),
++    );
++  }
++
++  next.events.set(bindingKey, nextListener);
++  next.eventVersions!.set(bindingKey, eventVersion);
++  next.eventSources!.set(bindingKey, source);
++}
++
++/** Removes a top-level spread prop and all nested state owned by that prop. */
++export function removeSpreadProperty(
++  element: Element,
++  key: string,
++  previous: SpreadBindingState,
++): void {
++  previous = ensureSpreadBindingState(previous);
++
++  if (key === "class" || key === "className") {
++    element.removeAttribute("class");
++    return;
++  }
++
++  if (key === "style") {
++    element.removeAttribute("style");
++    return;
++  }
++
++  if (key === "attrs") {
++    clearTrackedAttributes(element, previous);
++    return;
++  }
++
++  if (key === "dataset") {
++    clearTrackedDataset(element, previous);
++    return;
++  }
++
++  if (key === "ref") {
++    previous.refCleanup?.();
++    previous.refCleanup = null;
++    return;
++  }
++
++  if (key === "on") {
++    removeEventsBySource(element, previous, "on");
++    return;
++  }
++
++  if (key.startsWith("@") || (key.startsWith("on") && key.length > 2)) {
++    removeEventsBySource(element, previous, key);
++    return;
++  }
++
++  if (isSpecialAttributeName(key)) {
++    const state = previous.special!.get(key);
++    if (state) clearSpecialAttributeState(element, state);
++    previous.special!.delete(key);
++    return;
++  }
++
++  setPropertyOrAttribute(element, key, null);
++}
++
++/** Creates empty state for a new spread binding. */
++export function createSpreadBindingState(): SpreadBindingState {
++  return {
++    keys: new Set<string>(),
++    values: new Map<string, unknown>(),
++    events: new Map<string, EventListener>(),
++    eventCleanups: new Map<string, () => void>(),
++    eventVersions: new Map<string, number>(),
++    eventSources: new Map<string, string>(),
++    refCleanup: null,
++    attrs: new Set<string>(),
++    dataset: new Set<string>(),
++    special: new Map<string, SpecialAttributeState>(),
++  };
++}
++
++function ensureSpreadBindingState(
++  state: SpreadBindingState,
++): SpreadBindingState {
++  state.values ??= new Map<string, unknown>();
++  state.eventCleanups ??= new Map<string, () => void>();
++  state.eventVersions ??= new Map<string, number>();
++  state.eventSources ??= new Map<string, string>();
++  state.attrs ??= new Set<string>();
++  state.dataset ??= new Set<string>();
++  state.special ??= new Map<string, SpecialAttributeState>();
++  return state;
++}
++
++function reconcileSpreadAttributes(
++  element: Element,
++  value: unknown,
++  state: SpreadBindingState,
++): void {
++  const nextNames = new Set<string>();
++  if (value && typeof value === "object") {
++    for (const [name, item] of Object.entries(value as Record<string, unknown>)) {
++      nextNames.add(name);
++      setPropertyOrAttribute(element, name, readValue(item));
++    }
++  }
++
++  for (const name of state.attrs!) {
++    if (!nextNames.has(name)) setPropertyOrAttribute(element, name, null);
++  }
++  state.attrs = nextNames;
++}
++
++function reconcileSpreadDataset(
++  element: Element,
++  value: unknown,
++  state: SpreadBindingState,
++): void {
++  const nextNames = new Set<string>();
++  if (value && typeof value === "object") {
++    for (const [name, item] of Object.entries(value as Record<string, unknown>)) {
++      nextNames.add(name);
++      const next = readValue(item);
++      const attributeName = `data-${toKebabCase(name)}`;
++      if (next == null || next === false) element.removeAttribute(attributeName);
++      else element.setAttribute(attributeName, String(next));
++    }
++  }
++
++  for (const name of state.dataset!) {
++    if (nextNames.has(name)) continue;
++    element.removeAttribute(`data-${toKebabCase(name)}`);
++  }
++  state.dataset = nextNames;
++}
++
++function reconcileEventMap(
++  element: Element,
++  value: unknown,
++  previous: SpreadBindingState,
++  next: SpreadBindingState,
++  eventVersion: number,
++): void {
++  if (!value || typeof value !== "object") {
++    removeEventsBySource(element, previous, "on");
++    return;
++  }
++
++  for (const [eventName, listener] of Object.entries(
++    value as Record<string, unknown>,
++  )) {
++    setSpreadEvent(
++      element,
++      eventName,
++      listener,
++      previous,
++      next,
++      eventVersion,
++      "on",
++    );
++  }
++}
++
++function removeStaleSpreadEvents(
++  element: Element,
++  state: SpreadBindingState,
++  version: number,
++): void {
++  for (const [bindingKey, eventVersion] of state.eventVersions!) {
++    if (eventVersion === version) continue;
++    state.eventCleanups!.get(bindingKey)?.();
++    state.eventCleanups!.delete(bindingKey);
++    state.eventVersions!.delete(bindingKey);
++    state.eventSources!.delete(bindingKey);
++    state.events.delete(bindingKey);
++  }
++}
++
++function removeEventsBySource(
++  _element: Element,
++  state: SpreadBindingState,
++  source: string,
++): void {
++  for (const [bindingKey, eventSource] of state.eventSources!) {
++    if (eventSource !== source) continue;
++    state.eventCleanups!.get(bindingKey)?.();
++    state.eventCleanups!.delete(bindingKey);
++    state.eventVersions!.delete(bindingKey);
++    state.eventSources!.delete(bindingKey);
++    state.events.delete(bindingKey);
++  }
++}
++
++function clearTrackedAttributes(
++  element: Element,
++  state: SpreadBindingState,
++): void {
++  for (const name of state.attrs!) {
++    setPropertyOrAttribute(element, name, null);
++  }
++  state.attrs!.clear();
++}
++
++function clearTrackedDataset(
++  element: Element,
++  state: SpreadBindingState,
++): void {
++  for (const name of state.dataset!) {
++    element.removeAttribute(`data-${toKebabCase(name)}`);
++  }
++  state.dataset!.clear();
++}
++
++function canSkipSpreadProperty(key: string): boolean {
++  return (
++    key !== "attrs" &&
++    key !== "dataset" &&
++    key !== "on" &&
++    key !== "ref" &&
++    !isSpecialAttributeName(key)
++  );
++}
++
++function toKebabCase(value: string): string {
++  return value
++    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
++    .replace(/[_\s]+/g, "-")
++    .toLowerCase();
++}
