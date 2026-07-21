@@ -6,9 +6,9 @@ export {
   createComponentPack,
   getOrCreateFabrica,
   getOrCreateFabrica as getOrCreate,
-} from "@rodkisten/fabrica/public-api";
-export type { FabricaApi } from "@rodkisten/fabrica/public-api";
-export { FABRICA_HTML_ARTIFACT } from "@rodkisten/fabrica/types";
+} from "./public-api.js";
+export type { FabricaApi } from "./public-api.js";
+export { FABRICA_HTML_ARTIFACT } from "./types.js";
 export type {
   Cleanup,
   Component,
@@ -42,10 +42,10 @@ export type {
   RepeatContext,
   ReactiveContextToken,
   VirtualRepeatOptions,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";
 
-export { $ } from "@rodkisten/fabrica/bag";
-export { css } from "@rodkisten/fabrica/css";
+export { $ } from "./bag.js";
+export { css } from "./css.js";
 export {
   clearComponents,
   component,
@@ -54,17 +54,17 @@ export {
   registerComponent,
   resolveComponent,
   unregisterComponent,
-} from "@rodkisten/fabrica/component";
+} from "./component.js";
 export {
   createComponentRegistry as createRegistry,
   defaultComponentRegistry,
   FabricaComponentRegistry,
-} from "@rodkisten/fabrica/component-registry";
-export { boundary } from "@rodkisten/fabrica/boundary";
-export { onDispose, onError, onMount, onUnmount } from "@rodkisten/fabrica/lifecycle";
-export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "@rodkisten/fabrica/context";
-export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "@rodkisten/fabrica/context";
-export { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "@rodkisten/fabrica/debug";
+} from "./component-registry.js";
+export { boundary } from "./boundary.js";
+export { onDispose, onError, onMount, onUnmount } from "./lifecycle.js";
+export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "./context.js";
+export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "./context.js";
+export { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "./debug.js";
 export {
   bind,
   childrenToArray,
@@ -82,29 +82,34 @@ export {
   suspense,
   virtualRepeat,
   when,
-} from "@rodkisten/fabrica/directives";
-export { getHtmlArtifact, html, hydrate, isHtmlResult, jsx, mount, render } from "@rodkisten/fabrica/dom";
-export { createEventHelper, event } from "@rodkisten/fabrica/event-typing";
-export type { FabricaEvent, FabricaEventFor, FabricaEventHandler, FabricaEventHelper, FabricaEventName } from "@rodkisten/fabrica/event-typing";
+} from "./directives.js";
+export {
+  getHtmlArtifact,
+  html,
+  isHtmlResult,
+  jsx,
+  mount,
+  mountPreservingChildren,
+  render,
+} from "./render/dom.js";
+export { createEventHelper, event } from "./event-typing.js";
+export type { FabricaEvent, FabricaEventFor, FabricaEventHandler, FabricaEventHelper, FabricaEventName } from "./event-typing.js";
 export { batch, computed, effect, flushSync, signal } from "@rodkisten/broto/reactivity";
-export { defineElement, elements } from "@rodkisten/fabrica/elements";
-export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "@rodkisten/fabrica/raw";
-export { applyCompiledProps, compileFabricaSource, createCompiledElement, createCompiledFragment, createCompiledTemplate } from "@rodkisten/fabrica/compiler";
+export { defineElement, elements } from "./elements.js";
+export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw.js";
+import { createDefaultFabricaApi } from "./public-api.js";
 
-import { createDefaultFabricaApi } from "@rodkisten/fabrica/public-api";
-
-/** Default singleton API kept for browser-global and package compatibility. */
+/**
+ * Default singleton runtime API. Importing the package is side-effect free;
+ * browser-global installation lives exclusively in the `./browser` entrypoint.
+ */
 const Fabrica = createDefaultFabricaApi();
-
-if (typeof globalThis !== "undefined") {
-  Fabrica.install();
-}
 
 export default Fabrica;
 
 declare global {
   // eslint-disable-next-line no-var
-  var Fabrica: import("@rodkisten/fabrica/public-api").FabricaApi | undefined;
+  var Fabrica: import("./public-api.js").FabricaApi | undefined;
   // eslint-disable-next-line no-var
   var $: unknown;
   // eslint-disable-next-line no-var
