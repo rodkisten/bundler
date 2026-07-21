@@ -3,7 +3,12 @@
  * @global Fabrica
  * @package fabrica
  * @tags dom reactive templates userscripts
- * @description Fine-grained reactive DOM runtime bundled as a standalone browser global.
+ * @description Fine-grained reactive DOM runtime as a browser global.
  */
-export * from "@rodkisten/fabrica";
-export { default } from "@rodkisten/fabrica";
+export * from "./index.js";
+
+import Fabrica from "./index.js";
+
+Fabrica.install();
+
+export default Fabrica;
