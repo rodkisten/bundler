@@ -86,6 +86,19 @@ describe("Fábrica AST compiler", () => {
     expect(result.code).toBe(source);
   });
 
+  it("compiles html re-exported by an explicitly trusted runtime facade", () => {
+    const result = compileFabricaSource([
+      'import { html } from "@app/runtime";',
+      'const view = html`<main>Facade</main>`;',
+    ].join("\n"), {
+      fabricaImportModules: ["@app/runtime"],
+    });
+
+    expect(result.changed).toBe(true);
+    expect(result.code).not.toContain('html`<main>');
+    expect(result.code).toContain("createCompiledTemplate(html,");
+  });
+
   it("resolves aliased Fábrica html imports", () => {
     const result = compileFabricaSource([
       'import { html as h } from "@rodkisten/fabrica";',
