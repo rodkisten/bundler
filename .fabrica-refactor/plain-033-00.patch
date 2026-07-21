@@ -1,0 +1,222 @@
+
+-      index: number;
+-      path: number[];
+-      pathKey: string;
+-      order: number;
+-      /** True when this spread is consumed as a component prop. */
+-      componentProp?: boolean;
+-    }
+-  | {
+-      type: "attribute";
+-      /** First interpolation index kept for compatibility and fast single-value bindings. */
+-      index: number;
+-      /** All interpolation indexes that participate in this attribute value. */
+-      indices: number[];
+-      /** Static text segments around each interpolation. Length is indices.length + 1. */
+-      strings: string[];
+-      /** True when the entire attribute value is exactly one interpolation. */
+-      raw: boolean;
+-      path: number[];
+-      pathKey: string;
+-      order: number;
+-      name: string;
+-      /** True when this dynamic attribute is consumed as a component prop. */
+-      componentProp?: boolean;
+-    }
+-  | {
+-      type: "spread";
+-      index: number;
+-      path: number[];
+-      pathKey: string;
+-      order: number;
+-      /** True when this spread is consumed as a component prop. */
+-      componentProp?: boolean;
+-    }
+-  | {
+-      type: "component";
+-      index: number;
+-      path: number[];
+-      pathKey: string;
+-      order: number;
+-      name?: string;
+-      /** Static props compiled once from the component placeholder attributes. */
+-      staticProps?: Record<string, unknown>;
+-      /** Precompiled dynamic parts for children captured inside the component slot. */
+-      childParts?: TemplatePart[];
+-      /** Child parts already ordered deepest/right-most first for hot runtime application. */
+-      orderedChildParts?: TemplatePart[];
+-      /** Whether component placeholders exist inside captured component children. */
+-      hasChildComponents?: boolean;
+-      /** Whether captured children contain user-visible static nodes/text before dynamic parts run. */
+-      hasStaticChildren?: boolean;
+-      /** Precompiled dynamic prop readers captured from attributes on this component placeholder. */
+-      dynamicPropParts?: ComponentPropPart[];
+-      /** Whether any dynamic component prop can read a signal/reactive expression. */
+-      hasDynamicPropParts?: boolean;
+-    };
+-
+-/** Cached compiled template. */
+-export type CompiledTemplate = {
+-  template: HTMLTemplateElement;
+-  parts: TemplatePart[];
+-  /** Parts ordered deepest/right-most first so runtime never sorts in hot render paths. */
+-  orderedParts: TemplatePart[];
+-  /** Whether component placeholders exist. Lets simple templates skip component prop bookkeeping. */
+-  hasComponents: boolean;
+-};
+-
+-/** Event modifiers parsed from @click.prevent.passive syntax. */
+-export type EventBindingConfig = {
+-  name: string;
+-  prevent: boolean;
+-  stop: boolean;
+-  /** Explicit `.delegate` preference. Delegation is automatic for safe bubbling events. */
+-  delegate: boolean;
+-  /** Explicit `.direct` opt-out from automatic delegation. */
+-  direct: boolean;
+-  options: AddEventListenerOptions;
+-};
+-
+-/** Directive controller mounted inside a child part. */
+-export type DirectiveController = {
+-  kind: string;
+-  update(directive: Directive): void;
+-  dispose(): void;
+-};
+-
+-/** One keyed repeat DOM record. */
+-export type RepeatRecord = {
+-  item: Signal<unknown>;
+-  index: Signal<number>;
+-  key: Signal<PropertyKey>;
+-  start: Comment;
+-  end: Comment;
+-  fragment: DocumentFragment | null;
+-  /** Diff generation used by repeat to remove stale records without allocating next-key sets. */
+-  version?: number;
+-  /** Previous visual index used by the keyed LIS diff to minimize DOM moves. */
+-  order?: number;
+-};
+-
+-/** DOM bag options. */
+-export type DomBagOptions = {
+-  shadow: boolean;
+-  important: boolean;
+-};
+-
+-/** Callable fluent DOM bag. */
+-export type DomBag = ((props?: Record<string, unknown>) => DomBag) & {
+-  readonly $$fabricaBag: true;
+-  readonly elements: Element[];
+-  readonly el: Element | null;
+-  readonly count: number;
+-  readonly size: number;
+-  readonly length: number;
+-  readonly shadow: DomBag;
+-  readonly important: DomBag;
+-  html(strings: TemplateStringsArray, ...values: RenderValue[]): DomBag;
+-  mount(value: RenderValue): Cleanup;
+-  css(input: CssInput, ...values: unknown[]): DomBag;
+-  appendTo(parent: ParentNode): DomBag;
+-  prependTo(parent: ParentNode): DomBag;
+-  remove(): DomBag;
+-  dispose(): DomBag;
+-};
+-
+-/** CSS input accepted by css helpers. */
+-export type CssInput = TemplateStringsArray | string | Record<string, unknown>;
+-
+-
+-/** Mutable runtime config used by install and DOM bag helpers. */
+-export type RuntimeConfig = {
+-  exposeDollar: boolean;
+-  exposeDollarEl: boolean;
+-  dollarAlias: string;
+-  forceAlias: boolean;
+-  createWhenSelectorMisses: boolean;
+-};
+-
+-/** Global installation options. */
+-export type InstallOptions = {
+-  exposeDollar?: boolean;
+-  exposeDollarEl?: boolean;
+-  dollarAlias?: string;
+-  forceAlias?: boolean;
+-  createWhenSelectorMisses?: boolean;
+-};
++export type {
++  Cleanup,
++  CleanupRegistrar,
++  ContextToken,
++  Owner,
++  ReactiveContextToken,
++  ReactiveExpression,
++  Signal,
++} from "@rodkisten/broto/types";
++
++export * from "./types/components.js";
++export * from "./types/debug.js";
++export * from "./types/directives.js";
++export * from "./types/dom.js";
++export * from "./types/events.js";
++export * from "./types/render.js";
++export * from "./types/template.js";
+diff --git a/fabrica/types/components.ts b/fabrica/types/components.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3eba748c90c421c84c934a319928b49a4811a9f
+--- /dev/null
++++ b/fabrica/types/components.ts
+@@ -0,0 +1,244 @@
++import type {
++  Cleanup,
++  ContextToken,
++  Owner,
++  ReactiveContextToken,
++  Signal,
++} from "@rodkisten/broto/types";
++import type {
++  RefCallback,
++  RefDirective,
++} from "./directives.js";
++import type {
++  HtmlTag,
++  HtmlTemplateTag,
++  PropsBag,
++  RenderValue,
++} from "./render.js";
++
++/** Registry collision policy used by instance and pack installation APIs. */
++export type RegistryCollision =
++  | "replace"
++  | "keep"
++  | "warn"
++  | "error";
++
++/** Open component-like function accepted by registries and adapters. */
++export type ComponentLike =
++  | Component<any>
++  | ((props?: any) => unknown);
++
++/** Registration options shared by registries, instances, and packs. */
++export type RegistryRegistrationOptions = {
++  collision?: RegistryCollision;
++  onWarning?: (message: string) => void;
++};
++
++/** Construction options for a component registry. */
++export type ComponentRegistryOptions = {
++  name?: string;
++  parent?: ComponentRegistry;
++  entries?: Iterable<readonly [string, ComponentLike]>;
++};
++
++/** Instance-local component registry contract. */
++export type ComponentRegistry = {
++  readonly name: string;
++  readonly size: number;
++  readonly version: number;
++  readonly parent?: ComponentRegistry;
++  register<T extends ComponentLike>(
++    name: string,
++    component: T,
++    options?: RegistryRegistrationOptions,
