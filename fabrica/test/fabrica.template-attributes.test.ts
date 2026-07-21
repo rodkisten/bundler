@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it } from "vitest";
-import { buildTemplateSource, compileParts, hasNamedComponentTagSyntax } from "@rodkisten/fabrica/template";
-import type { RenderValue } from "@rodkisten/fabrica/types";
+import { buildTemplateSource, compileParts, hasNamedComponentTagSyntax } from "../template/index.js";
+import type { RenderValue } from "../types.js";
 
 function source(strings: TemplateStringsArray, ...values: RenderValue[]): string {
   return buildTemplateSource(strings, values);
