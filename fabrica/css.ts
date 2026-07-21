@@ -1,6 +1,6 @@
-import { isPlainObject, isTemplateStringsArray } from "@rodkisten/fabrica/guards";
-import { readValue } from "@rodkisten/fabrica/value";
-import type { CssInput } from "@rodkisten/fabrica/types";
+import { isPlainObject, isTemplateStringsArray } from "./guards.js";
+import { readValue } from "./core/value.js";
+import type { CssInput } from "./types.js";
 
 /** Parsed CSS declaration. */
 type CssDeclaration = {
