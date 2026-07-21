@@ -1,0 +1,64 @@
++        [
++          NODE_ELEMENT,
++          "button",
++          [[PROP_SPREAD, 0]],
++          [],
++        ],
++      ] as const,
++      props,
++    ) as unknown as HTMLButtonElement;
++
++    expect(view.title).toBe("first");
++    expect(view.dataset.testId).toBe("one");
++    expect(view.disabled).toBe(true);
++
++    props.set({
++      attrs: { "aria-label": "second" },
++      dataset: { nextId: "two" },
++    });
++    flushSync();
++
++    expect(view.hasAttribute("title")).toBe(false);
++    expect(view.dataset.testId).toBeUndefined();
++    expect(view.getAttribute("aria-label")).toBe("second");
++    expect(view.dataset.nextId).toBe("two");
++    expect(view.disabled).toBe(false);
++  });
++
++  it("runs callback-ref cleanup for compiled templates", () => {
++    const host = document.createElement("div");
++    const cleanup = vi.fn();
++    const callback = vi.fn(() => cleanup);
++    const dispose = render(
++      host,
++      compiledElement("button", "ref", callback),
++    );
++
++    expect(callback).toHaveBeenCalledTimes(1);
++    dispose();
++    expect(cleanup).toHaveBeenCalledTimes(1);
++  });
++
++  it("clears object refs when compiled nodes are disposed", () => {
++    const host = document.createElement("div");
++    const ref = { current: null as Element | null };
++    const dispose = render(
++      host,
++      compiledElement("button", "ref", ref),
++    );
++
++    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
++    dispose();
++    expect(ref.current).toBeNull();
++  });
++});
+diff --git a/fabrica/test/fabrica.compiler-recursive.test.ts b/fabrica/test/fabrica.compiler-recursive.test.ts
+index 9c89c28c49cdb4ca8a903d3a6c46c4233273e887..f18b9137feabb9ba41ac39ff7746d13d5dcae6cb 100644
+--- a/fabrica/test/fabrica.compiler-recursive.test.ts
++++ b/fabrica/test/fabrica.compiler-recursive.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "vitest";
+-import { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
++import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
+ 
+ describe("
