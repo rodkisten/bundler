@@ -7,6 +7,20 @@ import { TextDecoder, TextEncoder } from "node:util";
 import devtools from "@rodkisten/devtools";
 
 const bundlePath = path.resolve(process.cwd(), "dist/devtools.iife.js");
+const manifestPath = path.resolve(
+  process.cwd(),
+  "dist/devtools.cipo.compiled.manifest.json",
+);
+
+interface CompiledManifestEntry {
+  readonly filename?: string;
+  readonly tag?: string;
+  readonly fallback?: boolean;
+}
+
+interface CompiledManifest {
+  readonly entries: readonly CompiledManifestEntry[];
+}
 
 function runtimeFromWindow(): typeof devtools | undefined {
   const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
@@ -27,11 +41,49 @@ function shadowRoot(): ShadowRoot {
   return host!.shadowRoot!;
 }
 
-function expectCompiledDevtoolsBundle(bundle: string): void {
-  expect(bundle).toContain("createCompiledTemplate");
+function expectCompiledDevtoolsBundle(
+  bundle: string,
+  manifest: CompiledManifest,
+): void {
+  // Rolldown may inline or rename compiler-runtime helpers. The compiler
+  // manifest is the stable contract for proving that DevTools source templates
+  // were lowered; scanning across a concatenated bundle can cross module
+  // boundaries and mistake an unrelated runtime template for an uncompiled one.
+  const fabricaEntries = manifest.entries.filter((entry) =>
+    entry.filename?.includes("/devtools/"),
+  );
+  const requiredFiles = [
+    "controller.ts",
+    "console.ts",
+    "info.ts",
+    "network.ts",
+    "resources.ts",
+    "shell.ts",
+  ];
 
-  expect(bundle).not.toMatch(/component\("Rod[A-Za-z0-9_]+".*?html`/s);
-  expect(bundle).not.toMatch(/styled(?:\$\d+)?\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s);
+  for (const filename of requiredFiles) {
+    expect(
+      fabricaEntries.some(
+        (entry) =>
+          entry.filename?.endsWith(`/devtools/${filename}`) &&
+          entry.fallback === false,
+      ),
+      `${filename} should contain a compiled Fábrica template`,
+    ).toBe(true);
+  }
+
+  expect(
+    fabricaEntries.some(
+      (entry) =>
+        entry.filename?.endsWith("/devtools/shell.ts") &&
+        entry.tag === "RodDevtoolsShellRoot" &&
+        entry.fallback === false,
+    ),
+  ).toBe(true);
+
+  expect(bundle).not.toMatch(
+    /styled(?:\$\d+)?\.[a-z]+\("Rod[A-Za-z0-9_]+".*?\.css`/s,
+  );
   expect(bundle).not.toContain("@theme {");
   expect(bundle).not.toContain("@breakpoints {");
   expect(bundle).not.toContain("theme-validation: warn");
@@ -148,8 +200,11 @@ describe("RodEruda IIFE bundle mount", () => {
     expect(fs.existsSync(bundlePath)).toBe(true);
 
     const bundle = fs.readFileSync(bundlePath, "utf8");
+    const manifest = JSON.parse(
+      fs.readFileSync(manifestPath, "utf8"),
+    ) as CompiledManifest;
 
-    expectCompiledDevtoolsBundle(bundle);
+    expectCompiledDevtoolsBundle(bundle, manifest);
 
     window.eval(bundle);
 
