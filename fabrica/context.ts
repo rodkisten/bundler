@@ -11,14 +11,14 @@ import {
   useReactiveContext,
   useRequiredContext,
 } from "@rodkisten/broto";
-import { defineComponent } from "@rodkisten/fabrica/component";
+import { defineComponent } from "./component.js";
 import type {
   Component,
   ComponentChildren,
   ContextToken,
   ReactiveContextToken,
   Signal,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";
 
 export interface ContextProviderProps<Value> {
   value: Value;
