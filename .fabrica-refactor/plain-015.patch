@@ -1,0 +1,511 @@
+abrica/directives/controllers/suspense.ts b/fabrica/directives/controllers/suspense.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..df7e172c5e965e49566239d44ce813dd9fc24194
+--- /dev/null
++++ b/fabrica/directives/controllers/suspense.ts
+@@ -0,0 +1,64 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { readValue } from "../../core/value.js";
++import { clearRange, registerCleanup } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, SuspenseDirective } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++
++/**
++ * Creates a resource suspense controller.
++ *
++ * @param start - Owned range start.
++ * @param end - Owned range end.
++ * @returns Directive controller.
++ */
++export function createSuspenseController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  let currentDirective: SuspenseDirective | null = null;
++  let disposeEffect: (() => void) | null = null;
++
++  const updateSuspense = (): void => {
++    if (!currentDirective) return;
++    const state = readValue(currentDirective.source) as { loading?: boolean; value?: unknown; error?: unknown } | unknown;
++    const resource = state && typeof state === "object" ? state as { loading?: boolean; value?: unknown; error?: unknown } : { value: state };
++
++    clearRange(start, end);
++
++    if (resource.error !== undefined && currentDirective.rejected) {
++      host.appendValue(end.parentNode, currentDirective.rejected(resource.error), end);
++      return;
++    }
++
++    if (resource.loading) {
++      host.appendValue(end.parentNode, currentDirective.pending(), end);
++      return;
++    }
++
++    host.appendValue(end.parentNode, currentDirective.resolved(resource.value), end);
++  };
++
++  return {
++    kind: "suspense",
++    update(nextDirective: Directive): void {
++      currentDirective = nextDirective as SuspenseDirective;
++
++      if (disposeEffect) {
++        updateSuspense();
++        return;
++      }
++
++      disposeEffect = effect(updateSuspense, { name: "fabrica.suspense" });
++      registerCleanup(start, () => {
++        disposeEffect?.();
++        disposeEffect = null;
++      });
++    },
++    dispose(): void {
++      disposeEffect?.();
++      disposeEffect = null;
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/fabrica/directives/controllers/virtual-repeat.ts b/fabrica/directives/controllers/virtual-repeat.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..50383159fce0568971ffe3b73f42ebb7e614fcb5
+--- /dev/null
++++ b/fabrica/directives/controllers/virtual-repeat.ts
+@@ -0,0 +1,165 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { hasReactiveValue, readValue } from "../../core/value.js";
++import { debugState } from "../../debug.js";
++import { clearRange, disposeRange, disposeTree, registerCleanup } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, RepeatDirective, RepeatRecord, VirtualRepeatDirective } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++import { updateRepeat } from "../repeat.js";
++
++export function createVirtualRepeatController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  const records = new Map<PropertyKey, RepeatRecord>();
++  let currentDirective: VirtualRepeatDirective<unknown, PropertyKey> | null =
++    null;
++  let disposeItems: (() => void) | null = null;
++  let scroller: HTMLDivElement | null = null;
++  let topSpacer: HTMLDivElement | null = null;
++  let contentStart: Comment | null = null;
++  let contentEnd: Comment | null = null;
++  let bottomSpacer: HTMLDivElement | null = null;
++  let scrollFrame = 0;
++
++  const ensureNodes = (): void => {
++    if (scroller || !end.parentNode || !currentDirective) {
++      return;
++    }
++
++    scroller = document.createElement("div");
++    topSpacer = document.createElement("div");
++    bottomSpacer = document.createElement("div");
++    contentStart = document.createComment("fabrica:virtual:start");
++    contentEnd = document.createComment("fabrica:virtual:end");
++
++    scroller.style.overflow = "auto";
++    scroller.style.maxHeight =
++      typeof currentDirective.height === "number"
++        ? `${currentDirective.height}px`
++        : String(currentDirective.height);
++    scroller.style.contain = "content";
++    topSpacer.style.pointerEvents = "none";
++    bottomSpacer.style.pointerEvents = "none";
++
++    scroller.append(topSpacer, contentStart, contentEnd, bottomSpacer);
++    end.parentNode.insertBefore(scroller, end);
++
++    scroller.addEventListener(
++      "scroll",
++      () => {
++        if (scrollFrame) {
++          return;
++        }
++
++        scrollFrame = requestAnimationFrame(() => {
++          scrollFrame = 0;
++          updateWindow();
++        });
++      },
++      { passive: true },
++    );
++  };
++
++  const updateWindow = (): void => {
++    if (!currentDirective) {
++      return;
++    }
++
++    ensureNodes();
++
++    if (
++      !scroller ||
++      !topSpacer ||
++      !contentStart ||
++      !contentEnd ||
++      !bottomSpacer
++    ) {
++      return;
++    }
++
++    const resolvedItems = readValue(currentDirective.items);
++    const items = Array.isArray(resolvedItems) ? resolvedItems : [];
++    const itemHeight = Math.max(1, currentDirective.itemHeight);
++    const viewportHeight =
++      scroller.clientHeight ||
++      (typeof currentDirective.height === "number"
++        ? currentDirective.height
++        : itemHeight * 12);
++    const firstVisible = Math.floor(scroller.scrollTop / itemHeight);
++    const visibleCount = Math.ceil(viewportHeight / itemHeight);
++    const from = Math.max(0, firstVisible - currentDirective.overscan);
++    const to = Math.min(
++      items.length,
++      firstVisible + visibleCount + currentDirective.overscan,
++    );
++    const visibleItems = items.slice(from, to);
++
++    debugState.virtualWindows += 1;
++    topSpacer.style.height = `${from * itemHeight}px`;
++    bottomSpacer.style.height = `${Math.max(0, items.length - to) * itemHeight}px`;
++
++    const visibleDirective: RepeatDirective<unknown, PropertyKey> = {
++      __kind: "directive",
++      kind: "repeat",
++      items: visibleItems,
++      key: (item, visibleIndex) =>
++        currentDirective?.key(item, from + visibleIndex) ?? visibleIndex,
++      render: currentDirective.render,
++      empty: currentDirective.empty,
++    };
++
++    updateRepeat(
++      host,
++      contentEnd,
++      records,
++      visibleDirective,
++    );
++  };
++
++  return {
++    kind: "virtualRepeat",
++    update(nextDirective: Directive): void {
++      currentDirective = nextDirective as VirtualRepeatDirective<
++        unknown,
++        PropertyKey
++      >;
++      ensureNodes();
++
++      if (disposeItems) {
++        updateWindow();
++        return;
++      }
++
++      disposeItems = hasReactiveValue(currentDirective.items)
++        ? effect(updateWindow)
++        : (updateWindow(), null);
++
++      if (disposeItems) {
++        registerCleanup(start, disposeItems);
++      }
++    },
++    dispose(): void {
++      disposeItems?.();
++      disposeItems = null;
++
++      for (const record of records.values()) {
++        disposeRange(record.start, record.end);
++      }
++
++      records.clear();
++
++      if (scroller) {
++        disposeTree(scroller);
++        scroller.remove();
++      }
++
++      scroller = null;
++      topSpacer = null;
++      contentStart = null;
++      contentEnd = null;
++      bottomSpacer = null;
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/fabrica/directives/controllers/when.ts b/fabrica/directives/controllers/when.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..115101298c4560fea9f84f91efad76d031729ffe
+--- /dev/null
++++ b/fabrica/directives/controllers/when.ts
+@@ -0,0 +1,57 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { readValue } from "../../core/value.js";
++import { clearRange, registerCleanup } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, WhenDirective } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++
++export function createWhenController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  let currentDirective: WhenDirective | null = null;
++  let disposeEffect: (() => void) | null = null;
++  let previousBranch = "";
++
++  return {
++    kind: "when",
++    update(nextDirective: Directive): void {
++      currentDirective = nextDirective as WhenDirective;
++
++      if (disposeEffect) {
++        return;
++      }
++
++      disposeEffect = effect(() => {
++        if (!currentDirective) {
++          return;
++        }
++
++        const condition = Boolean(readValue(currentDirective.condition));
++        const branch = condition ? "truthy" : "falsy";
++
++        if (previousBranch === branch) {
++          return;
++        }
++
++        previousBranch = branch;
++        clearRange(start, end);
++
++        const factory = condition
++          ? currentDirective.truthy
++          : currentDirective.falsy;
++
++        if (factory) {
++          host.appendValue(end.parentNode, factory(), end);
++        }
++      });
++
++      registerCleanup(start, disposeEffect);
++    },
++    dispose(): void {
++      disposeEffect?.();
++      disposeEffect = null;
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/fabrica/directives/host.ts b/fabrica/directives/host.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..3eecc57e37ca9c5d8d1baf34c6ca502647bd76c4
+--- /dev/null
++++ b/fabrica/directives/host.ts
+@@ -0,0 +1,56 @@
++import { readValue } from "../core/value.js";
++import { disposeRange, removeRange } from "../render/cleanup.js";
++import type { RenderValue } from "../types.js";
++import type { RepeatRuntimeHost } from "./repeat.js";
++
++/** Renderer capabilities consumed by directive controllers. */
++export interface DirectiveRuntimeHost extends RepeatRuntimeHost {
++  mount(container: Node, value: RenderValue): () => void;
++}
++
++/** Minimal DOM fallback used when controllers are exercised without a renderer. */
++export const DEFAULT_DIRECTIVE_HOST: DirectiveRuntimeHost = {
++  appendValue(parentNode, value, beforeNode = null): void {
++    appendStandaloneValue(parentNode, value, beforeNode);
++  },
++  mount(container, value): () => void {
++    const start = document.createComment("fabrica:directive-mount:start");
++    const end = document.createComment("fabrica:directive-mount:end");
++    container.appendChild(start);
++    appendStandaloneValue(container, value, null);
++    container.appendChild(end);
++
++    return () => {
++      disposeRange(start, end);
++      removeRange(start, end);
++    };
++  },
++};
++
++function appendStandaloneValue(
++  parentNode: Node | null,
++  value: RenderValue,
++  beforeNode: Node | null,
++): void {
++  if (!parentNode || value == null || value === false || value === true) {
++    return;
++  }
++
++  if (Array.isArray(value)) {
++    for (const item of value) {
++      appendStandaloneValue(parentNode, item, beforeNode);
++    }
++    return;
++  }
++
++  const resolved = readValue(value) as RenderValue;
++  if (resolved instanceof Node) {
++    parentNode.insertBefore(resolved, beforeNode);
++    return;
++  }
++
++  parentNode.insertBefore(
++    document.createTextNode(String(resolved ?? "")),
++    beforeNode,
++  );
++}
+diff --git a/fabrica/directives/model.ts b/fabrica/directives/model.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..b037d4ebed5e326d6ff323f1ff2850ed40631c24
+--- /dev/null
++++ b/fabrica/directives/model.ts
+@@ -0,0 +1,37 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { bindEvent } from "../events.js";
++import { registerCleanup } from "../render/cleanup.js";
++import type { BindDirective, RenderValue } from "../types.js";
++
++export function bindModelPart(element: Element, rawName: string, directive: BindDirective): void {
++  const propertyName = rawName.startsWith('.') || rawName.startsWith('?') || rawName.startsWith(':') ? rawName.slice(1) : rawName;
++  const eventName = directive.event || (propertyName === 'checked' ? 'change' : 'input');
++  const readElement = directive.from || ((node: Element) => {
++    const target = node as HTMLInputElement & { [key: string]: unknown };
++    return (propertyName === 'checked' ? Boolean(target.checked) : target[propertyName]) as never;
++  });
++  const writeElement = directive.to || ((value: unknown) => value);
++
++  const update = () => {
++    const next = writeElement(directive.signal());
++    const target = element as HTMLElement & { [key: string]: unknown };
++    if (!Object.is(target[propertyName], next)) target[propertyName] = next;
++  };
++
++  const dispose = effect(update, { name: `fabrica.bind.${propertyName}` });
++  const listener = () => directive.signal.set(readElement(element));
++
++  // Two-way bindings are element-local by definition. Keep their listener
++  // direct so detached templates and synthetic non-bubbling input/change
++  // events update the model without depending on delegated-root propagation.
++  const disposeEvent = bindEvent(
++    element,
++    `${eventName}.direct`,
++    listener as unknown as RenderValue,
++    false,
++  );
++  registerCleanup(element, () => {
++    dispose();
++    disposeEvent();
++  });
++}
+diff --git a/fabrica/directives/repeat.ts b/fabrica/directives/repeat.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..3dba7f3299358069ed0ddff1c0dac862e6c36742
+--- /dev/null
++++ b/fabrica/directives/repeat.ts
+@@ -0,0 +1,374 @@
++import { batch, signal } from "@rodkisten/broto/reactivity";
++import {
++  appendRangeToFragment,
++  disposeRange,
++  moveRangeBefore,
++  removeRange,
++} from "../render/cleanup.js";
++import { readValue } from "../core/value.js";
++import type {
++  RenderValue,
++  RepeatDirective,
++  RepeatRecord,
++} from "../types.js";
++
++let repeatDiffVersion = 0;
++
++/** Renderer capabilities required by the keyed repeat reconciler. */
++export interface RepeatRuntimeHost {
++  appendValue(
++    parentNode: Node | null,
++    value: RenderValue,
++    beforeNode?: Node | null,
++  ): void;
++}
++
++export function updateRepeat(
++  host: RepeatRuntimeHost,
++  end: Comment,
++  records: Map<PropertyKey, RepeatRecord>,
++  directive: RepeatDirective<unknown, PropertyKey>,
++): boolean {
++  const resolvedItems = readValue(directive.items);
++  const items = Array.isArray(resolvedItems) ? resolvedItems : [];
++
++  if (directive.strategy === "append-only") {
++    return updateAppendOnlyRepeat(
++      host,
++      end,
++      records,
++      directive,
++      items,
++    );
++  }
++
++  if (directive.strategy === "indexed") {
++    return updateIndexedRepeat(
++      host,
++      end,
++      records,
++      directive,
++      items,
++    );
++  }
++
++  const parent = end.parentNode;
++  if (!parent) return items.length > 0;
++
++  const version = ++repeatDiffVersion;
++  const nextRecords: RepeatRecord[] = new Array(items.length);
++  const oldIndexes: number[] = new Array(items.length);
++
++  for (let index = 0; index < items.length; index += 1) {
++    const item = items[index];
++    const key = directive.key(item, index);
++    let record = records.get(key);
++
++    if (!record) {
++      record = createRepeatRecord(
++        host,
++        item,
++        index,
++        key,
++        directive.render,
++      );
++      records.set(key, record);
++      oldIndexes[index] = -1;
++    } else {
++      oldIndexes[index] = record.order ?? index;
++      batch(() => {
++        record!.item.set(item);
++        record!.index.set(index);
++        record!.key.set(key);
++      });
++    }
++
++    record.version = version;
++    nextRecords[index] = record;
++  }
++
++  const staleKeys: PropertyKey[] = [];
++  for (const [key, record] of records) {
++    if (record.version === version) continue;
++    disposeRange(record.start, record.end);
++    removeRange(record.start, record.end);
++    staleKeys[staleKeys.length] = key;
++  }
