@@ -10,7 +10,7 @@ import {
   createIifeBuildBanner,
   readPackageVersion,
 } from "../scripts/build-metadata";
-import { devtoolsCipoConfigCss } from "./cipo-config";
+import { devtoolsStyles } from "./core-style";
 
 const devtoolsDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(devtoolsDir, "..");
@@ -80,7 +80,9 @@ export default defineConfig({
 
       output: {
         banner: (chunk) =>
-          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
+          chunk.fileName.endsWith(".iife.js")
+            ? iifeBanner
+            : "",
       },
     },
 
@@ -88,7 +90,8 @@ export default defineConfig({
       entry: resolve(devtoolsDir, "./index.ts"),
       formats: ["es", "cjs", "umd", "iife"],
       name: "DevTools",
-      fileName: (format: string) => `devtools.${format}.js`,
+      fileName: (format: string) =>
+        `devtools.${format}.js`,
     },
   },
 
@@ -97,7 +100,10 @@ export default defineConfig({
     minifySyntax: true,
     minifyWhitespace: true,
     drop: ["debugger"],
-    pure: ["console.debug", "console.trace"],
+    pure: [
+      "console.debug",
+      "console.trace",
+    ],
   },
 
   plugins: [
@@ -114,9 +120,10 @@ export default defineConfig({
       cssDelivery: "style-tag",
       compileFabrica: true,
       transformCssTag: true,
-      styledImportModules: ["@rodkisten/devtools/core/runtime"],
-      configRuntimeBindings: ["devtoolsCipoConfigCss"],
-      configCss: devtoolsCipoConfigCss,
+      styledImportModules: [
+        "@rodkisten/devtools/core/runtime",
+      ],
+      configCss: devtoolsStyles.cssText,
     }),
   ],
 });
