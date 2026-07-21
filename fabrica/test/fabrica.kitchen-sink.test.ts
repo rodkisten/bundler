@@ -22,7 +22,7 @@ import {
   defineElement,
   elements,
   html,
-  hydrate,
+  mountPreservingChildren,
   jsx,
   listComponents,
   mount,
@@ -870,7 +870,7 @@ describe("Fábrica kitchen sink: public API, globals and debug", () => {
 
     api.noConflict();
 
-    expect(globalThis.Fabrica).toBe(api);
+    expect(globalThis.Fabrica).toBe(previousFabrica);
     expect(globalThis.$).toBe(previousDollar);
     expect(globalThis.$el).not.toBe($);
   });
@@ -961,11 +961,14 @@ describe("Fábrica kitchen sink: render-value edge cases", () => {
     expect(host.textContent).toBe("Done");
   });
 
-  it("hydrates without clearing existing markup", () => {
+  it("mounts without clearing existing markup", () => {
     const host = document.createElement("div");
     host.innerHTML = "<span>server</span>";
 
-    const dispose = hydrate(host, html`<button>client</button>`);
+    const dispose = mountPreservingChildren(
+      host,
+      html`<button>client</button>`,
+    );
 
     expect(host.textContent).toContain("server");
     expect(host.textContent).toContain("client");
