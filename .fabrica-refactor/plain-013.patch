@@ -1,0 +1,528 @@
+<string, unknown>;
+-  for (const key in source) {
+-    const literal = key.startsWith(":");
+-    const rawName = literal ? `"${key.slice(1)}"` : key;
+-    const item = source[key];
+-    target[toDataAttributeName(rawName)] = isSignal(item) ? item() : item;
++/**
++ * Preserves a dynamic attribute as a binding source instead of eagerly reading
++ * it. Compound attributes receive a lazy expression only when one of their
++ * segments is reactive, matching the interpreted template path.
++ */
++function readCompiledAttributeBindingValue(
++  prop: Exclude<RuntimeProp, { readonly type: "spread" }>,
++  values: readonly RenderValue[],
++): RenderValue {
++  if (prop.type === "value") {
++    return values[prop.index] as RenderValue;
+   }
+-}
+ 
+-function normalizeCompiledComponentPropName(name: string): string {
+-  if (name.startsWith("@")) {
+-    return compiledEventAttributeToPropName(name.slice(1));
++  if (prop.type === "static") {
++    if (prop.value === true) {
++      return (prop.name.startsWith("?") ? true : "") as RenderValue;
++    }
++    return (typeof prop.value === "string"
++      ? decodeHtmlEntities(prop.value)
++      : prop.value) as RenderValue;
+   }
+-  if (name.startsWith(".")) return name.slice(1);
+-  if (name.startsWith("?")) return name.slice(1);
+-  if (name === ":data") return name;
+-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
+-  if (name === "classname") return "className";
+-  if (name === "htmlfor") return "htmlFor";
+-  if (name === "tabindex") return "tabIndex";
+-  if (name === "readonly") return "readOnly";
+-  return name;
+-}
+ 
+-function compiledEventAttributeToPropName(rawName: string): string {
+-  const dotIndex = rawName.indexOf(".");
+-  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
+-  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
++  const reactive = prop.indices.some((index) =>
++    hasReactiveValue(values[index]),
++  );
++  if (!reactive) return readCompiledPropValue(prop, values) as RenderValue;
++
++  return (() => readCompiledPropValue(prop, values)) as RenderValue;
+ }
+ 
+ function readCompiledPropValue(
+@@ -325,10 +321,10 @@ function collectCompiledChildValue(
+   const props: Record<string, unknown> = {};
+   for (const prop of node.props) {
+     if (prop.type === "spread") {
+-      Object.assign(props, values[prop.index] as FabricaCompiledElementProps);
+-    } else {
+-      props[prop.name] = readCompiledPropValue(prop, values);
++      bindSpreadPart(element, values[prop.index]);
++      continue;
+     }
++    props[prop.name] = readCompiledAttributeBindingValue(prop, values);
+   }
+   applyCompiledProps(element, props);
+   for (const child of node.children) appendCompiledNode(element, child, values);
+diff --git a/fabrica/compiler-runtime-types.ts b/fabrica/compiler/runtime/types.ts
+similarity index 91%
+rename from fabrica/compiler-runtime-types.ts
+rename to fabrica/compiler/runtime/types.ts
+index 65b5aeeb5f59d590ccb60669774395fa50bacd4b..91faa26264d314dd8cba65fcdcadd9e9225c16c2 100644
+--- a/fabrica/compiler-runtime-types.ts
++++ b/fabrica/compiler/runtime/types.ts
+@@ -1,5 +1,5 @@
+-import type { RenderValue } from "@rodkisten/fabrica/types";
+-import type { CompiledProp } from "@rodkisten/fabrica/compiler-parse";
++import type { RenderValue } from "../../types.js";
++import type { CompiledProp } from "../html-parser.js";
+ 
+ export interface FabricaCompiledElementProps {
+   readonly [key: string]: unknown;
+diff --git a/fabrica/compiler/serialize.ts b/fabrica/compiler/serialize.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..c42c38f756f85b514abdd6125adfdcede708eae1
+--- /dev/null
++++ b/fabrica/compiler/serialize.ts
+@@ -0,0 +1,123 @@
++import {
++  DIRECT_COMPONENT_IDENT_RE,
++  NODE_ELEMENT,
++  NODE_TEXT,
++  NODE_VALUE,
++  PROP_COMPOUND,
++  PROP_SPREAD,
++  PROP_STATIC,
++  PROP_VALUE,
++} from "./constants.js";
++import {
++  buildCompiledRuntimeSource,
++  containsUnsupportedTemplateShape,
++  parseCompiledNodes,
++  type CompiledNode,
++  type CompiledProp,
++} from "./html-parser.js";
++
++export interface CompiledTemplateExpression {
++  readonly expression: string;
++  readonly rootTag: string;
++  readonly fallback: boolean;
++}
++
++export function compileTemplateToExpression(
++  tag: string,
++  strings: readonly string[],
++  expressions: readonly string[],
++  directNames: ReadonlySet<string>,
++  helperName: string,
++): CompiledTemplateExpression {
++  if (!containsUnsupportedTemplateShape(strings)) {
++    const source = buildCompiledRuntimeSource(strings);
++    const nodes = parseCompiledNodes(source, { allowUppercaseTags: true });
++    if (nodes) {
++      return {
++        expression:
++          `${helperName}(${tag}, ` +
++          `${serializeDefinition({ nodes }, directNames)}` +
++          `${expressions.length ? `, ${expressions.join(", ")}` : ""})`,
++        rootTag: readRootTag(nodes),
++        fallback: false,
++      };
++    }
++  }
++
++  return {
++    expression: emitCompiledTemplateFallbackExpression(
++      helperName,
++      tag,
++      strings,
++      expressions,
++    ),
++    rootTag: "template",
++    fallback: true,
++  };
++}
++
++function serializeDefinition(
++  definition: { readonly nodes: readonly CompiledNode[] },
++  directNames: ReadonlySet<string>,
++): string {
++  return (
++    "[" +
++    definition.nodes
++      .map((node) => serializeCompactNode(node, directNames))
++      .join(",") +
++    "]"
++  );
++}
++
++function serializeCompactNode(
++  node: CompiledNode,
++  directNames: ReadonlySet<string>,
++): string {
++  if (node.type === "text") {
++    return `[${NODE_TEXT},${JSON.stringify(node.value)}]`;
++  }
++  if (node.type === "value") return `[${NODE_VALUE},${node.index}]`;
++
++  const tag =
++    DIRECT_COMPONENT_IDENT_RE.test(node.tag) && directNames.has(node.tag)
++      ? node.tag
++      : JSON.stringify(node.tag);
++  const props = node.props.map(serializeCompactProp).join(",");
++  const children = node.children
++    .map((child) => serializeCompactNode(child, directNames))
++    .join(",");
++  return `[${NODE_ELEMENT},${tag},[${props}],[${children}]]`;
++}
++
++function serializeCompactProp(prop: CompiledProp): string {
++  if (prop.type === "spread") return `[${PROP_SPREAD},${prop.index}]`;
++  if (prop.type === "value") {
++    return `[${PROP_VALUE},${JSON.stringify(prop.name)},${prop.index}]`;
++  }
++  if (prop.type === "compound") {
++    return (
++      `[${PROP_COMPOUND},${JSON.stringify(prop.name)},` +
++      `${JSON.stringify(prop.strings)},${JSON.stringify(prop.indices)}]`
++    );
++  }
++  return (
++    `[${PROP_STATIC},${JSON.stringify(prop.name)},` +
++    `${JSON.stringify(prop.value)}]`
++  );
++}
++
++function emitCompiledTemplateFallbackExpression(
++  helperName: string,
++  tag: string,
++  strings: readonly string[],
++  expressions: readonly string[],
++): string {
++  const input = JSON.stringify(strings);
++  const values = expressions.length ? `, ${expressions.join(", ")}` : "";
++  return `${helperName}(${tag}, ${input}${values})`;
++}
++
++function readRootTag(nodes: readonly CompiledNode[]): string {
++  if (nodes.length !== 1 || nodes[0]?.type !== "element") return "template";
++  return typeof nodes[0].tag === "string" ? nodes[0].tag : "template";
++}
+diff --git a/fabrica/compiler/transform.ts b/fabrica/compiler/transform.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..cf80cbc7d203e6dc8c8c8ede7daa88647a57510a
+--- /dev/null
++++ b/fabrica/compiler/transform.ts
+@@ -0,0 +1,253 @@
++import * as ts from "typescript";
++import {
++  createSingleFileChecker,
++  createSourceFile,
++} from "./ast.js";
++import {
++  isFabricaTemplateTag,
++  readVisibleValueBindings,
++} from "./bindings.js";
++import {
++  injectCompilerImport,
++  resolveCompilerHelper,
++} from "./imports.js";
++import { compileTemplateToExpression } from "./serialize.js";
++import {
++  applyEdits,
++  type SourceEdit,
++} from "./utils.js";
++
++const DEFAULT_IMPORT_PATH = "@rodkisten/fabrica/compiler-runtime";
++const DEFAULT_HTML_TAGS = ["html"] as const;
++const DEFAULT_JSX_HTML_TAGS = ["jsx.html", "html.jsx"] as const;
++
++export interface FabricaCompileSourceOptions {
++  readonly filename?: string;
++  readonly importPath?: string;
++  readonly htmlTags?: readonly string[];
++  readonly jsxHtmlTags?: readonly string[];
++  /**
++   * Emits uppercase component tags as direct lexical references when a value
++   * binding with the same name is visible at the template callsite.
++   */
++  readonly directComponentReferences?: boolean;
++}
++
++export interface FabricaCompileSourceResult {
++  readonly code: string;
++  readonly changed: boolean;
++  readonly manifest: readonly FabricaCompiledTemplateManifestEntry[];
++}
++
++export interface FabricaCompiledTemplateManifestEntry {
++  readonly id: string;
++  readonly filename?: string;
++  readonly start: number;
++  readonly end: number;
++  readonly tag: string;
++  readonly dynamicValues: number;
++  readonly fallback: boolean;
++}
++
++interface InternalManifestEntry {
++  readonly filename?: string;
++  readonly start: number;
++  readonly end: number;
++  readonly tag: string;
++  readonly dynamicValues: number;
++  readonly fallback: boolean;
++}
++
++interface CompileContext {
++  readonly options: FabricaCompileSourceOptions;
++  readonly configuredTags: ReadonlySet<string>;
++  readonly helperName: string;
++  readonly manifest: InternalManifestEntry[];
++}
++
++interface CompileFragmentResult {
++  readonly code: string;
++  readonly changed: boolean;
++}
++
++interface TemplateParts {
++  readonly strings: readonly string[];
++  readonly expressions: readonly {
++    readonly code: string;
++    readonly start: number;
++  }[];
++}
++
++/**
++ * Compiles Fábrica tagged templates through a TypeScript AST.
++ *
++ * The source AST is used only for JavaScript/TypeScript structure and lexical
++ * binding analysis. Fábrica's HTML DSL remains parsed by the dedicated compact
++ * HTML parser, keeping the build transform independent from browser DOM APIs.
++ */
++export function compileFabricaSource(
++  source: string,
++  options: FabricaCompileSourceOptions = {},
++): FabricaCompileSourceResult {
++  const filename = options.filename ?? "source.tsx";
++  const sourceFile = createSourceFile(source, filename);
++  const checker = createSingleFileChecker(sourceFile, filename);
++  const importPath = options.importPath ?? DEFAULT_IMPORT_PATH;
++  const helper = resolveCompilerHelper(sourceFile, importPath);
++  const configuredTags = new Set([
++    ...(options.htmlTags ?? DEFAULT_HTML_TAGS),
++    ...(options.jsxHtmlTags ?? DEFAULT_JSX_HTML_TAGS),
++  ]);
++  const manifestEntries: InternalManifestEntry[] = [];
++  const context: CompileContext = {
++    options,
++    configuredTags,
++    helperName: helper.localName,
++    manifest: manifestEntries,
++  };
++
++  const compiled = compileSourceFragment(
++    source,
++    filename,
++    0,
++    context,
++    checker,
++  );
++
++  if (!compiled.changed) {
++    return { code: source, changed: false, manifest: [] };
++  }
++
++  const code = helper.alreadyImported
++    ? compiled.code
++    : injectCompilerImport(
++        compiled.code,
++        sourceFile,
++        importPath,
++        helper.localName,
++      );
++
++  const manifest = manifestEntries
++    .slice()
++    .sort((a, b) => a.start - b.start || b.end - a.end)
++    .map((entry, index) => ({
++      id: `fabrica-compiled-${index + 1}`,
++      ...entry,
++    }));
++
++  return { code, changed: true, manifest };
++}
++
++function compileSourceFragment(
++  source: string,
++  filename: string,
++  sourceOffset: number,
++  context: CompileContext,
++  parentChecker?: ts.TypeChecker,
++): CompileFragmentResult {
++  const sourceFile = createSourceFile(source, filename);
++  const checker = sourceOffset === 0 && parentChecker
++    ? parentChecker
++    : createSingleFileChecker(sourceFile, filename);
++  const templates: ts.TaggedTemplateExpression[] = [];
++
++  const visit = (node: ts.Node): void => {
++    if (
++      ts.isTaggedTemplateExpression(node) &&
++      isFabricaTemplateTag(node.tag, checker, context.configuredTags)
++    ) {
++      templates.push(node);
++      return;
++    }
++    ts.forEachChild(node, visit);
++  };
++  visit(sourceFile);
++
++  if (templates.length === 0) {
++    return { code: source, changed: false };
++  }
++
++  const edits: SourceEdit[] = [];
++  for (const template of templates) {
++    const parts = readTemplateParts(
++      template.template,
++      sourceFile,
++      source,
++      filename,
++      sourceOffset,
++      context,
++    );
++    const tagText = template.tag.getText(sourceFile);
++    const directNames = context.options.directComponentReferences
++      ? readVisibleValueBindings(template)
++      : EMPTY_NAMES;
++    const compiled = compileTemplateToExpression(
++      tagText,
++      parts.strings,
++      parts.expressions.map((item) => item.code),
++      directNames,
++      context.helperName,
++    );
++    const start = template.getStart(sourceFile);
++    const end = template.getEnd();
++
++    edits.push({ start, end, value: compiled.expression });
++    context.manifest.push({
++      ...(context.options.filename
++        ? { filename: context.options.filename }
++        : {}),
++      start: sourceOffset + start,
++      end: sourceOffset + end,
++      tag: compiled.rootTag,
++      dynamicValues: parts.expressions.length,
++      fallback: compiled.fallback,
++    });
++  }
++
++  return {
++    code: applyEdits(
++      source,
++      edits.sort((a, b) => a.start - b.start),
++    ),
++    changed: true,
++  };
++}
++
++function readTemplateParts(
++  template: ts.TemplateLiteral,
++  sourceFile: ts.SourceFile,
++  source: string,
++  filename: string,
++  sourceOffset: number,
++  context: CompileContext,
++): TemplateParts {
++  if (ts.isNoSubstitutionTemplateLiteral(template)) {
++    return { strings: [template.text], expressions: [] };
++  }
++
++  const strings: string[] = [template.head.text];
++  const expressions: { code: string; start: number }[] = [];
++
++  for (const span of template.templateSpans) {
++    const expression = span.expression;
++    const expressionStart = expression.getStart(sourceFile);
++    const expressionSource = source.slice(expressionStart, expression.getEnd());
++    const compiled = compileSourceFragment(
++      expressionSource,
++      filename,
++      sourceOffset + expressionStart,
++      context,
++    );
++    expressions.push({
++      code: compiled.code,
++      start: sourceOffset + expressionStart,
++    });
++    strings.push(span.literal.text);
++  }
++
++  return { strings, expressions };
++}
++
++
++
++const EMPTY_NAMES: ReadonlySet<string> = new Set<string>();
+diff --git a/fabrica/compiler/utils.ts b/fabrica/compiler/utils.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0e622b007916ee977d90de2fe92c99865446baa
+--- /dev/null
++++ b/fabrica/compiler/utils.ts
+@@ -0,0 +1,91 @@
++import {
++  LEGACY_SPREAD_MARKER_RE,
++  SPREAD_MARKER_EXACT_RE,
++  SVG_NAMESPACE,
++  SVG_TAG_RE,
++  VALUE_MARKER_EXACT_RE,
++} from "./constants.js";
++
++export interface SourceEdit {
++  readonly start: number;
++  readonly end: number;
++  readonly value: string;
++}
++
++export {
++  FABRICA_VALUE_PREFIX,
++  FABRICA_VALUE_SUFFIX,
++  FABRICA_SPREAD_PREFIX,
++  FABRICA_SPREAD_SUFFIX,
++} from "./constants.js";
++
++export function normalizeAttributeName(name: string): string {
++  if (name === "className") return "class";
++  return name;
++}
++
++export function unquote(value: string): string {
++  if (
++    (value.startsWith('"') && value.endsWith('"')) ||
++    (value.startsWith("'") && value.endsWith("'"))
++  ) {
++    return value.slice(1, -1);
++  }
++  return value;
++}
++
++export function readValueMarker(value: string): number | null {
++  const match = value.match(VALUE_MARKER_EXACT_RE);
++  return match ? Number(match[1]) : null;
++}
++
++export function readSpreadMarker(value: string): number | null {
++  const spread = value.match(SPREAD_MARKER_EXACT_RE);
++  if (spread) return Number(spread[1]);
++  const legacy = value.match(LEGACY_SPREAD_MARKER_RE);
++  return legacy ? Number(legacy[1]) : null;
++}
++
++export function isSvgTag(tag: string): boolean {
++
