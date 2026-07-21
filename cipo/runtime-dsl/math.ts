@@ -73,13 +73,45 @@ export function normalizeRuntimeVariableMath(input: string): string {
 }
 
 function normalizeRuntimeDeclarationChunk(chunk: string): string {
+  if (chunk.trimEnd().endsWith(',')) return chunk
+
   const colon = findTopLevelChar(chunk, ':')
   if (colon <= 0) return chunk
+
+  const property = chunk.slice(0, colon).trim()
+  if (!isRuntimeDeclarationProperty(property)) return chunk
 
   const before = chunk.slice(0, colon + 1)
   const value = chunk.slice(colon + 1).trim()
   if (!value) return chunk
   return `${before} ${normalizeRuntimeExpression(value)}`
+}
+
+/**
+ * Guards the math normalizer from treating selector fragments as declarations.
+ *
+ * Multiline selectors can contain top-level colons and multiplication-looking
+ * universal selectors, for example `:host *::before`. Without validating the
+ * text before the first colon, the `*` was interpreted as arithmetic and the
+ * selector was rewritten through `calc(...)` before the stylesheet parser saw
+ * it.
+ */
+function isRuntimeDeclarationProperty(value: string): boolean {
+  let property = value.trim()
+  if (!property) return false
+
+  if (property[0] === '!') property = property.slice(1).trim()
+  if (property[0] === '#') property = property.slice(1).trim()
+
+  if (property.startsWith('$$')) {
+    return /^[a-zA-Z_][\w.-]*$/.test(property.slice(2))
+  }
+
+  if (property.startsWith('--')) {
+    return /^--[a-zA-Z_][\w-]*$/.test(property)
+  }
+
+  return /^-?[a-zA-Z_][\w.-]*$/.test(property)
 }
 
 export function normalizeRuntimeExpression(value: string): string {
