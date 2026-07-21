@@ -1,0 +1,812 @@
+name: 📦 Apply ZIP patch
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_path:
+        description: "Path to a .zip file inside ./zip"
+        required: true
+        default: "zip/patch.zip"
+        type: string
+
+      root_mode:
+        description: "How to handle a single top-level directory"
+        required: true
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - strip
+          - keep
+
+      pr_title:
+        description: "Optional pull request title"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: apply-zip-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-zip:
+    name: 📦 Apply ZIP file by file
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout selected branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: 🔎 Validate selected branch and ZIP path
+        id: zip
+        shell: bash
+        env:
+          ZIP_INPUT: ${{ inputs.zip_path }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_TYPE" != "branch" ]]; then
+            echo "::error::This workflow must run from a branch."
+            exit 1
+          fi
+
+          python <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          zip_dir = (repo / "zip").resolve()
+          raw_path = os.environ["ZIP_INPUT"].strip()
+
+          if not raw_path:
+              print(
+                  "::error::The zip_path input cannot be empty.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          candidate = Path(raw_path)
+
+          if not candidate.is_absolute():
+              candidate = repo / candidate
+
+          candidate = candidate.resolve()
+
+          try:
+              relative_to_zip = candidate.relative_to(zip_dir)
+          except ValueError:
+              print(
+                  "::error::The ZIP must be located inside ./zip.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          if not candidate.exists():
+              print(
+                  f"::error::ZIP file not found: {candidate}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          if not candidate.is_file():
+              print(
+                  f"::error::ZIP path is not a file: {candidate}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          if candidate.suffix.lower() != ".zip":
+              print(
+                  "::error::The selected file must have a .zip extension.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          relative_to_repo = candidate.relative_to(repo)
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"zip_path={candidate}\n")
+              stream.write(
+                  f"zip_relative={relative_to_repo.as_posix()}\n"
+              )
+
+          print(f"✅ ZIP: {relative_to_repo}")
+          print(f"📁 ZIP directory: {relative_to_zip.parent}")
+          PY
+
+      - name: 🛡️ Validate and safely extract ZIP
+        id: extract
+        shell: bash
+        env:
+          ZIP_PATH: ${{ steps.zip.outputs.zip_path }}
+        run: |
+          set -euo pipefail
+
+          EXTRACT_DIR="$RUNNER_TEMP/zip-patch-${GITHUB_RUN_ID}"
+          EXTRACT_DIR="${EXTRACT_DIR}-${GITHUB_RUN_ATTEMPT}"
+
+          rm -rf "$EXTRACT_DIR"
+          mkdir -p "$EXTRACT_DIR"
+
+          export EXTRACT_DIR
+
+          python <<'PY'
+          import os
+          import re
+          import shutil
+          import stat
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive = Path(os.environ["ZIP_PATH"])
+          extract_dir = Path(os.environ["EXTRACT_DIR"]).resolve()
+
+          seen: set[str] = set()
+          extracted_files = 0
+
+          try:
+              zip_file = zipfile.ZipFile(archive)
+          except zipfile.BadZipFile:
+              print(
+                  "::error::The selected file is not a valid ZIP archive.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          with zip_file:
+              entries = zip_file.infolist()
+
+              if not entries:
+                  print(
+                      "::error::The ZIP archive is empty.",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
+
+              for info in entries:
+                  raw_name = info.filename
+
+                  if not raw_name:
+                      continue
+
+                  normalized = raw_name.replace("\\", "/")
+
+                  if normalized.startswith("/"):
+                      print(
+                          "::error::Absolute paths are not allowed: "
+                          f"{raw_name}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  if re.match(r"^[A-Za-z]:/", normalized):
+                      print(
+                          "::error::Windows absolute paths are not "
+                          f"allowed: {raw_name}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  if any(ord(char) < 32 for char in normalized):
+                      print(
+                          "::error::Control characters are not allowed "
+                          "in ZIP paths.",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  parts = [
+                      part
+                      for part in normalized.split("/")
+                      if part not in ("", ".")
+                  ]
+
+                  if not parts:
+                      continue
+
+                  if ".." in parts:
+                      print(
+                          "::error::Parent path traversal is not "
+                          f"allowed: {raw_name}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  if ".git" in parts:
+                      print(
+                          "::error::The ZIP cannot contain .git paths: "
+                          f"{raw_name}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  relative = "/".join(parts)
+
+                  if relative in seen:
+                      print(
+                          "::error::Duplicate ZIP entry detected: "
+                          f"{relative}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  seen.add(relative)
+
+                  unix_mode = (
+                      info.external_attr >> 16
+                  ) & 0xFFFF
+
+                  if stat.S_ISLNK(unix_mode):
+                      print(
+                          "::error::Symbolic links are not allowed in "
+                          f"the ZIP: {relative}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  file_type = stat.S_IFMT(unix_mode)
+
+                  if file_type not in (
+                      0,
+                      stat.S_IFREG,
+                      stat.S_IFDIR,
+                  ):
+                      print(
+                          "::error::Unsupported special file in ZIP: "
+                          f"{relative}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  target = extract_dir.joinpath(*parts)
+
+                  try:
+                      target.resolve().relative_to(extract_dir)
+                  except ValueError:
+                      print(
+                          "::error::ZIP entry escapes extraction "
+                          f"directory: {relative}",
+                          file=sys.stderr,
+                      )
+                      sys.exit(1)
+
+                  if info.is_dir():
+                      target.mkdir(
+                          parents=True,
+                          exist_ok=True,
+                      )
+                      continue
+
+                  target.parent.mkdir(
+                      parents=True,
+                      exist_ok=True,
+                  )
+
+                  with zip_file.open(info) as source:
+                      with target.open("wb") as destination:
+                          shutil.copyfileobj(
+                              source,
+                              destination,
+                          )
+
+                  permissions = unix_mode & 0o777
+
+                  if permissions:
+                      target.chmod(permissions)
+
+                  extracted_files += 1
+
+          if extracted_files == 0:
+              print(
+                  "::error::The ZIP contains no files to apply.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"extract_dir={extract_dir}\n")
+              stream.write(
+                  f"archive_file_count={extracted_files}\n"
+              )
+
+          print(
+              f"✅ Safely extracted {extracted_files} file(s)."
+          )
+          PY
+
+      - name: 🧭 Resolve repository structure
+        id: structure
+        shell: bash
+        env:
+          EXTRACT_DIR: ${{ steps.extract.outputs.extract_dir }}
+          ROOT_MODE: ${{ inputs.root_mode }}
+          REPOSITORY: ${{ github.repository }}
+          ZIP_PATH: ${{ steps.zip.outputs.zip_path }}
+        run: |
+          set -euo pipefail
+
+          python <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          repo = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          root = Path(os.environ["EXTRACT_DIR"]).resolve()
+          root_mode = os.environ["ROOT_MODE"]
+          repo_name = os.environ["REPOSITORY"].split("/")[-1]
+
+          children = sorted(
+              root.iterdir(),
+              key=lambda path: path.name.casefold(),
+          )
+
+          top_files = [
+              path
+              for path in children
+              if path.is_file()
+          ]
+
+          top_dirs = [
+              path
+              for path in children
+              if path.is_dir()
+          ]
+
+          patch_root = root
+          stripped = False
+
+          has_single_root_dir = (
+              len(top_dirs) == 1
+              and not top_files
+          )
+
+          if root_mode == "strip":
+              if not has_single_root_dir:
+                  print(
+                      "::error::root_mode=strip requires exactly one "
+                      "top-level directory and no top-level files.",
+                      file=sys.stderr,
+                  )
+                  sys.exit(1)
+
+              patch_root = top_dirs[0]
+              stripped = True
+
+          elif root_mode == "auto" and has_single_root_dir:
+              candidate = top_dirs[0]
+              candidate_target = repo / candidate.name
+
+              candidate_name = candidate.name.casefold()
+              repository_name = repo_name.casefold()
+
+              looks_like_repo_wrapper = (
+                  candidate_name == repository_name
+                  or candidate_name.startswith(
+                      f"{repository_name}-"
+                  )
+                  or candidate_name.startswith(
+                      f"{repository_name}_"
+                  )
+              )
+
+              inner_children = list(candidate.iterdir())
+
+              maps_to_repository_root = any(
+                  (repo / child.name).exists()
+                  for child in inner_children
+              )
+
+              if (
+                  not candidate_target.exists()
+                  and (
+                      looks_like_repo_wrapper
+                      or maps_to_repository_root
+                  )
+              ):
+                  patch_root = candidate
+                  stripped = True
+
+          files = sorted(
+              (
+                  path
+                  for path in patch_root.rglob("*")
+                  if path.is_file()
+              ),
+              key=lambda path: (
+                  path.relative_to(
+                      patch_root
+                  ).as_posix()
+              ),
+          )
+
+          if not files:
+              print(
+                  "::error::No files were found after resolving the "
+                  "archive structure.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"patch_root={patch_root}\n")
+              stream.write(f"file_count={len(files)}\n")
+              stream.write(
+                  f"stripped={'true' if stripped else 'false'}\n"
+              )
+
+          print(f"📦 Patch root: {patch_root}")
+          print(f"📄 Files: {len(files)}")
+          print(f"✂️ Root directory stripped: {stripped}")
+          PY
+
+      - name: 🌳 Inspect normalized file structure
+        shell: bash
+        env:
+          PATCH_ROOT: ${{ steps.structure.outputs.patch_root }}
+          FILE_COUNT: ${{ steps.structure.outputs.file_count }}
+        run: |
+          set -euo pipefail
+
+          echo "📦 Normalized archive structure:"
+          echo
+
+          find "$PATCH_ROOT" \
+            -type f \
+            -printf '%P\n' \
+            | LC_ALL=C sort \
+            | sed -n '1,300p'
+
+          if (( FILE_COUNT > 300 )); then
+            echo
+            echo "… $((FILE_COUNT - 300)) additional file(s) omitted."
+          fi
+
+      - name: 📝 Find CHANGELOG for pull request description
+        id: changelog
+        shell: bash
+        env:
+          PATCH_ROOT: ${{ steps.structure.outputs.patch_root }}
+        run: |
+          set -euo pipefail
+
+          python <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          root = Path(os.environ["PATCH_ROOT"]).resolve()
+          body_file = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "zip-patch-pr-body.md"
+          )
+
+          matches = [
+              path
+              for path in root.rglob("*")
+              if (
+                  path.is_file()
+                  and "changelog" in path.name.casefold()
+              )
+          ]
+
+          matches.sort(
+              key=lambda path: (
+                  len(
+                      path.relative_to(root).parts
+                  ),
+                  path.relative_to(
+                      root
+                  ).as_posix().casefold(),
+              )
+          )
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+
+          if matches:
+              changelog = matches[0]
+
+              text = changelog.read_text(
+                  encoding="utf-8",
+                  errors="replace",
+              )
+
+              body_file.write_text(
+                  text,
+                  encoding="utf-8",
+              )
+
+              relative = changelog.relative_to(root)
+
+              with output.open(
+                  "a",
+                  encoding="utf-8",
+              ) as stream:
+                  stream.write("found=true\n")
+                  stream.write(
+                      f"body_file={body_file}\n"
+                  )
+                  stream.write(
+                      f"changelog={relative.as_posix()}\n"
+                  )
+
+              print(
+                  "📝 PR description will use "
+                  f"{relative.as_posix()}."
+              )
+
+          else:
+              with output.open(
+                  "a",
+                  encoding="utf-8",
+              ) as stream:
+                  stream.write("found=false\n")
+                  stream.write(
+                      f"body_file={body_file}\n"
+                  )
+
+              print(
+                  "ℹ️ No CHANGELOG file was found."
+              )
+          PY
+
+      - name: 🌿 Create patch branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BRANCH_NAME="automation/apply-zip"
+          BRANCH_NAME="${BRANCH_NAME}-${GITHUB_RUN_ID}"
+          BRANCH_NAME="${BRANCH_NAME}-${GITHUB_RUN_ATTEMPT}"
+
+          git config \
+            user.name \
+            "Rod Kisten"
+           # "github-actions[bot]"
+
+          git config \
+            user.email \
+            "rodolfocostaclemente@gmail.com"
+           # "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git switch \
+            --create \
+            "$BRANCH_NAME"
+
+          echo "branch=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+          echo "🌿 Created branch: $BRANCH_NAME"
+
+      - name: 🧩 Apply and commit files one by one
+        id: apply
+        shell: bash
+        env:
+          PATCH_ROOT: ${{ steps.structure.outputs.patch_root }}
+        run: |
+          set -euo pipefail
+
+          declare -a FILES
+
+          mapfile \
+            -d '' \
+            FILES \
+            < <(
+              find "$PATCH_ROOT" \
+                -type f \
+                -print0 \
+                | LC_ALL=C sort -z
+            )
+
+          CHANGED_COUNT=0
+          SKIPPED_COUNT=0
+          PROCESSED_COUNT=0
+
+          for SOURCE in "${FILES[@]}"; do
+            PROCESSED_COUNT=$((PROCESSED_COUNT + 1))
+
+            RELATIVE="${SOURCE#"$PATCH_ROOT"/}"
+            TARGET="$GITHUB_WORKSPACE/$RELATIVE"
+
+            echo
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📄 [$PROCESSED_COUNT/${#FILES[@]}] $RELATIVE"
+
+            CURRENT="$GITHUB_WORKSPACE"
+
+            IFS='/' read -r -a PARTS <<< "$RELATIVE"
+
+            for ((
+              INDEX = 0;
+              INDEX < ${#PARTS[@]} - 1;
+              INDEX++
+            )); do
+              CURRENT="$CURRENT/${PARTS[$INDEX]}"
+
+              if [[ -L "$CURRENT" ]]; then
+                echo \
+                  "::error::Refusing to write through repository " \
+                  "symlink: $CURRENT"
+                exit 1
+              fi
+            done
+
+            mkdir -p \
+              "$(dirname "$TARGET")"
+
+            if [[ -L "$TARGET" ]]; then
+              rm -- "$TARGET"
+            elif [[ -d "$TARGET" ]]; then
+              echo \
+                "::error::Cannot replace an existing directory " \
+                "with a file: $RELATIVE"
+              exit 1
+            fi
+
+            cp \
+              -a \
+              -- \
+              "$SOURCE" \
+              "$TARGET"
+
+            git add \
+              -f \
+              -- \
+              "$RELATIVE"
+
+            if git diff \
+              --cached \
+              --quiet \
+              -- \
+              "$RELATIVE"
+            then
+              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+
+              echo "⏭️ No changes: $RELATIVE"
+              continue
+            fi
+
+            CHANGED_COUNT=$((CHANGED_COUNT + 1))
+
+            git commit \
+              -m "chore(zip): apply ${RELATIVE}"
+
+            echo "✅ Committed: $RELATIVE"
+          done
+
+          echo
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Processed: $PROCESSED_COUNT"
+          echo "✅ Changed: $CHANGED_COUNT"
+          echo "⏭️ Unchanged: $SKIPPED_COUNT"
+
+          echo \
+            "changed_count=$CHANGED_COUNT" \
+            >> "$GITHUB_OUTPUT"
+
+          echo \
+            "skipped_count=$SKIPPED_COUNT" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: ✨ Nothing to apply
+        if: steps.apply.outputs.changed_count == '0'
+        run: |
+          echo \
+            "The ZIP contents are already synchronized with the repository."
+
+      - name: 🚀 Push patch branch
+        if: steps.apply.outputs.changed_count != '0'
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ steps.branch.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          git push \
+            --set-upstream \
+            origin \
+            "$BRANCH_NAME"
+
+      - name: 📋 Prepare pull request
+        if: steps.apply.outputs.changed_count != '0'
+        id: pr
+        shell: bash
+        env:
+          CHANGELOG_FOUND: ${{ steps.changelog.outputs.found }}
+          CHANGELOG_BODY: ${{ steps.changelog.outputs.body_file }}
+          ZIP_RELATIVE: ${{ steps.zip.outputs.zip_relative }}
+          CHANGED_COUNT: ${{ steps.apply.outputs.changed_count }}
+          SKIPPED_COUNT: ${{ steps.apply.outputs.skipped_count }}
+          ROOT_STRIPPED: ${{ steps.structure.outputs.stripped }}
+          PR_TITLE_INPUT: ${{ inputs.pr_title }}
+        run: |
+          set -euo pipefail
+
+          BODY_FILE="$CHANGELOG_BODY"
+
+          if [[ "$CHANGELOG_FOUND" != "true" ]]; then
+            cat > "$BODY_FILE" <<EOF
+          ## 📦 ZIP patch
+
+          Applied files from \`$ZIP_RELATIVE\`.
+
+          - **Base branch:** \`$GITHUB_REF_NAME\`
+          - **Changed files:** $CHANGED_COUNT
+          - **Unchanged files:** $SKIPPED_COUNT
+          - **Root directory stripped:** $ROOT_STRIPPED
+          - **Commit strategy:** one commit per changed file
+          - **Ordering:** ascending lexicographical path order
+          EOF
+          fi
+
+          if [[ -n "$PR_TITLE_INPUT" ]]; then
+            PR_TITLE="$PR_TITLE_INPUT"
+          else
+            ZIP_NAME="$(basename "$ZIP_RELATIVE")"
+            PR_TITLE="chore: apply ${ZIP_NAME}"
+          fi
+
+          echo "title=$PR_TITLE" >> "$GITHUB_OUTPUT"
+          echo "body_file=$BODY_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: 🔀 Open pull request
+        if: steps.apply.outputs.changed_count != '0'
+        id: open-pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ steps.branch.outputs.branch }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_BODY_FILE: ${{ steps.pr.outputs.body_file }}
+        run: |
+          set -euo pipefail
+
+          PR_URL="$(
+            gh pr create \
+              --base "$GITHUB_REF_NAME" \
+              --head "$BRANCH_NAME" \
+              --title "$PR_TITLE" \
+              --body-file "$PR_BODY_FILE"
+          )"
+
+          echo "url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+          echo
+          echo "✅ Pull request created:"
+          echo "$PR_URL"
+
+      - name: 📊 Summary
+        if: steps.apply.outputs.changed_count != '0'
+        shell: bash
+        env:
+          ZIP_PATH: ${{ steps.zip.outputs.zip_relative }}
+          BRANCH_NAME: ${{ steps.branch.outputs.branch }}
+          CHANGED_COUNT: ${{ steps.apply.outputs.changed_count }}
+          SKIPPED_COUNT: ${{ steps.apply.outputs.skipped_count }}
+          PR_URL: ${{ steps.open-pr.outputs.url }}
+        run: |
+          {
+            echo "## 📦 ZIP patch applied"
+            echo
+            echo "- **ZIP:** \`$ZIP_PATH\`"
+            echo "- **Branch:** \`$BRANCH_NAME\`"
+            echo "- **Committed files:** $CHANGED_COUNT"
+            echo "- **Unchanged files:** $SKIPPED_COUNT"
+            echo "- **Pull request:** $PR_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
