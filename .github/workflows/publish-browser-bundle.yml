@@ -1,4 +1,4 @@
-name: Apply verified Fábrica refactor
+name: Diagnose Fábrica refactor patch
 
 on:
   pull_request:
@@ -10,12 +10,12 @@ on:
       - reopened
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
 jobs:
-  apply-refactor:
-    name: Apply refactor as one clean commit
+  diagnose-refactor:
+    name: Reconstruct refactor patch
     if: ${{ github.event.pull_request.head.ref == 'agent/fabrica-compiler-structural-refactor' }}
     runs-on: ubuntu-latest
 
@@ -24,35 +24,21 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Assemble patch
         shell: bash
         run: |
           set -euo pipefail
-          cat .fabrica-refactor/plain-*.patch > /tmp/fabrica-refactor.patch
-          wc -c /tmp/fabrica-refactor.patch
-          sha256sum /tmp/fabrica-refactor.patch
+          mkdir -p /tmp/refactor-diagnostic
+          cat .fabrica-refactor/plain-*.patch > /tmp/refactor-diagnostic/fabrica-refactor.patch
+          sha256sum /tmp/refactor-diagnostic/fabrica-refactor.patch > /tmp/refactor-diagnostic/sha256.txt
+          wc -c /tmp/refactor-diagnostic/fabrica-refactor.patch > /tmp/refactor-diagnostic/size.txt
 
-      - name: Validate patch against main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-          git apply --check --whitespace=nowarn /tmp/fabrica-refactor.patch
-
-      - name: Apply patch onto main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git apply --index --whitespace=nowarn /tmp/fabrica-refactor.patch
-
-      - name: Commit and replace PR branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "refactor: rebuild Fábrica runtime and compiler architecture"
-          git push --force origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
+      - name: Upload reconstructed patch
+        uses: actions/upload-artifact@v7
+        with:
+          name: reconstructed-fabrica-refactor-patch
+          path: /tmp/refactor-diagnostic
+          if-no-files-found: error
+          retention-days: 1
