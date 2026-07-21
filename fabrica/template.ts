@@ -1,9 +1,24 @@
-import { ATTR_MARKER_PREFIX, ATTR_MARKER_SUFFIX, TEXT_MARKER_PREFIX } from "@rodkisten/fabrica/constants";
+import {
+  ATTR_MARKER_PREFIX,
+  ATTR_MARKER_SUFFIX,
+  TEXT_MARKER_PREFIX,
+} from "@rodkisten/fabrica/constants";
 import { debugState } from "@rodkisten/fabrica/debug";
-import { encodeLiteralDataAttributeName, normalizeStaticSpecialAttributes, toDataAttributeName } from "@rodkisten/fabrica/dom-special-attributes";
-import type { CompiledTemplate, ComponentPropPart, RenderValue, TemplatePart } from "@rodkisten/fabrica/types";
+import {
+  encodeLiteralDataAttributeName,
+  normalizeStaticSpecialAttributes,
+  toDataAttributeName,
+} from "@rodkisten/fabrica/dom-special-attributes";
+import type {
+  CompiledTemplate,
+  ComponentPropPart,
+  RenderValue,
+  TemplatePart,
+} from "@rodkisten/fabrica/types";
 
-/** Template compilation cache keyed by the browser-owned TemplateStringsArray. */
+/**
+ * Template compilation cache keyed by the browser-owned TemplateStringsArray.
+ */
 const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
 const namedComponentSyntaxCache = new WeakMap<TemplateStringsArray, boolean>();
@@ -44,8 +59,15 @@ const ATTR_NAME_MARKER_SUFFIX = "__fabrica_attr_name_end__";
  * <template data-fabrica-component="0" tone="primary">Save</template>
  * ```
  */
-export function getCompiledTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
-  return getCompiledTemplateWithMode(strings, values, hasNamedComponentTagSyntax(strings));
+export function getCompiledTemplate(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[] = [],
+): CompiledTemplate {
+  return getCompiledTemplateWithMode(
+    strings,
+    values,
+    hasNamedComponentTagSyntax(strings),
+  );
 }
 
 /**
@@ -61,7 +83,10 @@ export function getCompiledTemplate(strings: TemplateStringsArray, values: reado
  * @param values - Runtime values.
  * @returns Compiled template and static part metadata.
  */
-export function getCompiledJsxTemplate(strings: TemplateStringsArray, values: readonly RenderValue[] = []): CompiledTemplate {
+export function getCompiledJsxTemplate(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[] = [],
+): CompiledTemplate {
   return getCompiledTemplateWithMode(strings, values, true);
 }
 
@@ -74,7 +99,9 @@ export function getCompiledJsxTemplate(strings: TemplateStringsArray, values: re
  * can therefore be authored without passing their function to the template,
  * while ordinary templates pay only this bounded character scan once per call.
  */
-export function hasNamedComponentTagSyntax(strings: TemplateStringsArray): boolean {
+export function hasNamedComponentTagSyntax(
+  strings: TemplateStringsArray,
+): boolean {
   const cached = namedComponentSyntaxCache.get(strings);
   if (cached !== undefined) return cached;
 
@@ -95,7 +122,11 @@ export function hasNamedComponentTagSyntax(strings: TemplateStringsArray): boole
   return false;
 }
 
-function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: readonly RenderValue[], jsx: boolean): CompiledTemplate {
+function getCompiledTemplateWithMode(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[],
+  jsx: boolean,
+): CompiledTemplate {
   const cache = jsx ? jsxTemplateCache : templateCache;
   const cached = cache.get(strings);
 
@@ -108,7 +139,9 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
   normalizeStaticSpecialAttributes(template.content);
 
   const parts = compileParts(template.content);
-  const orderedParts = parts.slice().sort((left, right) => comparePathsReverse(left.path, right.path));
+  const orderedParts = parts
+    .slice()
+    .sort((left, right) => comparePathsReverse(left.path, right.path));
   const compiled: CompiledTemplate = {
     template,
     parts,
@@ -131,7 +164,11 @@ function getCompiledTemplateWithMode(strings: TemplateStringsArray, values: read
  * @param options - Compiler mode options.
  * @returns HTML source with markers.
  */
-export function buildTemplateSource(strings: TemplateStringsArray, values: readonly RenderValue[] = [], options: { jsx?: boolean } = {}): string {
+export function buildTemplateSource(
+  strings: TemplateStringsArray,
+  values: readonly RenderValue[] = [],
+  options: { jsx?: boolean } = {},
+): string {
   let source = "";
   let skipNextPrefix = "";
 
@@ -145,10 +182,20 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
 
     if (
       index < strings.length - 1
-      && (isSpreadAttributePosition(chunk) || isImplicitSpreadAttributePosition(chunk, strings[index + 1] ?? ""))
+      && (
+        isSpreadAttributePosition(chunk)
+        || isImplicitSpreadAttributePosition(
+          chunk,
+          strings[index + 1] ?? "",
+        )
+      )
     ) {
-      source += isSpreadAttributePosition(chunk) ? chunk.replace(/\.\.\.\s*$/, "") : chunk;
-      source += ` data-fabrica-spread="${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}"`;
+      source += isSpreadAttributePosition(chunk)
+        ? chunk.replace(/\.\.\.\s*$/, "")
+        : chunk;
+      source +=
+        ` data-fabrica-spread="${ATTR_MARKER_PREFIX}${index}`
+        + `${ATTR_MARKER_SUFFIX}"`;
       continue;
     }
 
@@ -179,16 +226,23 @@ export function buildTemplateSource(strings: TemplateStringsArray, values: reado
       continue;
     }
 
-    const attributeName = readAttributeBindingName(chunk) || readOpenAttributeBindingName(source);
+    const attributeName =
+      readAttributeBindingName(chunk)
+      || readOpenAttributeBindingName(source);
     source += attributeName
-      ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}${encodeURIComponent(attributeName)}${ATTR_NAME_MARKER_SUFFIX}`
+      ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}`
+        + `${encodeURIComponent(attributeName)}${ATTR_NAME_MARKER_SUFFIX}`
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
   const normalizedSource = normalizeStaticDataAttributeNames(
-    normalizeQuotedDataAttributeNames(normalizeInterpolatedComponentSelfClosingTags(source)),
+    normalizeQuotedDataAttributeNames(
+      normalizeInterpolatedComponentSelfClosingTags(source),
+    ),
   );
-  return options.jsx ? transformMicroJsxChunk(normalizedSource) : normalizedSource;
+  return options.jsx
+    ? transformMicroJsxChunk(normalizedSource)
+    : normalizedSource;
 }
 
 function isComponentTagValue(value: unknown): boolean {
@@ -245,7 +299,9 @@ export function normalizeQuotedDataAttributeNames(source: string): string {
       const nameEnd = source.indexOf('"', index + 2);
       const next = nameEnd === -1 ? "" : source[nameEnd + 1] ?? "";
       if (nameEnd !== -1 && nameEnd > index + 2 && /[\s=/>]/.test(next)) {
-        output += encodeLiteralDataAttributeName(source.slice(index + 2, nameEnd));
+        output += encodeLiteralDataAttributeName(
+          source.slice(index + 2, nameEnd),
+        );
         index = nameEnd + 1;
         continue;
       }
@@ -258,10 +314,17 @@ export function normalizeQuotedDataAttributeNames(source: string): string {
   return output;
 }
 
-/** Preserves camelCase authoring for static `:dataName` attributes before HTML lowercases them. */
+/**
+ * Preserves camelCase authoring for static `:dataName` attributes before HTML
+ * lowercases them.
+ */
 export function normalizeStaticDataAttributeNames(source: string): string {
   return transformTagAttributeNames(source, (name) => {
-    if (!name.startsWith(":") || name === ":data" || name.startsWith(":__fabrica_literal_data__")) {
+    if (
+      !name.startsWith(":")
+      || name === ":data"
+      || name.startsWith(":__fabrica_literal_data__")
+    ) {
       return name;
     }
 
@@ -274,8 +337,14 @@ export function normalizeStaticDataAttributeNames(source: string): string {
   });
 }
 
-/** Rewrites attribute names only inside opening tags, preserving comments and values. */
-function transformTagAttributeNames(source: string, transform: (name: string) => string): string {
+/**
+ * Rewrites attribute names only inside opening tags, preserving comments and
+ * values.
+ */
+function transformTagAttributeNames(
+  source: string,
+  transform: (name: string) => string,
+): string {
   return source.replace(/<([A-Za-z][^<>]*?)>/g, (tag) => {
     let output = "";
     let index = 0;
@@ -289,11 +358,21 @@ function transformTagAttributeNames(source: string, transform: (name: string) =>
         index += 1;
         continue;
       }
-      if (char === '"' || char === "'") { quote = char; output += char; index += 1; continue; }
+      if (char === '"' || char === "'") {
+        quote = char;
+        output += char;
+        index += 1;
+        continue;
+      }
       if (char === ":" && /[A-Za-z_]/.test(tag[index + 1] ?? "")) {
         const start = index;
         index += 1;
-        while (index < tag.length && /[\w:.$-]/.test(tag[index] ?? "")) index += 1;
+        while (
+          index < tag.length
+          && /[\w:.$-]/.test(tag[index] ?? "")
+        ) {
+          index += 1;
+        }
         output += transform(tag.slice(start, index));
         continue;
       }
@@ -317,21 +396,32 @@ function transformTagAttributeNames(source: string, transform: (name: string) =>
  * @returns Whether the next value is a spread props object.
  */
 export function isSpreadAttributePosition(chunk: string): boolean {
-  return /\.\.\.\s*$/.test(chunk) && chunk.lastIndexOf("<") > chunk.lastIndexOf(">");
+  return /\.\.\.\s*$/.test(chunk)
+    && chunk.lastIndexOf("<") > chunk.lastIndexOf(">");
 }
 
 /**
- * Detects the shorthand component/element props spread form `<Button ${props} />`.
+ * Detects the shorthand component/element props spread form
+ * `<Button ${props} />`.
  *
- * The interpolation must occupy a standalone slot inside an opening tag. Attribute
- * assignments such as `value=${value}` and child interpolations remain untouched.
+ * The interpolation must occupy a standalone slot inside an opening tag.
+ * Attribute assignments such as `value=${value}` and child interpolations
+ * remain untouched.
  */
-export function isImplicitSpreadAttributePosition(chunk: string, nextChunk: string): boolean {
+export function isImplicitSpreadAttributePosition(
+  chunk: string,
+  nextChunk: string,
+): boolean {
   if (chunk.lastIndexOf("<") <= chunk.lastIndexOf(">")) return false;
   if (!/\s$/.test(chunk)) return false;
-  if (/([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk)) return false;
+  if (
+    /([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk)
+  ) {
+    return false;
+  }
   if (/^\s*$/.test(nextChunk)) return true;
-  return /^\s*(?:\/?>|[.?@:a-zA-Z_][\w:.-]*\s*=|[a-zA-Z_][\w:.-]*(?:\s|\/?>))/.test(nextChunk);
+  return /^\s*(?:\/?>|[.?@:a-zA-Z_][\w:.-]*\s*=|[a-zA-Z_][\w:.-]*(?:\s|\/?>))/
+    .test(nextChunk);
 }
 
 /**
@@ -355,21 +445,31 @@ export function transformMicroJsxChunk(chunk: string): string {
 
     output = output.replace(
       new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "gu"),
-      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}></template>`,
+      (_match, name: string, attrs: string) =>
+        `<template data-fabrica-component-name="${escapeComponentName(name)}"`
+        + `${attrs || ""}></template>`,
     );
 
     output = output.replace(
       new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "gu"),
-      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}>`,
+      (_match, name: string, attrs: string) =>
+        `<template data-fabrica-component-name="${escapeComponentName(name)}"`
+        + `${attrs || ""}>`,
     );
 
-    output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "gu"), "</template>");
+    output = output.replace(
+      new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "gu"),
+      "</template>",
+    );
 
     return output;
   });
 }
 
-function transformOutsideHtmlComments(source: string, transform: (chunk: string) => string): string {
+function transformOutsideHtmlComments(
+  source: string,
+  transform: (chunk: string) => string,
+): string {
   let output = "";
   let cursor = 0;
 
@@ -399,8 +499,17 @@ function transformOutsideHtmlComments(source: string, transform: (chunk: string)
 
 function rewriteExplicitComponentTags(chunk: string): string {
   return chunk
-    .replace(/<f-component\b([^<>]*?)\/\s*>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}></template>`)
-    .replace(/<f-component\b([^<>]*?)>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}>`)
+    .replace(
+      /<f-component\b([^<>]*?)\/\s*>/g,
+      (_match, attrs: string) =>
+        `<template data-fabrica-explicit-component="true"`
+        + `${attrs || ""}></template>`,
+    )
+    .replace(
+      /<f-component\b([^<>]*?)>/g,
+      (_match, attrs: string) =>
+        `<template data-fabrica-explicit-component="true"${attrs || ""}>`,
+    )
     .replace(/<\/f-component\s*>/g, "</template>");
 }
 
@@ -431,7 +540,10 @@ export function isAttributePosition(chunk: string): boolean {
  * @returns Original binding name or an empty string.
  */
 export function readAttributeBindingName(chunk: string): string {
-  const match = /(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
+  const match = new RegExp(
+    String.raw`(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|`
+      + String.raw`\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$`,
+  ).exec(chunk);
   return match?.[1] ?? "";
 }
 
@@ -452,14 +564,31 @@ function readOpenAttributeBindingName(source: string): string {
   let index = tagStart + 1;
   if (source[index] === "/") index += 1;
 
-  while (index < source.length && !/\s/.test(source[index] ?? "") && source[index] !== ">") index += 1;
+  while (
+    index < source.length
+    && !/\s/.test(source[index] ?? "")
+    && source[index] !== ">"
+  ) {
+    index += 1;
+  }
 
   while (index < source.length) {
     while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
-    if (index >= source.length || source[index] === ">" || source[index] === "/") return "";
+    if (
+      index >= source.length
+      || source[index] === ">"
+      || source[index] === "/"
+    ) {
+      return "";
+    }
 
     const nameStart = index;
-    while (index < source.length && !/[\s=/>]/.test(source[index] ?? "")) index += 1;
+    while (
+      index < source.length
+      && !/[\s=/>]/.test(source[index] ?? "")
+    ) {
+      index += 1;
+    }
     const name = source.slice(nameStart, index);
 
     while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
@@ -487,18 +616,30 @@ function readOpenAttributeBindingName(source: string): string {
         index += 1;
       }
 
-      if (index >= source.length && source[source.length - 1] !== quote) return name;
+      if (
+        index >= source.length
+        && source[source.length - 1] !== quote
+      ) {
+        return name;
+      }
       continue;
     }
 
-    while (index < source.length && !/[\s>]/.test(source[index] ?? "")) index += 1;
+    while (
+      index < source.length
+      && !/[\s>]/.test(source[index] ?? "")
+    ) {
+      index += 1;
+    }
     if (index >= source.length) return name;
   }
 
   return "";
 }
 
-/** Finds the current opening tag while ignoring comments and quoted `>` text. */
+/**
+ * Finds the current opening tag while ignoring comments and quoted `>` text.
+ */
 function findOpenTagStart(source: string): number {
   let tagStart = -1;
   let quote: '"' | "'" | null = null;
@@ -533,7 +674,12 @@ function findOpenTagStart(source: string): number {
       continue;
     }
 
-    if (char === "<" && /[A-Za-z/]/.test(source[index + 1] ?? "")) tagStart = index;
+    if (
+      char === "<"
+      && /[A-Za-z/]/.test(source[index + 1] ?? "")
+    ) {
+      tagStart = index;
+    }
   }
 
   return tagStart;
@@ -552,7 +698,9 @@ function findOpenTagStart(source: string): number {
  * @param source - Marker-rich template source.
  * @returns Source with explicit closing template tags.
  */
-export function normalizeInterpolatedComponentSelfClosingTags(source: string): string {
+export function normalizeInterpolatedComponentSelfClosingTags(
+  source: string,
+): string {
   let output = "";
   let cursor = 0;
 
@@ -579,10 +727,17 @@ export function normalizeInterpolatedComponentSelfClosingTags(source: string): s
       openingTag.includes("data-fabrica-explicit-component=");
 
     let slashIndex = close - 1;
-    while (slashIndex > start && /\s/.test(source[slashIndex] ?? "")) slashIndex -= 1;
+    while (
+      slashIndex > start
+      && /\s/.test(source[slashIndex] ?? "")
+    ) {
+      slashIndex -= 1;
+    }
 
     if (isComponentPlaceholder && source[slashIndex] === "/") {
-      output += source.slice(start, slashIndex) + source.slice(slashIndex + 1, close + 1) + "</template>";
+      output += source.slice(start, slashIndex)
+        + source.slice(slashIndex + 1, close + 1)
+        + "</template>";
     } else {
       output += openingTag;
     }
@@ -637,7 +792,10 @@ export function compileParts(root: DocumentFragment): TemplatePart[] {
  * @param root - Template root.
  * @param parts - Parts accumulator.
  */
-function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void {
+function compileChildParts(
+  root: DocumentFragment,
+  parts: TemplatePart[],
+): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_COMMENT);
 
   while (walker.nextNode()) {
@@ -648,7 +806,11 @@ function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void 
       continue;
     }
 
-    parts.push(withPartMeta({ type: "child", index: Number(value.slice(TEXT_MARKER_PREFIX.length)), path: getNodePath(root, node) }, parts.length));
+    parts.push(withPartMeta({
+      type: "child",
+      index: Number(value.slice(TEXT_MARKER_PREFIX.length)),
+      path: getNodePath(root, node),
+    }, parts.length));
   }
 }
 
@@ -658,7 +820,10 @@ function compileChildParts(root: DocumentFragment, parts: TemplatePart[]): void 
  * @param root - Template root.
  * @param parts - Parts accumulator.
  */
-function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): void {
+function compileAttributeParts(
+  root: DocumentFragment,
+  parts: TemplatePart[],
+): void {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
 
   while (walker.nextNode()) {
@@ -681,7 +846,11 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
       attributesToRemove.push(attribute.name);
 
       if (attribute.name === "data-fabrica-spread") {
-        parts.push(withPartMeta({ type: "spread", index: markerState.indices[0]!, path: getNodePath(root, element) }, parts.length));
+        parts.push(withPartMeta({
+          type: "spread",
+          index: markerState.indices[0]!,
+          path: getNodePath(root, element),
+        }, parts.length));
         continue;
       }
 
@@ -708,13 +877,23 @@ function compileAttributeParts(root: DocumentFragment, parts: TemplatePart[]): v
  * @param root - Template root.
  * @param parts - Parts accumulator.
  */
-function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): void {
-  const templates = root.querySelectorAll("template[data-fabrica-component], template[data-fabrica-component-name], template[data-fabrica-explicit-component]");
+function compileComponentParts(
+  root: DocumentFragment,
+  parts: TemplatePart[],
+): void {
+  const templates = root.querySelectorAll(
+    "template[data-fabrica-component], "
+      + "template[data-fabrica-component-name], "
+      + "template[data-fabrica-explicit-component]",
+  );
 
   for (let index = 0; index < templates.length; index += 1) {
     const element = templates[index] as HTMLTemplateElement;
     const rawIndex = element.getAttribute("data-fabrica-component");
-    const rawName = element.getAttribute("data-fabrica-component-name") || element.getAttribute("name") || "";
+    const rawName =
+      element.getAttribute("data-fabrica-component-name")
+      || element.getAttribute("name")
+      || "";
     const componentIndex = rawIndex == null ? -1 : Number(rawIndex);
 
     if (rawIndex != null && !Number.isFinite(componentIndex)) {
@@ -723,11 +902,16 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
 
     const childParts = compileParts(element.content);
     const orderedChildParts = childParts.length > 1
-      ? childParts.slice().sort((left, right) => comparePathsReverse(left.path, right.path))
+      ? childParts
+        .slice()
+        .sort((left, right) => comparePathsReverse(left.path, right.path))
       : childParts;
     const componentPath = getNodePath(root, element);
     const componentPathKey = createPathKey(componentPath);
-    const dynamicPropParts = compileDynamicComponentProps(componentPathKey, parts);
+    const dynamicPropParts = compileDynamicComponentProps(
+      componentPathKey,
+      parts,
+    );
 
     parts.push(withPartMeta({
       type: "component",
@@ -737,7 +921,9 @@ function compileComponentParts(root: DocumentFragment, parts: TemplatePart[]): v
       staticProps: compileStaticComponentProps(element),
       childParts,
       orderedChildParts,
-      hasChildComponents: childParts.some((childPart) => childPart.type === "component"),
+      hasChildComponents: childParts.some(
+        (childPart) => childPart.type === "component",
+      ),
       hasStaticChildren: hasMeaningfulStaticChildren(element.content),
       dynamicPropParts,
       hasDynamicPropParts: dynamicPropParts.length > 0,
@@ -753,13 +939,21 @@ function hasMeaningfulStaticChildren(fragment: DocumentFragment): boolean {
     const child = children[index];
     if (!child) continue;
     if (child.nodeType === Node.ELEMENT_NODE) return true;
-    if (child.nodeType === Node.TEXT_NODE && (child.nodeValue ?? "").trim()) return true;
+    if (
+      child.nodeType === Node.TEXT_NODE
+      && (child.nodeValue ?? "").trim()
+    ) {
+      return true;
+    }
   }
 
   return false;
 }
 
-function compileDynamicComponentProps(pathKey: string, parts: TemplatePart[]): ComponentPropPart[] {
+function compileDynamicComponentProps(
+  pathKey: string,
+  parts: TemplatePart[],
+): ComponentPropPart[] {
   const output: ComponentPropPart[] = [];
 
   for (let index = 0; index < parts.length; index += 1) {
@@ -787,7 +981,9 @@ function compileDynamicComponentProps(pathKey: string, parts: TemplatePart[]): C
   return output;
 }
 
-function compileStaticComponentProps(template: HTMLTemplateElement): Record<string, unknown> | undefined {
+function compileStaticComponentProps(
+  template: HTMLTemplateElement,
+): Record<string, unknown> | undefined {
   let props: Record<string, unknown> | null = null;
 
   for (let index = 0; index < template.attributes.length; index += 1) {
@@ -811,6 +1007,8 @@ function compileStaticComponentProps(template: HTMLTemplateElement): Record<stri
 }
 
 function normalizeStaticComponentPropName(name: string): string {
+  if (name.startsWith(".")) return name.slice(1);
+  if (name.startsWith("?")) return name.slice(1);
   if (name === "classname") return "className";
   if (name === "htmlfor") return "htmlFor";
   if (name === "tabindex") return "tabIndex";
@@ -874,12 +1072,19 @@ function readAttributeMarkers(value: string): {
   if (indices.length === 0) return null;
 
   strings.push(value.slice(cursor));
-  const raw = indices.length === 1 && strings.length === 2 && strings[0] === "" && strings[1] === "";
+  const raw =
+    indices.length === 1
+    && strings.length === 2
+    && strings[0] === ""
+    && strings[1] === "";
   return { indices, strings, name, raw };
 }
 
 
-function withPartMeta<T extends Omit<TemplatePart, "pathKey" | "order">>(part: T, order: number): T & { pathKey: string; order: number } {
+function withPartMeta<T extends Omit<TemplatePart, "pathKey" | "order">>(
+  part: T,
+  order: number,
+): T & { pathKey: string; order: number } {
   return { ...part, pathKey: createPathKey(part.path), order };
 }
 
@@ -954,7 +1159,10 @@ export function resolvePath(root: Node, path: readonly number[]): Node | null {
  * @param right - Right path.
  * @returns Sort order.
  */
-export function comparePathsReverse(left: readonly number[], right: readonly number[]): number {
+export function comparePathsReverse(
+  left: readonly number[],
+  right: readonly number[],
+): number {
   const maxLength = Math.max(left.length, right.length);
 
   for (let index = 0; index < maxLength; index += 1) {
