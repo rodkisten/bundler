@@ -31,4 +31,35 @@ describe('Cipó compiler/sheet-compile', () => {
     expect(String(artifact)).toContain('.card')
     expect(String(layered)).toContain('@layer components')
   })
+
+  it(
+    'preserves :host universal pseudo-element selectors around native CSS math',
+    () => {
+      const artifact = compileSheetCss([
+        `
+          :host {
+            --rd-safe-bottom: max(
+              env(safe-area-inset-bottom, 0px),
+              10px
+            );
+          }
+
+          :host *,
+          :host *::before,
+          :host *::after {
+            box-sizing: border-box;
+            width: calc(100% - env(safe-area-inset-left, 0px));
+          }
+        `,
+      ] as unknown as TemplateStringsArray, [], false)
+      const output = String(artifact)
+
+      expect(output).toContain(':host *,:host *::before,:host *::after{')
+      expect(output).toContain('--rd-safe-bottom:max(')
+      expect(output).toContain('env(safe-area-inset-bottom')
+      expect(output).toContain('width:calc(100% - env(safe-area-inset-left')
+      expect(output).not.toContain(':calc(host *)')
+      expect(output).not.toContain(':calc(host *):before')
+    },
+  )
 })

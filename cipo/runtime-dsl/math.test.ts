@@ -382,6 +382,32 @@ describe('runtime variable math normalization', () => {
         '.button{padding: var(--cp-spacing);}',
       )
     })
+    it(
+      'does not rewrite multiline :host universal pseudo-element selectors ' +
+        'as calc()',
+      () => {
+        const input = [
+          ':host {',
+          '  --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);',
+          '}',
+          '  :host *,',
+          '  :host *::before,',
+          '  :host *::after {',
+          '    box-sizing: border-box;',
+          '}',
+        ].join('\n')
+
+        const output = normalizeRuntimeVariableMath(input)
+
+        expect(output).toContain(':host *::before,')
+        expect(output).toContain(':host *::after {')
+        expect(output).toContain(
+          '--rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);',
+        )
+        expect(output).not.toContain(':calc(')
+        expect(output).not.toContain('calc(host *)')
+      },
+    )
     it('normalizes declarations both outside and inside block syntax', () => {
       expect(
         normalizeRuntimeVariableMath(
