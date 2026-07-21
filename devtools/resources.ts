@@ -4,49 +4,13 @@ import { ConfigStore } from "@rodkisten/devtools/core/config";
 import { icon, isDevtoolsNode, truncate } from "@rodkisten/devtools/utils";
 import { plainText } from "@rodkisten/devtools/core/serialize";
 import { Tool } from "@rodkisten/devtools/tool";
-import type {
-  ResourcesConfig,
-  ResourcesContextValue,
-  SourcePayload,
-  ToolContext,
-} from "@rodkisten/devtools/types";
+import type { ResourcesConfig, ResourcesContextValue, SourcePayload, ToolContext } from "@rodkisten/devtools/types";
 import { event, html } from "@rodkisten/devtools/core/runtime";
-import {
-  mountCodeEditor,
-  type CodeEditorHandle,
-} from "@rodkisten/devtools/core/code-editor";
-import {
-  resourcesStyleArtifacts,
-  ResourcesContext,
-} from "@rodkisten/devtools/panels/resources-components";
-import {
-  mutationTouchesResources,
-  collectCssRuleUrls,
-  extractCssUrls,
-  looksLikeImageUrl,
-  storageRows,
-  capabilityItems,
-  parseCookies,
-  removeCookie,
-  safeStorage,
-  formatJsonValue,
-} from "@rodkisten/devtools/panels/resources.functions";
-import {
-  compactMapArray,
-  concatArrays,
-  filterArray,
-  filterFlatMapArray,
-  filterMapArray,
-  includesArray,
-  joinArray,
-  mapArray,
-  mapFilterArray,
-  someArray,
-  take,
-  toArray,
-  union,
-  uniq,
-} from "@rodkisten/nascente";
+import { mountCodeEditor, type CodeEditorHandle } from "@rodkisten/devtools/core/code-editor";
+import { resourcesStyleArtifacts, ResourcesContext } from "@rodkisten/devtools/panels/resources-components";
+import { mutationTouchesResources, collectCssRuleUrls, extractCssUrls, looksLikeImageUrl, storageRows, capabilityItems, parseCookies, removeCookie, safeStorage, formatJsonValue } from "@rodkisten/devtools/panels/resources.functions";
+import { compactMapArray, concatArrays, filterArray, filterFlatMapArray, filterMapArray, includesArray, joinArray, mapArray, mapFilterArray, someArray, take, toArray, union, uniq } from "@rodkisten/nascente";
+
 
 export { resourcesStyleArtifacts };
 
@@ -74,17 +38,14 @@ export class Resources extends Tool {
   private jsonEditor: CodeEditorHandle | null = null;
   private jsonEditorValue = "";
   private readonly revision = signal(0, { name: "resources.revision" });
-  private readonly jsonEditorState = signal<{
-    type: StorageType;
-    key: string;
-  } | null>(null, { name: "resources.jsonEditor" });
+  private readonly jsonEditorState = signal<{ type: StorageType; key: string } | null>(null, { name: "resources.jsonEditor" });
   private readonly view: ResourcesContextValue = {
     revision: this.revision,
     renderContent: () => this.renderContent(),
     renderJsonDialog: () => this.renderJsonDialog(),
   };
   private refreshTimer = 0;
-  /** Coalesces page/storage observer bursts into one revision update. */
+  /** Coalesces page/storage observer bursts into one resources revision update. */
   private scheduleRefresh = (): void => {
     window.clearTimeout(this.refreshTimer);
     this.refreshTimer = window.setTimeout(() => {
@@ -113,16 +74,11 @@ export class Resources extends Tool {
   }
 
   private renderContent(): RenderValue {
-    if (!this.active) return null;
-
     return html`
       ${this.storageSection("Local Storage", "local", safeStorage("local"))}
-      ${this.storageSection(
-        "Session Storage",
-        "session",
-        safeStorage("session"),
-      )}
-      ${this.cookieSection(parseCookies())} ${this.capabilitySection()}
+      ${this.storageSection("Session Storage", "session", safeStorage("session"))}
+      ${this.cookieSection(parseCookies())}
+      ${this.capabilitySection()}
       ${this.linkSection("Scripts", "script", this.scriptUrls())}
       ${this.linkSection("Stylesheets", "style", this.stylesheetUrls())}
       ${this.linkSection("Iframes", "iframe", this.iframeUrls())}
@@ -130,16 +86,11 @@ export class Resources extends Tool {
     `;
   }
 
+
   override show(): void {
     super.show();
-
-    // Render first, then observe on the next microtask. This prevents the
-    // panel's own initial DOM/style installation from looking like an external
-    // resource mutation while still observing subsequent page changes.
+    this.observe();
     this.refresh();
-    queueMicrotask(() => {
-      if (this.active) this.observe();
-    });
   }
 
   override hide(): void {
@@ -147,27 +98,13 @@ export class Resources extends Tool {
     this.observer?.disconnect();
   }
 
-  refreshScript(): void {
-    this.refresh();
-  }
-  refreshStylesheet(): void {
-    this.refresh();
-  }
-  refreshIframe(): void {
-    this.refresh();
-  }
-  refreshLocalStorage(): void {
-    this.refresh();
-  }
-  refreshSessionStorage(): void {
-    this.refresh();
-  }
-  refreshCookie(): void {
-    this.refresh();
-  }
-  refreshImage(): void {
-    this.refresh();
-  }
+  refreshScript(): void { this.refresh(); }
+  refreshStylesheet(): void { this.refresh(); }
+  refreshIframe(): void { this.refresh(); }
+  refreshLocalStorage(): void { this.refresh(); }
+  refreshSessionStorage(): void { this.refresh(); }
+  refreshCookie(): void { this.refresh(); }
+  refreshImage(): void { this.refresh(); }
 
   override destroy(): void {
     this.observer?.disconnect();
@@ -193,38 +130,12 @@ export class Resources extends Tool {
       title: "Resources",
       config: this.config,
       settings: [
-        {
-          kind: "switch",
-          key: "hideDevtoolsSetting",
-          label: "Hide RodEruda resources from lists",
-        },
-        {
-          kind: "switch",
-          key: "observeElement",
-          label: "Automatically refresh resource mutations",
-        },
-        {
-          kind: "number",
-          key: "refreshDelay",
-          label: "Resource refresh debounce (ms)",
-          options: { min: 0, max: 5000, step: 25 },
-        },
-        {
-          kind: "switch",
-          key: "jsonEditorLineNumbers",
-          label: "JSON editor line numbers",
-        },
-        {
-          kind: "switch",
-          key: "jsonEditorWrapLines",
-          label: "JSON editor soft wrap",
-        },
-        {
-          kind: "number",
-          key: "listBottomPadding",
-          label: "Resources bottom scroll padding",
-          options: { min: 0, max: 320, step: 4 },
-        },
+        { kind: "switch", key: "hideDevtoolsSetting", label: "Hide RodEruda resources from lists" },
+        { kind: "switch", key: "observeElement", label: "Automatically refresh resource mutations" },
+        { kind: "number", key: "refreshDelay", label: "Resource refresh debounce (ms)", options: { min: 0, max: 5000, step: 25 } },
+        { kind: "switch", key: "jsonEditorLineNumbers", label: "JSON editor line numbers" },
+        { kind: "switch", key: "jsonEditorWrapLines", label: "JSON editor soft wrap" },
+        { kind: "number", key: "listBottomPadding", label: "Resources bottom scroll padding", options: { min: 0, max: 320, step: 4 } },
       ],
     });
   }
@@ -232,21 +143,12 @@ export class Resources extends Tool {
   private observe(): void {
     this.observer?.disconnect();
 
-    if (
-      !this.active ||
-      !this.config.get("observeElement") ||
-      !document.documentElement
-    )
-      return;
+    if (!this.active || !this.config.get("observeElement") || !document.documentElement) return;
 
     this.observer = new MutationObserver((mutations) => {
       const host = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-      if (
-        someArray(mutations, (mutation) =>
-          mutationTouchesResources(mutation, host),
-        )
-      ) {
+      if (someArray(mutations, (mutation) => mutationTouchesResources(mutation, host))) {
         this.scheduleRefresh();
       }
     });
@@ -260,109 +162,53 @@ export class Resources extends Tool {
   }
 
   private applyTweakVariables(): void {
-    this.container?.style.setProperty(
-      "--rd-resources-bottom-padding",
-      `${this.config.get("listBottomPadding")}px`,
-    );
+    this.container?.style.setProperty("--rd-resources-bottom-padding", `${this.config.get("listBottomPadding")}px`);
   }
 
   private storageSection(title: string, type: StorageType, storage: Storage) {
     const rows = storageRows(type, storage);
     const body = rows.length
       ? mapArray(rows, (row) => this.storageRow(row))
-      : html`<tr>
-          <td colspan="3">Empty</td>
-        </tr>`;
+      : html`<tr><td colspan="3">Empty</td></tr>`;
 
     return html`
       <ResourcesSection :section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span
-          ><span>${title} (${rows.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>${title} (${rows.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Refresh"
-              @click=${event.click(() => this.refresh())}
-              >${icon("refresh")}</ResourcesIconButton
-            >
-            <ResourcesIconButton
-              type="button"
-              title="Add"
-              @click=${event.click(() => void this.addStorage(type))}
-              >+</ResourcesIconButton
-            >
-            <ResourcesIconButton
-              type="button"
-              title="Clear"
-              @click=${event.click(() => this.clearStorage(type))}
-              >${icon("clear")}</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addStorage(type))}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Clear" @click=${event.click(() => this.clearStorage(type))}>${icon("clear")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
         <ResourcesTableWrap>
           <ResourcesTable>
             <thead>
-              <tr>
-                <th>Key</th>
-                <th>Value</th>
-                <th></th>
-              </tr>
+              <tr><th>Key</th><th>Value</th><th></th></tr>
             </thead>
-            <tbody>
-              ${body}
-            </tbody>
+            <tbody>${body}</tbody>
           </ResourcesTable>
         </ResourcesTableWrap>
       </ResourcesSection>
     `;
   }
 
-  private storageRow(row: {
-    type: StorageType;
-    key: string;
-    value: string;
-    json: boolean;
-  }) {
-    const jsonButton = row.json
-      ? html`
-          <ResourcesIconButton
-            type="button"
-            title="Edit JSON"
-            @click=${event.click(
-              () => void this.editJsonStorage(row.type, row.key),
-            )}
-            >{ }</ResourcesIconButton
-          >
-        `
-      : "";
+  private storageRow(row: { type: StorageType; key: string; value: string; json: boolean }) {
+    const jsonButton = row.json ? html`
+      <ResourcesIconButton type="button" title="Edit JSON" @click=${event.click(() => void this.editJsonStorage(row.type, row.key))}>{ }</ResourcesIconButton>
+    ` : "";
 
     return html`
       <tr>
         <td>
-          <ResourcesInput
-            .value=${row.key}
-            @change=${event.change((change) =>
-              this.updateStorageKey(change, row.type, row.key),
-            )}
-          />
+          <ResourcesInput .value=${row.key} @change=${event.change((change) => this.updateStorageKey(change, row.type, row.key))} />
         </td>
         <td>
-          <ResourcesInput
-            .value=${row.json ? formatJsonValue(row.value) : row.value}
-            @change=${event.change((change) =>
-              this.updateStorageValue(change, row.type, row.key),
-            )}
-          />
+          <ResourcesInput .value=${row.json ? formatJsonValue(row.value) : row.value} @change=${event.change((change) => this.updateStorageValue(change, row.type, row.key))} />
         </td>
         <td>
           ${jsonButton}
-          <ResourcesIconButton
-            type="button"
-            title="Remove"
-            @click=${event.click(() => this.removeStorage(row.type, row.key))}
-            >×</ResourcesIconButton
-          >
+          <ResourcesIconButton type="button" title="Remove" @click=${event.click(() => this.removeStorage(row.type, row.key))}>×</ResourcesIconButton>
         </td>
       </tr>
     `;
@@ -372,21 +218,10 @@ export class Resources extends Tool {
     return html`
       <ResourcesSection :section="cookies" draggable="true">
         <ResourcesSectionTitle>
-          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span
-          ><span>Cookies (${cookies.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Cookies (${cookies.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Add"
-              @click=${event.click(() => void this.addCookie())}
-              >+</ResourcesIconButton
-            >
-            <ResourcesIconButton
-              type="button"
-              title="Refresh"
-              @click=${event.click(() => this.refresh())}
-              >${icon("refresh")}</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Add" @click=${event.click(() => void this.addCookie())}>+</ResourcesIconButton>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
@@ -400,30 +235,21 @@ export class Resources extends Tool {
               </tr>
             </thead>
             <tbody>
-              ${cookies.length
-                ? mapArray(
-                    cookies,
-                    (cookie) => html`
-                      <tr>
-                        <td>${cookie.name}</td>
-                        <td>${cookie.value}</td>
-                        <td>
-                          <ResourcesIconButton
-                            type="button"
-                            title="Remove"
-                            @click=${event.click(() =>
-                              this.removeCookie(cookie.name),
-                            )}
-                          >
-                            ×
-                          </ResourcesIconButton>
-                        </td>
-                      </tr>
-                    `,
-                  )
-                : html`<tr>
-                    <td colspan="3">No script-visible cookies</td>
-                  </tr>`}
+              ${cookies.length ? mapArray(cookies, (cookie) => html`
+                <tr>
+                  <td>${cookie.name}</td>
+                  <td>${cookie.value}</td>
+                  <td>
+                    <ResourcesIconButton
+                      type="button"
+                      title="Remove"
+                      @click=${event.click(() => this.removeCookie(cookie.name))}
+                    >
+                      ×
+                    </ResourcesIconButton>
+                  </td>
+                </tr>
+              `) : html`<tr><td colspan="3">No script-visible cookies</td></tr>`}
             </tbody>
           </ResourcesTable>
         </ResourcesTableWrap>
@@ -437,27 +263,16 @@ export class Resources extends Tool {
     return html`
       <ResourcesSection :section="capabilities" draggable="true">
         <ResourcesSectionTitle>
-          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span
-          ><span>Storage capabilities</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Storage capabilities</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Refresh"
-              @click=${event.click(() => this.refresh())}
-              >${icon("refresh")}</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
         <ResourcesLinkList>
-          ${mapArray(
-            items,
-            (item) => html`
-              <li>
-                ${item.name}: ${item.available ? "available" : "unavailable"}
-              </li>
-            `,
-          )}
+          ${mapArray(items, (item) => html`
+            <li>${item.name}: ${item.available ? "available" : "unavailable"}</li>
+          `)}
         </ResourcesLinkList>
       </ResourcesSection>
     `;
@@ -467,35 +282,18 @@ export class Resources extends Tool {
     return html`
       <ResourcesSection :section=${`storage-${type}`} draggable="true">
         <ResourcesSectionTitle>
-          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span
-          ><span>${title} (${urls.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>${title} (${urls.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Refresh"
-              @click=${event.click(() => this.refresh())}
-              >${icon("refresh")}</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
         <ResourcesLinkList>
-          ${urls.length
-            ? mapArray(
-                urls,
-                (url) => html`
-                  <li>
-                    <a
-                      href=${url}
-                      @click=${event.click((click) =>
-                        this.openSource(click, type, url),
-                      )}
-                      >${url}</a
-                    >
-                  </li>
-                `,
-              )
-            : html`<li>None</li>`}
+          ${urls.length ? mapArray(urls, (url) => html`
+            <li>
+              <a href=${url} @click=${event.click((click) => this.openSource(click, type, url))}>${url}</a>
+            </li>
+          `) : html`<li>None</li>`}
         </ResourcesLinkList>
       </ResourcesSection>
     `;
@@ -505,36 +303,20 @@ export class Resources extends Tool {
     return html`
       <ResourcesSection :section="images" draggable="true">
         <ResourcesSectionTitle>
-          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span
-          ><span>Images (${urls.length})</span>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span><span>Images (${urls.length})</span>
           <ResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Refresh"
-              @click=${event.click(() => this.refresh())}
-              >${icon("refresh")}</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
           </ResourcesSectionActions>
         </ResourcesSectionTitle>
 
         <ResourcesSectionContent>
           <ResourcesImageList>
-            ${urls.length
-              ? mapArray(
-                  take(urls, 500),
-                  (url) => html`
-                    <ResourcesImageCard
-                      type="button"
-                      @click=${event.click((click) =>
-                        this.openSource(click, "image", url),
-                      )}
-                    >
-                      <img src=${url} loading="lazy" alt="" />
-                      <span title=${url}>${truncate(url, 100)}</span>
-                    </ResourcesImageCard>
-                  `,
-                )
-              : "None"}
+            ${urls.length ? mapArray(take(urls, 500), (url) => html`
+              <ResourcesImageCard type="button" @click=${event.click((click) => this.openSource(click, "image", url))}>
+                <img src=${url} loading="lazy" alt="" />
+                <span title=${url}>${truncate(url, 100)}</span>
+              </ResourcesImageCard>
+            `) : "None"}
           </ResourcesImageList>
         </ResourcesSectionContent>
       </ResourcesSection>
@@ -542,67 +324,25 @@ export class Resources extends Tool {
   }
 
   private scriptUrls(): string[] {
-    return filterArray(
-      uniq(compactMapArray(document.scripts, (script) => script.src)),
-      (url) => !this.hidden(url),
-    );
+    return filterArray(uniq(compactMapArray(document.scripts, (script) => script.src)), (url) => !this.hidden(url));
   }
 
   private stylesheetUrls(): string[] {
-    const links = mapArray(
-      document.querySelectorAll<HTMLLinkElement>(
-        'link[rel~="stylesheet"][href]',
-      ),
-      (link) => link.href,
-    );
+    const links = mapArray(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'), (link) => link.href);
 
-    const sheets = mapFilterArray(
-      document.styleSheets,
-      (sheet) => sheet.href,
-      (href): href is string => Boolean(href),
-    );
+    const sheets = mapFilterArray(document.styleSheets, (sheet) => sheet.href, (href): href is string => Boolean(href));
 
     return filterArray(union(links, sheets), (url) => !this.hidden(url));
   }
 
   private iframeUrls(): string[] {
-    return filterArray(
-      uniq(
-        compactMapArray(
-          document.querySelectorAll<HTMLIFrameElement>("iframe[src]"),
-          (frame) => frame.src,
-        ),
-      ),
-      (url) => !this.hidden(url),
-    );
+    return filterArray(uniq(compactMapArray(document.querySelectorAll<HTMLIFrameElement>("iframe[src]"), (frame) => frame.src)), (url) => !this.hidden(url));
   }
 
   private imageUrls(): string[] {
-    const images = filterArray(
-      filterFlatMapArray(
-        document.images,
-        (image) =>
-          !isDevtoolsNode(
-            image,
-            this.context?.shadowRoot?.host as HTMLElement | undefined,
-          ),
-        (image) => [image.currentSrc, image.src],
-      ),
-      Boolean,
-    );
+    const images = filterArray(filterFlatMapArray(document.images, (image) => !isDevtoolsNode(image, this.context?.shadowRoot?.host as HTMLElement | undefined), (image) => [image.currentSrc, image.src]), Boolean);
 
-    const inlineBackgrounds = filterFlatMapArray(
-      document.querySelectorAll<HTMLElement>("[style]"),
-      (element) =>
-        !isDevtoolsNode(
-          element,
-          this.context?.shadowRoot?.host as HTMLElement | undefined,
-        ),
-      (element) =>
-        extractCssUrls(
-          `${element.style.backgroundImage} ${element.style.background}`,
-        ),
-    );
+    const inlineBackgrounds = filterFlatMapArray(document.querySelectorAll<HTMLElement>("[style]"), (element) => !isDevtoolsNode(element, this.context?.shadowRoot?.host as HTMLElement | undefined), (element) => extractCssUrls(`${element.style.backgroundImage} ${element.style.background}`));
 
     const stylesheetBackgrounds: string[] = [];
     for (const stylesheet of toArray(document.styleSheets)) {
@@ -614,38 +354,15 @@ export class Resources extends Tool {
       }
     }
 
-    const performanceImages =
-      typeof performance.getEntriesByType === "function"
-        ? filterMapArray(
-            filterArray(
-              performance.getEntriesByType("resource"),
-              (entry): entry is PerformanceResourceTiming =>
-                "initiatorType" in entry,
-            ),
-            (entry) =>
-              entry.initiatorType === "img" || looksLikeImageUrl(entry.name),
-            (entry) => entry.name,
-          )
-        : [];
+    const performanceImages = typeof performance.getEntriesByType === "function"
+      ? filterMapArray(filterArray(performance.getEntriesByType("resource"), (entry): entry is PerformanceResourceTiming => "initiatorType" in entry), (entry) => entry.initiatorType === "img" || looksLikeImageUrl(entry.name), (entry) => entry.name)
+      : [];
 
-    return filterArray(
-      uniq(
-        concatArrays(
-          images,
-          inlineBackgrounds,
-          stylesheetBackgrounds,
-          performanceImages,
-        ),
-      ),
-      (url) => !this.hidden(url),
-    );
+    return filterArray(uniq(concatArrays(images, inlineBackgrounds, stylesheetBackgrounds, performanceImages)), (url) => !this.hidden(url));
   }
 
   private hidden(url: string): boolean {
-    return (
-      this.config.get("hideDevtoolsSetting") &&
-      /roderuda|devtools|__chobitsu-hide__/i.test(url)
-    );
+    return this.config.get("hideDevtoolsSetting") && /roderuda|devtools|__chobitsu-hide__/i.test(url);
   }
 
   private clearStorage(type: StorageType): void {
@@ -658,11 +375,7 @@ export class Resources extends Tool {
     this.refresh();
   }
 
-  private updateStorageKey(
-    event: Event,
-    type: StorageType,
-    originalKey: string,
-  ): void {
+  private updateStorageKey(event: Event, type: StorageType, originalKey: string): void {
     if (!(event.target instanceof HTMLInputElement)) return;
 
     const nextKey = event.target.value.trim();
@@ -675,11 +388,7 @@ export class Resources extends Tool {
     this.refresh();
   }
 
-  private updateStorageValue(
-    event: Event,
-    type: StorageType,
-    key: string,
-  ): void {
+  private updateStorageValue(event: Event, type: StorageType, key: string): void {
     if (!(event.target instanceof HTMLInputElement)) return;
     if (!key) return;
 
@@ -690,22 +399,12 @@ export class Resources extends Tool {
   private openSource(event: Event, type: string, url: string): void {
     event.preventDefault();
 
-    const sources = this.context?.devtools.get<
-      { set(type: string | SourcePayload, value?: unknown): unknown } & Tool
-    >("sources");
+    const sources = this.context?.devtools.get<{ set(type: string | SourcePayload, value?: unknown): unknown } & Tool>("sources");
     if (!sources) return;
 
-    if (type === "image")
-      sources.set({ type: "image", value: url, url, title: url });
-    else if (type === "iframe")
-      sources.set({ type: "iframe", value: url, url, title: url });
-    else
-      sources.set({
-        type: type === "style" ? "css" : "javascript",
-        value: url,
-        url,
-        title: url,
-      });
+    if (type === "image") sources.set({ type: "image", value: url, url, title: url });
+    else if (type === "iframe") sources.set({ type: "iframe", value: url, url, title: url });
+    else sources.set({ type: type === "style" ? "css" : "javascript", value: url, url, title: url });
 
     this.context?.devtools.showTool("sources");
   }
@@ -728,15 +427,9 @@ export class Resources extends Tool {
     const value = await this.context?.prompt("Cookie value", "");
     if (value == null) return;
 
-    const attributes = await this.context?.prompt(
-      "Cookie attributes",
-      "path=/; SameSite=Lax",
-    );
+    const attributes = await this.context?.prompt("Cookie attributes", "path=/; SameSite=Lax");
 
-    const encodedName = encodeURIComponent(name);
-    const encodedValue = encodeURIComponent(value);
-    const cookieAttributes = attributes || "path=/";
-    document.cookie = `${encodedName}=${encodedValue}; ${cookieAttributes}`;
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; ${attributes || "path=/"}`;
     this.refresh();
   }
 
@@ -757,36 +450,17 @@ export class Resources extends Tool {
     if (!state) return null;
 
     return html`
-      <RodResourcesJsonDialog
-        role="dialog"
-        aria-modal="true"
-        aria-label=${`Edit JSON for ${state.key}`}
-      >
+      <RodResourcesJsonDialog role="dialog" aria-modal="true" aria-label=${`Edit JSON for ${state.key}`}>
         <RodResourcesJsonHeader>
           <span>JSON · ${state.key}</span>
           <RodResourcesSectionActions>
-            <ResourcesIconButton
-              type="button"
-              title="Format"
-              @click=${event.click(() => this.formatJsonEditor())}
-              >⌘</ResourcesIconButton
-            >
+            <ResourcesIconButton type="button" title="Format" @click=${event.click(() => this.formatJsonEditor())}>⌘</ResourcesIconButton>
           </RodResourcesSectionActions>
         </RodResourcesJsonHeader>
-        <RodResourcesJsonEditorHost
-          ref=${(node: HTMLElement) => this.mountJsonEditor(node)}
-        />
+        <RodResourcesJsonEditorHost ref=${(node: HTMLElement) => this.mountJsonEditor(node)} />
         <RodResourcesJsonActions>
-          <ResourcesIconButton
-            type="button"
-            @click=${event.click(() => this.closeJsonEditor())}
-            >Cancel</ResourcesIconButton
-          >
-          <ResourcesIconButton
-            type="button"
-            @click=${event.click(() => this.saveJsonEditor())}
-            >Save</ResourcesIconButton
-          >
+          <ResourcesIconButton type="button" @click=${event.click(() => this.closeJsonEditor())}>Cancel</ResourcesIconButton>
+          <ResourcesIconButton type="button" @click=${event.click(() => this.saveJsonEditor())}>Save</ResourcesIconButton>
         </RodResourcesJsonActions>
       </RodResourcesJsonDialog>
     `;
@@ -801,9 +475,7 @@ export class Resources extends Tool {
       dark: true,
       lineNumbers: this.config.get("jsonEditorLineNumbers"),
       lineWrapping: this.config.get("jsonEditorWrapLines"),
-      onChange: (value) => {
-        this.jsonEditorValue = value;
-      },
+      onChange: (value) => { this.jsonEditorValue = value; },
     });
     this.jsonEditor.focus();
 
@@ -815,17 +487,11 @@ export class Resources extends Tool {
 
   private formatJsonEditor(): void {
     try {
-      const formatted = JSON.stringify(
-        JSON.parse(this.jsonEditor?.getValue() ?? this.jsonEditorValue),
-        null,
-        2,
-      );
+      const formatted = JSON.stringify(JSON.parse(this.jsonEditor?.getValue() ?? this.jsonEditorValue), null, 2);
       this.jsonEditorValue = formatted;
       this.jsonEditor?.setValue(formatted);
     } catch (error) {
-      this.context?.notify(`Invalid JSON: ${plainText(error)}`, {
-        type: "error",
-      });
+      this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
     }
   }
 
@@ -841,9 +507,7 @@ export class Resources extends Tool {
       this.refresh();
       this.context?.notify("JSON saved", { type: "success" });
     } catch (error) {
-      this.context?.notify(`Invalid JSON: ${plainText(error)}`, {
-        type: "error",
-      });
+      this.context?.notify(`Invalid JSON: ${plainText(error)}`, { type: "error" });
     }
   }
 
@@ -852,19 +516,17 @@ export class Resources extends Tool {
     this.jsonEditor = null;
     this.jsonEditorState.set(null);
   }
+
 }
 
-export const RESOURCE_ELEMENT_SELECTOR = joinArray(
-  [
-    "script",
-    "style",
-    "link[href]",
-    "iframe[src]",
-    "img[src]",
-    "source[src]",
-    "video[src]",
-    "audio[src]",
-    "[style]",
-  ],
-  ",",
-);
+export const RESOURCE_ELEMENT_SELECTOR = joinArray([
+  "script",
+  "style",
+  "link[href]",
+  "iframe[src]",
+  "img[src]",
+  "source[src]",
+  "video[src]",
+  "audio[src]",
+  "[style]",
+], ",");
