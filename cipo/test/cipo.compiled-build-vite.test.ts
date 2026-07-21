@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { configureFromCss, getCssText, reset, setup } from '@rodkisten/cipo'
 import { compileCipoSourceBuild } from '@rodkisten/cipo/compiler'
 import { cipoVite } from '@rodkisten/cipo/vite'
-import { compileFabricaSource, createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica'
+import Fabrica from '@rodkisten/fabrica'
+import { compileFabricaSource } from '@rodkisten/fabrica/compiler'
+import { createCompiledElement, createCompiledTemplate } from '@rodkisten/fabrica/compiler-runtime'
 
 describe('Cipó + Fábrica compiled build mode', () => {
   it('compiles styled Cipó templates into real scoped CSS classes', () => {
@@ -41,15 +43,15 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.css).toBe('')
   })
 
-  it('compiles simple Fabrica html templates to createCompiledElement', () => {
+  it('compiles simple Fabrica html templates to compact runtime IR', () => {
     const result = compileFabricaSource("const view = html`<button class=\"save\">Salvar</button>`", {
       filename: '/project/src/view.ts',
-      importPath: '../fabrica/compiler',
+      importPath: '@rodkisten/fabrica/compiler-runtime',
     })
 
     expect(result.changed).toBe(true)
-    expect(result.code).toContain('createCompiledElement("button"')
-    expect(result.code).toContain('{"class":"save"}')
+    expect(result.code).toContain('createCompiledTemplate(html, [[0,"button"')
+    expect(result.code).toContain('[0,"class","save"]')
     expect(result.manifest[0]?.tag).toBe('button')
   })
 
@@ -66,7 +68,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('creates dynamic DOM templates with runtime-backed @event bindings', () => {
     let clicked = 0
-    const view = createCompiledTemplate(['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
+    const view = createCompiledTemplate(Fabrica.html, ['<button @click=', '>Save ', '</button>'] as unknown as TemplateStringsArray, () => { clicked += 1 }, 'now')
     const button = view as HTMLButtonElement
 
     expect(button.tagName).toBe('BUTTON')
@@ -77,7 +79,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('hydrates dynamic template spread props without emitting invalid attribute names', () => {
     let clicked = 0
-    const view = createCompiledTemplate(['<button ...', '>Save</button>'] as unknown as TemplateStringsArray, {
+    const view = createCompiledTemplate(Fabrica.html, ['<button ...', '>Save</button>'] as unknown as TemplateStringsArray, {
       type: 'button',
       class: 'spread',
       onClick: () => { clicked += 1 },
@@ -133,7 +135,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(code).toContain('attachCompiledCss')
     expect(code).not.toContain('.css`')
     expect(code).toContain('color:red')
-    expect(code).toContain('createCompiledElement("section"')
+    expect(code).toContain('createCompiledTemplate(html, [[0,"section"')
     const runtimeModule = plugin.load?.call(context, '\0cipo:compiled-style-tag.js')
     expect(runtimeModule).toContain('insertCss')
     expect(runtimeModule).toContain('__CIPO_COMPILED_GLOBAL_STYLESHEET__')
@@ -174,6 +176,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
   it('compiles dynamic Fabrica templates to runtime instruction payloads instead of template HTML strings', () => {
     const source = `
+      const RodProbe = () => null
       const view = html` + '`' + `<RodProbe @click=${'${'}onClick} class="tone ${'${'}tone}" ref=${'${'}refCallback}>
         <button .value=${'${'}value}>${'${'}label}</button>
       </RodProbe>` + '`' + `
@@ -181,7 +184,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
 
     const result = compileFabricaSource(source, {
       filename: '/project/src/devtools/console.ts',
-      importPath: '../fabrica/compiler',
+      importPath: '@rodkisten/fabrica/compiler-runtime',
       directComponentReferences: true,
     })
 
@@ -204,7 +207,7 @@ describe('Cipó + Fábrica compiled build mode', () => {
       props.children as never,
     )
 
-    const view = createCompiledTemplate({
+    const view = createCompiledTemplate(Fabrica.html, {
       nodes: [{
         type: 'element',
         tag: 'div',

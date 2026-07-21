@@ -1,4 +1,4 @@
-import type { DebugListener, DebugRecord, DebugSnapshot } from "@rodkisten/fabrica/types";
+import type { DebugListener, DebugRecord, DebugSnapshot } from "./types.js";
 
 const DEBUG_RECORD_LIMIT = 256;
 const debugRecordsBuffer: DebugRecord[] = [];

@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => {
     compileGlobalAtomicStyles: vi.fn(),
     compileCssConfigPayload: vi.fn(),
     hashString64: vi.fn(),
-    createLineSourceMap: vi.fn(),
+    createTransformSourceMap: vi.fn(),
     createCipoViteBuildState: vi.fn(),
     resetCipoViteBuildState: vi.fn(),
     replaceCompiledClassLiterals: vi.fn(),
@@ -80,8 +80,8 @@ vi.mock(
 vi.mock(
   '../../compiler/source-map',
   () => ({
-    createLineSourceMap:
-      mocks.createLineSourceMap,
+    createTransformSourceMap:
+      mocks.createTransformSourceMap,
   }),
 )
 vi.mock(
@@ -172,7 +172,7 @@ describe('cipoVite', () => {
     mocks.hashString64.mockReturnValue(
       'abcdef1234567890',
     )
-    mocks.createLineSourceMap.mockImplementation(
+    mocks.createTransformSourceMap.mockImplementation(
       (
         original: string,
         generated: string,
@@ -586,7 +586,7 @@ describe('cipoVite', () => {
         },
       })
       expect(
-        mocks.createLineSourceMap,
+        mocks.createTransformSourceMap,
       ).toHaveBeenCalledWith(
         'const source = true',
         'const compiled = true',
@@ -613,7 +613,7 @@ describe('cipoVite', () => {
         ),
       ).toBeNull()
       expect(
-        mocks.createLineSourceMap,
+        mocks.createTransformSourceMap,
       ).not.toHaveBeenCalled()
     })
   })
@@ -712,7 +712,7 @@ describe('cipoVite', () => {
         },
       })
       expect(
-        mocks.createLineSourceMap,
+        mocks.createTransformSourceMap,
       ).toHaveBeenCalledWith(
         'const source = true',
         'const compiled = true',
@@ -1437,7 +1437,7 @@ describe('cipoVite', () => {
         '__CIPO_COMPILED_GLOBAL_STYLESHEET__',
       )
       expect(
-        mocks.createLineSourceMap,
+        mocks.createTransformSourceMap,
       ).toHaveBeenCalledWith(
         original,
         result?.code,
@@ -1727,7 +1727,7 @@ compiled`,
       const source = `import { configureFromCss } from '@rodkisten/cipo'
 configureFromCss('@cipo { prefix: cp; }')`
       const result = await callAsyncHook(plugin.transform, {}, source, '/src/app.ts')
-      expect(mocks.createLineSourceMap).toHaveBeenLastCalledWith(
+      expect(mocks.createTransformSourceMap).toHaveBeenLastCalledWith(
         source,
         result?.code,
         '/src/app.ts',

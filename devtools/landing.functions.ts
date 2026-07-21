@@ -7,8 +7,7 @@ import { filterArray, includesArray } from "@rodkisten/nascente";
 
 export const DEFAULT_DEVTOOLS_BUNDLE_URL =
   "https://rod.migos.club/bundler/devtools.iife.js";
-export const DEFAULT_ERUDA_BUNDLE_URL =
-  "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
+export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
 
 export const LANDING_PANEL_NAMES = [
   "console",
@@ -165,10 +164,8 @@ export const DEFAULT_LANDING_TOKENS: LandingTokenState = Object.freeze({
 });
 
 export function normalizeInjectableScriptUrl(value: string): string {
-  const url = new URL(
-    value.trim(),
-    globalThis.location?.href ?? "https://rod.migos.club/",
-  );
+  // const url = new URL(value.trim(), globalThis.location?.href ?? "https://rod.migos.club/");
+  const url = new URL(value.trim(), globalThis.location?.href ?? "https://rod.migos.club/");
 
   if (!/^https?:$/.test(url.protocol)) {
     throw new TypeError(`Unsupported script protocol: ${url.protocol}`);
@@ -177,20 +174,14 @@ export function normalizeInjectableScriptUrl(value: string): string {
   return url.href;
 }
 
-export function selectedLandingPanels(
-  selection: LandingPanelSelection,
-): LandingPanelName[] {
+export function selectedLandingPanels(selection: LandingPanelSelection): LandingPanelName[] {
   const panels = filterArray(LANDING_PANEL_NAMES, (name) => selection[name]);
   return panels.length ? panels : ["console"];
 }
 
-export function resolveInitialLandingTool(
-  state: DevtoolsLandingState,
-): LandingPanelName {
+export function resolveInitialLandingTool(state: DevtoolsLandingState): LandingPanelName {
   const panels = selectedLandingPanels(state.panels);
-  return includesArray(panels, state.initialTool)
-    ? state.initialTool
-    : panels[0]!;
+  return includesArray(panels, state.initialTool) ? state.initialTool : panels[0]!;
 }
 
 export function createLandingInitOptions(
@@ -260,9 +251,6 @@ export function createLandingUserscript(state: DevtoolsLandingState): string {
   const erudaInit = state.loadEruda
     ? `\n  globalThis.eruda?.destroy?.();\n  globalThis.eruda?.init?.();\n`
     : "";
-  const openAfterInject = state.openAfterInject
-    ? `api.show?.(${JSON.stringify(resolveInitialLandingTool(state))});`
-    : "";
 
   return `// ==UserScript==
 // @name         🧪 RodEruda DevTools Launcher
@@ -279,11 +267,7 @@ ${erudaRequire}// @grant        none
   "use strict";
 
   const candidate = globalThis.DevTools;
-  const api =
-    candidate?.api ??
-    candidate?.default?.api ??
-    candidate?.default ??
-    candidate;
+  const api = candidate?.api ?? candidate?.default?.api ?? candidate?.default ?? candidate;
 
   if (!api || typeof api.init !== "function") {
     console.error("[RodEruda] DevTools API was not found.");
@@ -292,7 +276,7 @@ ${erudaRequire}// @grant        none
 
   api.destroy?.();
   api.init(${indent(serializedOptions, 2)});
-  ${openAfterInject}${erudaInit}
+  ${state.openAfterInject ? `api.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}${erudaInit}
 })();
 `;
 }
@@ -300,32 +284,11 @@ ${erudaRequire}// @grant        none
 export function createLandingBookmarklet(state: DevtoolsLandingState): string {
   const bundleUrl = normalizeInjectableScriptUrl(state.bundleUrl);
   const options = createLandingInitOptions(state);
-  const cacheBust = state.cacheBust ? "('?landing='+Date.now())" : "''";
-  const openAfterInject = state.openAfterInject
-    ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});`
-    : "";
-  const source = [
-    "(()=>{",
-    "const d=document,s=d.createElement('script');",
-    `s.src=${JSON.stringify(bundleUrl)}+${cacheBust};`,
-    "s.onload=()=>{",
-    "const c=globalThis.DevTools;",
-    "const a=c?.api??c?.default?.api??c?.default??c;",
-    "if(!a?.init)throw new Error('RodEruda API not found');",
-    "a.destroy?.();",
-    `a.init(${JSON.stringify(options)});`,
-    openAfterInject,
-    "};",
-    "d.documentElement.append(s)",
-    "})()",
-  ].join("");
-
+  const source = `(()=>{const d=document,s=d.createElement('script');s.src=${JSON.stringify(bundleUrl)}+${state.cacheBust ? "('?landing='+Date.now())" : "''"};s.onload=()=>{const c=globalThis.DevTools,a=c?.api??c?.default?.api??c?.default??c;if(!a?.init)throw new Error('RodEruda API not found');a.destroy?.();a.init(${JSON.stringify(options)});${state.openAfterInject ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}};d.documentElement.append(s)})()`;
   return `javascript:${encodeURIComponent(source)}`;
 }
 
-export function resolveInjectableDevtoolsApi(
-  scope: LandingGlobalCandidate,
-): InjectableDevtoolsApi | null {
+export function resolveInjectableDevtoolsApi(scope: LandingGlobalCandidate): InjectableDevtoolsApi | null {
   const candidates: unknown[] = [
     scope.__ROD_DEVTOOLS__,
     scope.api,
@@ -350,9 +313,7 @@ export function resolveInjectableDevtoolsApi(
   return null;
 }
 
-export function resolveInjectableErudaApi(
-  scope: LandingGlobalCandidate,
-): InjectableErudaApi | null {
+export function resolveInjectableErudaApi(scope: LandingGlobalCandidate): InjectableErudaApi | null {
   return isInjectableErudaApi(scope.eruda) ? scope.eruda : null;
 }
 
@@ -360,9 +321,7 @@ export function serializeLandingState(state: DevtoolsLandingState): string {
   return JSON.stringify(state);
 }
 
-export function parseLandingState(
-  value: string | null | undefined,
-): DevtoolsLandingState {
+export function parseLandingState(value: string | null | undefined): DevtoolsLandingState {
   if (!value) return cloneLandingState(DEFAULT_LANDING_STATE);
 
   try {
@@ -377,42 +336,22 @@ export function serializeLandingTokens(tokens: LandingTokenState): string {
   return JSON.stringify(tokens);
 }
 
-export function parseLandingTokens(
-  value: string | null | undefined,
-): LandingTokenState {
+export function parseLandingTokens(value: string | null | undefined): LandingTokenState {
   if (!value) return { ...DEFAULT_LANDING_TOKENS };
 
   try {
     const parsed = JSON.parse(value) as Partial<LandingTokenState>;
     return {
-      background: colorValue(
-        parsed.background,
-        DEFAULT_LANDING_TOKENS.background,
-      ),
+      background: colorValue(parsed.background, DEFAULT_LANDING_TOKENS.background),
       surface: colorValue(parsed.surface, DEFAULT_LANDING_TOKENS.surface),
       ink: colorValue(parsed.ink, DEFAULT_LANDING_TOKENS.ink),
       accent: colorValue(parsed.accent, DEFAULT_LANDING_TOKENS.accent),
       hot: colorValue(parsed.hot, DEFAULT_LANDING_TOKENS.hot),
       electric: colorValue(parsed.electric, DEFAULT_LANDING_TOKENS.electric),
-      borderWidth: clampNumber(
-        parsed.borderWidth,
-        1,
-        8,
-        DEFAULT_LANDING_TOKENS.borderWidth,
-      ),
+      borderWidth: clampNumber(parsed.borderWidth, 1, 8, DEFAULT_LANDING_TOKENS.borderWidth),
       radius: clampNumber(parsed.radius, 0, 48, DEFAULT_LANDING_TOKENS.radius),
-      shadowOffset: clampNumber(
-        parsed.shadowOffset,
-        0,
-        30,
-        DEFAULT_LANDING_TOKENS.shadowOffset,
-      ),
-      noiseOpacity: clampNumber(
-        parsed.noiseOpacity,
-        0,
-        0.3,
-        DEFAULT_LANDING_TOKENS.noiseOpacity,
-      ),
+      shadowOffset: clampNumber(parsed.shadowOffset, 0, 30, DEFAULT_LANDING_TOKENS.shadowOffset),
+      noiseOpacity: clampNumber(parsed.noiseOpacity, 0, 0.3, DEFAULT_LANDING_TOKENS.noiseOpacity),
     };
   } catch {
     return { ...DEFAULT_LANDING_TOKENS };
@@ -434,16 +373,11 @@ export function createLandingTokenCss(tokens: LandingTokenState): string {
 }`;
 }
 
-function mergeLandingState(
-  input: Partial<DevtoolsLandingState>,
-): DevtoolsLandingState {
+function mergeLandingState(input: Partial<DevtoolsLandingState>): DevtoolsLandingState {
   const defaults = DEFAULT_LANDING_STATE;
   const panels: Partial<LandingPanelSelection> = input.panels ?? {};
-  const initialTool = includesArray(
-    LANDING_PANEL_NAMES,
-    input.initialTool as LandingPanelName,
-  )
-    ? (input.initialTool as LandingPanelName)
+  const initialTool = includesArray(LANDING_PANEL_NAMES, input.initialTool as LandingPanelName)
+    ? input.initialTool as LandingPanelName
     : defaults.initialTool;
 
   return {
@@ -453,37 +387,21 @@ function mergeLandingState(
     loadEruda: booleanValue(input.loadEruda, defaults.loadEruda),
     cacheBust: booleanValue(input.cacheBust, defaults.cacheBust),
     reinitialize: booleanValue(input.reinitialize, defaults.reinitialize),
-    openAfterInject: booleanValue(
-      input.openAfterInject,
-      defaults.openAfterInject,
-    ),
+    openAfterInject: booleanValue(input.openAfterInject, defaults.openAfterInject),
     useShadowDom: booleanValue(input.useShadowDom, defaults.useShadowDom),
     autoScale: booleanValue(input.autoScale, defaults.autoScale),
     inline: booleanValue(input.inline, defaults.inline),
     debugEnabled: booleanValue(input.debugEnabled, defaults.debugEnabled),
     debugLevel: debugLevelValue(input.debugLevel, defaults.debugLevel),
-    captureStartupErrors: booleanValue(
-      input.captureStartupErrors,
-      defaults.captureStartupErrors,
-    ),
+    captureStartupErrors: booleanValue(input.captureStartupErrors, defaults.captureStartupErrors),
     displayIfErr: booleanValue(input.displayIfErr, defaults.displayIfErr),
     theme: themeValue(input.theme, defaults.theme),
     initialTool,
     displaySize: clampNumber(input.displaySize, 20, 100, defaults.displaySize),
-    transparency: clampNumber(
-      input.transparency,
-      0.2,
-      1,
-      defaults.transparency,
-    ),
+    transparency: clampNumber(input.transparency, 0.2, 1, defaults.transparency),
     blur: clampNumber(input.blur, 0, 80, defaults.blur),
     maxLogs: clampNumber(input.maxLogs, 10, 10_000, defaults.maxLogs),
-    editorFontSize: clampNumber(
-      input.editorFontSize,
-      8,
-      32,
-      defaults.editorFontSize,
-    ),
+    editorFontSize: clampNumber(input.editorFontSize, 8, 32, defaults.editorFontSize),
     panels: {
       console: booleanValue(panels.console, defaults.panels.console),
       elements: booleanValue(panels.elements, defaults.panels.elements),
@@ -493,41 +411,17 @@ function mergeLandingState(
       info: booleanValue(panels.info, defaults.panels.info),
       snippets: booleanValue(panels.snippets, defaults.panels.snippets),
     },
-    overrideConsole: booleanValue(
-      input.overrideConsole,
-      defaults.overrideConsole,
-    ),
+    overrideConsole: booleanValue(input.overrideConsole, defaults.overrideConsole),
     catchGlobalErr: booleanValue(input.catchGlobalErr, defaults.catchGlobalErr),
-    bridgePageRealm: booleanValue(
-      input.bridgePageRealm,
-      defaults.bridgePageRealm,
-    ),
-    patchConsolePrototype: booleanValue(
-      input.patchConsolePrototype,
-      defaults.patchConsolePrototype,
-    ),
+    bridgePageRealm: booleanValue(input.bridgePageRealm, defaults.bridgePageRealm),
+    patchConsolePrototype: booleanValue(input.patchConsolePrototype, defaults.patchConsolePrototype),
     showWhitespace: booleanValue(input.showWhitespace, defaults.showWhitespace),
     wrapDomRows: booleanValue(input.wrapDomRows, defaults.wrapDomRows),
-    preserveNetworkLog: booleanValue(
-      input.preserveNetworkLog,
-      defaults.preserveNetworkLog,
-    ),
-    captureResponseBody: booleanValue(
-      input.captureResponseBody,
-      defaults.captureResponseBody,
-    ),
-    sourceLineNumbers: booleanValue(
-      input.sourceLineNumbers,
-      defaults.sourceLineNumbers,
-    ),
-    sourceFormatting: booleanValue(
-      input.sourceFormatting,
-      defaults.sourceFormatting,
-    ),
-    sourceWrapLines: booleanValue(
-      input.sourceWrapLines,
-      defaults.sourceWrapLines,
-    ),
+    preserveNetworkLog: booleanValue(input.preserveNetworkLog, defaults.preserveNetworkLog),
+    captureResponseBody: booleanValue(input.captureResponseBody, defaults.captureResponseBody),
+    sourceLineNumbers: booleanValue(input.sourceLineNumbers, defaults.sourceLineNumbers),
+    sourceFormatting: booleanValue(input.sourceFormatting, defaults.sourceFormatting),
+    sourceWrapLines: booleanValue(input.sourceWrapLines, defaults.sourceWrapLines),
   };
 }
 
@@ -538,25 +432,19 @@ function cloneLandingState(state: DevtoolsLandingState): DevtoolsLandingState {
   };
 }
 
-function isInjectableDevtoolsApi(
-  value: unknown,
-): value is InjectableDevtoolsApi {
+function isInjectableDevtoolsApi(value: unknown): value is InjectableDevtoolsApi {
   return Boolean(
-    value &&
-      typeof value === "object" &&
-      typeof objectValue(value, "init") === "function" &&
-      typeof objectValue(value, "destroy") === "function" &&
-      typeof objectValue(value, "show") === "function" &&
-      typeof objectValue(value, "hide") === "function",
+    value
+    && typeof value === "object"
+    && typeof objectValue(value, "init") === "function"
+    && typeof objectValue(value, "destroy") === "function"
+    && typeof objectValue(value, "show") === "function"
+    && typeof objectValue(value, "hide") === "function",
   );
 }
 
 function isInjectableErudaApi(value: unknown): value is InjectableErudaApi {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      typeof objectValue(value, "init") === "function",
-  );
+  return Boolean(value && typeof value === "object" && typeof objectValue(value, "init") === "function");
 }
 
 function objectValue(value: unknown, key: string): unknown {
@@ -566,18 +454,10 @@ function objectValue(value: unknown, key: string): unknown {
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(
-    maximum,
-    Math.max(minimum, Number.isFinite(value) ? value : minimum),
-  );
+  return Math.min(maximum, Math.max(minimum, Number.isFinite(value) ? value : minimum));
 }
 
-function clampNumber(
-  value: unknown,
-  minimum: number,
-  maximum: number,
-  fallback: number,
-): number {
+function clampNumber(value: unknown, minimum: number, maximum: number, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value)
     ? clamp(value, minimum, maximum)
     : fallback;
@@ -592,26 +472,18 @@ function stringValue(value: unknown, fallback: string): string {
 }
 
 function colorValue(value: unknown, fallback: string): string {
-  return typeof value === "string" && /^#[\da-f]{3,8}$/i.test(value)
-    ? value
-    : fallback;
+  return typeof value === "string" && /^#[\da-f]{3,8}$/i.test(value) ? value : fallback;
 }
 
 function themeValue(value: unknown, fallback: LandingTheme): LandingTheme {
-  return includesArray(
-    ["AMOLED", "Dark", "Light", "System preference"],
-    String(value),
-  )
-    ? (value as LandingTheme)
+  return includesArray(["AMOLED", "Dark", "Light", "System preference"], String(value))
+    ? value as LandingTheme
     : fallback;
 }
 
 function debugLevelValue(value: unknown, fallback: DebugLevel): DebugLevel {
-  return includesArray(
-    ["trace", "debug", "info", "warn", "error", "silent"],
-    String(value),
-  )
-    ? (value as DebugLevel)
+  return includesArray(["trace", "debug", "info", "warn", "error", "silent"], String(value))
+    ? value as DebugLevel
     : fallback;
 }
 

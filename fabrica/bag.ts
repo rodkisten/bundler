@@ -1,11 +1,11 @@
-import { SVG_NAMESPACE, SVG_TAGS } from "@rodkisten/fabrica/constants";
-import { applyCss } from "@rodkisten/fabrica/css";
-import { disposeTree } from "@rodkisten/fabrica/dom-cleanup";
-import { html, mount, render } from "@rodkisten/fabrica/dom";
-import { isDomElement } from "@rodkisten/fabrica/guards";
-import { applyProps } from "@rodkisten/fabrica/props";
-import type { CssInput, DomBag, DomBagOptions, RenderValue } from "@rodkisten/fabrica/types";
-import { config } from "@rodkisten/fabrica/install-state";
+import { SVG_NAMESPACE, SVG_TAGS } from "./core/constants.js";
+import { applyCss } from "./css.js";
+import { disposeTree } from "./render/cleanup.js";
+import { html, mount, render } from "./render/dom.js";
+import { isDomElement } from "./guards.js";
+import { applyProps } from "./bindings/props.js";
+import type { CssInput, DomBag, DomBagOptions, RenderValue } from "./types.js";
+import { config } from "./install-state.js";
 
 /**
  * Creates or queries a fluent DOM bag.

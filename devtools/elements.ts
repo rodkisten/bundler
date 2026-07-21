@@ -1,25 +1,12 @@
 import { signal } from "@rodkisten/broto";
 import type { RenderValue } from "@rodkisten/fabrica";
 import { ConfigStore } from "@rodkisten/devtools/core/config";
-import {
-  getEventListeners,
-  installEventListenerRegistry,
-} from "@rodkisten/devtools/core/event-listeners";
+import { getEventListeners, installEventListenerRegistry } from "@rodkisten/devtools/core/event-listeners";
 import { ElementHighlighter } from "@rodkisten/devtools/core/highlighter";
 import { plainText } from "@rodkisten/devtools/core/serialize";
 import { Tool } from "@rodkisten/devtools/tool";
-import type {
-  Cleanup,
-  ElementsConfig,
-  ElementsContextValue,
-  ToolContext,
-} from "@rodkisten/devtools/types";
-import {
-  copyText,
-  icon,
-  isDevtoolsNode,
-  nodePath,
-} from "@rodkisten/devtools/utils";
+import type { Cleanup, ElementsConfig, ElementsContextValue, ToolContext } from "@rodkisten/devtools/types";
+import { copyText, icon, isDevtoolsNode, nodePath } from "@rodkisten/devtools/utils";
 import { html } from "@rodkisten/devtools/core/runtime";
 import {
   elementsStyleArtifacts,
@@ -31,24 +18,9 @@ import {
   ElementsDomTreeView,
   ElementsDomNodeView,
 } from "@rodkisten/devtools/panels/elements-components";
-import {
-  getMatchedRules,
-  clamp,
-  meaningfulText,
-} from "@rodkisten/devtools/panels/elements.functions";
-import {
-  at,
-  drainArray,
-  filterArray,
-  forEachObject,
-  includesArray,
-  mapArray,
-  mapJoinArray,
-  someArray,
-  splitLines,
-  take,
-  toArray,
-} from "@rodkisten/nascente";
+import { getMatchedRules, clamp, meaningfulText } from "@rodkisten/devtools/panels/elements.functions";
+import { at, drainArray, filterArray, forEachObject, includesArray, mapArray, mapJoinArray, someArray, splitLines, take, toArray } from "@rodkisten/nascente";
+
 
 export { elementsStyleArtifacts };
 
@@ -85,26 +57,12 @@ export class Elements extends Tool {
   public tree: HTMLElement | null = null;
   public crumbs: HTMLElement | null = null;
   private readonly treeRevision = signal(0, { name: "elements.treeRevision" });
-  private readonly crumbsRevision = signal(0, {
-    name: "elements.crumbsRevision",
-  });
-  private readonly detailRevision = signal(0, {
-    name: "elements.detailRevision",
-  });
-  private readonly selectedState = signal<Element | null>(null, {
-    name: "elements.selected",
-  });
-  private readonly detailsOpenState = signal(false, {
-    name: "elements.detailsOpen",
-  });
-  private readonly wrapLinesState = signal(this.config.get("wrapLines"), {
-    name: "elements.wrapLines",
-  });
-  private readonly contextMenuState = signal<{
-    element: Element;
-    x: number;
-    y: number;
-  } | null>(null, { name: "elements.contextMenu" });
+  private readonly crumbsRevision = signal(0, { name: "elements.crumbsRevision" });
+  private readonly detailRevision = signal(0, { name: "elements.detailRevision" });
+  private readonly selectedState = signal<Element | null>(null, { name: "elements.selected" });
+  private readonly detailsOpenState = signal(false, { name: "elements.detailsOpen" });
+  private readonly wrapLinesState = signal(this.config.get("wrapLines"), { name: "elements.wrapLines" });
+  private readonly contextMenuState = signal<{ element: Element; x: number; y: number } | null>(null, { name: "elements.contextMenu" });
   private readonly view: ElementsContextValue = {
     treeRevision: this.treeRevision,
     crumbsRevision: this.crumbsRevision,
@@ -112,14 +70,9 @@ export class Elements extends Tool {
     selected: this.selectedState,
     detailsOpen: this.detailsOpenState,
     wrapLines: this.wrapLinesState,
-    setTreeViewport: (node) => {
-      this.tree = node;
-    },
-    setCrumbsViewport: (node) => {
-      this.crumbs = node;
-    },
-    onAction: (actionEvent) =>
-      this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
+    setTreeViewport: (node) => { this.tree = node; },
+    setCrumbsViewport: (node) => { this.crumbs = node; },
+    onAction: (actionEvent) => this.handleAction(actionEvent, actionEvent.currentTarget as HTMLElement),
     onTreeScroll: () => this.handleTreeScroll(),
     treeView: () => this.renderTreeContent(),
     crumbsView: () => this.renderCrumbsContent(),
@@ -157,7 +110,7 @@ export class Elements extends Tool {
   private treeInvalidationTimer = 0;
   private detailInvalidationTimer = 0;
 
-  /** Coalesces noisy DOM mutations into one reactive revision write. */
+  /** Coalesces noisy external DOM mutations into one reactive revision write. */
   private scheduleTreeInvalidation(): void {
     window.clearTimeout(this.treeInvalidationTimer);
     this.treeInvalidationTimer = window.setTimeout(() => {
@@ -175,7 +128,7 @@ export class Elements extends Tool {
     }, this.config.get("detailRenderDelay"));
   }
 
-  /** Current inspected element. Reads stay non-tracking outside components. */
+  /** Current inspected element. Reads stay non-tracking outside component expressions. */
   get selected(): Element | null {
     return this.selectedState.peek();
   }
@@ -185,10 +138,10 @@ export class Elements extends Tool {
 
     this.container = container;
 
-    const host =
-      context.shadowRoot?.host instanceof HTMLElement
-        ? context.shadowRoot.host
-        : context.root.parentElement;
+
+    const host = context.shadowRoot?.host instanceof HTMLElement
+      ? context.shadowRoot.host
+      : context.root.parentElement;
 
     this.highlighter = new ElementHighlighter(host);
 
@@ -209,6 +162,7 @@ export class Elements extends Tool {
     if (document.documentElement) this.expanded.add(document.documentElement);
     if (document.body) this.expanded.add(document.body);
   }
+
 
   override renderView(): RenderValue {
     return ElementsContext.Provider({
@@ -293,8 +247,8 @@ export class Elements extends Tool {
     const element = node instanceof Element ? node : node?.parentElement;
 
     if (
-      !element ||
-      isDevtoolsNode(
+      !element
+      || isDevtoolsNode(
         element,
         this.context?.shadowRoot?.host as HTMLElement | undefined,
       )
@@ -303,7 +257,10 @@ export class Elements extends Tool {
     }
 
     this.selectedState.set(element);
-    this.invalidateCrumbs();
+    if (this.active) {
+      this.invalidateCrumbs();
+      if (this.detailsOpenState.peek()) this.invalidateDetail();
+    }
 
     if (expandAncestors) {
       this.expandAncestors(element);
@@ -318,14 +275,9 @@ export class Elements extends Tool {
       }
     }
 
+
     if (highlight && (this.active || this.picking)) {
-      this.highlighter?.highlight(
-        element,
-        true,
-        this.config.get("persistentHighlight")
-          ? 0
-          : this.config.get("highlightDuration"),
-      );
+      this.highlighter?.highlight(element, true, this.config.get("persistentHighlight") ? 0 : this.config.get("highlightDuration"));
     }
 
     if (reveal) {
@@ -348,7 +300,9 @@ export class Elements extends Tool {
 
     if (key === "overrideEventTarget") {
       this.restoreEventRegistry?.();
-      this.restoreEventRegistry = value ? installEventListenerRegistry() : null;
+      this.restoreEventRegistry = value
+        ? installEventListenerRegistry()
+        : null;
 
       if (this.active) this.invalidateDetail();
     }
@@ -357,13 +311,9 @@ export class Elements extends Tool {
       this.wrapLinesState.set(Boolean(value));
     }
 
-    if (includesArray(["treeBottomPadding", "rowIndent"], key))
-      this.applyTweakVariables();
+    if (includesArray(["treeBottomPadding", "rowIndent"], key)) this.applyTweakVariables();
 
-    if (
-      (key === "showWhitespace" || key === "maxVisibleChildren") &&
-      this.active
-    ) {
+    if ((key === "showWhitespace" || key === "maxVisibleChildren") && this.active) {
       this.invalidateTree();
     }
   };
@@ -373,139 +323,56 @@ export class Elements extends Tool {
       title: "Elements",
       config: this.config,
       settings: [
-        {
-          kind: "switch",
-          key: "overrideEventTarget",
-          label: "Track EventTarget listeners",
-        },
-        {
-          kind: "switch",
-          key: "observeElement",
-          label: "Automatically refresh DOM mutations",
-        },
-        {
-          kind: "switch",
-          key: "showWhitespace",
-          label: "Show whitespace-only text nodes",
-        },
+        { kind: "switch", key: "overrideEventTarget", label: "Track EventTarget listeners" },
+        { kind: "switch", key: "observeElement", label: "Automatically refresh DOM mutations" },
+        { kind: "switch", key: "showWhitespace", label: "Show whitespace-only text nodes" },
         { kind: "switch", key: "wrapLines", label: "Soft wrap long DOM rows" },
-        {
-          kind: "number",
-          key: "highlightDuration",
-          label: "Highlight duration (ms)",
-          options: { min: 0, max: 10000, step: 50 },
-        },
-        {
-          kind: "switch",
-          key: "persistentHighlight",
-          label: "Keep selected node highlighted",
-        },
-        {
-          kind: "number",
-          key: "mutationRenderDelay",
-          label: "DOM mutation update delay (ms)",
-          options: { min: 0, max: 2000, step: 10 },
-        },
-        {
-          kind: "number",
-          key: "detailRenderDelay",
-          label: "Details update delay (ms)",
-          options: { min: 0, max: 2000, step: 10 },
-        },
-        {
-          kind: "number",
-          key: "longPressDuration",
-          label: "Long press duration (ms)",
-          options: { min: 150, max: 2000, step: 25 },
-        },
-        {
-          kind: "number",
-          key: "longPressMoveTolerance",
-          label: "Long press movement tolerance",
-          options: { min: 2, max: 60, step: 1 },
-        },
-        {
-          kind: "number",
-          key: "contextMenuMargin",
-          label: "Context menu edge margin",
-          options: { min: 0, max: 64, step: 1 },
-        },
-        {
-          kind: "number",
-          key: "treeBottomPadding",
-          label: "DOM tree bottom padding",
-          options: { min: 0, max: 320, step: 4 },
-        },
-        {
-          kind: "number",
-          key: "rowIndent",
-          label: "DOM nesting indentation",
-          options: { min: 4, max: 40, step: 1 },
-        },
-        {
-          kind: "number",
-          key: "maxVisibleChildren",
-          label: "Maximum children per expanded node",
-          options: { min: 25, max: 5000, step: 25 },
-        },
+        { kind: "number", key: "highlightDuration", label: "Highlight duration (ms)", options: { min: 0, max: 10000, step: 50 } },
+        { kind: "switch", key: "persistentHighlight", label: "Keep selected node highlighted" },
+        { kind: "number", key: "mutationRenderDelay", label: "DOM mutation update delay (ms)", options: { min: 0, max: 2000, step: 10 } },
+        { kind: "number", key: "detailRenderDelay", label: "Details update delay (ms)", options: { min: 0, max: 2000, step: 10 } },
+        { kind: "number", key: "longPressDuration", label: "Long press duration (ms)", options: { min: 150, max: 2000, step: 25 } },
+        { kind: "number", key: "longPressMoveTolerance", label: "Long press movement tolerance", options: { min: 2, max: 60, step: 1 } },
+        { kind: "number", key: "contextMenuMargin", label: "Context menu edge margin", options: { min: 0, max: 64, step: 1 } },
+        { kind: "number", key: "treeBottomPadding", label: "DOM tree bottom padding", options: { min: 0, max: 320, step: 4 } },
+        { kind: "number", key: "rowIndent", label: "DOM nesting indentation", options: { min: 4, max: 40, step: 1 } },
+        { kind: "number", key: "maxVisibleChildren", label: "Maximum children per expanded node", options: { min: 25, max: 5000, step: 25 } },
       ],
     });
   }
 
   private applyTweakVariables(): void {
     if (!this.container) return;
-    this.container.style.setProperty(
-      "--rd-elements-bottom-padding",
-      `${this.config.get("treeBottomPadding")}px`,
-    );
-    this.container.style.setProperty(
-      "--rd-elements-indent",
-      `${this.config.get("rowIndent")}px`,
-    );
+    this.container.style.setProperty("--rd-elements-bottom-padding", `${this.config.get("treeBottomPadding")}px`);
+    this.container.style.setProperty("--rd-elements-indent", `${this.config.get("rowIndent")}px`);
   }
 
   private observe(): void {
     this.observer?.disconnect();
 
-    if (
-      !this.active ||
-      !this.config.get("observeElement") ||
-      !document.documentElement
-    ) {
+    if (!this.active || !this.config.get("observeElement") || !document.documentElement) {
       return;
     }
 
     this.observer = new MutationObserver((mutations) => {
-      const devtoolsHost = this.context?.shadowRoot?.host as
-        | HTMLElement
-        | undefined;
+      const devtoolsHost = this.context?.shadowRoot?.host as HTMLElement | undefined;
 
-      const relevantMutations = filterArray(
-        mutations,
-        (mutation) => !isDevtoolsNode(mutation.target, devtoolsHost),
-      );
+      const relevantMutations = filterArray(mutations, (mutation) => !isDevtoolsNode(mutation.target, devtoolsHost));
 
       if (!this.active || !relevantMutations.length) return;
 
       // Collapsed branches have no mounted rows below them, so rebuilding the
       // visible tree for mutations deep inside those branches only burns CPU.
       // Their contents are read fresh when the user expands the branch.
-      if (
-        someArray(relevantMutations, (mutation) =>
-          this.mutationTouchesVisibleTree(mutation),
-        )
-      ) {
+      if (someArray(relevantMutations, (mutation) => this.mutationTouchesVisibleTree(mutation))) {
         this.scheduleTreeInvalidation();
       }
 
       if (
-        this.selected &&
-        someArray(
-          relevantMutations,
-          (mutation) =>
-            mutation.target === this.selected ||
-            (this.selected?.contains(mutation.target) ?? false),
-        )
+        this.selected
+        && someArray(relevantMutations, (mutation) =>
+            mutation.target === this.selected
+            || (this.selected?.contains(mutation.target) ?? false))
       ) {
         this.scheduleDetailInvalidation();
       }
@@ -530,8 +397,9 @@ export class Elements extends Tool {
   }
 
   private isNodeVisibleInTree(node: Node): boolean {
-    let current: Node | null =
-      node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
+    let current: Node | null = node.nodeType === Node.TEXT_NODE
+      ? node.parentNode
+      : node;
 
     while (current && current !== document.documentElement) {
       const parent = current.parentNode;
@@ -556,10 +424,7 @@ export class Elements extends Tool {
     });
   }
 
-  private renderNode(
-    node: Node,
-    depth: number,
-  ): import("@rodkisten/fabrica").RenderValue {
+  private renderNode(node: Node, depth: number): import("@rodkisten/fabrica").RenderValue {
     const children = this.visibleChildren(node);
     const expandable = children.length > 0;
     const expanded = this.expanded.has(node);
@@ -575,25 +440,14 @@ export class Elements extends Tool {
       expandable,
       expanded,
       moreCount,
-      onClick: (click: Event) =>
-        this.handleNodeClick(click, click.currentTarget as HTMLElement),
-      onDoubleClick: (doubleClick: Event) =>
-        this.handleNodeOpen(
-          doubleClick,
-          doubleClick.currentTarget as HTMLElement,
-        ),
-      onContextMenu: (menuEvent: Event) =>
-        this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement),
-      onPointerDown: (pointerEvent: Event) =>
-        this.startLongPress(
-          pointerEvent,
-          pointerEvent.currentTarget as HTMLElement,
-        ),
+      onClick: (click: Event) => this.handleNodeClick(click, click.currentTarget as HTMLElement),
+      onDoubleClick: (doubleClick: Event) => this.handleNodeOpen(doubleClick, doubleClick.currentTarget as HTMLElement),
+      onContextMenu: (menuEvent: Event) => this.handleNodeMenu(menuEvent, menuEvent.currentTarget as HTMLElement),
+      onPointerDown: (pointerEvent: Event) => this.startLongPress(pointerEvent, pointerEvent.currentTarget as HTMLElement),
       onPointerUp: () => this.cancelLongPress(),
       onPointerCancel: () => this.cancelLongPress(),
       onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
-      onPointerOver: (pointerEvent: Event) =>
-        this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
+      onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
       onPointerOut: () => this.highlighter?.hide(),
       children: expanded
         ? mapArray(limited, (child) => this.renderNode(child, depth + 1))
@@ -610,9 +464,9 @@ export class Elements extends Tool {
       }
 
       if (
-        !this.config.get("showWhitespace") &&
-        child.nodeType === Node.TEXT_NODE &&
-        !meaningfulText(child.textContent)
+        !this.config.get("showWhitespace")
+        && child.nodeType === Node.TEXT_NODE
+        && !meaningfulText(child.textContent)
       ) {
         return false;
       }
@@ -673,79 +527,40 @@ export class Elements extends Tool {
     }));
     const rules = styleRuleModels(element, matchedRules);
     const properties = propertyModels(element);
-    const toggle = (toggleEvent: Event) =>
-      this.toggleSection(toggleEvent.currentTarget as HTMLElement);
+    const toggle = (toggleEvent: Event) => this.toggleSection(toggleEvent.currentTarget as HTMLElement);
 
     return html`
-      <RodElementsDetailHeaderView
-        props=${{
-          element,
-          onAction: (click: Event) =>
-            this.handleAction(click, click.currentTarget as HTMLElement),
-        }}
-      />
+      <RodElementsDetailHeaderView props=${{
+        element,
+        onAction: (click: Event) => this.handleAction(click, click.currentTarget as HTMLElement),
+      }} />
       <RodElementsDetailBodyView>
-        <RodElementsDetailSectionView
-          props=${{ title: "Attributes", name: "attributes", onToggle: toggle }}
-        >
-          <RodElementsAttributesView
-            props=${{
-              attributes,
-              onChange: (change: Event) =>
-                this.updateAttribute(
-                  change,
-                  change.currentTarget as HTMLElement,
-                ),
-              onRemove: (click: Event) =>
-                this.removeAttribute(click.currentTarget as HTMLElement),
-            }}
-          />
+        <RodElementsDetailSectionView props=${{ title: "Attributes", name: "attributes", onToggle: toggle }}>
+          <RodElementsAttributesView props=${{
+            attributes,
+            onChange: (change: Event) => this.updateAttribute(change, change.currentTarget as HTMLElement),
+            onRemove: (click: Event) => this.removeAttribute(click.currentTarget as HTMLElement),
+          }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{ title: "Styles", name: "styles", onToggle: toggle }}
-        >
-          <RodElementsStylesView
-            props=${{
-              rules,
-              onChange: (change: Event) =>
-                this.updateInlineStyle(
-                  change,
-                  change.currentTarget as HTMLElement,
-                ),
-            }}
-          />
+        <RodElementsDetailSectionView props=${{ title: "Styles", name: "styles", onToggle: toggle }}>
+          <RodElementsStylesView props=${{
+            rules,
+            onChange: (change: Event) => this.updateInlineStyle(change, change.currentTarget as HTMLElement),
+          }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{ title: "Properties", name: "properties", onToggle: toggle }}
-        >
+        <RodElementsDetailSectionView props=${{ title: "Properties", name: "properties", onToggle: toggle }}>
           <RodElementsPropertiesView props=${{ properties }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{ title: "Text Content", name: "text", onToggle: toggle }}
-        >
+        <RodElementsDetailSectionView props=${{ title: "Text Content", name: "text", onToggle: toggle }}>
           <RodElementsPreBlockView value=${element.textContent || ""} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{ title: "Box Model", name: "box", onToggle: toggle }}
-        >
+        <RodElementsDetailSectionView props=${{ title: "Box Model", name: "box", onToggle: toggle }}>
           <RodElementsBoxModelView props=${{ style, rect }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{
-            title: "Computed Style",
-            name: "computed",
-            onToggle: toggle,
-          }}
-        >
+        <RodElementsDetailSectionView props=${{ title: "Computed Style", name: "computed", onToggle: toggle }}>
           <RodElementsComputedStyleView props=${{ style }} />
         </RodElementsDetailSectionView>
-        <RodElementsDetailSectionView
-          props=${{
-            title: "Event Listeners",
-            name: "listeners",
-            onToggle: toggle,
-          }}
-        >
+        <RodElementsDetailSectionView props=${{ title: "Event Listeners", name: "listeners", onToggle: toggle }}>
           <RodElementsListenersView props=${{ listeners }} />
         </RodElementsDetailSectionView>
       </RodElementsDetailBodyView>
@@ -772,7 +587,10 @@ export class Elements extends Tool {
   }
 
   private handleNodeClick(event: Event, element: HTMLElement): void {
-    if (Date.now() < this.suppressNextClickUntil || this.isUserScrolling) {
+    if (
+      Date.now() < this.suppressNextClickUntil
+      || this.isUserScrolling
+    ) {
       return;
     }
 
@@ -780,8 +598,8 @@ export class Elements extends Tool {
     if (!node) return;
 
     if (
-      event.target instanceof Element &&
-      event.target.hasAttribute("data-toggle-node")
+      event.target instanceof Element
+      && event.target.hasAttribute("data-toggle-node")
     ) {
       if (this.expanded.has(node)) {
         this.expanded.delete(node);
@@ -832,22 +650,28 @@ export class Elements extends Tool {
       highlight: true,
     });
 
-    const pointer =
-      event instanceof MouseEvent
-        ? { x: event.clientX, y: event.clientY }
-        : { x: 16, y: 16 };
+    const pointer = event instanceof MouseEvent
+      ? { x: event.clientX, y: event.clientY }
+      : { x: 16, y: 16 };
 
     this.openContextMenu(node, pointer.x, pointer.y);
   }
 
   private startLongPress(event: Event, element: HTMLElement): void {
-    if (!(event instanceof PointerEvent) || event.pointerType === "mouse") {
+    if (
+      !(event instanceof PointerEvent)
+      || event.pointerType === "mouse"
+    ) {
       return;
     }
 
     const target = event.target as HTMLElement | null;
 
-    if (target?.closest("button,input,textarea,select,[contenteditable]")) {
+    if (
+      target?.closest(
+        "button,input,textarea,select,[contenteditable]",
+      )
+    ) {
       return;
     }
 
@@ -898,9 +722,9 @@ export class Elements extends Tool {
 
   private trackLongPress(event: Event): void {
     if (
-      !(event instanceof PointerEvent) ||
-      !this.longPressPoint ||
-      !this.longPressTimer
+      !(event instanceof PointerEvent)
+      || !this.longPressPoint
+      || !this.longPressTimer
     ) {
       return;
     }
@@ -941,13 +765,9 @@ export class Elements extends Tool {
     return ElementsContextMenuView({
       elementId: this.nodeId(state.element),
       onAction: (_action: string, click: Event) => {
-        void this.handleContextAction(
-          click,
-          click.currentTarget as HTMLElement,
-        );
+        void this.handleContextAction(click, click.currentTarget as HTMLElement);
       },
-      menuRef: (node: HTMLElement) =>
-        this.mountContextMenu(node, state.x, state.y),
+      menuRef: (node: HTMLElement) => this.mountContextMenu(node, state.x, state.y),
     });
   }
 
@@ -961,33 +781,21 @@ export class Elements extends Tool {
     const localX = x + viewportOffsetX - (hostRect?.left ?? 0);
     const localY = y + viewportOffsetY - (hostRect?.top ?? 0);
     const rect = menu.getBoundingClientRect?.();
-    const width =
-      rect && Number.isFinite(rect.width) && rect.width > 0
-        ? rect.width
-        : menu.offsetWidth || 180;
-    const height =
-      rect && Number.isFinite(rect.height) && rect.height > 0
-        ? rect.height
-        : menu.offsetHeight || 220;
-    const availableWidth =
-      hostRect?.width || viewport?.width || window.innerWidth || width + 16;
-    const availableHeight =
-      hostRect?.height || viewport?.height || window.innerHeight || height + 16;
+    const width = rect && Number.isFinite(rect.width) && rect.width > 0 ? rect.width : menu.offsetWidth || 180;
+    const height = rect && Number.isFinite(rect.height) && rect.height > 0 ? rect.height : menu.offsetHeight || 220;
+    const availableWidth = hostRect?.width || viewport?.width || window.innerWidth || width + 16;
+    const availableHeight = hostRect?.height || viewport?.height || window.innerHeight || height + 16;
     const margin = this.config.get("contextMenuMargin");
 
-    const left = clamp(localX, margin, availableWidth - width - margin);
-    const top = clamp(localY, margin, availableHeight - height - margin);
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
+    menu.style.left = `${clamp(localX, margin, availableWidth - width - margin)}px`;
+    menu.style.top = `${clamp(localY, margin, availableHeight - height - margin)}px`;
 
     const close = (closeEvent: Event): void => {
-      if (closeEvent.target instanceof Node && menu.contains(closeEvent.target))
-        return;
+      if (closeEvent.target instanceof Node && menu.contains(closeEvent.target)) return;
       this.closeContextMenu();
     };
     const onKey = (keyEvent: Event): void => {
-      if (keyEvent instanceof KeyboardEvent && keyEvent.key === "Escape")
-        this.closeContextMenu();
+      if (keyEvent instanceof KeyboardEvent && keyEvent.key === "Escape") this.closeContextMenu();
     };
 
     document.addEventListener("pointerdown", close, true);
@@ -1068,8 +876,7 @@ export class Elements extends Tool {
 
       case "toggle-children":
         if (this.selected) {
-          if (this.expanded.has(this.selected))
-            this.expanded.delete(this.selected);
+          if (this.expanded.has(this.selected)) this.expanded.delete(this.selected);
           else this.expanded.add(this.selected);
           this.invalidateTree();
         }
@@ -1083,11 +890,11 @@ export class Elements extends Tool {
 
   private hoverNode(pointerEvent: Event, element: HTMLElement): void {
     if (
-      !this.active ||
-      this.picking ||
-      this.isUserScrolling ||
-      !(pointerEvent instanceof PointerEvent) ||
-      pointerEvent.pointerType !== "mouse"
+      !this.active
+      || this.picking
+      || this.isUserScrolling
+      || !(pointerEvent instanceof PointerEvent)
+      || pointerEvent.pointerType !== "mouse"
     ) {
       return;
     }
@@ -1135,7 +942,7 @@ export class Elements extends Tool {
 
       case "close-detail":
         this.detailsOpenState.set(false);
-        break;
+            break;
     }
   }
 
@@ -1159,9 +966,9 @@ export class Elements extends Tool {
     const element = this.selected;
 
     if (
-      !element ||
-      element === document.documentElement ||
-      element === document.body
+      !element
+      || element === document.documentElement
+      || element === document.body
     ) {
       return;
     }
@@ -1180,11 +987,7 @@ export class Elements extends Tool {
   }
 
   private async editAttributes(element: Element): Promise<void> {
-    const current = mapJoinArray(
-      element.attributes,
-      (attribute) => `${attribute.name}=${attribute.value}`,
-      "\n",
-    );
+    const current = mapJoinArray(element.attributes, (attribute) => `${attribute.name}=${attribute.value}`, "\n");
 
     const next = await this.context?.prompt(
       "Edit attributes as name=value, one per line",
@@ -1205,11 +1008,15 @@ export class Elements extends Tool {
         const separatorIndex = trimmed.indexOf("=");
 
         const name = (
-          separatorIndex < 0 ? trimmed : trimmed.slice(0, separatorIndex)
+          separatorIndex < 0
+            ? trimmed
+            : trimmed.slice(0, separatorIndex)
         ).trim();
 
         const value =
-          separatorIndex < 0 ? "" : trimmed.slice(separatorIndex + 1);
+          separatorIndex < 0
+            ? ""
+            : trimmed.slice(separatorIndex + 1);
 
         if (name) {
           element.setAttribute(name, value);
@@ -1272,16 +1079,22 @@ export class Elements extends Tool {
         } else if (value == null || value === false) {
           element.removeAttribute(key);
         } else {
-          element.setAttribute(key, value === true ? "" : String(value));
+          element.setAttribute(
+            key,
+            value === true ? "" : String(value),
+          );
         }
       });
 
       this.invalidateTree();
       this.invalidateDetail();
     } catch (error) {
-      this.context?.notify(`Invalid props JSON: ${plainText(error)}`, {
-        type: "error",
-      });
+      this.context?.notify(
+        `Invalid props JSON: ${plainText(error)}`,
+        {
+          type: "error",
+        },
+      );
     }
   }
 
@@ -1362,8 +1175,8 @@ export class Elements extends Tool {
     const selected = this.selected;
 
     if (
-      !(selected instanceof HTMLElement || selected instanceof SVGElement) ||
-      !(event.target instanceof HTMLInputElement)
+      !(selected instanceof HTMLElement || selected instanceof SVGElement)
+      || !(event.target instanceof HTMLInputElement)
     ) {
       return;
     }
@@ -1420,8 +1233,8 @@ export class Elements extends Tool {
     const selected = this.selected;
 
     if (
-      !(selected instanceof HTMLElement || selected instanceof SVGElement) ||
-      !(event.target instanceof HTMLInputElement)
+      !(selected instanceof HTMLElement || selected instanceof SVGElement)
+      || !(event.target instanceof HTMLInputElement)
     ) {
       return;
     }
@@ -1430,8 +1243,9 @@ export class Elements extends Tool {
     const propertyInput = row?.querySelector<HTMLInputElement>(
       "[data-style-property]",
     );
-    const valueInput =
-      row?.querySelector<HTMLInputElement>("[data-style-value]");
+    const valueInput = row?.querySelector<HTMLInputElement>(
+      "[data-style-value]",
+    );
 
     const previous = row?.dataset.originalProperty ?? "";
     const property = propertyInput?.value.trim() ?? "";
@@ -1473,7 +1287,9 @@ export class Elements extends Tool {
 
     content.dataset.hidden = String(hidden);
 
-    const marker = button.querySelector<HTMLElement>("[data-section-actions]");
+    const marker = button.querySelector<HTMLElement>(
+      "[data-section-actions]",
+    );
 
     if (marker) {
       marker.textContent = hidden ? "▸" : "▾";
@@ -1502,7 +1318,9 @@ export class Elements extends Tool {
 
     this.idNodes.set(
       id,
-      typeof WeakRef !== "undefined" ? new WeakRef(node) : node,
+      typeof WeakRef !== "undefined"
+        ? new WeakRef(node)
+        : node,
     );
 
     return id;
@@ -1515,7 +1333,10 @@ export class Elements extends Tool {
       return null;
     }
 
-    if (typeof WeakRef !== "undefined" && value instanceof WeakRef) {
+    if (
+      typeof WeakRef !== "undefined"
+      && value instanceof WeakRef
+    ) {
       const node = value.deref() ?? null;
 
       if (!node) {

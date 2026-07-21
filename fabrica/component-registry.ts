@@ -1,15 +1,11 @@
-import { warnDeprecated } from "@rodkisten/fabrica/deprecations";
+import { warnDeprecated } from "./deprecations.js";
 import type {
-  Component,
   ComponentLike,
-  ComponentProps,
   ComponentRegistry,
   ComponentRegistryOptions,
   RegistryCollision,
   RegistryRegistrationOptions,
-} from "@rodkisten/fabrica/types";
-
-const COMPONENT_NAME_RE = /^[A-Z][A-Za-z0-9_$.-]*$/;
+} from "./types.js";
 
 /** Normalizes names once at registry boundaries instead of on every render. */
 export function normalizeComponentName(name: unknown): string {
@@ -22,11 +18,6 @@ export function normalizeComponentName(name: unknown): string {
   const first = name.charCodeAt(0);
   const last = name.charCodeAt(length - 1);
   return first > 32 && last > 32 ? name : name.trim();
-}
-
-/** Returns whether a name is safe for uppercase component-tag syntax. */
-export function isRegisteredComponentName(name: unknown): boolean {
-  return COMPONENT_NAME_RE.test(normalizeComponentName(name));
 }
 
 /**
@@ -415,6 +406,4 @@ function createLegacyRegistryAdapter(legacy: LegacyRegistryShape): ComponentRegi
   return adapter;
 }
 
-/** Type-level compatibility helper for external adapters. */
-export type RegisteredComponent<Props extends object = ComponentProps> = Component<Props>;
 export type { RegistryCollision };

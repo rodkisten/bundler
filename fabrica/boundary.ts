@@ -1,7 +1,7 @@
 import { onOwnerError } from "@rodkisten/broto/owner";
 import { signal } from "@rodkisten/broto/reactivity";
-import { component } from "@rodkisten/fabrica/component";
-import type { BoundaryOptions, RenderValue } from "@rodkisten/fabrica/types";
+import { component } from "./component.js";
+import type { BoundaryOptions, RenderValue } from "./types.js";
 
 /**
  * Creates an error boundary component.

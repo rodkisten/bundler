@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEventHelper } from "@rodkisten/fabrica/event-typing";
+import { createEventHelper } from "../event-typing.js";
 
 describe("typed template events", () => {
   it("keeps named native handlers as zero-cost identities", () => {

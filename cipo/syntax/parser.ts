@@ -5,7 +5,6 @@ import { expandSmartDeclarationFunction, isNativeCssFunction, normalizePropertyD
 import { runtime } from '../runtime'
 import { getStandaloneAliasName, stringifyAlias } from '../transform/index'
 
-const SMART_DECLARATION_FUNCTIONS = new Set(['h', 'w', 'pos', 'grid-template', 'grid-flow', 'text', 'break', 'stack', 'cluster', 'center', 'cover', 'sidebar', 'scroll', 'scrollbar', 'snap', 'snap-item', 'overscroll', 'tap', 'select', 'drag', 'focus-ring', 'transition', 'animate'])
 
 /**
  * Parses transformed CSS into Cipó's tiny AST.

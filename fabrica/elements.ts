@@ -1,6 +1,6 @@
 import { createElementFactory, createDomElement } from '@rodkisten/fabrica-elements'
-import { component } from '@rodkisten/fabrica/component'
-import type { Component, RenderValue } from '@rodkisten/fabrica/types'
+import { component } from './component.js'
+import type { Component, RenderValue } from './types.js'
 import type { ElementsRecord } from '@rodkisten/fabrica-elements'
 
 /**

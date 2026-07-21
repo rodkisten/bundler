@@ -10,7 +10,7 @@ import Fabrica, {
   getOrCreateFabrica,
   registerComponent,
 } from '@rodkisten/fabrica'
-import { resetDeprecationWarnings } from '@rodkisten/fabrica/deprecations'
+import { resetDeprecationWarnings } from '../deprecations.js'
 
 beforeEach(() => {
   document.body.replaceChildren()

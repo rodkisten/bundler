@@ -42,8 +42,15 @@ export default defineConfig({
   },
 
   test: {
-    testTimeout: 15_000,
-    hookTimeout: 15_000,
+    globalSetup: [workspaceFile("scripts/vitest-global-setup.ts")],
+
+    // VM forks isolate JSDOM-heavy suites while allowing Vitest to recycle
+    // workers before long monorepo runs accumulate cross-file VM pressure.
+    pool: "vmForks",
+    maxWorkers: 4,
+    vmMemoryLimit: "384MB",
+    testTimeout: 5_000,
+    hookTimeout: 5_000,
 
     // Enable the debug reporter only when DEBUG_TESTS=true. Its output uses
     // regular stdout so the latest START/heartbeat line remains visible when
@@ -53,7 +60,7 @@ export default defineConfig({
     reporters: IS_GITHUB_ACTIONS
       ? [
           ...(DEBUG_TESTS ? [new VitestDebugReporter()] : []),
-          "verbose",
+         // "verbose",
           "github-actions",
           "hanging-process",
         ]

@@ -12,8 +12,8 @@ export {
   createComponentPack,
   getOrCreateFabrica,
   getOrCreateFabrica as getOrCreate,
-} from "@rodkisten/fabrica/public-api";
-export type { FabricaApi } from "@rodkisten/fabrica/public-api";
+} from "./public-api.js";
+export type { FabricaApi } from "./public-api.js";
 export {
   createContextProvider,
   createFabricaContext,
@@ -28,15 +28,15 @@ export {
   useContext,
   useReactiveContext,
   useRequiredContext,
-} from "@rodkisten/fabrica/context";
-export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "@rodkisten/fabrica/context";
+} from "./context.js";
+export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "./context.js";
 export {
   clearDebugRecords,
   debug,
   debugRecords,
   setDebug,
   subscribeDebug,
-} from "@rodkisten/fabrica/debug";
+} from "./debug.js";
 export type {
   Cleanup,
   Component,
@@ -50,4 +50,4 @@ export type {
   RefCallback,
   RefObject,
   RefValue,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";

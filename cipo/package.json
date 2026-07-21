@@ -31,7 +31,12 @@
       "import": "./dist/compiled-runtime.js",
       "default": "./dist/compiled-runtime.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./runtime-inline": {
+      "types": "./dist/runtime-inline.d.ts",
+      "import": "./dist/runtime-inline.js",
+      "default": "./dist/runtime-inline.js"
+    }
   },
   "files": [
     "dist",

@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushSync, signal } from "@rodkisten/broto";
 import { clearComponents, component, html, render } from "@rodkisten/fabrica";
-import type { RenderValue } from "@rodkisten/fabrica/types";
+import type { RenderValue } from "../types.js";
 
 let host: HTMLDivElement;
 

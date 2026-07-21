@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
+import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
 
 describe("Fábrica recursive compiled templates", () => {
   it("compiles nested html templates inside interpolation expressions to a fixed compiled tree", () => {

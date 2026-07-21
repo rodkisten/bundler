@@ -3,13 +3,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FABRICA_HTML_ARTIFACT,
-  createCompiledTemplate,
   createFabrica,
   getHtmlArtifact,
   html,
   isHtmlResult,
   render,
 } from "@rodkisten/fabrica";
+import {
+  createCompiledTemplate,
+} from "@rodkisten/fabrica/compiler-runtime";
 
 let host: HTMLDivElement;
 

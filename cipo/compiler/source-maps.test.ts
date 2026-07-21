@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createLineSourceMap } from './source-map'
+import { createLineSourceMap, createTransformSourceMap } from './source-map'
 describe('createLineSourceMap', () => {
   it('creates a valid Source Map v3 contract with the original source embedded', () => {
     const original = [
@@ -612,3 +612,37 @@ function decodeVlqSegment(
 }
 const BASE64 =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+
+describe('createTransformSourceMap', () => {
+  it('emits multiple column anchors for unchanged source lines', () => {
+    const source = 'const message = "a sufficiently long unchanged line"'
+    const map = createTransformSourceMap(
+      source,
+      source,
+      '/src/columns.ts',
+    )
+
+    expect(map.mappings.split(';')[0]?.split(',').length).toBeGreaterThan(1)
+  })
+
+  it('keeps generated helper lines mapped while preserving exact source lines', () => {
+    const original = [
+      '"use client"',
+      'const view = html`<main />`',
+    ].join('\n')
+    const generated = [
+      '"use client"',
+      'import { helper } from "runtime"',
+      'const view = helper(html)',
+    ].join('\n')
+    const map = createTransformSourceMap(
+      original,
+      generated,
+      '/src/transformed.ts',
+    )
+
+    expect(map.mappings.split(';')).toHaveLength(3)
+    expect(map.sourcesContent).toEqual([original])
+  })
+})

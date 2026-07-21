@@ -1,36 +1,83 @@
 # Fábrica
 
-Fábrica is the HTML/UI runtime of the Rod browser ecosystem. It owns template parsing, DOM parts, rendering, directives, components, lifecycle hooks, composition and hydration-oriented UI work.
+Fábrica is the HTML/UI runtime of the Rod browser ecosystem. It owns template
+parsing, DOM parts, rendering, directives, components, lifecycle hooks, and
+composition. Reactivity lives in **Broto**: Fábrica consumes Broto signals, but
+does not own state primitives. Build-time source lowering lives behind Fábrica's
+explicit compiler entrypoint.
 
-Reactivity lives in **Broto**. Fábrica consumes Broto internally and accepts Broto signals in render values, but state primitives are not owned by Fábrica.
+Architecture references:
+
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md): runtime layers, ownership, and package
+  boundaries.
+- [`COMPILER.md`](./COMPILER.md): AST pipeline and compiler/runtime invariants.
+- [`REFACTOR_REPORT.md`](./REFACTOR_REPORT.md): migration map, deleted files, and
+  validation performed for the structural refactor.
 
 ## Package boundaries
 
 ```txt
-Broto
- ├── signal
- ├── computed
- ├── effect
- ├── batch
- ├── store
- ├── graph
- ├── scheduler
- ├── async
- └── resources
-
-Fabrica
- ├── html
- ├── template parser
- ├── renderer
- ├── directives
- ├── DOM parts
- ├── components
- ├── component tags
- ├── context
- ├── lifecycle
- ├── error boundaries
- └── hydration
+Broto                              Fábrica
+ ├── reactive graph                 ├── core runtime context
+ ├── ownership                      ├── template compiler/cache
+ ├── scheduler                      ├── render root/value/parts
+ └── resources                      ├── shared DOM binding kernel
+                                    ├── directives/reconciliation
+Cipó                                ├── components/registries
+ ├── runtime CSS engine             ├── lifecycle/context/boundaries
+ ├── runtime-inline entrypoint      └── compiler (separate entrypoint)
+ └── build compiler
 ```
+
+The dependency direction is deliberate:
+
+```txt
+runtime -> runtime
+compiler -> runtime + compiler services
+```
+
+Fábrica runtime code never imports Cipó's source compiler. Inline `$css` and
+`$style` bindings use `@rodkisten/cipo/runtime-inline`, which contains only the
+runtime-safe inline compiler.
+
+## Entry points and side effects
+
+Fábrica now exposes a small, explicit package surface:
+
+```ts
+import { html, render } from "@rodkisten/fabrica";
+import { html as runtimeHtml } from "@rodkisten/fabrica/runtime";
+import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
+import { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
+```
+
+`@rodkisten/fabrica` and `@rodkisten/fabrica/runtime` are side-effect free. They
+do not install `$`, `$el`, or `globalThis.Fabrica`. Applications that explicitly
+want the legacy browser-global bridge import:
+
+```ts
+import "@rodkisten/fabrica/browser";
+```
+
+The root package no longer re-exports source compiler APIs, and wildcard
+subpath exports were removed. Internal folders such as `bindings/`, `render/`,
+`template/`, and `compiler/runtime/` are implementation details rather than an
+accidental public API.
+
+## Runtime/compiler semantic invariant
+
+The primary architecture rule is:
+
+```txt
+interpreted template -> binding kernel -> DOM
+compiled template    -> binding kernel -> DOM
+```
+
+The compiler may remove parsing and discovery work, but it must not change
+observable behavior. Attribute bindings, `.property`, `?boolean`, `class:*`,
+refs, spreads, events, special attributes, cleanup, and signal updates converge
+on the same runtime primitives. The parity test suite exercises both execution
+paths against the same feature contracts.
 
 ## Runtime performance model
 
@@ -787,14 +834,14 @@ jsx.html`<TabButton plugin=${item} />`;
 
 `html.jsx` remains an alias for existing code.
 
-## Composition helpers: portal, suspense, hydrate and repeat strategies
+## Composition helpers: portal, suspense, owned mounting and repeat strategies
 
 Fábrica includes small composition primitives for app-scale UI:
 
 ```ts
 html`${portal(document.body, Modal())}`;
 html`${suspense(resourceState, View, Spinner, ErrorView)}`;
-hydrate(root, App());
+mountPreservingChildren(root, App());
 repeat(records, (record) => record.id, Row, { strategy: 'append-only' });
 ```
 
@@ -1428,13 +1475,25 @@ Changing `store.expanded` updates only `:expanded`; changing `store.input` updat
 
 The build compiler now has a compact production path for dynamic templates. Instead of serializing verbose object ASTs such as `{ type, tag, props, children }` into browser bundles, compiled templates use numeric tuple instructions. When `directComponentReferences` is enabled by the Vite integration, uppercase component tags are emitted as lexical component references instead of display-name strings. This lets Rollup/esbuild tree-shake unused components and mangle local identifiers safely.
 
-Browser-facing code can import `./runtime` to avoid the compiler/source-scanner graph entirely. Compiler APIs remain available from `./compiler`, and the legacy `./index` entry stays compatible. The compact runtime still accepts the previous object instruction shape, so existing compiled fixtures and manually-authored definitions continue to work.
+Browser-facing code imports `@rodkisten/fabrica` or the explicit `/runtime`
+entrypoint without pulling the TypeScript source transformer. Source transforms
+live under `/compiler`; generated code imports only `/compiler-runtime`. The
+legacy compact object instruction shape remains accepted by the compiled runtime
+for compatibility with existing generated fixtures.
 
 ```ts
+import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
+
 compileFabricaSource(source, {
   directComponentReferences: true,
-})
+});
 ```
+
+The source transformer is AST-based. It resolves Fábrica tagged-template imports
+and aliases, respects lexical shadowing, preserves shebangs and directive
+prologues such as `"use client"`, and injects collision-free helper imports.
+Nested Fábrica templates inside ordinary JavaScript template literals are
+transformed recursively without relying on textual `indexOf("html`")` scans.
 
 A dynamic element that previously emitted verbose object keys is now represented approximately as `[0, Component, props, children]`, with text/value nodes using numeric opcodes. Static single-root templates continue to compile directly to `createCompiledElement(...)`.
 

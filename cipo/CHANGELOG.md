@@ -1,4 +1,16 @@
 ## Unreleased
+
+### Fábrica runtime boundary and source maps
+
+- Added the runtime-only `@rodkisten/cipo/runtime-inline` entrypoint so Fábrica
+  special attributes can compile inline Cipó styles without importing the
+  TypeScript/source-compiler graph into browser runtime bundles.
+- Added transform-aware source-map generation with multiple column anchors on
+  surviving source lines and monotonic mappings for generated lines. The
+  previous line-only helper remains available for compatibility.
+- Updated the Vite integration to use the transform-aware source-map generator.
+
+## Unreleased
 - Added a dedicated interactive Cipó landing page at `dist/cipo/index.html`, wired into the root build pipeline. The playground runs the real published browser runtime, supports live stylesheet and atomic compilation, exposes all built-in helpers through an insertion palette, and applies generated CSS to an interactive preview.
 - Added a maximalist forest visual system with intertwined SVG vines, mobile-capped fireflies, responsive layouts, and `prefers-reduced-motion` fallbacks.
 - Fixed startup when the callable styled factory already owns the read-only

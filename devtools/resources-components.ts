@@ -234,12 +234,13 @@ component("RodResourcesView", function RodResourcesView(_props, ctx) {
   const resources = ctx.useRequiredContext(ResourcesContext);
 
   return html`
-    <RodSharedScrollableBody :resourcesBody>
-      ${() => {
-        resources.revision();
-        return resources.renderContent();
+    <RodSharedScrollableBody
+      :resourcesBody
+      ref=${(node: HTMLElement) => {
+        resources.setContentViewport(node);
+        return () => resources.setContentViewport(null);
       }}
-    </RodSharedScrollableBody>
+    />
     ${() => resources.renderJsonDialog()}
   `;
 });

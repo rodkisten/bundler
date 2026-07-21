@@ -5,13 +5,11 @@ import type {
   ComponentRenderRequest,
   Directive,
   DomBag,
-  CssLikeArtifact,
   RawHtml,
-  RenderablePayload,
   RefDirective,
   Signal,
   StyleMapDirective,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";
 
 /**
  * Checks whether a value is a FabricaDOM signal.
@@ -161,72 +159,4 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
  */
 export function isTemplateStringsArray(value: unknown): value is TemplateStringsArray {
   return Array.isArray(value) && "raw" in value;
-}
-
-
-/**
- * Checks whether a value is a Fabrica Elements/Cipó payload.
- *
- * @remarks
- * Cipó component payloads and Fabrica component payloads do not always expose
- * the same shape. Some payloads expose a `tag`, while component payloads may
- * only expose component metadata plus props/children.
- *
- * We intentionally detect this structurally instead of relying on instanceof
- * checks so this keeps working across iframes, userscripts, isolated worlds,
- * and mixed bundles.
- *
- * @param value - Unknown value.
- * @returns Whether the value can be materialized as a DOM element or component.
- */
-export function isRenderablePayload(
-  value: unknown,
-): value is RenderablePayload {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const payload = value as Partial<RenderablePayload>;
-
-  const hasTag =
-    "tag" in payload && typeof payload.tag === "string";
-
-  const hasComponent =
-    "component" in payload &&
-    typeof payload.component === "function";
-
-  const hasRenderableShape = hasTag || hasComponent;
-
-  if (!hasRenderableShape) {
-    return false;
-  }
-
-  return (
-    payload.props == null ||
-    typeof payload.props === "object"
-  );
-}
-
-/**
- * Checks whether a value looks like a Cipó class-list artifact.
- *
- * @param value - Unknown value.
- * @returns Whether the value exposes a generated class name.
- */
-export function isCssClassArtifact(value: unknown): value is CssLikeArtifact & { className: string } {
-  return Boolean(value && typeof value === "object" && typeof (value as CssLikeArtifact).className === "string");
-}
-
-/**
- * Checks whether a value looks like a CSS text artifact.
- *
- * @param value - Unknown value.
- * @returns Whether the value exposes CSS text.
- */
-export function isCssTextArtifact(value: unknown): value is CssLikeArtifact {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      (typeof (value as CssLikeArtifact).cssText === "string" || typeof (value as CssLikeArtifact).compiledCss === "string"),
-  );
 }
