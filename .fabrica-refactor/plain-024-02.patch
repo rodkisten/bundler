@@ -1,0 +1,553 @@
+diff --git a/fabrica/template.ts b/fabrica/template.ts
+deleted file mode 100644
+index 79edbd03357ae0bd2ceef52a383a703b062e312c..0000000000000000000000000000000000000000
+--- a/fabrica/template.ts
++++ /dev/null
+@@ -1,982 +0,0 @@
+-import { extractEventName } from "@rodkisten/fabrica/events";
+-import type {
+-  CompiledTemplate,
+-  ComponentPropPart,
+-  RenderValue,
+-  TemplatePart,
+-} from "@rodkisten/fabrica/types";
+-
+-const PART_PREFIX = "fabrica-part:";
+-const ATTRIBUTE_PREFIX = "__fabrica_attr_";
+-const ATTRIBUTE_SUFFIX = "__";
+-const SPREAD_PREFIX = "data-fabrica-spread-";
+-const COMPONENT_PREFIX = "__fabrica_component_";
+-const COMPONENT_SUFFIX = "__";
+-const COMPONENT_PROP_PREFIX = "__fabrica_component_prop_";
+-const COMPONENT_PROP_SUFFIX = "__";
+-
+-const COMPONENT_OPEN_RE = /<([A-Z][A-Za-z0-9_$.-]*)(?=[\s/>])/g;
+-const COMPONENT_CLOSE_RE = /<\/([A-Z][A-Za-z0-9_$.-]*)\s*>/g;
+-const COMPONENT_SELF_RE = /<([A-Z][A-Za-z0-9_$.-]*)([^<>]*?)\/>/g;
+-const JSX_COMPONENT_RE = /<([A-Z][A-Za-z0-9_$.-]*)/g;
+-
+-const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
+-const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
+-
+-export interface PreparedJsxSource {
+-  readonly source: string;
+-  readonly componentTags: ReadonlySet<string>;
+-  readonly preserveSignalProps: ReadonlyMap<string, ReadonlySet<string>>;
+-}
+-
+-/** Joins template strings with marker syntax understood by the DOM planner. */
+-export function prepareSource(strings: TemplateStringsArray): string {
+-  let output = strings[0] ?? "";
+-
+-  for (let index = 0; index < strings.length - 1; index += 1) {
+-    const left = strings[index] ?? "";
+-    const right = strings[index + 1] ?? "";
+-    const context = classifyInterpolationContext(left, right);
+-
+-    if (context.kind === "spread") {
+-      output += `${SPREAD_PREFIX}${index}="${index}"`;
+-    } else if (context.kind === "attribute") {
+-      output += `${ATTRIBUTE_PREFIX}${index}${ATTRIBUTE_SUFFIX}`;
+-    } else if (context.kind === "property") {
+-      output += String(index);
+-    } else if (context.kind === "boolean") {
+-      output += String(index);
+-    } else if (context.kind === "event") {
+-      output += String(index);
+-    } else if (context.kind === "conditionalClass") {
+-      output += String(index);
+-    } else {
+-      output += `<!--${PART_PREFIX}${index}-->`;
+-    }
+-
+-    output += right;
+-  }
+-
+-  return output;
+-}
+-
+-/**
+- * Prepares JSX-like component syntax while preserving ordinary HTML parsing.
+- *
+- * Uppercase component tags are rewritten to inert placeholder elements before
+- * the browser parses the template. Dynamic prop markers remain attributes on
+- * the placeholder and are later converted into component prop parts.
+- */
+-export function prepareJsxSource(
+-  strings: TemplateStringsArray,
+-): PreparedJsxSource {
+-  const source = prepareSource(strings);
+-  const componentTags = new Set<string>();
+-  const preserveSignalProps = new Map<string, ReadonlySet<string>>();
+-
+-  JSX_COMPONENT_RE.lastIndex = 0;
+-  let match: RegExpExecArray | null;
+-  while ((match = JSX_COMPONENT_RE.exec(source))) {
+-    componentTags.add(match[1]!);
+-  }
+-
+-  let rewritten = source;
+-  rewritten = rewritten.replace(
+-    COMPONENT_SELF_RE,
+-    (_full, tag: string, attributes: string) =>
+-      `<fabrica-component data-fabrica-component="${encodeDynamicComponentToken(
+-        componentTags,
+-        tag,
+-      )}"${attributes}></fabrica-component>`,
+-  );
+-  rewritten = rewritten.replace(
+-    COMPONENT_OPEN_RE,
+-    (_full, tag: string) =>
+-      `<fabrica-component data-fabrica-component="${encodeDynamicComponentToken(
+-        componentTags,
+-        tag,
+-      )}"`,
+-  );
+-  rewritten = rewritten.replace(COMPONENT_CLOSE_RE, "</fabrica-component>");
+-
+-  return {
+-    source: rewritten,
+-    componentTags,
+-    preserveSignalProps,
+-  };
+-}
+-
+-type InterpolationContext =
+-  | { kind: "child" }
+-  | { kind: "spread" }
+-  | { kind: "attribute" }
+-  | { kind: "property" }
+-  | { kind: "boolean" }
+-  | { kind: "event" }
+-  | { kind: "conditionalClass" };
+-
+-function classifyInterpolationContext(
+-  left: string,
+-  right: string,
+-): InterpolationContext {
+-  const tagStart = left.lastIndexOf("<");
+-  const tagEnd = left.lastIndexOf(">");
+-  const inTag = tagStart > tagEnd;
+-
+-  if (!inTag) return { kind: "child" };
+-
+-  const tagTail = left.slice(tagStart + 1);
+-  const equalsMatch = tagTail.match(/([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/);
+-
+-  if (equalsMatch) {
+-    const name = equalsMatch[1]!;
+-    if (name.startsWith(".")) return { kind: "property" };
+-    if (name.startsWith("?")) return { kind: "boolean" };
+-    if (name.startsWith("@")) return { kind: "event" };
+-    if (name.startsWith("class:")) return { kind: "conditionalClass" };
+-    return { kind: "attribute" };
+-  }
+-
+-  if (/\.\.\.\s*$/.test(tagTail)) return { kind: "spread" };
+-  if (/\s$/.test(tagTail) && /^\s*(?:\/?>|[.?@:a-zA-Z_])/.test(right)) {
+-    return { kind: "spread" };
+-  }
+-
+-  return { kind: "child" };
+-}
+-
+-/** Checks a comment marker emitted for a dynamic child interpolation. */
+-export function isDynamicChildToken(value: string): boolean {
+-  return value.startsWith(PART_PREFIX);
+-}
+-
+-/** Checks an attribute value containing one or more dynamic markers. */
+-export function isDynamicAttributeToken(value: string): boolean {
+-  return value.includes(ATTRIBUTE_PREFIX);
+-}
+-
+-/** Parses marker-bearing attribute text into static segments and value indices. */
+-export function parseDynamicAttributeToken(
+-  value: string,
+-): { readonly strings: string[]; readonly indices: number[] } | null {
+-  const strings: string[] = [];
+-  const indices: number[] = [];
+-  let cursor = 0;
+-
+-  while (cursor < value.length) {
+-    const start = value.indexOf(ATTRIBUTE_PREFIX, cursor);
+-    if (start < 0) break;
+-    const end = value.indexOf(ATTRIBUTE_SUFFIX, start + ATTRIBUTE_PREFIX.length);
+-    if (end < 0) break;
+-
+-    const index = Number(
+-      value.slice(start + ATTRIBUTE_PREFIX.length, end),
+-    );
+-    if (Number.isNaN(index)) return null;
+-    strings.push(value.slice(cursor, start));
+-    indices.push(index);
+-    cursor = end + ATTRIBUTE_SUFFIX.length;
+-  }
+-
+-  if (indices.length === 0) return null;
+-  strings.push(value.slice(cursor));
+-  return { strings, indices };
+-}
+-
+-/** Checks whether an attribute name is a spread marker. */
+-export function isDynamicSpreadToken(name: string): boolean {
+-  return name.startsWith(SPREAD_PREFIX);
+-}
+-
+-/** Reads the interpolation index encoded in a spread marker. */
+-export function parseDynamicSpreadToken(name: string): number | null {
+-  if (!isDynamicSpreadToken(name)) return null;
+-  const index = Number(name.slice(SPREAD_PREFIX.length));
+-  return Number.isNaN(index) ? null : index;
+-}
+-
+-/** Checks property-binding syntax. */
+-export function isDynamicPropertyToken(name: string): boolean {
+-  return name.startsWith(".");
+-}
+-
+-/** Checks boolean-attribute binding syntax. */
+-export function isDynamicBooleanAttributeToken(name: string): boolean {
+-  return name.startsWith("?");
+-}
+-
+-/** Checks event-binding syntax. */
+-export function isEventAttributeToken(name: string): boolean {
+-  return name.startsWith("@");
+-}
+-
+-/** Checks conditional-class syntax. */
+-export function isDynamicClassToken(name: string): boolean {
+-  return name.startsWith("class:");
+-}
+-
+-function encodeDynamicComponentToken(
+-  tags: ReadonlySet<string>,
+-  tag: string,
+-): string {
+-  let index = 0;
+-  for (const item of tags) {
+-    if (item === tag) return `${COMPONENT_PREFIX}${index}:${tag}${COMPONENT_SUFFIX}`;
+-    index += 1;
+-  }
+-  return `${COMPONENT_PREFIX}-1:${tag}${COMPONENT_SUFFIX}`;
+-}
+-
+-/** Checks a rewritten component-placeholder token. */
+-export function isDynamicComponentToken(value: string): boolean {
+-  return value.startsWith(COMPONENT_PREFIX) && value.endsWith(COMPONENT_SUFFIX);
+-}
+-
+-/** Parses one rewritten component placeholder. */
+-export function parseDynamicComponentToken(
+-  value: string,
+-): {
+-  readonly componentIndex: number;
+-  readonly tag: string;
+-  readonly referenceIndex?: number;
+-} | null {
+-  if (!isDynamicComponentToken(value)) return null;
+-  const body = value.slice(COMPONENT_PREFIX.length, -COMPONENT_SUFFIX.length);
+-  const colon = body.indexOf(":");
+-  if (colon < 0) return null;
+-  const componentIndex = Number(body.slice(0, colon));
+-  if (Number.isNaN(componentIndex)) return null;
+-  return {
+-    componentIndex,
+-    tag: body.slice(colon + 1),
+-  };
+-}
+-
+-/** Parses a component prop token using the same attribute-marker representation. */
+-export function parseComponentPropToken(
+-  value: string,
+-): { readonly strings: string[]; readonly indices: number[] } | null {
+-  if (value.startsWith(COMPONENT_PROP_PREFIX) && value.endsWith(COMPONENT_PROP_SUFFIX)) {
+-    const index = Number(
+-      value.slice(COMPONENT_PROP_PREFIX.length, -COMPONENT_PROP_SUFFIX.length),
+-    );
+-    if (!Number.isNaN(index)) return { strings: ["", ""], indices: [index] };
+-  }
+-  return parseDynamicAttributeToken(value);
+-}
+-
+-/** Helper used by JSX transforms that need direct component references. */
+-export function createComponentReferenceMarker(index: number): string {
+-  return `${COMPONENT_PROP_PREFIX}${index}${COMPONENT_PROP_SUFFIX}`;
+-}
+-
+-/**
+- * Compiles marker-bearing DOM into stable path-addressed template parts.
+- *
+- * This stage runs only once per tagged-template callsite. The cached paths are
+- * later resolved against cheap `template.content.cloneNode(true)` clones.
+- */
+-export function compileParts(
+-  root: ParentNode,
+-  options: {
+-    componentTags?: ReadonlySet<string>;
+-    preserveSignalProps?: ReadonlyMap<string, ReadonlySet<string>>;
+-  } = {},
+-): TemplatePart[] {
+-  const parts: TemplatePart[] = [];
+-  const componentTags = options.componentTags ?? new Set<string>();
+-  const preserveSignalProps = options.preserveSignalProps ?? new Map<string, ReadonlySet<string>>();
+-
+-  const walk = (parent: ParentNode, path: number[]): void => {
+-    const children = Array.from(parent.childNodes);
+-
+-    for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
+-      const child = children[childIndex]!;
+-      const childPath = path.concat(childIndex);
+-
+-      if (child.nodeType === Node.COMMENT_NODE) {
+-        const comment = child as Comment;
+-        if (isDynamicChildToken(comment.data)) {
+-          const index = Number(comment.data.slice(PART_PREFIX.length));
+-          if (!Number.isNaN(index)) {
+-            parts.push({ type: "child", path: childPath, index });
+-          }
+-        }
+-        continue;
+-      }
+-
+-      if (child.nodeType !== Node.ELEMENT_NODE) continue;
+-
+-      const element = child as Element;
+-      const componentToken = element.getAttribute("data-fabrica-component");
+-      const component = componentToken
+-        ? parseDynamicComponentToken(componentToken)
+-        : null;
+-
+-      if (component) {
+-        parts.push({
+-          type: "component",
+-          path: childPath,
+-          componentIndex: component.componentIndex,
+-          tag: component.tag,
+-          referenceIndex: component.referenceIndex,
+-          staticProps: Array.from(element.attributes)
+-            .filter((attribute) => attribute.name !== "data-fabrica-component")
+-            .map((attribute) => ({
+-              name: attribute.name,
+-              value: attribute.value,
+-            })),
+-        });
+-
+-        for (const attribute of Array.from(element.attributes)) {
+-          if (attribute.name === "data-fabrica-component") continue;
+-
+-          const spreadIndex = parseDynamicSpreadToken(attribute.name);
+-          if (spreadIndex != null) {
+-            parts.push({
+-              type: "componentProp",
+-              componentIndex: component.componentIndex,
+-              spread: true,
+-              index: spreadIndex,
+-            });
+-            element.removeAttribute(attribute.name);
+-            continue;
+-          }
+-
+-          const parsed = parseComponentPropToken(attribute.value);
+-          if (!parsed) continue;
+-
+-          const raw =
+-            parsed.indices.length === 1 &&
+-            parsed.strings.every((item) => item === "");
+-          parts.push({
+-            type: "componentProp",
+-            componentIndex: component.componentIndex,
+-            name: attribute.name,
+-            indices: parsed.indices,
+-            strings: parsed.strings,
+-            raw,
+-            preserveSignal:
+-              raw && preserveSignalProps.get(component.tag)?.has(attribute.name),
+-            preserveSignalProps: preserveSignalProps.get(component.tag)
+-              ? Array.from(preserveSignalProps.get(component.tag)!)
+-              : undefined,
+-          });
+-          element.removeAttribute(attribute.name);
+-        }
+-
+-        walk(element, childPath);
+-        continue;
+-      }
+-
+-      for (const attribute of Array.from(element.attributes)) {
+-        const { name, value } = attribute;
+-
+-        if (isDynamicSpreadToken(name)) {
+-          const index = parseDynamicSpreadToken(name);
+-          if (index != null) {
+-            parts.push({ type: "spread", path: childPath, index });
+-          }
+-          element.removeAttribute(name);
+-          continue;
+-        }
+-
+-        if (isDynamicAttributeToken(value)) {
+-          const parsed = parseDynamicAttributeToken(value);
+-          if (!parsed) continue;
+-          const raw =
+-            parsed.indices.length === 1 &&
+-            parsed.strings.every((item) => item === "");
+-          parts.push({
+-            type: "attribute",
+-            path: childPath,
+-            name,
+-            index: parsed.indices[0] ?? -1,
+-            indices: parsed.indices,
+-            strings: parsed.strings,
+-            raw,
+-          });
+-          element.removeAttribute(name);
+-          continue;
+-        }
+-
+-        if (isDynamicPropertyToken(name)) {
+-          const index = Number(value);
+-          if (!Number.isNaN(index)) {
+-            parts.push({
+-              type: "property",
+-              path: childPath,
+-              name: name.slice(1),
+-              index,
+-            });
+-          }
+-          element.removeAttribute(name);
+-          continue;
+-        }
+-
+-        if (isDynamicBooleanAttributeToken(name)) {
+-          const index = Number(value);
+-          if (!Number.isNaN(index)) {
+-            parts.push({
+-              type: "booleanAttribute",
+-              path: childPath,
+-              name: name.slice(1),
+-              index,
+-            });
+-          }
+-          element.removeAttribute(name);
+-          continue;
+-        }
+-
+-        if (isDynamicClassToken(name)) {
+-          const index = Number(value);
+-          if (!Number.isNaN(index)) {
+-            parts.push({
+-              type: "conditionalClass",
+-              path: childPath,
+-              name: name.slice("class:".length),
+-              index,
+-            });
+-          }
+-          element.removeAttribute(name);
+-          continue;
+-        }
+-
+-        if (isEventAttributeToken(name)) {
+-          const index = Number(value);
+-          if (!Number.isNaN(index)) {
+-            parts.push({
+-              type: "event",
+-              path: childPath,
+-              name: extractEventName(name),
+-              index,
+-            });
+-          }
+-          element.removeAttribute(name);
+-        }
+-      }
+-
+-      walk(element, childPath);
+-    }
+-  };
+-
+-  walk(root, []);
+-  return parts;
+-}
+-
+-/** Returns a compiled template, compiling it only on the first use. */
+-export function getCompiledTemplate(
+-  strings: TemplateStringsArray,
+-  values: readonly RenderValue[] = [],
+-): CompiledTemplate {
+-  let compiled = templateCache.get(strings);
+-
+-  if (!compiled) {
+-    const source = prepareSource(strings);
+-    const template = document.createElement("template");
+-    template.innerHTML = source;
+-    compiled = finalizeCompiledTemplate(template, compileParts(template.content));
+-    templateCache.set(strings, compiled);
+-  }
+-
+-  return compiled;
+-}
+-
+-/** Returns a compiled JSX-friendly template. */
+-export function getCompiledJsxTemplate(
+-  strings: TemplateStringsArray,
+-  values: readonly RenderValue[] = [],
+-): CompiledTemplate {
+-  let compiled = jsxTemplateCache.get(strings);
+-
+-  if (!compiled) {
+-    const prepared = prepareJsxSource(strings);
+-    const template = document.createElement("template");
+-    template.innerHTML = prepared.source;
+-    const parts = compileParts(template.content, {
+-      componentTags: prepared.componentTags,
+-      preserveSignalProps: prepared.preserveSignalProps,
+-    });
+-    compiled = finalizeCompiledTemplate(template, parts);
+-    jsxTemplateCache.set(strings, compiled);
+-  }
+-
+-  return compiled;
+-}
+-
+-function finalizeCompiledTemplate(
+-  template: HTMLTemplateElement,
+-  parts: readonly TemplatePart[],
+-): CompiledTemplate {
+-  const orderedParts = parts.slice().sort((a, b) => {
+-    const aIndex = "componentIndex" in a ? a.componentIndex : -1;
+-    const bIndex = "componentIndex" in b ? b.componentIndex : -1;
+-
+-    if (a.type === "component" && b.type === "componentProp" && a.componentIndex === bIndex) {
+-      return -1;
+-    }
+-
+-    if (b.type === "component" && a.type === "componentProp" && b.componentIndex === aIndex) {
+-      return 1;
+-    }
+-
+-    return 0;
+-  });
+-
+-  return {
+-    template,
+-    parts,
+-    orderedParts,
+-    hasComponents: orderedParts.some((part) => part.type === "component"),
+-  };
+-}
+-
+-/** Resolves a cached child-node path in a clone. */
+-export function resolvePath(
+-  root: ParentNode,
+-  path: readonly number[],
+-): Node | null {
+-  let current: Node = root as Node;
+-
+-  for (const index of path) {
+-    current = current.childNodes[index] as Node;
+-    if (!current) return null;
+-  }
+-
+-  return current;
+-}
