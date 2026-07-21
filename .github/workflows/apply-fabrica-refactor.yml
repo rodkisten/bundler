@@ -29,6 +29,9 @@ jobs:
           cat .fabrica-refactor/plain-*.patch \
             > /tmp/fabrica-refactor.patch
 
+          echo "3687fa19a4a01d57009c5c3cc42029d1aac7b7d04198c6cb001ed494c4f42de1  /tmp/fabrica-refactor.patch" \
+            | sha256sum -c -
+
           git fetch origin main
           git reset --hard origin/main
           git apply --index --whitespace=nowarn /tmp/fabrica-refactor.patch
@@ -36,5 +39,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "refactor: rebuild Fábrica runtime and compiler architecture"
-          git push --force-with-lease \
+          git push --force \
             origin HEAD:refs/heads/agent/fabrica-compiler-structural-refactor
