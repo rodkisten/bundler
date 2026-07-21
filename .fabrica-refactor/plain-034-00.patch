@@ -1,0 +1,254 @@
+ontent when its key changes. */
++export type KeyedDirective = Directive & {
++  readonly kind: "keyed";
++  key:
++    | unknown
++    | Signal<unknown>
++    | ReactiveExpression<unknown>;
++  render: () => RenderValue;
++};
++
++/** Event handler object with explicit listener options. */
++export type EventOptionsDirective = Directive & {
++  readonly kind: "eventOptions";
++  handler: EventListener;
++  options: AddEventListenerOptions;
++};
++
++/** Keyed repeat directive. */
++export type RepeatDirective<
++  Item,
++  Key extends PropertyKey,
++> = Directive & {
++  readonly kind: "repeat";
++  items:
++    | readonly Item[]
++    | Signal<readonly Item[]>
++    | ReactiveExpression<readonly Item[]>;
++  key: (item: Item, index: number) => Key;
++  render: (context: RepeatContext<Item, Key>) => RenderValue;
++  empty?: () => RenderValue;
++  strategy?: "keyed" | "append-only" | "indexed";
++};
++
++/** Per-item context passed to keyed repeat renderers. */
++export type RepeatContext<
++  Item,
++  Key extends PropertyKey,
++> = {
++  item: Signal<Item>;
++  index: Signal<number>;
++  key: Signal<Key>;
++};
++
++/** Repeat options. */
++export type RepeatOptions = {
++  empty?: () => RenderValue;
++  strategy?: "keyed" | "append-only" | "indexed";
++};
++
++/** Virtual repeat options for large lists. */
++export type VirtualRepeatOptions = RepeatOptions & {
++  itemHeight?: number;
++  overscan?: number;
++  height?: number | string;
++};
++
++/** Element ref callback whose return value becomes owned cleanup. */
++export type RefCallback<T extends Element = Element> = (
++  node: T,
++) => void | Cleanup;
++
++/** Mutable object ref populated on mount and reset on disposal. */
++export type RefObject<T extends Element = Element> = {
++  current: T | null;
++};
++
++/** Every ref shape accepted by native and component attributes. */
++export type RefValue<T extends Element = Element> =
++  | RefCallback<T>
++  | RefObject<T>
++  | RefDirective<T>
++  | null
++  | undefined;
++
++export type RefDirective<T extends Element = Element> = Directive & {
++  readonly kind: "ref";
++  callback: RefCallback<T>;
++};
++
++/** Class map directive. */
++export type ClassMapDirective = Directive & {
++  readonly kind: "classMap";
++  value: Record<string, unknown>;
++};
++
++/** Style map directive. */
++export type StyleMapDirective = Directive & {
++  readonly kind: "styleMap";
++  value: Record<string, unknown>;
++};
++
++/** Keyed repeat with viewport windowing. */
++export type VirtualRepeatDirective<
++  Item,
++  Key extends PropertyKey,
++> = Directive & {
++  readonly kind: "virtualRepeat";
++  items:
++    | readonly Item[]
++    | Signal<readonly Item[]>
++    | ReactiveExpression<readonly Item[]>;
++  key: (item: Item, index: number) => Key;
++  render: (context: RepeatContext<Item, Key>) => RenderValue;
++  empty?: () => RenderValue;
++  itemHeight: number;
++  overscan: number;
++  height: number | string;
++};
++
++/** All supported map directives. */
++export type MapDirective =
++  | ClassMapDirective
++  | StyleMapDirective;
++
++/** Directive controller mounted inside one child part. */
++export type DirectiveController = {
++  kind: string;
++  update(directive: Directive): void;
++  dispose(): void;
++};
++
++/** One keyed repeat DOM record. */
++export type RepeatRecord = {
++  item: Signal<unknown>;
++  index: Signal<number>;
++  key: Signal<PropertyKey>;
++  start: Comment;
++  end: Comment;
++  fragment: DocumentFragment | null;
++  version?: number;
++  order?: number;
++};
+diff --git a/fabrica/types/dom.ts b/fabrica/types/dom.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..e4a26063f84bca664d1bdfbacc15b32e66212692
+--- /dev/null
++++ b/fabrica/types/dom.ts
+@@ -0,0 +1,56 @@
++import type { Cleanup } from "@rodkisten/broto/types";
++import type { RenderValue } from "./render.js";
++
++/** DOM bag options. */
++export type DomBagOptions = {
++  shadow: boolean;
++  important: boolean;
++};
++
++/** Callable fluent DOM bag. */
++export type DomBag = ((
++  props?: Record<string, unknown>,
++) => DomBag) & {
++  readonly $$fabricaBag: true;
++  readonly elements: Element[];
++  readonly el: Element | null;
++  readonly count: number;
++  readonly size: number;
++  readonly length: number;
++  readonly shadow: DomBag;
++  readonly important: DomBag;
++  html(
++    strings: TemplateStringsArray,
++    ...values: RenderValue[]
++  ): DomBag;
++  mount(value: RenderValue): Cleanup;
++  css(input: CssInput, ...values: unknown[]): DomBag;
++  appendTo(parent: ParentNode): DomBag;
++  prependTo(parent: ParentNode): DomBag;
++  remove(): DomBag;
++  dispose(): DomBag;
++};
++
++/** CSS input accepted by CSS helpers. */
++export type CssInput =
++  | TemplateStringsArray
++  | string
++  | Record<string, unknown>;
++
++/** Mutable runtime config used by install and DOM bag helpers. */
++export type RuntimeConfig = {
++  exposeDollar: boolean;
++  exposeDollarEl: boolean;
++  dollarAlias: string;
++  forceAlias: boolean;
++  createWhenSelectorMisses: boolean;
++};
++
++/** Global installation options. */
++export type InstallOptions = {
++  exposeDollar?: boolean;
++  exposeDollarEl?: boolean;
++  dollarAlias?: string;
++  forceAlias?: boolean;
++  createWhenSelectorMisses?: boolean;
++};
+diff --git a/fabrica/types/events.ts b/fabrica/types/events.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d036b467838b5b99a02b156759bc7607e0b98a83
+--- /dev/null
++++ b/fabrica/types/events.ts
+@@ -0,0 +1,11 @@
++/** Event modifiers parsed from `@click.prevent.passive` syntax. */
++export type EventBindingConfig = {
++  name: string;
++  prevent: boolean;
++  stop: boolean;
++  /** Explicit `.delegate` preference. */
++  delegate: boolean;
++  /** Explicit `.direct` opt-out from automatic delegation. */
++  direct: boolean;
++  options: AddEventListenerOptions;
++};
+diff --git a/fabrica/types/render.ts b/fabrica/types/render.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..cbbbb5afda362c1fae3127f656bbb362c612ef67
+--- /dev/null
++++ b/fabrica/types/render.ts
+@@ -0,0 +1,92 @@
++import type {
++  Cleanup,
++  ReactiveExpression,
++  Signal,
++} from "@rodkisten/broto/types";
++import type {
++  Component,
++  ComponentPayload,
++  ComponentRenderRequest,
++  ElementPayload,
++} from "./components.js";
++import type {
++  Directive,
++  RefValue,
++} from "./directives.js";
++import type { DomBag } from "./dom.js";
++
++/** Symbol attached non-enumerably to materialized Fábrica template results. */
++export const FABRICA_HTML_ARTIFACT = Symbol.for(
++  "rod.fabrica.html.artifact",
++);
++
++/** Re-materializable metadata carried by every `html``...`` result. */
++export type HtmlArtifact = {
++  readonly kind: "fabrica.html";
++  readonly strings: readonly string[];
++  readonly values: readonly RenderValue[];
++  readonly jsx: boolean;
++  materialize(): HtmlResult;
++};
++
++/** A real DOM node that carries its template artifact through a symbol. */
++export type HtmlResult = Node & {
++  readonly [FABRICA_HTML_ARTIFACT]: HtmlArtifact;
++};
++
++/** Callable tagged-template function shared by `html` and `jsx.html`. */
