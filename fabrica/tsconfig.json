@@ -2,9 +2,12 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": ".",
     "types": [],
-    "paths": {},
+    "paths": {
+      "@rodkisten/cipo/runtime-inline": [
+        "../cipo/runtime-inline.ts"
+      ]
+    },
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
