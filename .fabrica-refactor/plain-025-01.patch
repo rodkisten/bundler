@@ -1,0 +1,24 @@
+diff --git a/cipo/src/compiler/source.ts b/cipo/src/compiler/source.ts
+index 83acd92311881ef0542e0a52ff6ccdc5a75dc592..5eb16922c9528546f1094870b68406583e2a7d55 100644
+--- a/cipo/src/compiler/source.ts
++++ b/cipo/src/compiler/source.ts
+@@ -466,6 +466,7 @@ function createEditAnchors(
+   sourceResult: FabricaCompileSourceResult,
+ ): readonly SourceMapAnchor[] {
+   const anchors: SourceMapAnchor[] = [];
++  const generatedSearchFrom = 0;
+ 
+   for (const entry of sourceResult.manifest) {
+     const originalText = source.slice(entry.start, entry.end);
+@@ -476,7 +477,10 @@ function createEditAnchors(
+       entry,
+     );
+     if (!candidate) continue;
+-    const generatedOffset = generated.indexOf(candidate);
++    const generatedOffset = generated.indexOf(
++      candidate,
++      generatedSearchFrom,
++    );
+     if (generatedOffset < 0) continue;
+     anchors.push({
+       generatedOffset,
