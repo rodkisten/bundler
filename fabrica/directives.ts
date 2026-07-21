@@ -17,7 +17,7 @@ import type {
   BindDirective,
   KeyedDirective,
   EventOptionsDirective,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";
 
 /**
  * Creates a conditional rendering directive.
