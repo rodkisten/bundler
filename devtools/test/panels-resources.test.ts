@@ -5,6 +5,17 @@ import { Resources } from "@rodkisten/devtools/panels/resources";
 import type { SourcePayload, ToolContext } from "@rodkisten/devtools/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+function mockResourceEntries(): ReturnType<typeof vi.fn> {
+  const mock = vi.fn(() => []);
+
+  Object.defineProperty(performance, "getEntriesByType", {
+    configurable: true,
+    value: mock,
+  });
+
+  return mock;
+}
+
 function createFixture(): {
   tool: Resources;
   container: HTMLElement;
@@ -80,7 +91,7 @@ describe("Resources panel", () => {
   });
 
   it("defers page-wide resource discovery until the panel becomes active", () => {
-    const resourceEntries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
+    const resourceEntries = mockResourceEntries();
     const fixture = createFixture();
     tool = fixture.tool;
     disposeView = fixture.disposeView;
@@ -100,7 +111,7 @@ describe("Resources panel", () => {
 
   it("ignores unrelated page mutations and refreshes only for resource changes", async () => {
     vi.useFakeTimers();
-    const resourceEntries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
+    const resourceEntries = mockResourceEntries();
     const fixture = createFixture();
     tool = fixture.tool;
     disposeView = fixture.disposeView;
