@@ -6,7 +6,7 @@ on:
       zip_path:
         description: "Path to a .zip file inside ./zip"
         required: true
-        default: "zip/patch.zip"
+        #default: "zip/patch.zip"
         type: string
 
       root_mode:
