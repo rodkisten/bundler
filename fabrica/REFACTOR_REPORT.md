@@ -1,0 +1,417 @@
+# Fábrica Structural Refactor Report
+
+This report records the structural runtime/compiler refactor applied to the
+Fábrica snapshot. It is intended to make the migration reviewable rather than
+leaving architecture changes implicit in a large diff.
+
+## Scope
+
+The refactor covered:
+
+- runtime architecture and dependency direction;
+- interpreted/compiled DOM semantic parity;
+- compiler source discovery and lowering;
+- package entrypoints and browser side effects;
+- installation and `noConflict()` lifecycle;
+- template, directive, and renderer decomposition;
+- spread, ref, special-attribute, and object-prop ownership;
+- compiler/runtime cache policy;
+- source maps in the Cipó build integration;
+- test coverage for the corrected contracts;
+- README, changelog, architecture, and compiler documentation.
+
+The implementation reuses the existing algorithms and behavior where they are
+sound. The main strategy was to move canonical behavior into shared primitives
+and delete parallel implementations rather than rewrite working subsystems from
+scratch.
+
+## Core invariants established
+
+1. Interpreted and compiled templates share one observable DOM semantics.
+2. Runtime code does not import source compiler entrypoints.
+3. Generated code depends on the browser-safe compiler runtime only.
+4. Refs, spreads, events, properties, attributes, and special bindings have one
+   canonical lifecycle implementation.
+5. Runtime imports are acyclic.
+6. Public package subpaths are explicit.
+7. Process-lifetime caches are weak or bounded.
+8. Unsupported compiler shapes may deopt; unexpected failures are not swallowed.
+9. Fábrica does not claim SSR hydration until identity-preserving hydration
+   actually exists.
+
+## Structural metrics
+
+Compared with the supplied snapshot:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Production TypeScript files | 44 | 85 |
+| Production TypeScript lines | 11,239 | 12,809 |
+| Test files | 18 | 22 |
+| `it()` / `test()` calls | 150 | 179 |
+| Removed legacy top-level files | 0 | 20 |
+| Runtime import cycles | present | 0 |
+
+The production line count increased because compiler correctness, lifecycle
+state, testable boundaries, and compatibility facades are now explicit. The
+large modules were decomposed rather than mechanically shortened by moving
+complexity into anonymous helpers.
+
+## Deleted files
+
+The following 20 files from the supplied snapshot were deleted:
+
+1. `fabrica/compiler-constants.ts`
+2. `fabrica/compiler-core.ts`
+3. `fabrica/compiler-parse.ts`
+4. `fabrica/compiler-runtime-element.ts`
+5. `fabrica/compiler-runtime-entities.ts`
+6. `fabrica/compiler-runtime-hydrate.ts`
+7. `fabrica/compiler-runtime-types.ts`
+8. `fabrica/compiler-utils.ts`
+9. `fabrica/constants.ts`
+10. `fabrica/dom-cleanup.ts`
+11. `fabrica/dom-directives.ts`
+12. `fabrica/dom-payload.ts`
+13. `fabrica/dom-special-attributes.ts`
+14. `fabrica/dom-spread.ts`
+15. `fabrica/dom.ts`
+16. `fabrica/maps.ts`
+17. `fabrica/props.ts`
+18. `fabrica/runtime-context.ts`
+19. `fabrica/template.ts`
+20. `fabrica/value.ts`
+
+These files were not discarded wholesale. Their useful implementation was moved
+or split into focused modules as described below.
+
+## Reused and relocated implementation
+
+| Deleted source | Canonical replacement |
+| --- | --- |
+| `compiler-constants.ts` | `compiler/constants.ts` |
+| `compiler-core.ts` | `compiler/transform.ts`, `ast.ts`, `bindings.ts`, `imports.ts`, `serialize.ts` |
+| `compiler-parse.ts` | `compiler/html-parser.ts` |
+| `compiler-runtime-element.ts` | `compiler/runtime/element.ts` |
+| `compiler-runtime-entities.ts` | `compiler/runtime/entities.ts` |
+| `compiler-runtime-hydrate.ts` | `compiler/runtime/materialize.ts` |
+| `compiler-runtime-types.ts` | `compiler/runtime/types.ts` |
+| `compiler-utils.ts` | `compiler/utils.ts` |
+| `constants.ts` | `core/constants.ts` |
+| `dom-cleanup.ts` | `render/cleanup.ts` |
+| `dom-directives.ts` | `directives/runtime.ts`, `host.ts`, `model.ts`, `repeat.ts`, `controllers/*` |
+| `dom-payload.ts` | `render/payload.ts` |
+| `dom-special-attributes.ts` | `bindings/special.ts` |
+| `dom-spread.ts` | `bindings/spread.ts` |
+| `dom.ts` | `render/dom.ts`, `root.ts`, `value.ts`, `template-runtime.ts`, `component-part.ts`, `deferred.ts`, `html-result.ts` |
+| `maps.ts` | `bindings/maps.ts` |
+| `props.ts` | `bindings/props.ts` |
+| `runtime-context.ts` | `core/runtime-context.ts` |
+| `template.ts` | `template/cache.ts`, `source.ts`, `parts.ts`, `index.ts` |
+| `value.ts` | `core/value.ts` |
+
+## New architecture modules
+
+### Public API
+
+- `api/factory.ts`
+- `api/types.ts`
+- `api/instance-store.ts`
+- `api/packs.ts`
+- `api/dollar.ts`
+
+`public-api.ts` remains as a thin compatibility facade instead of being an
+implementation hub.
+
+### Shared DOM binding kernel
+
+- `bindings/attribute.ts`
+- `bindings/component-props.ts`
+- `bindings/interpolation.ts`
+- `bindings/maps.ts`
+- `bindings/property-or-attribute.ts`
+- `bindings/props.ts`
+- `bindings/ref.ts`
+- `bindings/serialize.ts`
+- `bindings/special.ts`
+- `bindings/spread.ts`
+
+This is the central convergence point for interpreted templates, compiled
+templates, payloads, object props, and spreads.
+
+### Renderer
+
+- `render/root.ts`
+- `render/value.ts`
+- `render/template-runtime.ts`
+- `render/component-part.ts`
+- `render/deferred.ts`
+- `render/html-result.ts`
+- `render/payload.ts`
+- `render/cleanup.ts`
+- `render/dom.ts`
+
+### Template planning
+
+- `template/cache.ts`
+- `template/source.ts`
+- `template/parts.ts`
+- `template/index.ts`
+
+### Directives
+
+- `directives/runtime.ts`
+- `directives/host.ts`
+- `directives/model.ts`
+- `directives/repeat.ts`
+- `directives/controllers/when.ts`
+- `directives/controllers/keyed.ts`
+- `directives/controllers/repeat.ts`
+- `directives/controllers/virtual-repeat.ts`
+- `directives/controllers/portal.ts`
+- `directives/controllers/suspense.ts`
+
+### Compiler
+
+- `compiler/ast.ts`
+- `compiler/bindings.ts`
+- `compiler/imports.ts`
+- `compiler/serialize.ts`
+- `compiler/transform.ts`
+- `compiler/html-parser.ts`
+- `compiler/constants.ts`
+- `compiler/utils.ts`
+- `compiler/runtime/element.ts`
+- `compiler/runtime/entities.ts`
+- `compiler/runtime/index.ts`
+- `compiler/runtime/materialize.ts`
+- `compiler/runtime/types.ts`
+
+### Domain types
+
+- `types/components.ts`
+- `types/debug.ts`
+- `types/directives.ts`
+- `types/dom.ts`
+- `types/events.ts`
+- `types/render.ts`
+- `types/template.ts`
+
+`types.ts` remains the public type barrel.
+
+## Compiler rewrite
+
+The old textual tagged-template scanner was replaced with a TypeScript AST
+pipeline.
+
+The new compiler:
+
+- resolves direct and aliased Fábrica template imports;
+- respects lexical shadowing;
+- leaves unrelated `html` tags untouched;
+- recursively lowers nested Fábrica templates;
+- preserves shebangs and directive prologues such as `"use client"`;
+- allocates collision-free compiler helper bindings;
+- validates direct component references against visible value bindings;
+- avoids `getSymbolsInScope()` so virtual and partially resolved files remain
+  deterministic;
+- uses quote-aware HTML tag scanning;
+- emits browser code against `@rodkisten/fabrica/compiler-runtime` only.
+
+The former large transform implementation is now a small orchestrator over AST,
+binding, import, parser, and serialization phases.
+
+## Runtime/compiler parity fixes
+
+The compiled runtime now preserves the canonical runtime behavior for:
+
+- reactive plain attributes;
+- reactive `.property` bindings;
+- reactive `?boolean` bindings;
+- reactive `class:*` bindings;
+- stateful spreads;
+- nested `attrs` and `dataset` removal;
+- event ownership;
+- callback ref cleanup;
+- object ref reset to `null`;
+- special attributes and their prior-state cleanup.
+
+The compiled path no longer implements an independent prop language.
+
+## Root rendering and hydration contract
+
+The previous `hydrate()` function was removed because it did not hydrate server
+DOM. It appended a second client-owned range while retaining existing children.
+
+That existing behavior is now named explicitly:
+
+```ts
+mountPreservingChildren(container, value);
+```
+
+Real SSR hydration is intentionally deferred until the runtime has a server
+marker protocol and can attach parts while preserving node identity.
+
+## Spread and prop lifecycle
+
+Spread reconciliation now owns nested state for:
+
+- attributes;
+- dataset entries;
+- events;
+- refs;
+- special attributes.
+
+Removing an outer spread key therefore cleans up the state created by the prior
+nested object instead of removing a meaningless top-level attribute name.
+
+`applyProps()` keeps weak per-element reconciliation state for class maps, style
+maps, and special attributes. Raw HTML assignment requires an explicit
+`RawHtml` wrapper rather than accepting an arbitrary string through an innocent
+`html` key.
+
+## Global installation
+
+The installation lifecycle now:
+
+- captures previous globals at installation time;
+- tracks custom aliases;
+- supports nested LIFO installs;
+- restores only globals still owned by the installation;
+- does not overwrite globals subsequently taken by another library;
+- resets install options from defaults between installs;
+- keeps root/runtime imports side-effect free.
+
+Legacy browser-global installation lives behind:
+
+```txt
+@rodkisten/fabrica/browser
+```
+
+## Package boundaries
+
+The public package surface is now explicit:
+
+```txt
+@rodkisten/fabrica
+@rodkisten/fabrica/runtime
+@rodkisten/fabrica/browser
+@rodkisten/fabrica/compiler
+@rodkisten/fabrica/compiler-runtime
+```
+
+Wildcard subpath exports were removed. The Fábrica build emits to `dist/` rather
+than writing JavaScript and declaration artifacts beside TypeScript source.
+
+The runtime no longer imports `@rodkisten/cipo/compiler`. A new runtime-safe
+Cipó boundary was added:
+
+```txt
+@rodkisten/cipo/runtime-inline
+```
+
+Only one new Cipó file was added by this refactor: `cipo/runtime-inline.ts`.
+Existing Cipó package metadata, source maps, tests, and Vite integration were
+updated in place.
+
+## Source maps
+
+The Cipó/Fábrica build transform now uses a transform-aware source map with line
+and column anchors instead of mapping every generated line only to column zero.
+The previous line-map helper remains available for compatible consumers.
+
+## Added tests
+
+New test files:
+
+- `test/fabrica.compiler-ast.test.ts`
+- `test/fabrica.compiler-parity.test.ts`
+- `test/fabrica.install.test.ts`
+- `test/fabrica.props.test.ts`
+
+Coverage added for:
+
+- runtime/compiler reactive attribute parity;
+- reactive properties and booleans;
+- conditional classes;
+- spread updates and stale nested removal;
+- callback and object ref lifecycle;
+- `"use client"` and shebang preservation;
+- aliased and shadowed template bindings;
+- unrelated `html` tags;
+- nested templates;
+- regex/comments inside interpolation expressions;
+- quoted `>` HTML attributes;
+- helper binding collisions;
+- direct component references;
+- custom global aliases and nested installs;
+- external global takeover;
+- install configuration reset;
+- class/style object-prop reconciliation;
+- explicit raw HTML sinks.
+
+Several existing tests were also migrated away from private package subpath
+imports so the new explicit package export policy can remain enforceable.
+
+## Removed dead or redundant code
+
+The refactor removed unused or superseded symbols including:
+
+- `countTemplateValues`;
+- `isRegisteredComponentName`;
+- `RegisteredComponent`;
+- `getActiveFabricaRuntime`;
+- redundant CSS/renderable payload guard types and functions;
+- dead repeat fast-path parameters;
+- two dead Cipó helpers reached by the new runtime boundary audit.
+
+The larger reduction is architectural: duplicated ref, spread, prop, and special
+attribute semantics were replaced by the shared binding kernel.
+
+## Validation performed
+
+The available environment does not match the repository toolchain exactly:
+
+- available Node: `22.16.0`;
+- repository requirement: Node `>=24`;
+- available npm: `10.9.2`;
+- repository requirement: pnpm `>=11.7`;
+- the supplied ZIP does not contain installed workspace dependencies.
+
+In addition, `npm ci` cannot bootstrap this snapshot because the supplied root
+`package.json` and `package-lock.json` are already out of sync.
+
+Within those constraints, the refactor was validated with:
+
+- a production TypeScript check over Fábrica, Broto, and the reachable
+  runtime-safe Cipó boundary, including `noUnusedLocals` and
+  `noUnusedParameters`;
+- focused TypeScript checks for the new and directly affected regression tests;
+- executable compiler-transform checks for directives, shebangs, helper
+  collisions, unrelated tags, shadowing, aliases, nested templates,
+  regex/comments, quoted `>` attributes, and direct component references;
+- executable source-map checks for column anchors and generated helper lines;
+- static import-resolution checks;
+- runtime import-cycle analysis;
+- comparison against the original supplied ZIP to detect accidental generated
+  artifacts.
+
+The complete repository Vitest suite and official package build still need to be
+run under the repository's declared Node 24 + pnpm workspace environment before
+release. The limitation is environmental and is intentionally not represented as
+if a full green CI run had occurred.
+
+## Review guidance
+
+The highest-value review areas are:
+
+1. `bindings/` as the new semantic kernel;
+2. `compiler/` AST binding/import resolution;
+3. `compiler/runtime/` parity with interpreted rendering;
+4. `install.ts` global ownership behavior;
+5. directive renderer-host injection;
+6. explicit package exports and downstream consumer imports.
+
+Future feature work should resist adding shortcuts around these boundaries. The
+purpose of this refactor is not merely smaller files; it is to make semantic
+drift structurally difficult.
