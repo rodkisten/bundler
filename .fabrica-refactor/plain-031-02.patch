@@ -1,0 +1,49 @@
+diff --git a/fabrica/tsconfig.json b/fabrica/tsconfig.json
+index 6bd15f73df108f3a72f42c6616815ac543b101ba..fd731a149aa617fcb12cbb54277a20fc03bd9300 100644
+--- a/fabrica/tsconfig.json
++++ b/fabrica/tsconfig.json
+@@ -2,7 +2,12 @@
+   "extends": "../tsconfig.base.json",
+   "compilerOptions": {
+     "noEmit": true,
+-    "rootDir": "."
++    "rootDir": ".",
++    "types": [],
++    "paths": {},
++    "noUnusedLocals": true,
++    "noUnusedParameters": true,
++    "noFallthroughCasesInSwitch": true
+   },
+   "include": [
+     "./**/*.ts",
+diff --git a/fabrica/types.ts b/fabrica/types.ts
+index 8d00669724e608331d4c6babad47701cc1aced82..c722c48303eaf792010e1abe8fca50e8d86621a5 100644
+--- a/fabrica/types.ts
++++ b/fabrica/types.ts
+@@ -1,616 +1,25 @@
+-import type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveContextToken, ReactiveExpression, Signal } from "@rodkisten/broto/types";
+-export type { Cleanup, CleanupRegistrar, ContextToken, Owner, ReactiveContextToken, ReactiveExpression, Signal } from "@rodkisten/broto/types";
+-
+ /**
+- * Shared public and internal types used by FabricaDOM.
++ * Stable public type barrel.
+  *
+- * @remarks
+- * This file is intentionally boring and explicit. The runtime is small, but the
+- * type surface is the contract people will build on top of. Keeping the shapes
+- * here avoids circular imports and keeps each implementation file focused on one
+- * job instead of becoming a kitchen drawer.
++ * Domain contracts live under `./types/` so renderer, compiler, directives,
++ * component registries, and global installation code can depend on focused
++ * definitions without turning this public compatibility module into a runtime
++ * dependency hub.
+  */
+-
+-
+-/** Symbol used to attach non-enumerable template metadata to materialized DOM nodes. */
+-export const FABRICA_HTML_ARTIFACT = Symbol.for("rod.fabrica.html.artifact");
+-
+-/** Re-materializable metadata carried by every `html``...`` result. */
+-export type HtmlArtifact = {
+-  readonly kind: "fabrica.html";
+-  readonly strings: readonly string[];
