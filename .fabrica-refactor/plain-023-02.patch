@@ -1,0 +1,536 @@
+diff --git a/fabrica/render/value.ts b/fabrica/render/value.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..8fd06ab28658b833c2fceaa957a5fb04e3299f15
+--- /dev/null
++++ b/fabrica/render/value.ts
+@@ -0,0 +1,313 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { PART_END, PART_START } from "../core/constants.js";
++import { materializeComponent } from "../component.js";
++import { createDirectiveController } from "../directives/runtime.js";
++import {
++  transferDelegatedEventRoot,
++} from "../events.js";
++import {
++  isComponent,
++  isComponentRenderRequest,
++  isDirective,
++  isDomBag,
++  isDomNode,
++  isRawHtml,
++  isSignal,
++} from "../guards.js";
++import {
++  getCurrentFabricaRuntime,
++} from "../core/runtime-context.js";
++import { readValue } from "../core/value.js";
++import {
++  clearRange,
++  disposeTree,
++  registerCleanup,
++} from "./cleanup.js";
++import {
++  activateDeferredComponentChildren,
++} from "./deferred.js";
++import { isHtmlResult } from "./html-result.js";
++import {
++  isComponentPayload,
++  isElementPayload,
++  materializeComponentPayload,
++  materializeElementPayload,
++} from "./payload.js";
++import type {
++  ComponentPayload,
++  DirectiveController,
++  ElementPayload,
++  RenderValue,
++} from "../types.js";
++
++const RAW_HTML_TEMPLATE_CACHE_LIMIT = 128;
++const rawHtmlTemplateCache = new Map<string, HTMLTemplateElement>();
++
++/** Appends one render value to a node. */
++export function appendValue(
++  parentNode: Node | null,
++  value: RenderValue,
++  beforeNode: Node | null = null,
++): void {
++  if (!parentNode) return;
++
++  if (value == null || value === false || value === true) return;
++
++  if (Array.isArray(value)) {
++    for (let index = 0; index < value.length; index += 1) {
++      appendValue(parentNode, value[index], beforeNode);
++    }
++    return;
++  }
++
++  if (value instanceof DocumentFragment) {
++    activateDeferredComponentChildren(value, applyDeferredParts);
++  }
++
++  if (isHtmlResult(value) || isDomNode(value)) {
++    transferDelegatedEventRoot(value, parentNode);
++    parentNode.insertBefore(value, beforeNode);
++    return;
++  }
++
++  if (isComponentPayload(value)) {
++    appendValue(
++      parentNode,
++      materializeComponentPayload(value as ComponentPayload) as RenderValue,
++      beforeNode,
++    );
++    return;
++  }
++
++  if (isElementPayload(value)) {
++    parentNode.insertBefore(
++      materializeElementPayload(value as ElementPayload, appendValue),
++      beforeNode,
++    );
++    return;
++  }
++
++  if (isDomBag(value)) {
++    parentNode.insertBefore(value.el, beforeNode);
++    return;
++  }
++
++  if (isComponentRenderRequest(value)) {
++    parentNode.insertBefore(
++      materializeComponent(value, appendValue),
++      beforeNode,
++    );
++    return;
++  }
++
++  if (isComponent(value)) {
++    appendValue(parentNode, value(), beforeNode);
++    return;
++  }
++
++  if (isRawHtml(value)) {
++    parentNode.insertBefore(createRawHtmlFragment(value.value), beforeNode);
++    return;
++  }
++
++  if (isDirective(value) || isSignal(value) || typeof value === "function") {
++    const marker = document.createComment(
++      isDirective(value) ? "fabrica:directive" :
++      isSignal(value) ? "fabrica:signal" : "fabrica:expr",
++    );
++    parentNode.insertBefore(marker, beforeNode);
++    createChildPart(marker).set(value);
++    return;
++  }
++
++  parentNode.insertBefore(
++    document.createTextNode(String(value)),
++    beforeNode,
++  );
++}
++
++/** Creates one owned child range around a template marker. */
++export function createChildPart(marker: Node) {
++  const start = document.createComment(PART_START);
++  const end = document.createComment(PART_END);
++  const runtime = getCurrentFabricaRuntime();
++
++  marker.replaceWith(start, end);
++
++  let currentValue: unknown;
++  let currentNode: Node | null = null;
++  let currentList: Node[] | null = null;
++  let disposeReactive: (() => void) | null = null;
++  let directiveController: DirectiveController | null = null;
++
++  const clear = (): void => {
++    if (currentNode && currentNode.parentNode) {
++      disposeTree(currentNode);
++      currentNode.remove();
++    } else if (currentList) {
++      for (const node of currentList) {
++        disposeTree(node);
++        node.parentNode?.removeChild(node);
++      }
++    } else {
++      clearRange(start, end);
++    }
++
++    currentNode = null;
++    currentList = null;
++  };
++
++  const insertNode = (node: Node): void => {
++    if (currentNode === node && node.parentNode === end.parentNode) return;
++
++    clear();
++    if (isHtmlResult(node) || node instanceof DocumentFragment) {
++      transferDelegatedEventRoot(node, end.parentNode);
++    }
++    end.parentNode?.insertBefore(node, end);
++    currentNode = node;
++  };
++
++  const reconcileArray = (values: RenderValue[]): void => {
++    const newNodes: Node[] = [];
++
++    for (const item of values) {
++      if (item == null || item === false || item === true) continue;
++
++      if (isDomNode(item)) newNodes.push(item);
++      else if (isDomBag(item)) newNodes.push(item.el);
++      else newNodes.push(document.createTextNode(String(readValue(item))));
++    }
++
++    if (currentList) {
++      let anchor: Node = end;
++
++      for (let index = newNodes.length - 1; index >= 0; index -= 1) {
++        const node = newNodes[index]!;
++        if (node.nextSibling !== anchor || node.parentNode !== end.parentNode) {
++          end.parentNode?.insertBefore(node, anchor);
++        }
++        anchor = node;
++      }
++
++      for (const node of currentList) {
++        if (!newNodes.includes(node) && node.parentNode) {
++          disposeTree(node);
++          node.remove();
++        }
++      }
++
++      currentList = newNodes;
++      currentNode = null;
++      return;
++    }
++
++    clear();
++    const fragment = document.createDocumentFragment();
++    for (const node of newNodes) fragment.appendChild(node);
++    end.parentNode?.insertBefore(fragment, end);
++    currentList = newNodes;
++  };
++
++  const insertValue = (value: RenderValue): void => {
++    if (!end.parentNode) return;
++
++    if (Array.isArray(value)) {
++      reconcileArray(flattenRenderArray(value));
++      return;
++    }
++
++    if (isDirective(value)) {
++      if (!directiveController || directiveController.kind !== value.kind) {
++        directiveController?.dispose();
++        clear();
++        directiveController = createDirectiveController(start, end, value, {
++          appendValue,
++          mount: mountDirectiveValue,
++        });
++      }
++      directiveController.update(value);
++      return;
++    }
++
++    if (isRawHtml(value)) {
++      clear();
++      end.parentNode.insertBefore(createRawHtmlFragment(value.value), end);
++      currentValue = value;
++      return;
++    }
++
++    if (value == null || value === false || value === true) {
++      clear();
++      return;
++    }
++
++    if (isComponentPayload(value)) {
++      insertValue(
++        materializeComponentPayload(value as ComponentPayload) as RenderValue,
++      );
++      return;
++    }
++
++    if (isElementPayload(value)) {
++      insertValue(materializeElementPayload(value as ElementPayload, appendValue));
++      return;
++    }
++
++    if (isDomBag(value)) {
++      insertNode(value.el);
++      return;
++    }
++
++    if (isComponentRenderRequest(value)) {
++      insertNode(materializeComponent(value, appendValue));
++      return;
++    }
++
++    if (isComponent(value)) {
++      insertValue(value());
++      return;
++    }
++
++    if (isHtmlResult(value) || isDomNode(value)) {
++      insertNode(value);
++      return;
++    }
++
++    const text = String(value);
++    if (currentNode?.nodeType === Node.TEXT_NODE) {
++      if (currentNode.nodeValue !== text) currentNode.nodeValue = text;
++      return;
++    }
++
++    clear();
++    const textNode = document.createTextNode(text);
++    end.parentNode.insertBefore(textNode, end);
++    currentNode = textNode;
++  };
++
++  const set = (value: RenderValue | undefined): void => {
++    disposeReactive?.();
++    disposeReactive = null;
++
++    if (isSignal(value)) {
++      disposeReactive = effect(
++        () => {
++          const next = value();
++          if (Object.is(currentValue, next)) return;
++          currentValue = next;
++          insertValue(next as RenderValue);
++        },
++        { name: "fabrica.childPart" },
++      );
++      return;
++    }
++
++    if (typeof value === "function" && !isComponent(value)) {
++      disposeReactive = effect(
++        () => {
++          const next = value();
++          if (Object.is(currentValue, next)) return;
++          currentValue = next;
++          insertValue(next as RenderValue);
++        },
++        { name: "fabrica.expressionPart" },
++      );
++      return;
++    }
++
++    if (Object.is(currentValue, value)) return;
++    currentValue = value;
++    insertValue(value as RenderValue);
++  };
++
++  registerCleanup(start, () => {
++    disposeReactive?.();
++    directiveController?.dispose();
++  });
++
++  void runtime;
++  return { start, end, set };
++}
++
++/** Flattens nested render arrays without iterator pipelines in the hot path. */
++export function flattenRenderArray(
++  value: readonly RenderValue[],
++  output: RenderValue[] = [],
++): RenderValue[] {
++  for (const item of value) {
++    if (Array.isArray(item)) flattenRenderArray(item, output);
++    else output.push(item);
++  }
++  return output;
++}
++
++function createRawHtmlFragment(htmlText: string): DocumentFragment {
++  const cached = rawHtmlTemplateCache.get(htmlText);
++  if (cached) {
++    rawHtmlTemplateCache.delete(htmlText);
++    rawHtmlTemplateCache.set(htmlText, cached);
++    return cached.content.cloneNode(true) as DocumentFragment;
++  }
++
++  const template = document.createElement("template");
++  template.innerHTML = htmlText;
++  rawHtmlTemplateCache.set(htmlText, template);
++
++  if (rawHtmlTemplateCache.size > RAW_HTML_TEMPLATE_CACHE_LIMIT) {
++    const oldest = rawHtmlTemplateCache.keys().next().value as
++      | string
++      | undefined;
++    if (oldest !== undefined) rawHtmlTemplateCache.delete(oldest);
++  }
++
++  return template.content.cloneNode(true) as DocumentFragment;
++}
++
++function mountDirectiveValue(container: Node, value: RenderValue): () => void {
++  const start = document.createComment("fabrica:directive-mount:start");
++  const end = document.createComment("fabrica:directive-mount:end");
++  container.appendChild(start);
++  appendValue(container, value);
++  container.appendChild(end);
++
++  return () => {
++    clearRange(start, end);
++    start.remove();
++    end.remove();
++  };
++}
++
++function applyDeferredParts(): void {
++  // Deferred component children are currently activated by the canonical
++  // template materializer before append. Keeping the callback explicit avoids
++  // a reverse import from the value layer back into template-runtime.
++}
+diff --git a/fabrica/runtime.ts b/fabrica/runtime.ts
+index 11d7b206891fc98465177bc338b52790c95d1f5a..8ad03a1ba91b6d997b7e874122bfc6c359218cc7 100644
+--- a/fabrica/runtime.ts
++++ b/fabrica/runtime.ts
+@@ -1,45 +1,4 @@
+-/**
+- * Browser/runtime-only entrypoint.
+- *
+- * Build/compiler APIs intentionally live in `./compiler` so applications that
+- * only render UI do not pull source scanners or compiler helpers into the graph.
+- */
+-export {
+-  $,
+-  api,
+-  batch,
+-  bind,
+-  classMap,
+-  clearComponents,
+-  component,
+-  computed,
+-  create,
+-  createComponentPack,
+-  createRegistry,
+-  defineComponent,
+-  effect,
+-  event,
+-  eventOptions,
+-  fragment,
+-  getOrCreate,
+-  html,
+-  jsx,
+-  keyed,
+-  listComponents,
+-  memoView,
+-  model,
+-  mount,
+-  portal,
+-  ref,
+-  registerComponent,
+-  render,
+-  repeat,
+-  resolveComponent,
+-  signal,
+-  slot,
+-  styleMap,
+-  suspense,
+-  unregisterComponent,
+-  version,
+-  virtualRepeat,
+-  when,
+-} from "./index.js";
++/** Browser/runtime-only entrypoint with no compiler or global side effects. */
++export * from "./index.js";
+ export { default } from "./index.js";
+diff --git a/fabrica/template/cache.ts b/fabrica/template/cache.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..2c67336cb6f2b64e5340d8d7b907232a9c119a0f
+--- /dev/null
++++ b/fabrica/template/cache.ts
+@@ -0,0 +1,89 @@
++import {
++  prepareJsxSource,
++  prepareSource,
++} from "./source.js";
++import {
++  compileParts,
++  finalizeCompiledTemplate,
++} from "./parts.js";
++import type {
++  CompiledTemplate,
++  RenderValue,
++} from "../types.js";
++
++const templateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
++const jsxTemplateCache = new WeakMap<TemplateStringsArray, CompiledTemplate>();
++
++/** Returns a compiled template, compiling it only on the first use. */
++export function getCompiledTemplate(
++  strings: TemplateStringsArray,
++  values: readonly RenderValue[] = [],
++): CompiledTemplate {
++  let compiled = templateCache.get(strings);
++
++  if (!compiled) {
++    const source = prepareSource(strings);
++    const template = document.createElement("template");
++    template.innerHTML = source;
++    compiled = finalizeCompiledTemplate(template, compileParts(template.content));
++    templateCache.set(strings, compiled);
++  }
++
++  return compiled;
++}
++
++/** Returns a compiled JSX-friendly template. */
++export function getCompiledJsxTemplate(
++  strings: TemplateStringsArray,
++  values: readonly RenderValue[] = [],
++): CompiledTemplate {
++  let compiled = jsxTemplateCache.get(strings);
++
++  if (!compiled) {
++    const prepared = prepareJsxSource(strings);
++    const template = document.createElement("template");
++    template.innerHTML = prepared.source;
++    const parts = compileParts(template.content, {
++      componentTags: prepared.componentTags,
++      preserveSignalProps: prepared.preserveSignalProps,
++    });
++    compiled = finalizeCompiledTemplate(template, parts);
++    jsxTemplateCache.set(strings, compiled);
++  }
++
++  return compiled;
++}
++
++void values;
+diff --git a/fabrica/template/index.ts b/fabrica/template/index.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..a70a0233cbd206c31f985bfb5d394a97eeaf09d3
+--- /dev/null
++++ b/fabrica/template/index.ts
+@@ -0,0 +1,18 @@
++/** Stable template-planning facade. */
++export {
++  getCompiledJsxTemplate,
++  getCompiledTemplate,
++} from "./cache.js";
++export {
++  compileParts,
++  finalizeCompiledTemplate,
++} from "./parts.js";
++export {
++  prepareJsxSource,
++  prepareSource,
++} from "./source.js";
++
++/** Resolves one cached child-node path against a cloned template root. */
++export function resolvePath(root: Node, path: readonly number[]): Node | null {
++  let node: Node | null = root;
++  for (let index = 0; node && index < path.length; index += 1) {
++    node = node.childNodes[path[index]!] ?? null;
++  }
++  return node;
++}
