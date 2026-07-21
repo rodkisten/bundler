@@ -1,0 +1,157 @@
++export type HtmlTemplateTag = (
++  strings: TemplateStringsArray,
++  ...values: RenderValue[]
++) => HtmlResult;
++
++/** Public tagged-template surface used by default and instance runtimes. */
++export type HtmlTag = HtmlTemplateTag & {
++  readonly jsx: HtmlTemplateTag;
++  artifact(value: unknown): HtmlArtifact | undefined;
++  isResult(value: unknown): value is HtmlResult;
++};
++
++/** Bivariant event callback accepted by template event interpolations. */
++export type TemplateEventHandler = {
++  bivarianceHack(event: Event): unknown;
++}["bivarianceHack"];
++
++/** Bivariant element ref callback accepted by `ref=` interpolations. */
++export type TemplateRefHandler = {
++  bivarianceHack(node: Element): void | Cleanup;
++}["bivarianceHack"];
++
++/** Explicit wrapper required for intentional raw HTML insertion. */
++export type RawHtml = {
++  readonly __kind: "rawHtml";
++  readonly value: string;
++};
++
++/** Plain object accepted by spreads and component `props=${...}` bags. */
++export type PropsBag = Record<string, unknown>;
++
++/** Values accepted by the DOM renderer. */
++export type RenderValue =
++  | string
++  | number
++  | bigint
++  | boolean
++  | null
++  | undefined
++  | Node
++  | DocumentFragment
++  | readonly RenderValue[]
++  | Signal<unknown>
++  | ReactiveExpression<unknown>
++  | RefValue<HTMLElement>
++  | Directive
++  | RawHtml
++  | DomBag
++  | ElementPayload
++  | ComponentPayload
++  | Component
++  | ComponentRenderRequest
++  | PropsBag
++  | TemplateEventHandler
++  | TemplateRefHandler;
+diff --git a/fabrica/types/template.ts b/fabrica/types/template.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..936c92c9a25bbd2cc5b57ee8c70b7a2bb6b709bf
+--- /dev/null
++++ b/fabrica/types/template.ts
+@@ -0,0 +1,70 @@
++/** Dynamic component prop descriptor emitted by the template parser. */
++export type ComponentPropPart =
++  | {
++      name: string;
++      index: number;
++      indices: number[];
++      strings: string[];
++      raw: boolean;
++      spread?: false;
++    }
++  | {
++      index: number;
++      spread: true;
++    };
++
++/** Template part compiled from one HTML template. */
++export type TemplatePart =
++  | {
++      type: "child";
++      index: number;
++      path: number[];
++      pathKey: string;
++      order: number;
++      componentProp?: boolean;
++    }
++  | {
++      type: "attribute";
++      index: number;
++      indices: number[];
++      strings: string[];
++      raw: boolean;
++      path: number[];
++      pathKey: string;
++      order: number;
++      name: string;
++      componentProp?: boolean;
++    }
++  | {
++      type: "spread";
++      index: number;
++      path: number[];
++      pathKey: string;
++      order: number;
++      componentProp?: boolean;
++    }
++  | {
++      type: "component";
++      index: number;
++      path: number[];
++      pathKey: string;
++      order: number;
++      name?: string;
++      staticProps?: Record<string, unknown>;
++      childParts?: TemplatePart[];
++      orderedChildParts?: TemplatePart[];
++      hasChildComponents?: boolean;
++      hasStaticChildren?: boolean;
++      dynamicPropParts?: ComponentPropPart[];
++      hasDynamicPropParts?: boolean;
++    };
++
++/** Cached compiled template. */
++export type CompiledTemplate = {
++  template: HTMLTemplateElement;
++  parts: TemplatePart[];
++  /** Parts preordered so hot render paths never sort. */
++  orderedParts: TemplatePart[];
++  /** Lets simple templates skip component bookkeeping. */
++  hasComponents: boolean;
++};
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 3a99e7350cc1be2e13ea64305a464dcaebaf88dc..56ebd327bafbac7d98c8149ba318b930ddaa3782 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -122,6 +122,9 @@ importers:
+       '@rodkisten/fabrica-elements':
+         specifier: workspace:*
+         version: link:../fabrica-elements
++      typescript:
++        specifier: '6'
++        version: 6.0.3
+ 
+   fabrica-elements: {}
+ 
+diff --git a/tsconfig.base.json b/tsconfig.base.json
+index 901299452883db538e96ec01e24696d3f9760935..e4514cbfd88508865ce6cc37dc089d30246d5eae 100644
+--- a/tsconfig.base.json
++++ b/tsconfig.base.json
+@@ -20,6 +20,7 @@
+       "@rodkisten/cipo/compiler": ["./cipo/compiler.ts"],
+       "@rodkisten/cipo/vite": ["./cipo/vite-index.ts"],
+       "@rodkisten/cipo/compiled-runtime": ["./cipo/compiled-runtime.ts"],
++      "@rodkisten/cipo/runtime-inline": ["./cipo/runtime-inline.ts"],
+       "@rodkisten/cipo/browser": ["./cipo/browser-entry.ts"],
+       "@rodkisten/devtools": ["./devtools/index.ts"],
+       "@rodkisten/devtools/core/*": ["./devtools/*", "./devtools/core-*"],
