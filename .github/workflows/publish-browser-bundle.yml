@@ -26,23 +26,33 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Verify and apply refactor
+      - name: Assemble patch
         shell: bash
         run: |
           set -euo pipefail
+          cat .fabrica-refactor/plain-*.patch > /tmp/fabrica-refactor.patch
+          wc -c /tmp/fabrica-refactor.patch
+          sha256sum /tmp/fabrica-refactor.patch
 
-          cat .fabrica-refactor/plain-*.patch \
-            > /tmp/fabrica-refactor.patch
+      - name: Verify patch integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "3687fa19a4a01d57009c5c3cc42029d1aac7b7d04198c6cb001ed494c4f42de1  /tmp/fabrica-refactor.patch" | sha256sum -c -
 
-          echo "3687fa19a4a01d57009c5c3cc42029d1aac7b7d04198c6cb001ed494c4f42de1  /tmp/fabrica-refactor.patch" \
-            | sha256sum -c -
-
+      - name: Apply patch onto main
+        shell: bash
+        run: |
+          set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
           git apply --index --whitespace=nowarn /tmp/fabrica-refactor.patch
 
+      - name: Commit and replace PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "refactor: rebuild Fábrica runtime and compiler architecture"
-          git push --force \
-            origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
+          git push --force origin HEAD:refs/heads/${{ github.event.pull_request.head.ref }}
