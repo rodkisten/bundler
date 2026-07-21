@@ -26,9 +26,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cat .fabrica-refactor/patch-*.b64 \
-            | base64 --decode \
-            | gzip --decompress \
+          cat .fabrica-refactor/plain-*.patch \
             > /tmp/fabrica-refactor.patch
 
           git fetch origin main
