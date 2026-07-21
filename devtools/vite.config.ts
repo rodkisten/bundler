@@ -123,6 +123,9 @@ export default defineConfig({
       styledImportModules: [
         "@rodkisten/devtools/core/runtime",
       ],
+      fabricaImportModules: [
+        "@rodkisten/devtools/core/runtime",
+      ],
       configCss: devtoolsStyles.cssText,
     }),
   ],
