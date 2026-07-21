@@ -1,8 +1,8 @@
 import { effect } from "@rodkisten/broto/reactivity";
-import { debugState, recordDebug } from "@rodkisten/fabrica/debug";
-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
-import { isDirective, isSignal } from "@rodkisten/fabrica/guards";
-import type { EventBindingConfig, RenderValue } from "@rodkisten/fabrica/types";
+import { debugState, recordDebug } from "./debug.js";
+import { registerCleanup } from "./render/cleanup.js";
+import { isDirective, isSignal } from "./guards.js";
+import type { EventBindingConfig, RenderValue } from "./types.js";
 
 type DelegationRoot = Document | ShadowRoot | DocumentFragment | Element;
 type RuntimeEventHandler = ((event: Event) => void) & { original?: unknown };
