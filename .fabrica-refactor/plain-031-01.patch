@@ -1,0 +1,211 @@
++    const alias = TEST_ALIASES[1];
++    const previousFabrica = globals.Fabrica;
++    const api = createFabricaApi();
++
++    api.install({
++      exposeDollarEl: true,
++      dollarAlias: alias,
++      forceAlias: true,
++    });
++    api.install({
++      exposeDollarEl: true,
++      dollarAlias: alias,
++      forceAlias: true,
++    });
++
++    api.noConflict();
++    expect(globals.Fabrica).toBe(api);
++    expect(globals[alias]).toBe(api.$);
++
++    api.noConflict();
++    expect(globals.Fabrica).toBe(previousFabrica);
++  });
++
++  it("does not overwrite globals taken over after installation", () => {
++    const alias = TEST_ALIASES[2];
++    const externalOwner = { owner: "external-library" };
++    const api = createFabricaApi();
++
++    api.install({
++      exposeDollarEl: true,
++      dollarAlias: alias,
++      forceAlias: true,
++    });
++    globals[alias] = externalOwner;
++    Reflect.set(globals, "Fabrica", externalOwner);
++
++    api.noConflict();
++
++    expect(globals[alias]).toBe(externalOwner);
++    expect(globals.Fabrica).toBe(externalOwner);
++  });
++
++  it("resets runtime install options between installations", () => {
++    const api = createFabricaApi();
++
++    api.install({ exposeDollar: true });
++    expect(api.config.exposeDollar).toBe(true);
++    api.noConflict();
++
++    api.install();
++    expect(api.config.exposeDollar).toBe(false);
++    api.noConflict();
++  });
++});
+diff --git a/fabrica/test/fabrica.instances.test.ts b/fabrica/test/fabrica.instances.test.ts
+index e8eb879cfa24609dbf35399aab7990fbe966475b..484f7c7a5d1be918eaa4dcb53c0dadde4757755d 100644
+--- a/fabrica/test/fabrica.instances.test.ts
++++ b/fabrica/test/fabrica.instances.test.ts
+@@ -10,7 +10,7 @@ import Fabrica, {
+   getOrCreateFabrica,
+   registerComponent,
+ } from '@rodkisten/fabrica'
+-import { resetDeprecationWarnings } from '@rodkisten/fabrica/deprecations'
++import { resetDeprecationWarnings } from '../deprecations.js'
+ 
+ beforeEach(() => {
+   document.body.replaceChildren()
+diff --git a/fabrica/test/fabrica.kitchen-sink.test.ts b/fabrica/test/fabrica.kitchen-sink.test.ts
+index f9962d0f7cea74d93e515f943a4e86dc11ada3d9..3355f6eea762cee737956a10580ebcb30801dfc1 100644
+--- a/fabrica/test/fabrica.kitchen-sink.test.ts
++++ b/fabrica/test/fabrica.kitchen-sink.test.ts
+@@ -22,7 +22,7 @@ import {
+   defineElement,
+   elements,
+   html,
+-  hydrate,
++  mountPreservingChildren,
+   jsx,
+   listComponents,
+   mount,
+@@ -870,7 +870,7 @@ describe("Fábrica kitchen sink: public API, globals and debug", () => {
+ 
+     api.noConflict();
+ 
+-    expect(globalThis.Fabrica).toBe(api);
++    expect(globalThis.Fabrica).toBe(previousFabrica);
+     expect(globalThis.$).toBe(previousDollar);
+     expect(globalThis.$el).not.toBe($);
+   });
+@@ -961,11 +961,14 @@ describe("Fábrica kitchen sink: render-value edge cases", () => {
+     expect(host.textContent).toBe("Done");
+   });
+ 
+-  it("hydrates without clearing existing markup", () => {
++  it("mounts without clearing existing markup", () => {
+     const host = document.createElement("div");
+     host.innerHTML = "<span>server</span>";
+ 
+-    const dispose = hydrate(host, html`<button>client</button>`);
++    const dispose = mountPreservingChildren(
++      host,
++      html`<button>client</button>`,
++    );
+ 
+     expect(host.textContent).toContain("server");
+     expect(host.textContent).toContain("client");
+diff --git a/fabrica/test/fabrica.props.test.ts b/fabrica/test/fabrica.props.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..847569af8abf31638850b80635ec5ebc9dd32683
+--- /dev/null
++++ b/fabrica/test/fabrica.props.test.ts
+@@ -0,0 +1,63 @@
++/** @vitest-environment jsdom */
++
++import { describe, expect, it } from "vitest";
++import { rawHtml } from "@rodkisten/fabrica";
++import { applyProps } from "../bindings/props.js";
++
++describe("Fabrica object prop patches", () => {
++  it("reconciles class map keys across repeated patches", () => {
++    const element = document.createElement("div");
++
++    applyProps(element, {
++      class: { active: true, stale: true },
++    });
++    applyProps(element, {
++      class: { active: true },
++    });
++
++    expect(element.classList.contains("active")).toBe(true);
++    expect(element.classList.contains("stale")).toBe(false);
++  });
++
++  it("reconciles style map keys across repeated patches", () => {
++    const element = document.createElement("div");
++
++    applyProps(element, {
++      style: { color: "red", marginTop: "10px" },
++    });
++    applyProps(element, {
++      style: { color: "blue" },
++    });
++
++    expect(element.style.color).toBe("blue");
++    expect(element.style.marginTop).toBe("");
++  });
++
++  it("reuses special-attribute state for nested data reconciliation", () => {
++    const element = document.createElement("div");
++
++    applyProps(element, {
++      ":data": { activePanel: "sources", staleKey: "remove-me" },
++    });
++    applyProps(element, {
++      ":data": { activePanel: "console" },
++    });
++
++    expect(element.dataset.activePanel).toBe("console");
++    expect(element.hasAttribute("data-stale-key")).toBe(false);
++  });
++
++  it("requires an explicit raw HTML wrapper for HTML sinks", () => {
++    const element = document.createElement("div");
++
++    expect(() => {
++      applyProps(element, { html: "<strong>unsafe</strong>" });
++    }).toThrow(TypeError);
++
++    applyProps(element, {
++      html: rawHtml("<strong>explicit</strong>"),
++    });
++
++    expect(element.innerHTML).toBe("<strong>explicit</strong>");
++  });
++});
+diff --git a/fabrica/test/fabrica.template-attributes.test.ts b/fabrica/test/fabrica.template-attributes.test.ts
+index 8927f94753da5f2e06112d311329bba563e1a831..fd1389e27d12f6b388bfdf5edcea9666ebdfd905 100644
+--- a/fabrica/test/fabrica.template-attributes.test.ts
++++ b/fabrica/test/fabrica.template-attributes.test.ts
+@@ -1,8 +1,8 @@
+ /** @vitest-environment jsdom */
+ 
+ import { describe, expect, it } from "vitest";
+-import { buildTemplateSource, compileParts, hasNamedComponentTagSyntax } from "@rodkisten/fabrica/template";
+-import type { RenderValue } from "@rodkisten/fabrica/types";
++import { buildTemplateSource, compileParts, hasNamedComponentTagSyntax } from "../template/index.js";
++import type { RenderValue } from "../types.js";
+ 
+ function source(strings: TemplateStringsArray, ...values: RenderValue[]): string {
+   return buildTemplateSource(strings, values);
+diff --git a/fabrica/tsconfig.build.json b/fabrica/tsconfig.build.json
+index 6e8da7d149a8cf533f1e4f879cfc1403a7bc90fa..75a7f5e1625e4c84e4c25635792ce8fbf7a99041 100644
+--- a/fabrica/tsconfig.build.json
++++ b/fabrica/tsconfig.build.json
+@@ -2,7 +2,7 @@
+   "extends": "./tsconfig.json",
+   "compilerOptions": {
+     "noEmit": false,
+-    "outDir": ".",
++    "outDir": "./dist",
+     "rootDir": ".",
+     "declaration": true,
+     "declarationMap": true,
+@@ -15,7 +15,6 @@
+     "./examples/**",
+     "./vite.config.ts",
+     "./vitest.config.ts",
+-    "./browser-entry.ts",
+     "./dist/**"
+   ]
+ }
