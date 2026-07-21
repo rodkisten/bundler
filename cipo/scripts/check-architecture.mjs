@@ -10,6 +10,7 @@ const entrypoints = [
   'compiler.ts',
   'vite-index.ts',
   'compiled-runtime.ts',
+  'runtime-inline.ts',
 ]
 const legacyFiles = [
   'compiler-index.ts',
