@@ -1,0 +1,365 @@
+diff --git a/fabrica/render/dom.ts b/fabrica/render/dom.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..878a5c574d66cd0cf05151218b80c193fb846d82
+--- /dev/null
++++ b/fabrica/render/dom.ts
+@@ -0,0 +1,28 @@
++/**
++ * Compatibility facade for the DOM runtime.
++ *
++ * The implementation is intentionally split across root rendering, child-part
++ * reconciliation, template materialization and result metadata. Internal code
++ * should prefer those focused modules so this facade remains a stable import
++ * boundary rather than becoming the renderer's dependency hub again.
++ */
++export {
++  html,
++  jsx,
++  materializeHtmlTemplate,
++} from "./template-runtime.js";
++export {
++  createHtmlResult,
++  getHtmlArtifact,
++  getHtmlResultMetadata,
++  isHtmlResult,
++  pruneInsignificantWhitespace,
++} from "./html-result.js";
++export {
++  appendValue,
++  createChildPart,
++  flattenRenderArray,
++} from "./value.js";
++export {
++  mount,
++  mountPreservingChildren,
++  render,
++} from "./root.js";
+diff --git a/fabrica/render/html-result.ts b/fabrica/render/html-result.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7454074f37d33628fca03e40e903907d948b8958
+--- /dev/null
++++ b/fabrica/render/html-result.ts
+@@ -0,0 +1,141 @@
++import {
++  transferDelegatedEventRoot,
++} from "../events.js";
++import { isDomNode } from "../guards.js";
++import {
++  FABRICA_HTML_ARTIFACT,
++  type HtmlArtifact,
++  type HtmlResult,
++} from "../types.js";
++
++export type MaterializedHtmlResultMetadata = {
++  cleanupNodes: Node[];
++  dynamic: boolean;
++};
++
++const materializedHtmlResultMetadata = new WeakMap<
++  Node,
++  MaterializedHtmlResultMetadata
++>();
++
++/** Returns the template artifact attached to a Fábrica HTML result. */
++export function getHtmlArtifact(value: unknown): HtmlArtifact | undefined {
++  if (!isDomNode(value)) return undefined;
++
++  return (value as Node & {
++    readonly [FABRICA_HTML_ARTIFACT]?: HtmlArtifact;
++  })[FABRICA_HTML_ARTIFACT];
++}
++
++/** Checks whether a value is a real DOM node materialized by a Fábrica HTML tag. */
++export function isHtmlResult(value: unknown): value is HtmlResult {
++  return getHtmlArtifact(value)?.kind === "fabrica.html";
++}
++
++/** Internal metadata used by the direct root-render fast path. */
++export function getHtmlResultMetadata(
++  value: unknown,
++): MaterializedHtmlResultMetadata | undefined {
++  return isDomNode(value)
++    ? materializedHtmlResultMetadata.get(value)
++    : undefined;
++}
++
++/**
++ * Converts a materialized fragment into the public polymorphic HTML result.
++ *
++ * A single meaningful root is returned as the real root node. Root-level
++ * indentation whitespace is discarded only in that single-root case. Empty or
++ * multi-root templates remain a `DocumentFragment`.
++ */
++export function createHtmlResult(
++  fragment: DocumentFragment,
++  artifact: HtmlArtifact,
++  metadata: MaterializedHtmlResultMetadata,
++): HtmlResult {
++  const result = extractHtmlResultRoot(fragment);
++  transferDelegatedEventRoot(fragment, result);
++
++  Object.defineProperty(result, FABRICA_HTML_ARTIFACT, {
++    configurable: false,
++    enumerable: false,
++    writable: false,
++    value: artifact,
++  });
++
++  materializedHtmlResultMetadata.set(result, metadata);
++  return result as HtmlResult;
++}
++
++function extractHtmlResultRoot(fragment: DocumentFragment): Node {
++  const childNodes = Array.from(fragment.childNodes);
++  if (childNodes.length === 1) return fragment.removeChild(childNodes[0]!);
++
++  const meaningfulNodes = childNodes.filter((node) =>
++    node.nodeType !== Node.TEXT_NODE || Boolean(node.textContent?.trim()),
++  );
++
++  if (meaningfulNodes.length !== 1) return fragment;
++
++  const root = meaningfulNodes[0]!;
++  for (const node of childNodes) {
++    if (
++      node !== root &&
++      node.nodeType === Node.TEXT_NODE &&
++      !node.textContent?.trim()
++    ) {
++      fragment.removeChild(node);
++    }
++  }
++
++  return fragment.removeChild(root);
++}
++
++/**
++ * Removes indentation-only text nodes while preserving inline spacing semantics.
++ */
++export function pruneInsignificantWhitespace(root: ParentNode): void {
++  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
++  const removals: Text[] = [];
++  const normalizations: Text[] = [];
++  let current = walker.nextNode();
++
++  while (current) {
++    const text = current as Text;
++    const parent = text.parentNode;
++    const parentElement = parent instanceof Element ? parent : null;
++    const value = text.data;
++
++    if (
++      parent &&
++      (!parentElement ||
++        !/^(PRE|TEXTAREA|SCRIPT|STYLE)$/.test(parentElement.tagName)) &&
++      /^[\t\r\n ]+$/.test(value) &&
++      /[\t\r\n]/.test(value)
++    ) {
++      const previous = text.previousSibling;
++      const next = text.nextSibling;
++      const touchesDynamicPart =
++        previous?.nodeType === Node.COMMENT_NODE ||
++        next?.nodeType === Node.COMMENT_NODE;
++
++      if (touchesDynamicPart && !(parent instanceof DocumentFragment)) {
++        normalizations.push(text);
++      } else {
++        removals.push(text);
++      }
++    }
++
++    current = walker.nextNode();
++  }
++
++  for (const text of normalizations) text.data = " ";
++  for (const text of removals) text.remove();
++}
+diff --git a/fabrica/render/payload.ts b/fabrica/render/payload.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..1f423f9abc495a75dc0c4589c48a835b6bfd2285
+--- /dev/null
++++ b/fabrica/render/payload.ts
+@@ -0,0 +1,183 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import {
++  bindPropertyOrAttributeValue,
++  setPropertyOrAttribute,
++} from "../bindings/property-or-attribute.js";
++import { bindRef } from "../bindings/ref.js";
++import { stringifyAttributeValue } from "../bindings/serialize.js";
++import { bindSpecialAttribute } from "../bindings/special.js";
++import { bindEvent } from "../events.js";
++import { registerCleanup } from "./cleanup.js";
++import { hasReactiveValue, readValue } from "../core/value.js";
++import type {
++  ComponentPayload,
++  ElementPayload,
++  RenderValue,
++} from "../types.js";
++
++/** Callback used by payload materializers to append nested children. */
++export type AppendRenderValue = (
++  parentNode: Node,
++  value: RenderValue,
++  beforeNode?: Node | null,
++) => void;
++
++/** Checks whether a renderer value is an element payload from fabrica-elements. */
++export function isElementPayload(value: unknown): value is ElementPayload {
++  return Boolean(
++    value &&
++    typeof value === "object" &&
++    typeof (value as ElementPayload).tag === "string",
++  );
++}
++
++/** Checks whether a renderer value is a component payload from fabrica-elements. */
++export function isComponentPayload(value: unknown): value is ComponentPayload {
++  return Boolean(
++    value &&
++    typeof value === "object" &&
++    "component" in (value as Record<string, unknown>),
++  );
++}
++
++/** Materializes a tag payload into a live DOM element. */
++export function materializeElementPayload(
++  payload: ElementPayload,
++  appendValue: AppendRenderValue,
++): Element {
++  const element = document.createElement(payload.tag);
++  applyPayloadProps(element, payload.props || {}, appendValue);
++  return element;
++}
++
++type RendererPayloadComponent = ((
++  props?: Record<string, unknown>,
++) => unknown) & {
++  renderPayload?: (props?: Record<string, unknown>) => unknown;
++};
++
++/** Invokes a component while preferring a renderer-owned payload when available. */
++export function invokeComponentLike(
++  componentValue: unknown,
++  props: Record<string, unknown>,
++): unknown {
++  if (typeof componentValue !== "function") return null;
++
++  const component = componentValue as RendererPayloadComponent;
++  return typeof component.renderPayload === "function"
++    ? component.renderPayload(props)
++    : component(props);
++}
++
++/** Materializes a component payload by calling its component function. */
++export function materializeComponentPayload(
++  payload: ComponentPayload,
++): unknown {
++  return invokeComponentLike(payload.component, payload.props || {});
++}
++
++/** Applies renderer payload props through canonical binding primitives. */
++export function applyPayloadProps(
++  element: Element,
++  props: Record<string, unknown>,
++  appendValue: AppendRenderValue,
++): void {
++  for (const key in props) {
++    const propValue = props[key];
++
++    if (key === "children") {
++      appendValue(element, propValue as RenderValue);
++      continue;
++    }
++
++    if (bindSpecialAttribute(element, key, propValue)) continue;
++
++    if (key === "ref") {
++      bindRef(element, propValue);
++      continue;
++    }
++
++    if (key === "on" && propValue && typeof propValue === "object") {
++      for (const [eventName, listener] of Object.entries(
++        propValue as Record<string, unknown>,
++      )) {
++        if (typeof listener === "function") {
++          bindEvent(
++            element,
++            eventName,
++            listener as unknown as RenderValue,
++          );
++        }
++      }
++      continue;
++    }
++
++    if (key.startsWith("on") && typeof propValue === "function") {
++      bindEvent(
++        element,
++        key.slice(2).toLowerCase(),
++        propValue as unknown as RenderValue,
++      );
++      continue;
++    }
++
++    if (key === "class" || key === "className" || key === "style") {
++      bindPayloadValue(element, key, propValue, (resolved) => {
++        const attributeName = key === "className" ? "class" : key;
++        const text = stringifyAttributeValue(attributeName, resolved);
++        if (text) element.setAttribute(attributeName, text);
++        else element.removeAttribute(attributeName);
++      });
++      continue;
++    }
++
++    if (key === "attrs" && propValue && typeof propValue === "object") {
++      for (const [name, value] of Object.entries(
++        propValue as Record<string, unknown>,
++      )) {
++        setPropertyOrAttribute(element, name, readValue(value));
++      }
++      continue;
++    }
++
++    if (
++      key === "dataset" &&
++      propValue &&
++      typeof propValue === "object" &&
++      element instanceof HTMLElement
++    ) {
++      for (const [name, value] of Object.entries(
++        propValue as Record<string, unknown>,
++      )) {
++        const resolved = readValue(value);
++        if (resolved == null) delete element.dataset[name];
++        else element.dataset[name] = String(resolved);
++      }
++      continue;
++    }
++
++    bindPropertyOrAttributeValue(element, key, propValue);
++  }
++}
++
++function bindPayloadValue(
++  element: Element,
++  name: string,
++  value: unknown,
++  apply: (resolved: unknown) => void,
++): void {
++  const update = (): void => apply(readValue(value));
++
++  if (!hasReactiveValue(value)) {
++    update();
++    return;
++  }
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.payloadProp.${name}`,
++      scheduler: "sync",
++    }),
++  );
++}
