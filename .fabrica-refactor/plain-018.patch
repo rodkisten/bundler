@@ -1,0 +1,452 @@
+
+-  }
+-
+-  return items.length > 0;
+-}
+-
+-/**
+- * Updates an index-stable list without moving DOM ranges.
+- *
+- * @param start - Range start marker.
+- * @param end - Range end marker.
+- * @param records - Existing records.
+- * @param directive - Repeat directive.
+- * @param items - Resolved items.
+- * @returns Whether there are items.
+- */
+-function updateIndexedRepeat(
+-  start: Comment,
+-  end: Comment,
+-  records: Map<PropertyKey, RepeatRecord>,
+-  directive: RepeatDirective<unknown, PropertyKey>,
+-  items: readonly unknown[],
+-): boolean {
+-  for (let index = 0; index < items.length; index += 1) {
+-    const item = items[index];
+-    const key = index;
+-    let record = records.get(key);
+-
+-    if (!record) {
+-      record = createRepeatRecord(item, index, key, directive.render);
+-      records.set(key, record);
+-      record.order = index;
+-      end.parentNode?.insertBefore(record.fragment as DocumentFragment, end);
+-      record.fragment = null;
+-      continue;
+-    }
+-
+-    batch(() => {
+-      record.item.set(item);
+-      record.index.set(index);
+-      record.key.set(key);
+-    });
+-    record.order = index;
+-  }
+-
+-  if (records.size > items.length) {
+-    const staleKeys: PropertyKey[] = [];
+-    for (const [key, record] of records) {
+-      if (Number(key) < items.length) continue;
+-      disposeRange(record.start, record.end);
+-      removeRange(record.start, record.end);
+-      staleKeys[staleKeys.length] = key;
+-    }
+-    for (let index = 0; index < staleKeys.length; index += 1) records.delete(staleKeys[index]);
+-  }
+-
+-  return items.length > 0;
+-}
+-
+-/**
+- * Creates a repeat context signal that allocates the Broto signal lazily.
+- *
+- * @remarks
+- * `repeat()` exposes `{ item, index, key }` as signals for ergonomic render
+- * functions, but many item templates only read `item`. Creating and updating
+- * three full reactive primitives per row makes keyed reorders pay for signals
+- * that were never observed. This facade keeps the public callable signal shape
+- * while only materializing the real signal when user code reads or subscribes.
+- */
+-function createLazyRepeatSignal<Value>(initialValue: Value): ReturnType<typeof signal<Value>> {
+-  let value = initialValue;
+-  let inner: ReturnType<typeof signal<Value>> | null = null;
+-
+-  const ensure = (): ReturnType<typeof signal<Value>> => {
+-    if (!inner) inner = signal(value);
+-    return inner;
+-  };
+-
+-  const read = (() => {
+-    if (inner) return inner();
+-    inner = signal(value);
+-    return inner();
+-  }) as ReturnType<typeof signal<Value>>;
+-
+-  read.set = (nextValue: Value): void => {
+-    value = nextValue;
+-    inner?.set(nextValue);
+-  };
+-
+-  read.update = (updater: (currentValue: Value) => Value): void => {
+-    read.set(updater(value));
+-  };
+-
+-  read.peek = (): Value => inner ? inner.peek() : value;
+-
+-  read.subscribe = (listener: Parameters<ReturnType<typeof signal<Value>>["subscribe"]>[0]): (() => void) => ensure().subscribe(listener);
+-
+-  return read;
+-}
+-
+-function createRepeatRecord(
+-  item: unknown,
+-  index: number,
+-  key: PropertyKey,
+-  renderItem: (context: {
+-    item: ReturnType<typeof signal<unknown>>;
+-    index: ReturnType<typeof signal<number>>;
+-    key: ReturnType<typeof signal<PropertyKey>>;
+-  }) => RenderValue,
+-): RepeatRecord {
+-  const start = document.createComment("fabrica:item:start");
+-  const end = document.createComment("fabrica:item:end");
+-  const context = {
+-    item: createLazyRepeatSignal(item),
+-    index: createLazyRepeatSignal(index),
+-    key: createLazyRepeatSignal(key),
+-  };
+-  const fragment = document.createDocumentFragment();
+-
+-  fragment.append(start);
+-  appendValue(fragment, renderItem(context));
+-  fragment.append(end);
+-
+-  return { ...context, start, end, fragment };
+-}
+diff --git a/fabrica/dom-payload.ts b/fabrica/dom-payload.ts
+deleted file mode 100644
+index 54adb2d1f91c5d601660e88e82cfc76190a373d3..0000000000000000000000000000000000000000
+--- a/fabrica/dom-payload.ts
++++ /dev/null
+@@ -1,242 +0,0 @@
+-import { effect } from '@rodkisten/broto/reactivity'
+-import { registerCleanup } from '@rodkisten/fabrica/dom-cleanup'
+-import { bindEvent } from '@rodkisten/fabrica/events'
+-import { setPropertyOrAttribute } from '@rodkisten/fabrica/props'
+-import type { ComponentPayload, ElementPayload, RenderValue } from '@rodkisten/fabrica/types'
+-import { bindSpecialAttribute } from '@rodkisten/fabrica/dom-special-attributes'
+-import { hasReactiveValue, readValue } from '@rodkisten/fabrica/value'
+-
+-/** Callback used by payload materializers to append nested children. */
+-export type AppendRenderValue = (parentNode: Node, value: RenderValue, beforeNode?: Node | null) => void
+-
+-/**
+- * Checks whether a renderer value is an element payload from fabrica-elements.
+- *
+- * @param value - Unknown render value.
+- * @returns Whether value has a tag payload shape.
+- */
+-export function isElementPayload(value: unknown): value is ElementPayload {
+-  return Boolean(value && typeof value === 'object' && typeof (value as ElementPayload).tag === 'string')
+-}
+-
+-/**
+- * Checks whether a renderer value is a component payload from fabrica-elements.
+- *
+- * @param value - Unknown render value.
+- * @returns Whether value has a component payload shape.
+- */
+-export function isComponentPayload(value: unknown): value is ComponentPayload {
+-  return Boolean(value && typeof value === 'object' && 'component' in (value as Record<string, unknown>))
+-}
+-
+-/**
+- * Materializes a tag payload into a live DOM element.
+- *
+- * @param payload - Element payload.
+- * @param appendValue - Renderer append function for children.
+- * @returns DOM element.
+- */
+-export function materializeElementPayload(payload: ElementPayload, appendValue: AppendRenderValue): Element {
+-  const element = document.createElement(payload.tag)
+-  applyPayloadProps(element, payload.props || {}, appendValue)
+-  return element
+-}
+-
+-
+-/** Component-like value that can hand DOM ownership back to Fábrica. */
+-type RendererPayloadComponent = ((props?: Record<string, unknown>) => unknown) & {
+-  renderPayload?: (props?: Record<string, unknown>) => unknown
+-}
+-
+-/**
+- * Invokes a component while preferring a renderer-owned payload when available.
+- *
+- * Styled factories normally return a live DOM element in standalone mode. When
+- * Fábrica owns the render tree, their `renderPayload()` hook preserves complex
+- * children such as component requests, directives and reactive values so the
+- * renderer can materialize and dispose them with the correct lifecycle.
+- */
+-export function invokeComponentLike(
+-  componentValue: unknown,
+-  props: Record<string, unknown>,
+-): unknown {
+-  if (typeof componentValue !== 'function') return null
+-
+-  const component = componentValue as RendererPayloadComponent
+-  return typeof component.renderPayload === 'function'
+-    ? component.renderPayload(props)
+-    : component(props)
+-}
+-
+-/**
+- * Materializes a component payload by calling its component function.
+- *
+- * @param payload - Component payload.
+- * @returns Component render value.
+- */
+-export function materializeComponentPayload(payload: ComponentPayload): unknown {
+-  return invokeComponentLike(payload.component, payload.props || {})
+-}
+-
+-/**
+- * Applies payload props produced by fabrica-elements to a DOM element.
+- *
+- * @remarks
+- * Kept outside `dom.ts` so the hot renderer can delegate payload-specific
+- * behavior without growing the core part reconciler. Event props support both
+- * React-like `onClick` and map-like `on: { click() {} }` forms.
+- *
+- * @param element - Target element.
+- * @param props - Payload props.
+- * @param appendValue - Renderer append function for children.
+- */
+-export function applyPayloadProps(element: Element, props: Record<string, unknown>, appendValue: AppendRenderValue): void {
+-  for (const key in props) {
+-    const propValue = props[key]
+-
+-    if (key === 'children') {
+-      appendValue(element, propValue as RenderValue)
+-      continue
+-    }
+-
+-    if (bindSpecialAttribute(element, key, propValue)) {
+-      continue
+-    }
+-
+-    if (key === 'class' || key === 'className') {
+-      bindPayloadValue(element, key, propValue, (resolved) => {
+-        const className = stringifyAttributeValue('class', resolved)
+-        if (className) element.setAttribute('class', className)
+-        else element.removeAttribute('class')
+-      })
+-      continue
+-    }
+-
+-    if (key === 'style') {
+-      bindPayloadValue(element, key, propValue, (resolved) => {
+-        const styleText = stringifyAttributeValue('style', resolved)
+-        if (styleText) element.setAttribute('style', styleText)
+-        else element.removeAttribute('style')
+-      })
+-      continue
+-    }
+-
+-    if (key === 'attrs' && propValue && typeof propValue === 'object') {
+-      const attrs = propValue as Record<string, unknown>
+-      for (const attrName in attrs) setPropertyOrAttribute(element, attrName, attrs[attrName])
+-      continue
+-    }
+-
+-    if (key === 'dataset' && propValue && typeof propValue === 'object' && element instanceof HTMLElement) {
+-      const dataset = propValue as Record<string, unknown>
+-      for (const dataName in dataset) {
+-        const item = dataset[dataName]
+-        if (item == null) delete element.dataset[dataName]
+-        else element.dataset[dataName] = String(item)
+-      }
+-      continue
+-    }
+-
+-    if (key === 'ref') {
+-      applyPayloadRef(element, propValue)
+-      continue
+-    }
+-
+-    if (key === 'on' && propValue && typeof propValue === 'object') {
+-      const events = propValue as Record<string, unknown>
+-      for (const eventName in events) {
+-        const listener = events[eventName]
+-        if (typeof listener === 'function') bindEvent(element, eventName, listener as unknown as RenderValue)
+-      }
+-      continue
+-    }
+-
+-    if (key.startsWith('on') && typeof propValue === 'function') {
+-      bindEvent(element, key.slice(2).toLowerCase(), propValue as unknown as RenderValue)
+-      continue
+-    }
+-
+-    if (key.startsWith('data-') || key.startsWith('aria-')) {
+-      bindPayloadValue(element, key, propValue, (resolved) => {
+-        if (resolved == null) element.removeAttribute(key)
+-        else element.setAttribute(key, String(resolved))
+-      })
+-      continue
+-    }
+-
+-    bindPayloadValue(element, key, propValue, (resolved) => {
+-      setPropertyOrAttribute(element, key, resolved)
+-    })
+-  }
+-}
+-
+-/**
+- * Resolves reactive component payload props without treating event callbacks as
+- * ordinary values. Event/ref branches are handled before this helper is called.
+- */
+-function bindPayloadValue(
+-  element: Element,
+-  name: string,
+-  value: unknown,
+-  apply: (resolved: unknown) => void,
+-): void {
+-  const update = (): void => apply(readValue(value))
+-
+-  if (!hasReactiveValue(value)) {
+-    update()
+-    return
+-  }
+-
+-  const dispose = effect(update, {
+-    name: `fabrica.payloadProp.${name}`,
+-    scheduler: 'sync',
+-  })
+-  registerCleanup(element, dispose)
+-}
+-
+-/** Applies a payload ref and registers its cleanup if one is returned. */
+-export function applyPayloadRef(element: Element, value: unknown): void {
+-  if (typeof value === 'function') {
+-    const cleanup = (value as (node: Element) => void | (() => void))(element)
+-    if (typeof cleanup === 'function') registerCleanup(element, cleanup)
+-    return
+-  }
+-
+-  if (value && typeof value === 'object') {
+-    const record = value as Record<string, unknown>
+-    if (record.kind === 'ref' && typeof record.callback === 'function') {
+-      const cleanup = (record.callback as (node: Element) => void | (() => void))(element)
+-      if (typeof cleanup === 'function') registerCleanup(element, cleanup)
+-      return
+-    }
+-
+-    if ('current' in record) {
+-      ;(value as { current: Element | null }).current = element
+-    }
+-  }
+-}
+-
+-/** Stringifies class/style artifacts from Cipó or plain values. */
+-export function stringifyAttributeValue(name: string, value: unknown): string {
+-  if (value == null || value === false) return ''
+-
+-  if ((name === 'class' || name === 'className') && Array.isArray(value)) {
+-    return value.map((item) => stringifyAttributeValue(name, item)).filter(Boolean).join(' ')
+-  }
+-
+-  if (name === 'style' && value && typeof value === 'object') {
+-    const styleLike = value as { cssText?: unknown; compiledCss?: unknown; value?: unknown }
+-    if (typeof styleLike.cssText === 'string') return styleLike.cssText
+-    if (typeof styleLike.compiledCss === 'string') return styleLike.compiledCss
+-    if (typeof styleLike.value === 'string') return styleLike.value
+-  }
+-
+-  if ((name === 'class' || name === 'className') && value && typeof value === 'object') {
+-    const classLike = value as { className?: unknown; classes?: unknown; value?: unknown }
+-    if (typeof classLike.className === 'string') return classLike.className
+-    if (typeof classLike.classes === 'string') return classLike.classes
+-    if (typeof classLike.value === 'string') return classLike.value
+-  }
+-
+-  return String(value)
+-}
+diff --git a/fabrica/dom-spread.ts b/fabrica/dom-spread.ts
+deleted file mode 100644
+index 9cb825bfb745bc07bd0527895ca1fabb2edd78ef..0000000000000000000000000000000000000000
+--- a/fabrica/dom-spread.ts
++++ /dev/null
+@@ -1,312 +0,0 @@
+-import { effect } from "@rodkisten/broto/reactivity";
+-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
+-import { bindEvent } from "@rodkisten/fabrica/events";
+-import { isDomElement } from "@rodkisten/fabrica/guards";
+-import { setPropertyOrAttribute } from "@rodkisten/fabrica/props";
+-import { stringifyAttributeValue } from "@rodkisten/fabrica/dom-payload";
+-import { hasReactiveValue, readValue } from "@rodkisten/fabrica/value";
+-import type { RenderValue } from "@rodkisten/fabrica/types";
+-import { applySpecialAttribute, createSpecialAttributeState } from "@rodkisten/fabrica/dom-special-attributes";
+-
+-let spreadEventDiffVersion = 0;
+-
+-export type SpreadBindingState = {
+-  keys: Set<string>;
+-  /**
+-   * Last applied raw values. Optional for compatibility with older tests and
+-   * external callers that created the state object manually before the diff
+-   * cache existed. `ensureSpreadBindingState` upgrades it in-place.
+-   */
+-  values?: Map<string, unknown>;
+-  events: Map<string, EventListener>;
+-  /** Cleanup handles returned by the shared automatic delegation runtime. */
+-  eventCleanups?: Map<string, () => void>;
+-  /**
+-   * Per-event diff version. Optional for compatibility with older manually
+-   * created states. `ensureSpreadBindingState` upgrades it in-place.
+-   */
+-  eventVersions?: Map<string, number>;
+-  refCleanup: (() => void) | null;
+-};
+-
+-/**
+- * Binds a spread props interpolation on a real DOM element.
+- *
+- * @remarks
+- * This powers template syntax such as `<button ...${props}>`. The spread value
+- * intentionally uses the same prop vocabulary as element payloads: `class`,
+- * `className`, `style`, `attrs`, `dataset`, `ref`, `on`, `onClick`, regular DOM
+- * properties and plain attributes. Event listeners are diffed and removed on
+- * update or disposal so reactive spreads do not leak duplicate handlers.
+- *
+- * @param node - Target node.
+- * @param value - Props object or reactive props object.
+- * @returns void.
+- *
+- * @example
+- * ```ts
+- * html`<button ...${{ type: "button", onClick: save }}>Save</button>`
+- * ```
+- */
+-export function bindSpreadPart(node: Node, value: RenderValue | undefined): void {
+-  if (!isDomElement(node)) {
+-    return;
+-  }
+-
+-  let state: SpreadBindingState = createSpreadBindingState();
+-
+-  const update = (): void => {
+-    state = applySpreadValue(node, readValue(value) as unknown, state);
+-  };
+-
+-  const dispose = hasReactiveValue(value) ? effect(update, { name: "fabrica.spreadBinding" }) : (update(), null);
+-
+-  if (dispose) {
+-    registerCleanup(node, dispose);
+-  }
+-
+-  registerCleanup(node, () => {
+-    cleanupSpreadState(node, state);
+-  });
+-}
+-
+-export function applySpreadV
