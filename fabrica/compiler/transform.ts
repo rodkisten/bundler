@@ -26,6 +26,8 @@ export interface FabricaCompileSourceOptions {
   readonly importPath?: string;
   readonly htmlTags?: readonly string[];
   readonly jsxHtmlTags?: readonly string[];
+  /** Additional modules trusted to re-export Fábrica's `html` binding. */
+  readonly fabricaImportModules?: readonly string[];
   /**
    * Emits uppercase component tags as direct lexical references when a value
    * binding with the same name is visible at the template callsite.
@@ -61,6 +63,7 @@ interface InternalManifestEntry {
 interface CompileContext {
   readonly options: FabricaCompileSourceOptions;
   readonly configuredTags: ReadonlySet<string>;
+  readonly fabricaImportModules: ReadonlySet<string>;
   readonly helperName: string;
   readonly manifest: InternalManifestEntry[];
 }
@@ -101,6 +104,7 @@ export function compileFabricaSource(
   const context: CompileContext = {
     options,
     configuredTags,
+    fabricaImportModules: new Set(options.fabricaImportModules ?? []),
     helperName: helper.localName,
     manifest: manifestEntries,
   };
@@ -160,7 +164,12 @@ function compileSourceFragment(
   const visit = (node: ts.Node): void => {
     if (
       ts.isTaggedTemplateExpression(node) &&
-      isFabricaTemplateTag(node.tag, checker, context.configuredTags)
+      isFabricaTemplateTag(
+        node.tag,
+        checker,
+        context.configuredTags,
+        context.fabricaImportModules,
+      )
     ) {
       templates.push(node);
       return;
@@ -253,7 +262,5 @@ function readTemplateParts(
 
   return { strings, expressions };
 }
-
-
 
 const EMPTY_NAMES: ReadonlySet<string> = new Set<string>();
