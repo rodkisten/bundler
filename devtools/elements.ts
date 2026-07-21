@@ -257,6 +257,10 @@ export class Elements extends Tool {
     }
 
     this.selectedState.set(element);
+    if (this.active) {
+      this.invalidateCrumbs();
+      if (this.detailsOpenState.peek()) this.invalidateDetail();
+    }
 
     if (expandAncestors) {
       this.expandAncestors(element);
