@@ -287,7 +287,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             .value=${options.value}
             .placeholder=${options.placeholder ?? ""}
             aria-label=${options.ariaLabel ?? "Code editor"}
-            .spellcheck="false"
+            .spellcheck=${false}
             .autocapitalize="off"
             .autocomplete="off"
             .autocorrect="off"
