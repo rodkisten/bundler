@@ -1,0 +1,62 @@
++  part: Extract<ComponentPropPart, { spread?: false }>,
++  values: readonly RenderValue[],
++  componentValue: unknown,
++  propName: string,
++): unknown {
++  if (part.raw) {
++    const value = values[part.index];
++    const preservedProps = (
++      componentValue as {
++        preserveSignalProps?: ReadonlySet<string>;
++      } | null
++    )?.preserveSignalProps;
++
++    // Component props normally receive the current signal value. Components
++    // that transport signals explicitly opt in per prop so callbacks and
++    // ordinary function identity are never invoked as reactive expressions.
++    if (
++      isSignal(value) &&
++      !preservedProps?.has(propName)
++    ) {
++      return value();
++    }
++
++    return value;
++  }
++
++  return composeAttributeValue(
++    part.indices,
++    part.strings,
++    values,
++  );
++}
+diff --git a/fabrica/render/deferred.ts b/fabrica/render/deferred.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f25a201b696404c663641aed091aa3d23994f2da
+--- /dev/null
++++ b/fabrica/render/deferred.ts
+@@ -0,0 +1,28 @@
++/**
++ * Deferred fragment activation keeps nested component children inert until
++ * their owning component actually inserts them into the DOM tree.
++ *
++ * The registry stores closures instead of renderer-specific descriptors. This
++ * deliberately prevents the value renderer from importing the template
++ * compiler and keeps the dependency graph acyclic.
++ */
++const deferredFragmentBindings = new WeakMap<DocumentFragment, () => void>();
++
++/** Registers the one-shot binding activation for a detached fragment. */
++export function deferFragmentBindings(
++  fragment: DocumentFragment,
++  activate: () => void,
++): void {
++  deferredFragmentBindings.set(fragment, activate);
++}
++
++/** Activates and releases bindings registered for a detached fragment. */
++export function activateDeferredFragmentBindings(
++  fragment: DocumentFragment,
++): void {
++  const activate = deferredFragmentBindings.get(fragment);
++  if (!acti
