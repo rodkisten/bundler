@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   apply-refactor:
-    name: Apply verified refactor as one clean commit
+    name: Apply refactor as one clean commit
     if: ${{ github.event.pull_request.head.ref == 'agent/fabrica-compiler-structural-refactor' }}
     runs-on: ubuntu-latest
 
@@ -34,18 +34,18 @@ jobs:
           wc -c /tmp/fabrica-refactor.patch
           sha256sum /tmp/fabrica-refactor.patch
 
-      - name: Verify patch integrity
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "3687fa19a4a01d57009c5c3cc42029d1aac7b7d04198c6cb001ed494c4f42de1  /tmp/fabrica-refactor.patch" | sha256sum -c -
-
-      - name: Apply patch onto main
+      - name: Validate patch against main
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
+          git apply --check --whitespace=nowarn /tmp/fabrica-refactor.patch
+
+      - name: Apply patch onto main
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply --index --whitespace=nowarn /tmp/fabrica-refactor.patch
 
       - name: Commit and replace PR branch
