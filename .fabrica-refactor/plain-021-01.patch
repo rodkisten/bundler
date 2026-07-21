@@ -1,0 +1,230 @@
+-    // that intentionally transport signals, such as Context.Provider, opt in
+-    // per prop so callbacks and ordinary object identity remain untouched.
+-    if (isSignal(value) && !preservedProps?.has(propName)) return value();
+-    return value;
+-  }
+-
+-  return composeAttributeValue(part.indices, part.strings, values);
+-}
+-
+-function createAttributeBindingValue(
+-  part: Extract<TemplatePart, { type: "attribute" }>,
+-  values: readonly RenderValue[],
+-): RenderValue | undefined {
+-  if (part.raw) return values[part.index];
+-
+-  for (let index = 0; index < part.indices.length; index += 1) {
+-    if (hasReactiveValue(values[part.indices[index]!] as unknown)) {
+-      return (() => composeAttributeValue(part.indices, part.strings, values)) as RenderValue;
+-    }
+-  }
+-
+-  return composeAttributeValue(part.indices, part.strings, values);
+-}
+-
+-function composeAttributeValue(
+-  indices: readonly number[],
+-  strings: readonly string[],
+-  values: readonly RenderValue[],
+-): string {
+-  let output = strings[0] ?? "";
+-
+-  for (let index = 0; index < indices.length; index += 1) {
+-    output += stringifyAttributeSegment(readValue(values[indices[index]!]));
+-    output += strings[index + 1] ?? "";
+-  }
+-
+-  return output;
+-}
+-
+-function stringifyAttributeSegment(value: unknown): string {
+-  if (value == null || value === false) return "";
+-  if (value === true) return "true";
+-  if (isDomNode(value)) return value.textContent ?? "";
+-  return String(value);
+-}
+-
+-function normalizeStaticComponentPropName(name: string): string {
+-  if (name === "classname") return "className";
+-  if (name === "htmlfor") return "htmlFor";
+-  if (name === "tabindex") return "tabIndex";
+-  if (name === "readonly") return "readOnly";
+-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
+-  return name;
+-}
+-
+-function normalizeComponentPropName(name: string): string {
+-  if (name.startsWith("@")) return eventAttributeToPropName(name.slice(1));
+-  if (name.startsWith(".")) return name.slice(1);
+-  if (name.startsWith("?")) return name.slice(1);
+-  if (name === ":data") return name;
+-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
+-  return name;
+-}
+-
+-function mergeComponentDataProps(target: Record<string, unknown>, value: unknown): void {
+-  if (!value || typeof value !== "object") return;
+-  const source = value as Record<string, unknown>;
+-  for (const key in source) {
+-    const literal = key.startsWith(":");
+-    const rawName = literal ? `"${key.slice(1)}"` : key;
+-    target[toDataAttributeName(rawName)] = source[key];
+-  }
+-}
+-
+-function eventAttributeToPropName(rawName: string): string {
+-  const dotIndex = rawName.indexOf(".");
+-  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
+-  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
+-}
+-
+-function mergeSpreadProps(target: Record<string, unknown>, value: unknown): void {
+-  if (!value || typeof value !== "object") {
+-    return;
+-  }
+-
+-  const source = value as Record<string, unknown>;
+-
+-  for (const key in source) {
+-    const item = source[key];
+-    target[normalizeComponentPropName(key)] = item;
+-  }
+-}
+-
+-/**
+- * Reads static attributes from a component placeholder.
+- *
+- * @param template - Component placeholder template.
+- * @returns Props object.
+- */
+-function readStaticComponentProps(
+-  template: HTMLTemplateElement,
+-): Record<string, unknown> {
+-  const props: Record<string, unknown> = {};
+-
+-  for (let index = 0; index < template.attributes.length; index += 1) {
+-    const attribute = template.attributes[index];
+-
+-    if (
+-      !attribute ||
+-      attribute.name === "data-fabrica-component" ||
+-      attribute.name === "data-fabrica-component-name" ||
+-      attribute.name === "data-fabrica-explicit-component" ||
+-      attribute.name === "name"
+-    ) {
+-      continue;
+-    }
+-
+-    props[normalizeStaticComponentPropName(attribute.name)] = attribute.value;
+-  }
+-
+-  return props;
+-}
+-
+-/**
+- * Creates a stable dynamic child part.
+- *
+- * @param marker - Template marker node.
+- * @returns Child part controller.
+- */
+-function createChildPart(marker: Node): {
+-  start: Comment;
+-  end: Comment;
+-  set(value: RenderValue | undefined): void;
+-} {
+-  const start = document.createComment(PART_START);
+-  const end = document.createComment(PART_END);
+-  const parentNode = marker.parentNode;
+-
+-  let currentType = "empty";
+-  let currentText = "";
+-  let textNode: Text | null = null;
+-  let currentNode: Node | null = null;
+-  let directiveController: DirectiveController | null = null;
+-  const runtime = getCurrentFabricaRuntime();
+-
+-  if (parentNode) {
+-    parentNode.insertBefore(start, marker);
+-    parentNode.insertBefore(end, marker);
+-    parentNode.removeChild(marker);
+-  }
+-
+-  const setValue = (value: RenderValue | undefined): void => {
+-      debugState.updates += 1;
+-
+-      const resolvedValue = readValue(value) as RenderValue;
+-
+-      if (isDirective(resolvedValue)) {
+-        if (
+-          !directiveController ||
+-          directiveController.kind !== resolvedValue.kind
+-        ) {
+-          directiveController?.dispose();
+-          clearRange(start, end);
+-          directiveController = createDirectiveController(
+-            start,
+-            end,
+-            resolvedValue,
+-          );
+-          currentType = `directive:${resolvedValue.kind}`;
+-          currentText = "";
+-          textNode = null;
+-          currentNode = null;
+-        }
+-
+-        directiveController.update(resolvedValue);
+-        return;
+-      }
+-
+-      if (directiveController) {
+-        directiveController.dispose();
+-        directiveController = null;
+-      }
+-
+-      if (
+-        resolvedValue == null ||
+-        resolvedValue === false ||
+-        resolvedValue === true
+-      ) {
+-        if (currentType !== "empty") {
+-          clearRange(start, end);
+-          currentType = "empty";
+-          currentText = "";
+-          textNode = null;
+-          currentNode = null;
+-        }
+-
+-        return;
+-      }
+-
+-      if (Array.isArray(resolvedValue)) {
+-        clearRange(start, end);
+-
+-        for (let index = 0; index < resolvedValue.length; index += 1) {
+-          appendValue(end.parentNode, resolvedValue[index], end);
+-        }
+-
+-        currentType = "array";
+-        currentText = "";
+-        textNode = null;
+-        currentNode = null;
+-        return;
+-      }
+-
+-      if (isRawHtml(resolvedValue)) {
+-        if (currentType === "raw" && currentText === resolvedValue.value) {
+-          return;
+-        }
+-
+-        clearRange(start, end);
+-        end.parentNode?.insertBefore(cloneRawHtmlContent(resolvedValue.value), end);
+-        currentType = "raw";
+-        currentText = resolvedValue.value;
+-        textNode = null;
+-        currentNode = null;
+-        return;
+-      }
+-
+-      if (
+-        isComponent(resolvedValue) ||
+-        isComponentRenderRequest(resolvedValue) ||
