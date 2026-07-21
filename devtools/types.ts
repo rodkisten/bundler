@@ -2,7 +2,10 @@ import type { Signal, Store } from "@rodkisten/broto";
 import type { RenderValue } from "@rodkisten/fabrica";
 
 
-/** Shared contracts used by more than one DevTools module. Panel-private models stay beside their implementation. */
+/**
+ * Shared contracts used by more than one DevTools module.
+ * Panel-private models stay beside their implementation.
+ */
 
 export type Cleanup = () => void;
 export type StringKey<Values extends object> = Extract<keyof Values, string>;
@@ -25,10 +28,30 @@ export type ConsoleLevel =
 export type NetworkKind = "fetch" | "xhr" | "websocket" | "resource";
 export type NetworkState = "pending" | "complete" | "failed";
 export type WebSocketMessageDirection = "sent" | "received";
-export type SourceType = "auto" | "text" | "raw" | "html" | "css" | "javascript" | "json" | "object" | "image" | "iframe";
-export type DebugLevel = "trace" | "debug" | "info" | "warn" | "error" | "silent";
+export type SourceType =
+  | "auto"
+  | "text"
+  | "raw"
+  | "html"
+  | "css"
+  | "javascript"
+  | "json"
+  | "object"
+  | "image"
+  | "iframe";
+export type DebugLevel =
+  | "trace"
+  | "debug"
+  | "info"
+  | "warn"
+  | "error"
+  | "silent";
 export type NotificationType = "info" | "success" | "warning" | "error";
-export type ConsoleFilter = string | RegExp | ((record: ConsoleRecord) => boolean) | null;
+export type ConsoleFilter =
+  | string
+  | RegExp
+  | ((record: ConsoleRecord) => boolean)
+  | null;
 
 export interface Position {
   x: number;
@@ -187,7 +210,11 @@ export interface InitialConsoleEntry {
   readonly stack?: string;
 }
 
-export type InitialConsoleBag = readonly (InitialConsoleEntry | Error | unknown)[];
+export type InitialConsoleBag = readonly (
+  | InitialConsoleEntry
+  | Error
+  | unknown
+)[];
 
 export interface DevtoolsInitOptions {
   container?: HTMLElement;
@@ -198,9 +225,9 @@ export interface DevtoolsInitOptions {
   defaults?: DevtoolsDefaults;
   config?: DevtoolsInitConfig;
   debug?: boolean | DevtoolsDebugOptions;
-  /** Logs or errors captured by a userscript before RodEruda finished mounting. */
+  /** Logs or errors captured before RodEruda finished mounting. */
   initialLogs?: InitialConsoleBag;
-  /** Alias focused on startup failures. Both bags are merged in insertion order. */
+  /** Startup-failure alias. Both bags are merged in insertion order. */
   initialErrors?: InitialConsoleBag;
 }
 
@@ -254,7 +281,9 @@ export interface DevtoolsControllerLike {
   toggle(): DevtoolsControllerLike;
   add(tool: ToolLike): DevtoolsControllerLike;
   remove(name: string): DevtoolsControllerLike;
-  get<RequestedTool extends ToolLike = ToolLike>(name: string): RequestedTool | undefined;
+  get<RequestedTool extends ToolLike = ToolLike>(
+    name: string,
+  ): RequestedTool | undefined;
   showTool(name: string): DevtoolsControllerLike;
   notify(message: string, options?: NotificationOptions): void;
   getRoot(): HTMLElement;
@@ -272,9 +301,23 @@ export interface RangeOptions {
 
 
 export type ConfigSettingDefinition<Values extends object> =
-  | { readonly kind: "switch"; readonly key: KeysOfValue<Values, boolean>; readonly label: string }
-  | { readonly kind: "select"; readonly key: KeysOfValue<Values, string>; readonly label: string; readonly selections: readonly string[] }
-  | { readonly kind: "range" | "number"; readonly key: KeysOfValue<Values, number>; readonly label: string; readonly options?: RangeOptions };
+  | {
+      readonly kind: "switch";
+      readonly key: KeysOfValue<Values, boolean>;
+      readonly label: string;
+    }
+  | {
+      readonly kind: "select";
+      readonly key: KeysOfValue<Values, string>;
+      readonly label: string;
+      readonly selections: readonly string[];
+    }
+  | {
+      readonly kind: "range" | "number";
+      readonly key: KeysOfValue<Values, number>;
+      readonly label: string;
+      readonly options?: RangeOptions;
+    };
 
 export interface ConfigSettingsGroup<Values extends object> {
   readonly title: string;
@@ -284,15 +327,23 @@ export interface ConfigSettingsGroup<Values extends object> {
 
 export interface SettingsLike extends ToolLike {
   registerText(text: string): string;
-  registerConfigGroup<Values extends object>(group: ConfigSettingsGroup<Values>): readonly string[];
+  registerConfigGroup<Values extends object>(
+    group: ConfigSettingsGroup<Values>,
+  ): readonly string[];
   registerSeparator(): string;
   registerButton(label: string, handler: () => void | Promise<void>): string;
-  registerSwitch<Values extends object, Key extends KeysOfValue<Values, boolean>>(
+  registerSwitch<
+    Values extends object,
+    Key extends KeysOfValue<Values, boolean>,
+  >(
     config: ConfigLike<Values>,
     key: Key,
     description: string,
   ): string;
-  registerSelect<Values extends object, Key extends KeysOfValue<Values, string>>(
+  registerSelect<
+    Values extends object,
+    Key extends KeysOfValue<Values, string>,
+  >(
     config: ConfigLike<Values>,
     key: Key,
     description: string,
@@ -304,7 +355,10 @@ export interface SettingsLike extends ToolLike {
     description: string,
     options?: RangeOptions,
   ): string;
-  registerNumber<Values extends object, Key extends KeysOfValue<Values, number>>(
+  registerNumber<
+    Values extends object,
+    Key extends KeysOfValue<Values, number>,
+  >(
     config: ConfigLike<Values>,
     key: Key,
     description: string,
@@ -400,9 +454,7 @@ export interface EventListenerRecord {
   addedAt: number;
 }
 
-/***************************************************************************************************
- * Reactive view contracts
- **************************************************************************************************/
+/** Reactive view contracts. */
 
 export interface ConsoleState extends Record<string, unknown> {
   records: ConsoleRecord[];
@@ -469,7 +521,12 @@ export interface InfoContextValue {
   renderValue(value: unknown): RenderValue;
 }
 
-export type NetworkDetailTab = "headers" | "payload" | "response" | "timing" | "messages";
+export type NetworkDetailTab =
+  | "headers"
+  | "payload"
+  | "response"
+  | "timing"
+  | "messages";
 
 export interface NetworkContextValue {
   readonly records: Signal<readonly NetworkRecord[]>;
@@ -487,9 +544,8 @@ export interface NetworkContextValue {
 }
 
 export interface ResourcesContextValue {
-  readonly revision: Signal<number>;
-  renderContent(): RenderValue;
-  renderJsonDialog(): RenderValue;
+  readonly content: Signal<RenderValue>;
+  readonly jsonDialog: Signal<RenderValue>;
 }
 
 export interface SettingsContextValue {
@@ -512,9 +568,7 @@ export interface SourcesContextValue {
   action(name: string): void;
 }
 
-/***************************************************************************************************
- * Root DevTools context contracts
- **************************************************************************************************/
+/** Root DevTools context contracts. */
 
 export interface DevtoolsShellRefs {
   root: HTMLElement;
