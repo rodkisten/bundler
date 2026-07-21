@@ -20,6 +20,7 @@
       "@rodkisten/cipo/compiler": ["./cipo/compiler.ts"],
       "@rodkisten/cipo/vite": ["./cipo/vite-index.ts"],
       "@rodkisten/cipo/compiled-runtime": ["./cipo/compiled-runtime.ts"],
+      "@rodkisten/cipo/runtime-inline": ["./cipo/runtime-inline.ts"],
       "@rodkisten/cipo/browser": ["./cipo/browser-entry.ts"],
       "@rodkisten/devtools": ["./devtools/index.ts"],
       "@rodkisten/devtools/core/*": ["./devtools/*", "./devtools/core-*"],
