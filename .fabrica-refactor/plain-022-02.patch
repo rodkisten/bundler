@@ -1,0 +1,54 @@
++export { defineElement, elements } from "./elements.js";
++export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw.js";
++import { createDefaultFabricaApi } from "./public-api.js";
+ 
+-/** Default singleton API kept for browser-global and package compatibility. */
++/**
++ * Default singleton runtime API. Importing the package is side-effect free;
++ * browser-global installation lives exclusively in the `./browser` entrypoint.
++ */
+ const Fabrica = createDefaultFabricaApi();
+ 
+-if (typeof globalThis !== "undefined") {
+-  Fabrica.install();
+-}
+-
+ export default Fabrica;
+ 
+ declare global {
+   // eslint-disable-next-line no-var
+-  var Fabrica: import("@rodkisten/fabrica/public-api").FabricaApi | undefined;
++  var Fabrica: import("./public-api.js").FabricaApi | undefined;
+   // eslint-disable-next-line no-var
+   var $: unknown;
+   // eslint-disable-next-line no-var
+diff --git a/fabrica/install-state.ts b/fabrica/install-state.ts
+index d09d9c9275b5a70c64ed1329a257ec450da459d1..e04fec65a5353de1235263cf44316f3107024552 100644
+--- a/fabrica/install-state.ts
++++ b/fabrica/install-state.ts
+@@ -1,10 +1,23 @@
+-import type { RuntimeConfig } from "@rodkisten/fabrica/types";
++import type { RuntimeConfig } from "./types.js";
+ 
+-/** Mutable runtime config used by the bag and install layers. */
+-export const config: RuntimeConfig = {
++/** Stable defaults reapplied for every global installation. */
++export const DEFAULT_RUNTIME_CONFIG: Readonly<RuntimeConfig> = Object.freeze({
+   exposeDollar: false,
+   exposeDollarEl: true,
+   dollarAlias: "$el",
+   forceAlias: false,
+   createWhenSelectorMisses: true,
+-};
++});
++
++/**
++ * Runtime configuration consumed by legacy global helpers such as `$()`.
++ *
++ * The object identity stays stable for live imports, but every `install()` call
++ * resets it to defaults before applying options so settings from an earlier
++ * installation cannot leak into a later one.
++ */
++export const config: RuntimeConfig = { ...DEFAULT_RUNTIME_CONFIG };
++
++export function configureRuntime(options: Partial<RuntimeConfig>): void 
