@@ -5,8 +5,8 @@ import type {
 } from "@rodkisten/devtools/types";
 import { filterArray, includesArray } from "@rodkisten/nascente";
 
-export const DEFAULT_DEVTOOLS_BUNDLE_URL = "index.js";
-// export const DEFAULT_DEVTOOLS_BUNDLE_URL = "https://rod.migos.club/bundler/devtools.iife.js";
+export const DEFAULT_DEVTOOLS_BUNDLE_URL =
+  "https://rod.migos.club/bundler/devtools.iife.js";
 export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
 
 export const LANDING_PANEL_NAMES = [
