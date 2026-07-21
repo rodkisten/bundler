@@ -1,0 +1,42 @@
+name: Apply Fábrica structural refactor
+
+on:
+  push:
+    branches:
+      - agent/fabrica-compiler-structural-refactor
+    paths:
+      - .refactor-ready
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply verified refactor patch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout patch carrier branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Apply refactor as one commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .fabrica-refactor/patch-*.b64 \
+            | base64 --decode \
+            | gzip --decompress \
+            > /tmp/fabrica-refactor.patch
+
+          git fetch origin main
+          git reset --hard origin/main
+          git apply --index --whitespace=nowarn /tmp/fabrica-refactor.patch
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "refactor: rebuild Fábrica runtime and compiler architecture"
+          git push --force-with-lease \
+            origin HEAD:refs/heads/agent/fabrica-compiler-structural-refactor
