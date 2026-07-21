@@ -2,20 +2,19 @@ import { batch, computed, effect, memo, signal, untrack } from "@rodkisten/broto
 import { createRoot, getOwner, handleOwnerError, provide, requireContext, runWithOwner, useContext, useRequiredContext } from "@rodkisten/broto/owner";
 import { provideReactiveContext, requireReactiveContext, useReactiveContext } from "@rodkisten/broto/context";
 import { resource } from "@rodkisten/broto/resources";
-import { debugState } from "@rodkisten/fabrica/debug";
-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
-import { appendValue } from "@rodkisten/fabrica/dom";
-import { ref } from "@rodkisten/fabrica/directives";
+import { debugState } from "./debug.js";
+import { registerCleanup } from "./render/cleanup.js";
+import { ref } from "./directives.js";
 import {
   defaultComponentRegistry,
   normalizeComponentName,
   resolveRegistry,
-} from "@rodkisten/fabrica/component-registry";
-import { warnDeprecated } from "@rodkisten/fabrica/deprecations";
+} from "./component-registry.js";
+import { warnDeprecated } from "./deprecations.js";
 import {
   getCurrentFabricaRuntime,
   runWithFabricaRuntime,
-} from "@rodkisten/fabrica/runtime-context";
+} from "./core/runtime-context.js";
 import type {
   Cleanup,
   Component,
@@ -27,9 +26,16 @@ import type {
   ComponentRenderRequest,
   ComponentUseOptions,
   RenderValue,
-} from "@rodkisten/fabrica/types";
+} from "./types.js";
 
 let componentId = 0;
+
+
+type AppendRenderValue = (
+  parentNode: Node | null,
+  value: RenderValue,
+  beforeNode?: Node | null,
+) => void;
 
 type RuntimeApiShape = {
   html: ComponentContext["html"];
@@ -224,9 +230,12 @@ export function clearComponents(): void {
  * The active Fabrica runtime is captured before ownership creation and restored
  * around setup and child insertion. Reactive updates therefore keep resolving
  * named tags against the instance that originally mounted the component.
+ * The renderer append primitive is injected to keep component definition and
+ * DOM materialization layers acyclic.
  */
 export function materializeComponent<Props extends object>(
   request: ComponentRenderRequest<Props>,
+  appendValue: AppendRenderValue,
 ): DocumentFragment {
   const runtime = getCurrentFabricaRuntime();
   const displayName = request.component.displayName || request.component.factory?.name || "AnonymousComponent";
