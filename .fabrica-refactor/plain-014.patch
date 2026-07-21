@@ -1,0 +1,459 @@
+  return SVG_TAG_RE.test(tag);
++}
++
++export function createElementForTag(tag: string): Element {
++  return isSvgTag(tag)
++    ? document.createElementNS(SVG_NAMESPACE, tag)
++    : document.createElement(tag);
++}
++
++export function normalizeTemplateStrings(
++  strings: TemplateStringsArray | readonly string[],
++): TemplateStringsArray {
++  if (isTemplateStringsArray(strings)) return strings;
++  const cooked = strings.slice() as string[] & { raw?: readonly string[] };
++  Object.defineProperty(cooked, "raw", {
++    configurable: false,
++    enumerable: false,
++    value: strings.slice(),
++  });
++  return cooked as unknown as TemplateStringsArray;
++}
++
++function isTemplateStringsArray(
++  value: TemplateStringsArray | readonly string[],
++): value is TemplateStringsArray {
++  return Array.isArray(value) && Array.isArray((value as { raw?: unknown }).raw);
++}
++
++export function applyEdits(
++  source: string,
++  edits: readonly SourceEdit[],
++): string {
++  let output = "";
++  let cursor = 0;
++  for (const edit of edits) {
++    if (edit.start < cursor) continue;
++    output += source.slice(cursor, edit.start);
++    output += edit.value;
++    cursor = edit.end;
++  }
++  return output + source.slice(cursor);
++}
+diff --git a/fabrica/component-registry.ts b/fabrica/component-registry.ts
+index 5a196618af1d0b82627d8b1ef69ac5aa56d425cf..f7e30fa410de578b523a9798cf7c4e135ed5925b 100644
+--- a/fabrica/component-registry.ts
++++ b/fabrica/component-registry.ts
+@@ -1,15 +1,11 @@
+-import { warnDeprecated } from "@rodkisten/fabrica/deprecations";
++import { warnDeprecated } from "./deprecations.js";
+ import type {
+-  Component,
+   ComponentLike,
+-  ComponentProps,
+   ComponentRegistry,
+   ComponentRegistryOptions,
+   RegistryCollision,
+   RegistryRegistrationOptions,
+-} from "@rodkisten/fabrica/types";
+-
+-const COMPONENT_NAME_RE = /^[A-Z][A-Za-z0-9_$.-]*$/;
++} from "./types.js";
+ 
+ /** Normalizes names once at registry boundaries instead of on every render. */
+ export function normalizeComponentName(name: unknown): string {
+@@ -24,11 +20,6 @@ export function normalizeComponentName(name: unknown): string {
+   return first > 32 && last > 32 ? name : name.trim();
+ }
+ 
+-/** Returns whether a name is safe for uppercase component-tag syntax. */
+-export function isRegisteredComponentName(name: unknown): boolean {
+-  return COMPONENT_NAME_RE.test(normalizeComponentName(name));
+-}
+-
+ /**
+  * Map-backed registry with an optional parent overlay.
+  *
+@@ -415,6 +406,4 @@ function createLegacyRegistryAdapter(legacy: LegacyRegistryShape): ComponentRegi
+   return adapter;
+ }
+ 
+-/** Type-level compatibility helper for external adapters. */
+-export type RegisteredComponent<Props extends object = ComponentProps> = Component<Props>;
+ export type { RegistryCollision };
+diff --git a/fabrica/component.ts b/fabrica/component.ts
+index 6003cbbe219e9f1f3ac5876b51dac554ae608052..4d4c5674c27e68c31631617077e08079c1b88173 100644
+--- a/fabrica/component.ts
++++ b/fabrica/component.ts
+@@ -2,20 +2,19 @@ import { batch, computed, effect, memo, signal, untrack } from "@rodkisten/broto
+ import { createRoot, getOwner, handleOwnerError, provide, requireContext, runWithOwner, useContext, useRequiredContext } from "@rodkisten/broto/owner";
+ import { provideReactiveContext, requireReactiveContext, useReactiveContext } from "@rodkisten/broto/context";
+ import { resource } from "@rodkisten/broto/resources";
+-import { debugState } from "@rodkisten/fabrica/debug";
+-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
+-import { appendValue } from "@rodkisten/fabrica/dom";
+-import { ref } from "@rodkisten/fabrica/directives";
++import { debugState } from "./debug.js";
++import { registerCleanup } from "./render/cleanup.js";
++import { ref } from "./directives.js";
+ import {
+   defaultComponentRegistry,
+   normalizeComponentName,
+   resolveRegistry,
+-} from "@rodkisten/fabrica/component-registry";
+-import { warnDeprecated } from "@rodkisten/fabrica/deprecations";
++} from "./component-registry.js";
++import { warnDeprecated } from "./deprecations.js";
+ import {
+   getCurrentFabricaRuntime,
+   runWithFabricaRuntime,
+-} from "@rodkisten/fabrica/runtime-context";
++} from "./core/runtime-context.js";
+ import type {
+   Cleanup,
+   Component,
+@@ -27,10 +26,17 @@ import type {
+   ComponentRenderRequest,
+   ComponentUseOptions,
+   RenderValue,
+-} from "@rodkisten/fabrica/types";
++} from "./types.js";
+ 
+ let componentId = 0;
+ 
++
++type AppendRenderValue = (
++  parentNode: Node | null,
++  value: RenderValue,
++  beforeNode?: Node | null,
++) => void;
++
+ type RuntimeApiShape = {
+   html: ComponentContext["html"];
+   jsx: ComponentContext["jsx"];
+@@ -224,9 +230,12 @@ export function clearComponents(): void {
+  * The active Fabrica runtime is captured before ownership creation and restored
+  * around setup and child insertion. Reactive updates therefore keep resolving
+  * named tags against the instance that originally mounted the component.
++ * The renderer append primitive is injected to keep component definition and
++ * DOM materialization layers acyclic.
+  */
+ export function materializeComponent<Props extends object>(
+   request: ComponentRenderRequest<Props>,
++  appendValue: AppendRenderValue,
+ ): DocumentFragment {
+   const runtime = getCurrentFabricaRuntime();
+   const displayName = request.component.displayName || request.component.factory?.name || "AnonymousComponent";
+diff --git a/fabrica/context.ts b/fabrica/context.ts
+index 9e97f64fb4f98e86e36485ecebc90205358190a0..5f77a6f5309808cd3c714c926c9c3004b5ea3ce0 100644
+--- a/fabrica/context.ts
++++ b/fabrica/context.ts
+@@ -11,14 +11,14 @@ import {
+   useReactiveContext,
+   useRequiredContext,
+ } from "@rodkisten/broto";
+-import { defineComponent } from "@rodkisten/fabrica/component";
++import { defineComponent } from "./component.js";
+ import type {
+   Component,
+   ComponentChildren,
+   ContextToken,
+   ReactiveContextToken,
+   Signal,
+-} from "@rodkisten/fabrica/types";
++} from "./types.js";
+ 
+ export interface ContextProviderProps<Value> {
+   value: Value;
+diff --git a/fabrica/constants.ts b/fabrica/core/constants.ts
+similarity index 100%
+rename from fabrica/constants.ts
+rename to fabrica/core/constants.ts
+diff --git a/fabrica/runtime-context.ts b/fabrica/core/runtime-context.ts
+similarity index 86%
+rename from fabrica/runtime-context.ts
+rename to fabrica/core/runtime-context.ts
+index 0104c16eb688b1618e666d6c7c66b12589354c4a..177874b17cc5098eeb310e8b43eddabab01da4cb 100644
+--- a/fabrica/runtime-context.ts
++++ b/fabrica/core/runtime-context.ts
+@@ -1,4 +1,4 @@
+-import type { ComponentRegistry, FabricaRuntimeContext } from "@rodkisten/fabrica/types";
++import type { ComponentRegistry, FabricaRuntimeContext } from "../types.js";
+ 
+ let activeRuntime: FabricaRuntimeContext | undefined;
+ let defaultRuntime: FabricaRuntimeContext | undefined;
+@@ -11,11 +11,6 @@ export function setDefaultFabricaRuntime(runtime: FabricaRuntimeContext): void {
+   defaultRuntime = runtime;
+ }
+ 
+-/** Returns the currently rendering runtime, if any. */
+-export function getActiveFabricaRuntime(): FabricaRuntimeContext | undefined {
+-  return activeRuntime;
+-}
+-
+ /** Returns the active runtime or the default singleton runtime. */
+ export function getCurrentFabricaRuntime(): FabricaRuntimeContext {
+   const runtime = activeRuntime ?? defaultRuntime;
+diff --git a/fabrica/value.ts b/fabrica/core/value.ts
+similarity index 97%
+rename from fabrica/value.ts
+rename to fabrica/core/value.ts
+index 0e8109110bfd98c670716c113986715277c10522..ca4190bf8748a83e2ef5d815aa910824eab4f866 100644
+--- a/fabrica/value.ts
++++ b/fabrica/core/value.ts
+@@ -7,7 +7,7 @@ import {
+   isRawHtml,
+   isSignal,
+   isStyleMapDirective,
+-} from "@rodkisten/fabrica/guards";
++} from "../guards.js";
+ 
+ /**
+  * Reads signals and reactive expressions while leaving DOM-ish values intact.
+diff --git a/fabrica/css.ts b/fabrica/css.ts
+index 4cf5b0d25daf4435e7d40ccf39738c9059fb2cce..6e2b323323c0904532729ebe0e96ae87885fb5fa 100644
+--- a/fabrica/css.ts
++++ b/fabrica/css.ts
+@@ -1,6 +1,6 @@
+-import { isPlainObject, isTemplateStringsArray } from "@rodkisten/fabrica/guards";
+-import { readValue } from "@rodkisten/fabrica/value";
+-import type { CssInput } from "@rodkisten/fabrica/types";
++import { isPlainObject, isTemplateStringsArray } from "./guards.js";
++import { readValue } from "./core/value.js";
++import type { CssInput } from "./types.js";
+ 
+ /** Parsed CSS declaration. */
+ type CssDeclaration = {
+diff --git a/fabrica/debug.ts b/fabrica/debug.ts
+index 19662344aa9513a16c87b59c932eebf738316b4a..25ba512dc137004c3aba5a74505f74745471dd75 100644
+--- a/fabrica/debug.ts
++++ b/fabrica/debug.ts
+@@ -1,4 +1,4 @@
+-import type { DebugListener, DebugRecord, DebugSnapshot } from "@rodkisten/fabrica/types";
++import type { DebugListener, DebugRecord, DebugSnapshot } from "./types.js";
+ 
+ const DEBUG_RECORD_LIMIT = 256;
+ const debugRecordsBuffer: DebugRecord[] = [];
+diff --git a/fabrica/directives.ts b/fabrica/directives.ts
+index 51bb7609230b92eab45103d6ba8384563472f272..dfd95be5943bb9b157fb8e79b234128787aee8d7 100644
+--- a/fabrica/directives.ts
++++ b/fabrica/directives.ts
+@@ -17,7 +17,7 @@ import type {
+   BindDirective,
+   KeyedDirective,
+   EventOptionsDirective,
+-} from "@rodkisten/fabrica/types";
++} from "./types.js";
+ 
+ /**
+  * Creates a conditional rendering directive.
+diff --git a/fabrica/directives/controllers/keyed.ts b/fabrica/directives/controllers/keyed.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..031d8842de782110fce2a2a66b3ac879fbde6192
+--- /dev/null
++++ b/fabrica/directives/controllers/keyed.ts
+@@ -0,0 +1,39 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { readValue } from "../../core/value.js";
++import { clearRange, registerCleanup } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, KeyedDirective } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++
++export function createKeyedController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  let previousKey: unknown = Symbol('initial-key');
++  let disposeEffect: (() => void) | null = null;
++  let currentDirective: KeyedDirective | null = null;
++
++  const updateKeyed = () => {
++    if (!currentDirective) return;
++    const nextKey = readValue(currentDirective.key);
++    if (Object.is(previousKey, nextKey)) return;
++    previousKey = nextKey;
++    clearRange(start, end);
++    host.appendValue(end.parentNode, currentDirective.render(), end);
++  };
++
++  return {
++    kind: 'keyed',
++    update(nextDirective: Directive) {
++      currentDirective = nextDirective as KeyedDirective;
++      if (disposeEffect) { updateKeyed(); return; }
++      disposeEffect = effect(updateKeyed, { name: 'fabrica.keyed' });
++      registerCleanup(start, disposeEffect);
++    },
++    dispose() {
++      disposeEffect?.();
++      disposeEffect = null;
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/fabrica/directives/controllers/portal.ts b/fabrica/directives/controllers/portal.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..fdb73159c8d67c1caac55c04f77f8d920db1027b
+--- /dev/null
++++ b/fabrica/directives/controllers/portal.ts
+@@ -0,0 +1,72 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { readValue } from "../../core/value.js";
++import { clearRange, registerCleanup } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, PortalDirective, RenderValue } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++
++export function createPortalController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  let currentDirective: PortalDirective | null = null;
++  let disposePortal: (() => void) | null = null;
++  let disposeEffect: (() => void) | null = null;
++  let currentTarget: Element | DocumentFragment | ShadowRoot | null = null;
++
++  const updatePortal = (): void => {
++    if (!currentDirective) return;
++    const target = typeof currentDirective.target === "function" ? currentDirective.target() : currentDirective.target;
++    const value = readValue(currentDirective.value) as RenderValue;
++
++    if (!target) {
++      disposePortal?.();
++      disposePortal = null;
++      currentTarget = null;
++      return;
++    }
++
++    if (target !== currentTarget) {
++      disposePortal?.();
++      disposePortal = null;
++      currentTarget = target;
++    }
++
++    if (!disposePortal) {
++      disposePortal = host.mount(target, value);
++      return;
++    }
++
++    disposePortal();
++    disposePortal = host.mount(target, value);
++  };
++
++  return {
++    kind: "portal",
++    update(nextDirective: Directive): void {
++      currentDirective = nextDirective as PortalDirective;
++
++      if (disposeEffect) {
++        updatePortal();
++        return;
++      }
++
++      disposeEffect = effect(updatePortal, { name: "fabrica.portal" });
++      registerCleanup(start, () => {
++        disposeEffect?.();
++        disposeEffect = null;
++        disposePortal?.();
++        disposePortal = null;
++        currentTarget = null;
++      });
++    },
++    dispose(): void {
++      disposeEffect?.();
++      disposeEffect = null;
++      disposePortal?.();
++      disposePortal = null;
++      currentTarget = null;
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/fabrica/directives/controllers/repeat.ts b/fabrica/directives/controllers/repeat.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5316b6653741410ab9e891314b55ed0f2aa36e8
+--- /dev/null
++++ b/fabrica/directives/controllers/repeat.ts
+@@ -0,0 +1,80 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { hasReactiveValue } from "../../core/value.js";
++import { clearRange, disposeRange, registerCleanup, removeRange } from "../../render/cleanup.js";
++import type { Directive, DirectiveController, RepeatDirective, RepeatRecord } from "../../types.js";
++import type { DirectiveRuntimeHost } from "../host.js";
++import { updateRepeat } from "../repeat.js";
++
++export function createRepeatController(
++  start: Comment,
++  end: Comment,
++  host: DirectiveRuntimeHost,
++): DirectiveController {
++  const records = new Map<PropertyKey, RepeatRecord>();
++  let currentDirective: RepeatDirective<unknown, PropertyKey> | null = null;
++  let disposeItems: (() => void) | null = null;
++  let emptyStart: Comment | null = null;
++  let emptyEnd: Comment | null = null;
++
++  const updateList = (): void => {
++    if (!currentDirective) {
++      return;
++    }
++
++    const hasItems = updateRepeat(
++      host,
++      end,
++      records,
++      currentDirective,
++    );
++
++    if (!hasItems && currentDirective.empty) {
++      if (!emptyStart) {
++        emptyStart = document.createComment("fabrica:empty:start");
++        emptyEnd = document.createComment("fabrica:empty:end");
++        end.parentNode?.insertBefore(emptyStart, end);
++        host.appendValue(end.parentNode, currentDirective.empty(), end);
++        end.parentNode?.insertBefore(emptyEnd, end);
++      }
++
++      return;
++    }
++
++    if (emptyStart && emptyEnd) {
++      disposeRange(emptyStart, emptyEnd);
++      removeRange(emptyStart, emptyEnd);
++      emptyStart = null;
++      emptyEnd = null;
++    }
++  };
++
++  return {
++    kind: "repeat",
++    update(nextDirective: Directive): void {
++      currentDirective = nextDirective as RepeatDirective<unknown, PropertyKey>;
++
++      if (disposeItems) {
++        return;
++      }
++
++      disposeItems = hasReactiveValue(currentDirective.items)
++        ? effect(updateList)
++        : (updateList(), null);
++
++      if (disposeItems) {
++        registerCleanup(start, disposeItems);
++      }
++    },
++    dispose(): void {
++      disposeItems?.();
++      disposeItems = null;
++
++      for (const record of records.values()) {
++        disposeRange(record.start, record.end);
++      }
++
++      records.clear();
++      clearRange(start, end);
++    },
++  };
++}
+diff --git a/f
