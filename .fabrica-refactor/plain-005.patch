@@ -1,0 +1,528 @@
+d<PropertyKey, unknown>;
++
++let cachedGlobalInstances: Map<string, unknown> | null = null;
++
++/** Normalizes realm-wide instance keys without allocating for clean strings. */
++export function normalizeInstanceKey(key: string): string {
++  if (typeof key === "string") {
++    const length = key.length;
++
++    if (
++      length > 0 &&
++      key.charCodeAt(0) > 32 &&
++      key.charCodeAt(length - 1) > 32
++    ) {
++      return key;
++    }
++  }
++
++  return String(key || "").trim();
++}
++
++/** Reads one realm-local named instance without coupling the store to its API. */
++export function getNamedInstance<Value>(key: string): Value | undefined {
++  return getGlobalInstanceMap().get(key) as Value | undefined;
++}
++
++/** Stores one realm-local named instance. */
++export function setNamedInstance(key: string, value: unknown): void {
++  getGlobalInstanceMap().set(key, value);
++}
++
++/** Creates a monotonically increasing debug identifier for an instance. */
++export function createInstanceId(name: string): string {
++  const target = globalThis as GlobalInstanceState;
++  const next = Number(target[INSTANCE_COUNTER] || 0) + 1;
++  target[INSTANCE_COUNTER] = next;
++  return `fabrica:${name}:${next}`;
++}
++
++function getGlobalInstanceMap(): Map<string, unknown> {
++  if (cachedGlobalInstances) return cachedGlobalInstances;
++
++  const target = globalThis as GlobalInstanceState;
++  let instances = target[INSTANCE_MAP] as Map<string, unknown> | undefined;
++
++  if (!instances) {
++    instances = new Map<string, unknown>();
++    Object.defineProperty(target, INSTANCE_MAP, {
++      configurable: true,
++      enumerable: false,
++      value: instances,
++    });
++  }
++
++  cachedGlobalInstances = instances;
++  return instances;
++}
+diff --git a/fabrica/api/packs.ts b/fabrica/api/packs.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..94e954f128fe8180ff3d820bd134dbe22743d5fc
+--- /dev/null
++++ b/fabrica/api/packs.ts
+@@ -0,0 +1,51 @@
++import { normalizeComponentName } from "../component-registry.js";
++import type {
++  ComponentLike,
++  ComponentPack,
++} from "../types.js";
++
++/** Creates a portable named component pack without registering it anywhere. */
++export function createComponentPack(
++  name: string,
++  components:
++    | Record<string, ComponentLike>
++    | ReadonlyMap<string, ComponentLike>,
++): ComponentPack {
++  const normalizedName = normalizeComponentName(name);
++
++  if (!normalizedName) {
++    throw new Error(
++      "[Fabrica] createComponentPack() needs a non-empty name.",
++    );
++  }
++
++  const entries = components instanceof Map
++    ? components
++    : new Map(Object.entries(components));
++
++  for (const [componentName, component] of entries) {
++    if (
++      !normalizeComponentName(componentName) ||
++      typeof component !== "function"
++    ) {
++      throw new TypeError(
++        "[Fabrica] Component packs require named function components.",
++      );
++    }
++  }
++
++  return Object.freeze({
++    __kind: "componentPack" as const,
++    name: normalizedName,
++    components: new Map(entries),
++  });
++}
++
++/** Narrows portable component-pack values without registry side effects. */
++export function isComponentPack(value: unknown): value is ComponentPack {
++  return Boolean(
++    value &&
++    typeof value === "object" &&
++    (value as ComponentPack).__kind === "componentPack"
++  );
++}
+diff --git a/fabrica/api/types.ts b/fabrica/api/types.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd8c58fa1a760486d443954119659bf070fe745a
+--- /dev/null
++++ b/fabrica/api/types.ts
+@@ -0,0 +1,166 @@
++import type {
++  batch,
++  computed,
++  effect,
++  signal,
++} from "@rodkisten/broto/reactivity";
++import type { $ } from "../bag.js";
++import type { boundary } from "../boundary.js";
++import type { defineComponent } from "../component.js";
++import type { createComponentRegistry } from
++  "../component-registry.js";
++import type {
++  createContextProvider,
++  createFabricaContext,
++  createReactiveContextProvider,
++  createReactiveFabricaContext,
++  createRequiredFabricaContext,
++  hasContext,
++  provide,
++  provideReactiveContext,
++  requireContext,
++  requireReactiveContext,
++  useContext,
++  useReactiveContext,
++  useRequiredContext,
++} from "../context.js";
++import type { css } from "../css.js";
++import type { event } from "../event-typing.js";
++import type {
++  bind,
++  childrenToArray,
++  classMap,
++  eventOptions,
++  fragment,
++  keyed,
++  memoView,
++  model,
++  portal,
++  ref,
++  repeat,
++  slot,
++  styleMap,
++  suspense,
++  virtualRepeat,
++  when,
++} from "../directives.js";
++import type { defineElement, elements } from "../elements.js";
++import type { config } from "../install-state.js";
++import type { onDispose, onError, onMount, onUnmount } from
++  "../lifecycle.js";
++import type {
++  mount,
++  mountPreservingChildren,
++  render,
++} from "../render/dom.js";
++import type { createComponentPack } from "./packs.js";
++import type {
++  Component,
++  ComponentDefinitionOptions,
++  ComponentFactory,
++  ComponentLike,
++  ComponentPack,
++  ComponentProps,
++  ComponentRegistry,
++  ComponentUseOptions,
++  DebugListener,
++  DebugRecord,
++  DebugSnapshot,
++  FabricaInstanceOptions,
++  InstallOptions,
++  RawHtml,
++  RegistryImportMode,
++  HtmlTag,
++  HtmlTemplateTag,
++} from "../types.js";
++
++export type HtmlApi = HtmlTag & {
++  raw(value: string): RawHtml;
++  sanitized(value: string): RawHtml;
++  trusted(value: string): RawHtml;
++  unsafe(value: string): RawHtml;
++};
++
++/** Public instance API. Every renderer function is bound to one registry. */
++export type FabricaApi = {
++  readonly __kind: "fabricaInstance";
++  readonly id: string;
++  readonly name: string;
++  readonly registry: ComponentRegistry;
++  html: HtmlApi;
++  render: typeof render;
++  mount: typeof mount;
++  mountPreservingChildren: typeof mountPreservingChildren;
++  jsx: { html: HtmlTemplateTag };
++  component: {
++    <Props extends object = ComponentProps>(factory: ComponentFactory<Props>): Component<Props>;
++    <Props extends object = ComponentProps>(name: string, factory: ComponentFactory<Props>, options?: ComponentDefinitionOptions): Component<Props>;
++  };
++  defineComponent: typeof defineComponent;
++  signal: typeof signal;
++  computed: typeof computed;
++  effect: typeof effect;
++  batch: typeof batch;
++  /** @deprecated Use `component(name, factory)`, `use()` or `registry.register()`. */
++  registerComponent(name: string, component: ComponentLike): ComponentLike;
++  unregisterComponent(name: string): boolean;
++  resolveComponent(name: string): ComponentLike | undefined;
++  listComponents(): Map<string, ComponentLike>;
++  clearComponents(): void;
++  use<T extends ComponentLike | ComponentPack>(value: T, options?: ComponentUseOptions): T;
++  importRegistry(source: FabricaApi | ComponentRegistry, options?: { mode?: RegistryImportMode; collision?: ComponentUseOptions["collision"]; namespace?: string }): FabricaApi;
++  fork(options?: Omit<FabricaInstanceOptions, "registry"> & { registry?: ComponentRegistry | RegistryImportMode }): FabricaApi;
++  run<T>(callback: () => T): T;
++  create(options?: FabricaInstanceOptions): FabricaApi;
++  getOrCreate(key: string, options?: FabricaInstanceOptions): FabricaApi;
++  createRegistry: typeof createComponentRegistry;
++  createComponentPack: typeof createComponentPack;
++  boundary: typeof boundary;
++  onMount: typeof onMount;
++  onUnmount: typeof onUnmount;
++  onDispose: typeof onDispose;
++  onError: typeof onError;
++  createContext: typeof createFabricaContext;
++  createRequiredContext: typeof createRequiredFabricaContext;
++  createReactiveContext: typeof createReactiveFabricaContext;
++  createContextProvider: typeof createContextProvider;
++  createReactiveContextProvider: typeof createReactiveContextProvider;
++  provide: typeof provide;
++  provideReactiveContext: typeof provideReactiveContext;
++  useContext: typeof useContext;
++  requireContext: typeof requireContext;
++  useRequiredContext: typeof useRequiredContext;
++  useReactiveContext: typeof useReactiveContext;
++  requireReactiveContext: typeof requireReactiveContext;
++  hasContext: typeof hasContext;
++  when: typeof when;
++  repeat: typeof repeat;
++  virtualRepeat: typeof virtualRepeat;
++  portal: typeof portal;
++  suspense: typeof suspense;
++  bind: typeof bind;
++  model: typeof model;
++  keyed: typeof keyed;
++  event: typeof event;
++  eventOptions: typeof eventOptions;
++  fragment: typeof fragment;
++  childrenToArray: typeof childrenToArray;
++  slot: typeof slot;
++  memoView: typeof memoView;
++  ref: typeof ref;
++  classMap: typeof classMap;
++  styleMap: typeof styleMap;
++  css: typeof css;
++  elements: typeof elements;
++  defineElement: typeof defineElement;
++  $: typeof $;
++  config: typeof config;
++  install(options?: InstallOptions): FabricaApi;
++  noConflict(): FabricaApi;
++  setDebug(enabled: boolean): void;
++  debug(): Readonly<DebugSnapshot>;
++  debugRecords(): readonly DebugRecord[];
++  clearDebugRecords(): void;
++  subscribeDebug(listener: DebugListener): () => void;
++};
++
+diff --git a/fabrica/bag.ts b/fabrica/bag.ts
+index 0c76cd35f1a71c9a159ad9a8f8af39c5709e0eb1..1f03419289ca75db4ddf9baa4258eb2309ffd82e 100644
+--- a/fabrica/bag.ts
++++ b/fabrica/bag.ts
+@@ -1,11 +1,11 @@
+-import { SVG_NAMESPACE, SVG_TAGS } from "@rodkisten/fabrica/constants";
+-import { applyCss } from "@rodkisten/fabrica/css";
+-import { disposeTree } from "@rodkisten/fabrica/dom-cleanup";
+-import { html, mount, render } from "@rodkisten/fabrica/dom";
+-import { isDomElement } from "@rodkisten/fabrica/guards";
+-import { applyProps } from "@rodkisten/fabrica/props";
+-import type { CssInput, DomBag, DomBagOptions, RenderValue } from "@rodkisten/fabrica/types";
+-import { config } from "@rodkisten/fabrica/install-state";
++import { SVG_NAMESPACE, SVG_TAGS } from "./core/constants.js";
++import { applyCss } from "./css.js";
++import { disposeTree } from "./render/cleanup.js";
++import { html, mount, render } from "./render/dom.js";
++import { isDomElement } from "./guards.js";
++import { applyProps } from "./bindings/props.js";
++import type { CssInput, DomBag, DomBagOptions, RenderValue } from "./types.js";
++import { config } from "./install-state.js";
+ 
+ /**
+  * Creates or queries a fluent DOM bag.
+diff --git a/fabrica/bindings/attribute.ts b/fabrica/bindings/attribute.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..dca3d7d00cdfb036319a035e7ea46b63fad1c752
+--- /dev/null
++++ b/fabrica/bindings/attribute.ts
+@@ -0,0 +1,295 @@
++import { effect } from "@rodkisten/broto/reactivity";
++import { bindModelPart } from "../directives/runtime.js";
++import { registerCleanup } from "../render/cleanup.js";
++import { bindEvent } from "../events.js";
++import {
++  isClassMapDirective,
++  isDirective,
++  isSignal,
++  isStyleMapDirective,
++} from "../guards.js";
++import { applyClassMap, applyStyleMap } from "./maps.js";
++import { bindSpecialAttribute } from "./special.js";
++import { stringifyAttributeValue } from "./serialize.js";
++import { bindRef } from "./ref.js";
++import { hasReactiveValue, readValue } from "../core/value.js";
++import type {
++  BindDirective,
++  RenderValue,
++} from "../types.js";
++
++/**
++ * Canonical binding entrypoint for an attribute produced by an HTML template.
++ *
++ * Both interpreted and compiled templates call this function. Keeping the
++ * dispatch here guarantees that compiler optimizations cannot silently change
++ * ref cleanup, event semantics, property bindings, boolean attributes, class
++ * toggles, special attributes, or reactive updates.
++ */
++export function bindTemplateAttribute(
++  element: Element,
++  rawName: string,
++  value: RenderValue | undefined,
++): void {
++  if (isDirective(value) && value.kind === "bind") {
++    bindModelPart(element, rawName, value as unknown as BindDirective);
++    return;
++  }
++
++  if (rawName === "ref") {
++    bindRef(element, value);
++    return;
++  }
++
++  if (bindSpecialAttribute(element, rawName, value)) return;
++
++  if (rawName.startsWith("@")) {
++    bindEvent(element, rawName.slice(1), value as RenderValue);
++    return;
++  }
++
++  if (isEventPropName(rawName)) {
++    bindEvent(element, eventNameFromProp(rawName), value as RenderValue);
++    return;
++  }
++
++  if (rawName.startsWith(".")) {
++    bindPropertyValue(element, rawName.slice(1), value);
++    return;
++  }
++
++  if (rawName.startsWith("?")) {
++    bindBooleanAttributeValue(element, rawName.slice(1), value);
++    return;
++  }
++
++  if (rawName.startsWith("class:")) {
++    bindConditionalClassValue(
++      element,
++      rawName.slice("class:".length),
++      value,
++    );
++    return;
++  }
++
++  bindPlainAttributeValue(
++    element,
++    rawName === "className" ? "class" : rawName,
++    value,
++  );
++}
++
++/** Binds a plain attribute and preserves class/style directive semantics. */
++export function bindPlainAttributeValue(
++  element: Element,
++  name: string,
++  value: RenderValue | undefined,
++): void {
++  if (!hasReactiveValue(value)) {
++    applyPlainAttributeValue(element, name, readValue(value));
++    return;
++  }
++
++  let previous: unknown = INITIAL_VALUE;
++  let mapState:
++    | ReturnType<typeof applyClassMap>
++    | ReturnType<typeof applyStyleMap>
++    | null = null;
++
++  const update = (): void => {
++    const next = readValue(value);
++
++    if (isClassMapDirective(next) && name === "class") {
++      mapState = applyClassMap(element, next.value, mapState);
++      return;
++    }
++
++    if (isStyleMapDirective(next) && name === "style") {
++      mapState = applyStyleMap(element, next.value, mapState);
++      return;
++    }
++
++    if (Object.is(previous, next)) return;
++    previous = next;
++    applyPlainAttributeValue(element, name, next);
++  };
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.attribute.${name}`,
++      scheduler: "sync",
++    }),
++  );
++}
++
++/** Binds a DOM property while treating ordinary functions as property values. */
++export function bindPropertyValue(
++  element: Element,
++  name: string,
++  value: RenderValue | undefined,
++): void {
++  if (!name) return;
++
++  if (!isSignal(value)) {
++    setElementProperty(element, name, value);
++    return;
++  }
++
++  let previous: unknown = INITIAL_VALUE;
++  const update = (): void => {
++    const next = readValue(value);
++    if (Object.is(previous, next)) return;
++    previous = next;
++    setElementProperty(element, name, next);
++  };
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.property.${name}`,
++      scheduler: "sync",
++    }),
++  );
++}
++
++/** Binds a boolean attribute with the same semantics in every renderer. */
++export function bindBooleanAttributeValue(
++  element: Element,
++  name: string,
++  value: RenderValue | undefined,
++): void {
++  if (!hasReactiveValue(value)) {
++    applyBooleanAttributeValue(element, name, Boolean(readValue(value)));
++    return;
++  }
++
++  let previous: boolean | null = null;
++  const update = (): void => {
++    const next = Boolean(readValue(value));
++    if (previous === next) return;
++    previous = next;
++    applyBooleanAttributeValue(element, name, next);
++  };
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.booleanAttribute.${name}`,
++      scheduler: "sync",
++    }),
++  );
++}
++
++/** Binds `class:name=${value}` as a reactive class-list toggle. */
++export function bindConditionalClassValue(
++  element: Element,
++  className: string,
++  value: RenderValue | undefined,
++): void {
++  if (!hasReactiveValue(value)) {
++    element.classList.toggle(className, Boolean(readValue(value)));
++    return;
++  }
++
++  let previous: boolean | null = null;
++  const update = (): void => {
++    const next = Boolean(readValue(value));
++    if (previous === next) return;
++    previous = next;
++    element.classList.toggle(className, next);
++  };
++
++  registerCleanup(
++    element,
++    effect(update, {
++      name: `fabrica.classToggle.${className}`,
++      scheduler: "sync",
++    }),
++  );
++}
++
++const INITIAL_VALUE = Symbol("f
