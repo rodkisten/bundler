@@ -58,6 +58,9 @@ export default defineConfig({
       enabled: true,
       cssDelivery: "style-tag",
       compileFabrica: true,
+      fabricaImportModules: [
+        "@rodkisten/maquina/components",
+      ],
       transformCssTag: true,
       configCss: maquinaCipoConfigCss,
     }),
