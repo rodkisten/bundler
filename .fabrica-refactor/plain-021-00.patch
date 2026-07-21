@@ -1,0 +1,396 @@
+  createFabricaElements,
+   createFabricaElementsFor,
+diff --git a/fabrica/event-typing.ts b/fabrica/event-typing.ts
+index 436d82e0c3abe32a02b7980b18e5c7fc6f7f3380..ae3c7ac630beb21a159649aa6356959c0731fe3e 100644
+--- a/fabrica/event-typing.ts
++++ b/fabrica/event-typing.ts
+@@ -1,4 +1,4 @@
+-import type { EventHandler, EventHelper } from "@rodkisten/fabrica/types";
++import type { EventHandler, EventHelper } from "./types.js";
+ 
+ /** Creates a fresh no-op event helper for one Fabrica instance. */
+ export function createEventHelper(): EventHelper {
+diff --git a/fabrica/events.ts b/fabrica/events.ts
+index c940030dc41fa5e58c5c5a701fe1890ff1fc2761..f7d428b069713f5365063089f23fed609e688cad 100644
+--- a/fabrica/events.ts
++++ b/fabrica/events.ts
+@@ -1,13 +1,13 @@
+ import { getOwner, runWithOwner } from "@rodkisten/broto/owner";
+-import { debugState } from "@rodkisten/fabrica/debug";
+-import { registerCleanup } from "@rodkisten/fabrica/dom-cleanup";
+-import { isEventOptionsDirective, isSignal } from "@rodkisten/fabrica/guards";
++import { debugState } from "./debug.js";
++import { registerCleanup } from "./render/cleanup.js";
++import { isEventOptionsDirective, isSignal } from "./guards.js";
+ import {
+   getCurrentFabricaRuntime,
+   runWithFabricaRuntime,
+-} from "@rodkisten/fabrica/runtime-context";
+-import type { EventHandler, EventOptionsDirective, EventOptionsInput, RenderValue } from "@rodkisten/fabrica/types";
++} from "./core/runtime-context.js";
++import type { EventHandler, EventOptionsDirective, EventOptionsInput, RenderValue } from "./types.js";
+ 
+ type EventModifierState = {
+   options: AddEventListenerOptions;
+diff --git a/fabrica/guards.ts b/fabrica/guards.ts
+index 286b9904db08502c0d0182d503fdf5b6446a5727..76d20522f12ec3fa356e85bc0d1ee4a53650e64e 100644
+--- a/fabrica/guards.ts
++++ b/fabrica/guards.ts
+@@ -1,9 +1,7 @@
+-import type {
+-  CssClassArtifact,
+-  CssTextArtifact,
+-} from "@rodkisten/fabrica/css";
++import type { CssTextArtifact } from "./css.js";
+ import {
+   isSignal as isBrotoSignal,
+ } from "@rodkisten/broto/reactivity";
+-import type { RenderablePayload } from "@rodkisten/fabrica/types";
++import type { RenderablePayload } from "./types.js";
+ 
+ /** Checks whether a value is a Broto signal. */
+ export function isSignal<T = unknown>(
+@@ -40,20 +38,6 @@ export function isTemplateStringsArray(value: unknown): value is TemplateStrings
+   );
+ }
+ 
+-/** Checks whether a value is a Cipó class artifact. */
+-export function isCssClassArtifact(
+-  value: unknown,
+-): value is CssClassArtifact {
+-  return Boolean(
+-    value &&
+-      typeof value === "object" &&
+-      typeof (value as { className?: unknown }).className === "string",
+-  );
+-}
+-
+ /** Checks whether a value is a Cipó style-text artifact. */
+ export function isCssTextArtifact(
+   value: unknown,
+@@ -111,7 +95,7 @@ export function isComponent(value: unknown): boolean {
+ }
+ 
+ /** Checks whether a value is a materialized Fábrica HTML result. */
+-export function isHtmlResult(value: unknown): value is Node {
++export function isHtmlResultNode(value: unknown): value is Node {
+   return isDomNode(value) && Reflect.has(value, Symbol.for("rod.fabrica.html.artifact"));
+ }
+ 
+@@ -163,25 +147,3 @@ export function isRawHtml(value: unknown): boolean {
+     (value as { __kind?: unknown }).__kind === "raw"
+   );
+ }
+-
+-/** Checks whether a render value is one of the supported payload shapes. */
+-export function isRenderablePayload(
+-  value: unknown,
+-): value is RenderablePayload {
+-  if (!value || typeof value !== "object" || !("type" in value)) return false;
+-
+-  const type = (value as { type?: unknown }).type;
+-
+-  if (type === "element") {
+-    return typeof (value as { tag?: unknown }).tag === "string";
+-  }
+-
+-  if (type === "fragment") {
+-    return Array.isArray((value as { children?: unknown }).children);
+-  }
+-
+-  if (type === "raw") {
+-    return typeof (value as { html?: unknown }).html === "string";
+-  }
+-
+-  return false;
+-}
+diff --git a/fabrica/index.ts b/fabrica/index.ts
+index 1259c70406ab90858b545c2fceaa739a5ee0441e..3744706873560870433b01c87da6b583d8781ccc 100644
+--- a/fabrica/index.ts
++++ b/fabrica/index.ts
+@@ -1,4 +1,4 @@
+-import { $ } from "@rodkisten/fabrica/bag";
++import { $ } from "./bag.js";
+ import { batch, computed, effect, signal } from "@rodkisten/broto/reactivity";
+ import {
+   clearComponents,
+@@ -8,60 +8,60 @@ import {
+   registerComponent,
+   resolveComponent,
+   unregisterComponent,
+-} from "@rodkisten/fabrica/component";
++} from "./component.js";
+ import {
+   createComponentRegistry,
+   defaultComponentRegistry,
+   normalizeComponentName,
+-} from "@rodkisten/fabrica/component-registry";
+-import { config } from "@rodkisten/fabrica/install-state";
++} from "./component-registry.js";
++import { config } from "./install-state.js";
+ import {
+   createDefaultFabricaApi,
+   createFabrica,
+   getOrCreateFabrica,
+-} from "@rodkisten/fabrica/public-api";
++} from "./public-api.js";
+ import { boundary } from "./boundary.js";
+ import * as contextApi from "./context.js";
+ import { css } from "./css.js";
+ import * as debugApi from "./debug.js";
+-import { createEventHelper } from "@rodkisten/fabrica/event-typing";
++import { createEventHelper } from "./event-typing.js";
+ import * as directiveApi from "./directives.js";
+-import { html, jsx, mount, render } from "@rodkisten/fabrica/dom";
+-import { defineElement, elements } from "@rodkisten/fabrica/elements";
++import { html, jsx, mount, mountPreservingChildren, render } from "./render/dom.js";
++import { defineElement, elements } from "./elements.js";
+ import * as lifecycleApi from "./lifecycle.js";
+ import { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw.js";
+-import type { RegistryImportMode, HtmlResult, HtmlTag, HtmlTemplateTag, RenderValue } from "@rodkisten/fabrica/types";
++import type { RegistryImportMode, HtmlResult, HtmlTag, HtmlTemplateTag, RenderValue } from "./types.js";
+ import { version } from "./version.js";
+ 
+ export { default as Broto } from "@rodkisten/broto";
+ export { $, batch, computed, effect, signal };
+-export { html, render, mount, jsx };
++export { html, render, mount, mountPreservingChildren, jsx };
+ export type { HtmlResult, HtmlTag, HtmlTemplateTag };
+ export {
+   rawHtml,
+   sanitizedHtml,
+   trustedHtml,
+   unsafeHtml,
+-} from "@rodkisten/fabrica/raw";
++} from "./raw.js";
+ export {
+   bind,
+   childrenToArray,
+@@ -83,11 +83,11 @@ export {
+   virtualRepeat,
+   when,
+ } from "./directives.js";
+-export { event } from "@rodkisten/fabrica/event-typing";
++export { event } from "./event-typing.js";
+ export {
+   applyClassMap,
+   applyStyleMap,
+-} from "@rodkisten/fabrica/maps";
++} from "./bindings/maps.js";
+ export {
+   registerComponent,
+   unregisterComponent,
+@@ -105,14 +105,14 @@ export {
+   normalizeComponentName,
+   defineComponent,
+   component,
+-} from "@rodkisten/fabrica/component";
++} from "./component.js";
+ export type {
+   BoundaryOptions,
+   Cleanup,
+@@ -147,21 +147,9 @@ export type {
+   VirtualRepeatOptions,
+   WhenDirective,
+   RegistryImportMode,
+-} from "@rodkisten/fabrica/types";
+-export {
+-  applyCompiledProps,
+-  compileFabricaSource,
+-  createCompiledElement,
+-  createCompiledFragment,
+-  createCompiledTemplate,
+-} from "@rodkisten/fabrica/compiler";
+-export type {
+-  FabricaCompileSourceOptions,
+-  FabricaCompileSourceResult,
+-  FabricaCompiledTemplateManifestEntry,
+-} from "@rodkisten/fabrica/compiler";
++} from "./types.js";
+ export {
+   clearDebugRecords,
+   debug,
+@@ -170,7 +158,7 @@ export {
+   setDebug,
+   subscribeDebug,
+ } from "./debug.js";
+-export { applyProps } from "@rodkisten/fabrica/props";
++export { applyProps } from "./bindings/props.js";
+ export {
+   attachFabricaElements,
+   builtinFabricaElements,
+@@ -183,26 +171,11 @@ export {
+   elements,
+ } from "./elements.js";
+ 
+-export type {
+-  CompactRuntimeCompiledTemplate,
+-  CompactRuntimeNode,
+-  CompactRuntimeProp,
+-  RuntimeCompiledTemplate,
+-  RuntimeCompiledTemplateInput,
+-  RuntimeComponent,
+-  RuntimeElementNode,
+-  RuntimeNode,
+-  RuntimeProp,
+-  RuntimeTextNode,
+-  RuntimeValueNode,
+-} from "@rodkisten/fabrica/compiler-runtime-types";
+-
+ /**
+  * Standalone helper for low-level DOM composition.
+  *
+- * The global runtime is kept intentionally side-effectful for browser bundles,
+- * while explicit consumers can create named/isolated instances below.
++ * The root package is side-effect free. Browser-global installation lives in
++ * the explicit `@rodkisten/fabrica/browser` entrypoint or `Fabrica.install()`.
+  */
+ const Fabrica = createDefaultFabricaApi();
+-
+-if (typeof globalThis !== "undefined") {
+-  Fabrica.install();
+-}
+ export const create = createFabrica;
+ export const getOrCreate = getOrCreateFabrica;
+ 
+@@ -282,6 +255,7 @@ export const api = Object.freeze({
+   render,
+   mount,
++  mountPreservingChildren,
+   component,
+   defineComponent,
+   signal,
+diff --git a/fabrica/install.ts b/fabrica/install.ts
+index 179af853e467b666da7b31f83641a40a2d347980..3b02ed9565c6d2b416d2dcf0fb165003f43abc54 100644
+--- a/fabrica/install.ts
++++ b/fabrica/install.ts
+@@ -1,14 +1,32 @@
+-import { $ } from "@rodkisten/fabrica/bag";
+-import { config } from "@rodkisten/fabrica/install-state";
+-import type { FabricaApi } from "@rodkisten/fabrica/public-api";
+-import type { InstallOptions } from "@rodkisten/fabrica/types";
++import { $ } from "./bag.js";
++import { config } from "./install-state.js";
++import type { FabricaApi } from "./api/types.js";
++import type { InstallOptions } from "./types.js";
+ 
+-const previousDollar = globalThis.$;
+-const previousDollarEl = globalThis.$el;
++type InstalledGlobal = {
++  readonly name: string;
++  readonly previous: unknown;
++  readonly installed: unknown;
++};
++
++type InstallationRecord = {
++  readonly api: FabricaApi;
++  readonly globals: readonly InstalledGlobal[];
++};
++
++const DEFAULT_CONFIG = Object.freeze({
++  dollarAlias: "$" as string | false,
++  dollarElAlias: "$el" as string | false,
++});
++
++const installations: InstallationRecord[] = [];
+ 
+ /**
+  * Installs Fabrica globals.
+  */
+ export function install(api: FabricaApi, options: InstallOptions = {}): FabricaApi {
+-  Object.assign(config, options);
++  resetConfig(options);
++  const globals: InstalledGlobal[] = [];
++
++  installGlobal(globals, "Fabrica", api);
++  if (config.dollarAlias) installGlobal(globals, config.dollarAlias, $);
++  if (config.dollarElAlias) {
++    installGlobal(
++      globals,
++      config.dollarElAlias,
++      $,
++    );
++  }
+ 
+-  if (config.dollarAlias) {
+-    globalThis[config.dollarAlias] = $;
+-  }
+-
+-  if (config.dollarElAlias) {
+-    globalThis[config.dollarElAlias] = $;
+-  }
+-
+-  globalThis.Fabrica = api;
++  installations.push({ api, globals });
+   return api;
+ }
+ 
+@@ -17,14 +35,58 @@ export function install(api: FabricaApi, options: InstallOptions = {}): FabricaA
+  * Restores previous global values.
+  */
+ export function noConflict(api: FabricaApi): FabricaApi {
+-  if (globalThis.$ === $) {
+-    globalThis.$ = previousDollar;
++  let index = -1;
++  for (let cursor = installations.length - 1; cursor >= 0; cursor -= 1) {
++    if (installations[cursor]?.api === api) {
++      index = cursor;
++      break;
++    }
+   }
+ 
+-  if (globalThis.$el === $) {
+-    globalThis.$el = previousDollarEl;
++  if (index < 0) return api;
++
++  const [record] = installations.splice(index, 1);
++  if (!record) return api;
++
++  // Restore only values still owned by this installation. If another library
++  // took the alias after install(), noConflict() must not overwrite it.
++  for (let cursor = record.globals.length - 1; cursor >= 0; cursor -= 1) {
++    const entry = record.globals[cursor]!;
++    if (globalThis[entry.name] !== entry.installed) continue;
++
++    if (entry.previous === undefined) {
++      Reflect.deleteProperty(globalThis, entry.name);
++    } else {
++      globalThis[entry.name] = entry.previous;
++    }
+   }
+ 
+   return api;
+ }
++
++function resetConfig(options: InstallOptions): void {
++  config.dollarAlias = options.dollarAlias ?? DEFAULT_CONFIG.dollarAlias;
++  config.dollarElAlias =
++    options.dollarElAlias ?? DEFAULT_CONFIG.dollarElAlias;
++}
++
++function installGlobal(
++  globals: InstalledGlobal[],
++  name: string,
++  value: unknown,
++): void {
++  const existing = findOwnedInstallation(name, value);
++  const previous = existing
++    ? existing.previous
++    : globalThis[name];
++
++  globals.push({ name, previous, installed: value });
++  globalThis[name] = value;
++}
++
++function findOwnedInstallation(
++  name: string,
++  value: unknown,
++): InstalledGlobal | undefined {
++  for (let index = installations.length - 1; index >= 0; index -= 1) {
++    const entry = installations[index]!.globals.find(
++      (item) => item.name === name && item.installed === value,
++    );
++    if (entry) return entry;
++  }
++  return undefined;
++}
