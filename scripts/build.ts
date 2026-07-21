@@ -532,7 +532,8 @@ export async function main(): Promise<void> {
     entries.length === 0
   ) {
     throw new Error(
-      "No buildable root entrypoints found. Expected package browser-entry.ts or index.ts files.",
+      "No buildable root entrypoints found. Expected package "
+        + "browser-entry.ts or index.ts files.",
     );
   }
 
@@ -934,10 +935,11 @@ function filterRequestedEntries(
   if (
     unknownEntries.length > 0
   ) {
-    debugLog("error", new Error(
+    debugLog(
+      "error",
       `Unknown BUILD_ENTRIES value(s): ${unknownEntries.join(", ")}. `
-      + `Available entries: ${[...availableNames].sort().join(", ")}.`,
-    ));
+        + `Available entries: ${[...availableNames].sort().join(", ")}.`,
+    );
   }
 
   return entries.filter(
