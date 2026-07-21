@@ -1,13 +1,29 @@
 import { configure } from './config'
 import type { Mutable, PreparedCssConfig } from './config-css/contracts'
-import { clearPreparedCssConfigCache, getPreparedCssConfig } from './config-css/parse'
-import { buildConfigTemplate, clearObject, mergeConfigPatch, mergeTheme, normalizeConfigName } from './config-css/shared'
+import {
+  clearPreparedCssConfigCache,
+  getPreparedCssConfig,
+} from './config-css/parse'
+import {
+  buildConfigTemplate,
+  clearObject,
+  mergeConfigPatch,
+  mergeTheme,
+  normalizeConfigName,
+} from './config-css/shared'
 import { insertCss } from './injection'
 import { registerAlias } from './plugin-registry'
 import { property } from './properties'
 import { runtime } from './runtime'
 import { theme } from './theme'
-import type { CipoConfig, CipoCssConfigResult, CipoPropertyDefinition, CipoTheme, CipoWarning, RuntimeState } from './types'
+import type {
+  CipoConfig,
+  CipoCssConfigResult,
+  CipoPropertyDefinition,
+  CipoTheme,
+  CipoWarning,
+  RuntimeState,
+} from './types'
 import { warn } from './utils'
 
 export type CipoConfigPreset = string | (() => string | void) | CipoConfig
@@ -36,7 +52,10 @@ export type { CipoCssConfigResult } from './types'
 
 const presetRegistry = new Map<string, CipoConfigPreset>()
 const configPluginRegistry = new Map<string, CipoConfigPlugin>()
-let appliedConfigCaches = new WeakMap<RuntimeState, Map<string, AppliedCssConfig>>()
+let appliedConfigCaches = new WeakMap<
+  RuntimeState,
+  Map<string, AppliedCssConfig>
+>()
 let applicationEpoch = 0
 let presetRegistryVersion = 0
 let pluginRegistryVersion = 0
@@ -52,7 +71,10 @@ export function registerPreset(name: string, preset: CipoConfigPreset): void {
 }
 
 /** Registers a named CSS-first plugin callable from `@plugin name;`. */
-export function registerConfigPlugin(name: string, plugin: CipoConfigPlugin): void {
+export function registerConfigPlugin(
+  name: string,
+  plugin: CipoConfigPlugin,
+): void {
   const key = normalizeConfigName(name)
   if (!key) return
   if (Object.is(configPluginRegistry.get(key), plugin)) return
@@ -61,14 +83,20 @@ export function registerConfigPlugin(name: string, plugin: CipoConfigPlugin): vo
   appliedConfigCaches = new WeakMap()
 }
 
-/** Invalidates runtime application caches and optionally the pure parse-plan cache. */
-export function invalidateCssConfigApplications(options: { readonly clearPlans?: boolean } = {}): void {
+/**
+ * Invalidates runtime application caches and optionally the parse-plan cache.
+ */
+export function invalidateCssConfigApplications(
+  options: { readonly clearPlans?: boolean } = {},
+): void {
   applicationEpoch += 1
   appliedConfigCaches = new WeakMap()
   if (options.clearPlans) clearPreparedCssConfigCache()
 }
 
-function getAppliedConfigCache(state: RuntimeState): Map<string, AppliedCssConfig> {
+function getAppliedConfigCache(
+  state: RuntimeState,
+): Map<string, AppliedCssConfig> {
   let cache = appliedConfigCaches.get(state)
   if (!cache) {
     cache = new Map()
@@ -77,7 +105,7 @@ function getAppliedConfigCache(state: RuntimeState): Map<string, AppliedCssConfi
   return cache
 }
 
-/** Applies a CSS-first configuration plan to the currently active runtime state. */
+/** Applies a CSS-first configuration plan to the active runtime state. */
 export function configureFromCss(input: string): CipoCssConfigResult {
   const source = String(input || '')
   const appliedConfigCache = getAppliedConfigCache(runtime)
@@ -105,22 +133,25 @@ export function configureFromCss(input: string): CipoCssConfigResult {
     themeVersion: runtime.themeVersion,
     registryVersion: runtime.registryVersion,
     result,
-  });
+  })
 
-  console.log("Cipo configureFromCss result", result);
-  
   return result
 }
 
 /** Tagged-template API: `Cipo.configure.css` / `configure.css`. */
-export function configureCss(strings: TemplateStringsArray, ...values: readonly unknown[]): CipoCssConfigResult {
+export function configureCss(
+  strings: TemplateStringsArray,
+  ...values: readonly unknown[]
+): CipoCssConfigResult {
   return configureFromCss(buildConfigTemplate(strings, values))
 }
 
 export const setupFromCss = configureFromCss
 export const configSheet = configureFromCss
 
-function applyPreparedCssConfig(prepared: PreparedCssConfig): CipoCssConfigResult {
+function applyPreparedCssConfig(
+  prepared: PreparedCssConfig,
+): CipoCssConfigResult {
   const warnings: CipoWarning[] = []
   const appliedProperties: string[] = []
   const pendingConfig: Partial<Mutable<CipoConfig>> = {}
@@ -159,11 +190,23 @@ function applyPreparedCssConfig(prepared: PreparedCssConfig): CipoCssConfigResul
     }
 
     flushConfig()
-    if (operation.kind === 'alias') registerAlias(operation.name, operation.cssText)
-    else if (operation.kind === 'property') appliedProperties.push(property(operation.name, operation.definition))
+    if (operation.kind === 'alias') {
+      registerAlias(operation.name, operation.cssText)
+    }
+    else if (operation.kind === 'property') {
+      appliedProperties.push(
+        property(operation.name, operation.definition),
+      )
+    }
     else if (operation.kind === 'layer') insertCss(operation.cssText)
-    else if (operation.kind === 'preset') { flushTheme(); applyPreset(operation.name, warnings) }
-    else if (operation.kind === 'plugin') { flushTheme(); applyPlugin(operation.name, warnings) }
+    else if (operation.kind === 'preset') {
+      flushTheme()
+      applyPreset(operation.name, warnings)
+    }
+    else if (operation.kind === 'plugin') {
+      flushTheme()
+      applyPlugin(operation.name, warnings)
+    }
   }
 
   flushConfig()
@@ -184,7 +227,12 @@ function applyPreset(name: string, warnings: CipoWarning[]): void {
   if (!key) return
   const preset = presetRegistry.get(key)
   if (!preset) {
-    warn(runtime, warnings, 'cipo-config-preset-not-found', `Unknown Cipó preset: ${key}`)
+    warn(
+      runtime,
+      warnings,
+      'cipo-config-preset-not-found',
+      `Unknown Cipó preset: ${key}`,
+    )
     return
   }
   if (typeof preset === 'string') configureFromCss(preset)
@@ -199,7 +247,12 @@ function applyPlugin(name: string, warnings: CipoWarning[]): void {
   if (!key) return
   const plugin = configPluginRegistry.get(key)
   if (!plugin) {
-    warn(runtime, warnings, 'cipo-config-plugin-not-found', `Unknown Cipó config plugin: ${key}`)
+    warn(
+      runtime,
+      warnings,
+      'cipo-config-plugin-not-found',
+      `Unknown Cipó config plugin: ${key}`,
+    )
     return
   }
   const result = plugin(createConfigureApi())
