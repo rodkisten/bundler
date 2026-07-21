@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { signal } from "@rodkisten/broto/reactivity";
-import { createDirectiveController } from "@rodkisten/fabrica/dom-directives";
-import { when, repeat } from "@rodkisten/fabrica/directives";
+import { createDirectiveController } from "../directives/runtime.js";
+import { when, repeat } from "../directives.js";
 
 describe("Fabrica DOM directive controllers", () => {
   function range() {
