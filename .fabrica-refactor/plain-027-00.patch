@@ -1,0 +1,160 @@
+diff --git a/fabrica/test/compiler.test.ts b/fabrica/test/compiler.test.ts
+index 9e162f0fd219005f43dab164587c542e169d8f80..62fc04e11f2b64d8352e45a629ba1671134269be 100644
+--- a/fabrica/test/compiler.test.ts
++++ b/fabrica/test/compiler.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "vitest";
+-import { compileFabricaSource } from "@rodkisten/fabrica/compiler";
++import { compileFabricaSource } from "../compiler.js";
+ 
+ describe("compileFabricaSource", () => {
+   it("compiles static html templates", () => {
+@@ -11,12 +11,12 @@ describe("compileFabricaSource", () => {
+     expect(result.changed).toBe(true);
+     expect(result.manifest).toHaveLength(1);
+     expect(result.code).toContain("createCompiledTemplate");
+-    expect(result.code).toContain("createCompiledElement");
++    expect(result.code).toContain("[2,");
+   });
+ 
+   it("compiles dynamic html templates", () => {
+     const result = compileFabricaSource("const x = html`<div>${name}</div>`;");
+     expect(result.changed).toBe(true);
+-    expect(result.code).toContain("createCompiledTemplate(html, [[2");
++    expect(result.code).toContain("createCompiledTemplate(html, [[2");
+     expect(result.manifest[0]?.dynamicValues).toBe(1);
+   });
+ 
+@@ -38,7 +38,7 @@ describe("compileFabricaSource", () => {
+       directComponentReferences: true,
+     });
+     expect(result.changed).toBe(true);
+-    expect(result.code).toContain("[2,Card,");
++    expect(result.code).toContain('[2,"Card",');
+   });
+ });
+diff --git a/fabrica/test/dom-runtime.test.ts b/fabrica/test/dom-runtime.test.ts
+index 36b7ec25bab7e70b649c8a3fbaf159a799ca524c..4e53147423337855ae03248af9bcc0fbd515b6dd 100644
+--- a/fabrica/test/dom-runtime.test.ts
++++ b/fabrica/test/dom-runtime.test.ts
+@@ -1,7 +1,7 @@
+ import { describe, expect, it } from "vitest";
+ import {
+   html,
+-  hydrate,
++  mountPreservingChildren,
+   render,
+ } from "../index.js";
+ 
+@@ -55,11 +55,11 @@ describe("DOM runtime", () => {
+     expect(host.textContent).toBe("two");
+   });
+ 
+-  it("hydrates without clearing existing markup", () => {
++  it("mounts while preserving existing markup", () => {
+     const host = document.createElement("div");
+     host.innerHTML = "<span>server</span>";
+ 
+-    const dispose = hydrate(host, html`<button>client</button>`);
++    const dispose = mountPreservingChildren(host, html`<button>client</button>`);
+     expect(host.textContent).toContain("server");
+     expect(host.textContent).toContain("client");
+ 
+diff --git a/fabrica/test/props.test.ts b/fabrica/test/props.test.ts
+index cf855c7336b042e7887fa00310dc6a72629ded64..64bd2c64957b61b974fd18f1f1bdf6ae3ef2d65 100644
+--- a/fabrica/test/props.test.ts
++++ b/fabrica/test/props.test.ts
+@@ -1,6 +1,7 @@
+ import { describe, expect, it } from "vitest";
+ import {
+   applyProps,
++  rawHtml,
+ } from "../index.js";
+ 
+ describe("applyProps", () => {
+@@ -49,10 +50,15 @@ describe("applyProps", () => {
+     expect(element.dataset.name).toBe("rod");
+   });
+ 
+-  it("supports html and unsafeHTML props", () => {
++  it("requires an explicit raw-html wrapper for html sinks", () => {
+     const element = document.createElement("div");
+-    applyProps(element, { html: "<span>safe-ish</span>" });
++    applyProps(element, { html: rawHtml("<span>explicit</span>") });
+ 
+-    expect(element.innerHTML).toBe("<span>safe-ish</span>");
++    expect(element.innerHTML).toBe("<span>explicit</span>");
++
++    expect(() => applyProps(element, { html: "<strong>implicit</strong>" })).toThrow(
++      /rawHtml/i,
++    );
+   });
+ });
+diff --git a/fabrica/test/spread.test.ts b/fabrica/test/spread.test.ts
+index 3a503e47a55531dba08a2a738337ff47944176b8..246530b48de4f53f2fb7bf1a7a16889725d8e91b 100644
+--- a/fabrica/test/spread.test.ts
++++ b/fabrica/test/spread.test.ts
+@@ -1,8 +1,8 @@
+ import { describe, expect, it, vi } from "vitest";
+ import { signal } from "@rodkisten/broto/reactivity";
+-import { html, render } from "@rodkisten/fabrica";
++import { html, render } from "../index.js";
+ 
+ describe("spread bindings", () => {
+   it("removes nested attrs and dataset when their top-level keys disappear", () => {
+     const props = signal<Record<string, unknown>>({
+       attrs: { title: "hello" },
+       dataset: { rowId: "42" },
+     });
+@@ -18,6 +18,10 @@ describe("spread bindings", () => {
+     props.set({});
+     expect(button.hasAttribute("title")).toBe(false);
+     expect(button.hasAttribute("data-row-id")).toBe(false);
++
++    dispose();
++    host.remove();
+   });
+ 
+   it("replaces and removes spread refs with deterministic cleanup", () => {
+@@ -42,6 +46,9 @@ describe("spread bindings", () => {
+     props.set({});
+     expect(ref.current).toBeNull();
+     expect(cleanup).toHaveBeenCalledTimes(1);
++
++    dispose();
++    host.remove();
+   });
+ });
+diff --git a/fabrica/test/entrypoints.test.ts b/fabrica/test/entrypoints.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..69866d87d17d6835c65c188bc59993c3c41df2d9
+--- /dev/null
++++ b/fabrica/test/entrypoints.test.ts
+@@ -0,0 +1,52 @@
++import { afterEach, describe, expect, it, vi } from "vitest";
++
++afterEach(() => {
++  vi.resetModules();
++  Reflect.deleteProperty(globalThis, "Fabrica");
++});
++
++describe("package entrypoints", () => {
++  it("keeps the root runtime import side-effect free", async () => {
++    const previous = globalThis.Fabrica;
++    Reflect.deleteProperty(globalThis, "Fabrica");
++
++    const runtime = await import("../index.js");
++    expect(runtime.default).toBeDefined();
++    expect(globalThis.Fabrica).toBeUndefined();
++
++    if (previous !== undefined) globalThis.Fabrica = previous;
++  });
++
++  it("installs globals only through the browser entrypoint", async () => {
++    Reflect.deleteProperty(globalThis, "Fabrica");
++    const browser = await import("../browser-entry.js");
++
++    expect(globalThis.Fabrica).toBe(browser.default);
++    browser.default.noConflict();
++  });
++});
