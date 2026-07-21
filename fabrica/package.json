@@ -3,32 +3,47 @@
   "version": "0.0.1",
   "type": "module",
   "description": "Fine-grained reactive DOM runtime.",
-  "main": "./index.js",
-  "types": "./index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "import": "./index.js",
-      "default": "./index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
-    "./*": {
-      "types": "./*.d.ts",
-      "import": "./*.js",
-      "default": "./*.js"
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js",
+      "default": "./dist/runtime.js"
+    },
+    "./browser": {
+      "types": "./dist/browser-entry.d.ts",
+      "import": "./dist/browser-entry.js",
+      "default": "./dist/browser-entry.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler.d.ts",
+      "import": "./dist/compiler.js",
+      "default": "./dist/compiler.js"
+    },
+    "./compiler-runtime": {
+      "types": "./dist/compiler-runtime.d.ts",
+      "import": "./dist/compiler-runtime.js",
+      "default": "./dist/compiler-runtime.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "*.js",
-    "*.d.ts",
-    "*.js.map",
-    "*.d.ts.map",
-    "!vitest.config.*",
-    "!vite.config.*",
-    "!tsconfig.json"
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "ARCHITECTURE.md",
+    "COMPILER.md",
+    "REFACTOR_REPORT.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root .. --dir .",
     "prepublishOnly": "pnpm run build"
@@ -39,6 +54,7 @@
   "dependencies": {
     "@rodkisten/broto": "workspace:*",
     "@rodkisten/cipo": "workspace:*",
-    "@rodkisten/fabrica-elements": "workspace:*"
+    "@rodkisten/fabrica-elements": "workspace:*",
+    "typescript": "6"
   }
 }
