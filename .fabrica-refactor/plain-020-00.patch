@@ -1,0 +1,208 @@
+,
+-): HtmlArtifact {
+-  const exposedStrings = Object.freeze(Array.from(strings));
+-  const capturedValues = Object.freeze(Array.from(values)) as readonly RenderValue[];
+-
+-  return Object.freeze({
+-    kind: "fabrica.html" as const,
+-    strings: exposedStrings,
+-    values: capturedValues,
+-    jsx: jsxMode,
+-    materialize: () =>
+-      runWithFabricaRuntime(runtime, () =>
+-        materializeHtmlTemplate(strings, capturedValues, jsxMode, runtime),
+-      ),
+-  });
+-}
+-
+-function materializeHtmlTemplate(
+-  strings: TemplateStringsArray,
+-  values: readonly RenderValue[],
+-  jsxMode: boolean,
+-  runtime: FabricaRuntimeContext,
+-): HtmlResult {
+-  const compiled = jsxMode
+-    ? getCompiledJsxTemplate(strings, values)
+-    : getCompiledTemplate(strings, values);
+-  const fragment = compiled.template.content.cloneNode(true) as DocumentFragment;
+-
+-  let cleanupNodes: Node[] = [];
+-  if (compiled.orderedParts.length > 0) {
+-    const collected = collectCleanupNodes(() => {
+-      applyParts(fragment, compiled.orderedParts, values, compiled.hasComponents);
+-    });
+-    cleanupNodes = collected.nodes;
+-  }
+-
+-  pruneInsignificantWhitespace(fragment);
+-
+-  return createHtmlResult(
+-    fragment,
+-    createTemplateArtifact(strings, values, jsxMode, runtime),
+-    {
+-      cleanupNodes,
+-      dynamic: compiled.orderedParts.length > 0 || cleanupNodes.length > 0,
+-    },
+-  );
+-}
+-
+-const htmlTemplateTag: HtmlTemplateTag = (
+-  strings: TemplateStringsArray,
+-  ...values: RenderValue[]
+-): HtmlResult =>
+-  runWithCurrentFabricaRuntime(() => {
+-    const runtime = getCurrentFabricaRuntime();
+-    return materializeHtmlTemplate(strings, values, false, runtime);
+-  });
+-
+-const jsxHtmlTemplateTag: HtmlTemplateTag = (
+-  strings: TemplateStringsArray,
+-  ...values: RenderValue[]
+-): HtmlResult =>
+-  runWithCurrentFabricaRuntime(() => {
+-    const runtime = getCurrentFabricaRuntime();
+-    return materializeHtmlTemplate(strings, values, true, runtime);
+-  });
+-
+-/**
+- * Creates DOM from a tagged template.
+- *
+- * A template with one meaningful root returns that real root node. Empty and
+- * multi-root templates return a `DocumentFragment`. Every result carries a
+- * non-enumerable artifact that can materialize a fresh DOM instance.
+- */
+-export const html: HtmlTag = Object.assign(htmlTemplateTag, {
+-  jsx: jsxHtmlTemplateTag,
+-  artifact: getHtmlArtifact,
+-  isResult: isHtmlResult,
+-});
+-
+-/** JSX-friendly namespace for `jsx.html` authoring. */
+-export const jsx = Object.freeze({
+-  html: jsxHtmlTemplateTag,
+-});
+-
+-/**
+- * Replaces a container content and returns a dispose function.
+- *
+- * @param container - Target container.
+- * @param value - Render value.
+- * @returns Dispose callback.
+- *
+- * @example
+- * ```ts
+- * const dispose = render(document.body, html`<h1>Hello</h1>`);
+- * dispose();
+- * ```
+- */
+-export function render(
+-  container: Element | DocumentFragment | ShadowRoot,
+-  value: RenderValue,
+-): () => void {
+-  return runWithCurrentFabricaRuntime(() => {
+-    const resolvedValue = readValue(value) as RenderValue;
+-    let state = renderStates.get(container);
+-
+-    /**
+-     * Runtime v2 fast root path.
+-     *
+-     * `html``...`` already returns a fully materialized `HtmlResult` whose
+-     * compiled parts, reactive effects and event listeners were installed while
+-     * the template was cloned. For the common root-render shape
+-     * `render(host, html`...`)`, routing that fragment through a generic
+-     * ChildPart adds two comment markers, a range clear and another render-value
+-     * classification pass. Fresh containers can mount the fragment directly and
+-     * still dispose correctly through `disposeTree(container)`.
+-     *
+-     * Existing containers keep the stable ChildPart path so repeated renders,
+-     * directives and non-template values preserve the old reconciliation API.
+-     */
+-    if ((!state || state.kind === "direct") && isHtmlResult(resolvedValue)) {
+-      state?.dispose();
+-
+-      const metadata = getHtmlResultMetadata(resolvedValue);
+-      const cleanupNodes = metadata?.cleanupNodes ?? [];
+-      const dynamic = Boolean(metadata?.dynamic || cleanupNodes.length > 0);
+-
+-      /**
+-       * For freshly materialized html fragments, the compiler has already
+-       * collected every node that owns a cleanup. Static fragments have no
+-       * registered effects/listeners at all, so direct render can skip the
+-       * expensive disposeTree(container) walk entirely. Dynamic fragments
+-       * dispose the collected nodes only, preserving listener/effect cleanup
+-       * without traversing unrelated static markup.
+-       */
+-      connectDelegatedEventRoot(container, resolvedValue);
+-      container.replaceChildren(resolvedValue);
+-      debugState.reconciliations += 1;
+-
+-      if (state?.kind === "direct") {
+-        state.cleanupNodes = cleanupNodes;
+-        state.dynamic = dynamic;
+-        renderStates.set(container, state);
+-        return state.dispose;
+-      }
+-
+-      const directState: Extract<RootRenderState, { kind: "direct" }> = {
+-        kind: "direct",
+-        cleanupNodes,
+-        dynamic,
+-        dispose: () => {
+-          if (directState.cleanupNodes.length > 0) {
+-            disposeCollectedCleanups(directState.cleanupNodes);
+-          } else if (directState.dynamic) {
+-            disposeTree(container);
+-          }
+-
+-          container.replaceChildren();
+-          renderStates.delete(container);
+-        },
+-      };
+-
+-      renderStates.set(container, directState);
+-      return directState.dispose;
+-    }
+-
+-    if (!state || state.kind === "direct") {
+-      state?.dispose();
+-      disposeTree(container);
+-      container.replaceChildren();
+-
+-      const marker = document.createComment("fabrica:render");
+-      container.appendChild(marker);
+-
+-      const part = createChildPart(marker);
+-      const dispose = (): void => {
+-        disposeRange(part.start, part.end);
+-        removeRange(part.start, part.end);
+-        renderStates.delete(container);
+-      };
+-
+-      state = { kind: "part", part, dispose };
+-      renderStates.set(container, state);
+-    }
+-
+-    debugState.reconciliations += 1;
+-    state.part.set(resolvedValue);
+-    return state.dispose;
+-  });
+-}
+-
+-/**
+- * Hydrates an existing container by attaching Fabrica ownership.
+- *
+- * @remarks
+- * This conservative hydration path preserves existing DOM until the first
+- * reactive update. It is intentionally safe for progressively enhanced islands:
+- * callers can render server markup, then call hydrate with the equivalent view
+- * to install event listeners and range cleanup without a forced empty pass.
+- *
+- * @param container - Target container.
+- * @param value - Render value.
+- * @returns Dispose callback.
+- */
+-export function hydrate(
+-  container: Element | DocumentFragment | ShadowRoot,
+-  value: RenderValue,
+-): () => void {
+-  return runWithCurrentFabricaRuntime(() => {
