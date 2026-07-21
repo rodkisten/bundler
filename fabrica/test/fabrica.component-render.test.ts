@@ -15,7 +15,9 @@ beforeEach(() => {
 });
 
 describe("Fabrica component rendering", () => {
-  it("renders consecutive self-closing interpolated component tags without swallowing siblings", () => {
+  it(
+    "renders consecutive self-closing components without swallowing siblings",
+    () => {
     const refresh = vi.fn();
     const pick = vi.fn();
 
@@ -49,7 +51,9 @@ describe("Fabrica component rendering", () => {
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("Refresh");
     expect(buttons[1]?.getAttribute("aria-label")).toBe("Pick");
-    expect(buttons[0]?.textContent?.replace(/\s+/g, "").trim()).toBe("RRefresh");
+    expect(
+      buttons[0]?.textContent?.replace(/\s+/g, "").trim(),
+    ).toBe("RRefresh");
     expect(buttons[1]?.textContent?.replace(/\s+/g, "").trim()).toBe("PPick");
 
     buttons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -57,9 +61,12 @@ describe("Fabrica component rendering", () => {
 
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(pick).toHaveBeenCalledTimes(1);
-  });
+    },
+  );
 
-  it("preserves camelCase dynamic component prop names through HTML parsing", () => {
+  it(
+    "preserves camelCase dynamic component prop names through HTML parsing",
+    () => {
     const received = vi.fn();
     const onPointerDown = vi.fn();
     const selected = document.createElement("section");
@@ -87,7 +94,31 @@ describe("Fabrica component rendering", () => {
     expect(props).not.toHaveProperty("onpointerdown");
   });
 
-  it("does not pass an empty DocumentFragment as children for self-closing components", () => {
+  it("normalizes static dot and boolean component prop prefixes", () => {
+    const received = vi.fn();
+    const Probe = component<Record<string, unknown>>(
+      "StaticPropProbe",
+      (props) => {
+      received(props);
+        return html`<div data-probe="static-props"></div>`;
+      },
+    );
+
+    render(host, html`
+      <${Probe} .spellcheck="false" .autocomplete="off" ?readonly />
+    `);
+
+    const props = received.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(props.spellcheck).toBe("false");
+    expect(props.autocomplete).toBe("off");
+    expect(props.readonly).toBe("");
+    expect(Object.hasOwn(props, ".spellcheck")).toBe(false);
+    expect(Object.hasOwn(props, "?readonly")).toBe(false);
+  });
+
+  it(
+    "does not pass empty DocumentFragment children to self-closing components",
+    () => {
     const received = vi.fn();
     const Empty = component("Empty", (props) => {
       received(props.children);
@@ -98,7 +129,8 @@ describe("Fabrica component rendering", () => {
 
     expect(received).toHaveBeenCalledWith(undefined);
     expect(host.querySelector("span")?.textContent).toBe("empty");
-  });
+    },
+  );
 
   it("passes real children for paired component tags", () => {
     const received = vi.fn();
@@ -113,8 +145,13 @@ describe("Fabrica component rendering", () => {
     expect(host.querySelector("strong")?.textContent).toBe("child");
   });
 
-  it("renders React-like boolean-and component requests and ignores false branches", () => {
-    const Panel = component<{ label?: string }>("Panel", (props) => html`<aside>${props.label || "Default"}</aside>`);
+  it(
+    "renders boolean-and component requests and ignores false branches",
+    () => {
+    const Panel = component<{ label?: string }>(
+      "Panel",
+      (props) => html`<aside>${props.label || "Default"}</aside>`,
+    );
 
     render(host, html`
       ${false && Panel({ label: "Hidden" })}
@@ -123,7 +160,8 @@ describe("Fabrica component rendering", () => {
 
     expect(host.querySelectorAll("aside")).toHaveLength(1);
     expect(host.querySelector("aside")?.textContent).toBe("Visible");
-  });
+    },
+  );
 
   it("renders a bare component reference in a boolean-and expression", () => {
     const Panel = component("BarePanel", () => html`<aside>Bare</aside>`);
@@ -133,9 +171,14 @@ describe("Fabrica component rendering", () => {
     expect(host.querySelector("aside")?.textContent).toBe("Bare");
   });
 
-  it("updates reactive boolean-and component expressions without a ternary", () => {
+  it(
+    "updates reactive boolean-and component expressions without a ternary",
+    () => {
     const visible = signal(false);
-    const Panel = component("ReactivePanel", () => html`<aside>Reactive</aside>`);
+    const Panel = component(
+      "ReactivePanel",
+      () => html`<aside>Reactive</aside>`,
+    );
 
     render(host, html`${() => visible() && Panel()}`);
     expect(host.querySelector("aside")).toBeNull();
@@ -147,14 +190,21 @@ describe("Fabrica component rendering", () => {
     visible.set(false);
     flushSync();
     expect(host.querySelector("aside")).toBeNull();
-  });
+    },
+  );
 
   it("renders ternary branches containing self-closing component tags", () => {
     const codeZen = true;
     const selected = document.createElement("button");
-    const CodePanel = component<{ selected: Element; zen: boolean }>("CodePanel", (props) => html`
-      <section data-zen=${props.zen} data-selected=${props.selected.tagName}>Code</section>
-    `);
+    const CodePanel = component<{ selected: Element; zen: boolean }>(
+      "CodePanel",
+      (props) => html`
+        <section
+          data-zen=${props.zen}
+          data-selected=${props.selected.tagName}
+        >Code</section>
+      `,
+    );
 
     render(host, html`
       ${codeZen
