@@ -1,0 +1,538 @@
+.inputAndValues: readonly unknown[]
+-): HtmlResult {
+-  const tagged = typeof inputOrTag === "function";
+-  const input = (tagged ? inputAndValues[0] : inputOrTag) as
+-    | RuntimeCompiledTemplateInput
+-    | TemplateStringsArray
+-    | readonly string[];
+-  const values = (tagged ? inputAndValues.slice(1) : inputAndValues) as readonly RenderValue[];
+-  const boundRuntime = tagged
+-    ? (Reflect.get(inputOrTag, FABRICA_HTML_RUNTIME) as FabricaRuntimeContext | undefined)
+-    : undefined;
+-
+-  const materialize = (): HtmlResult => {
+-    const runtime = getCurrentFabricaRuntime();
+-    const runtimeDefinition = isRuntimeCompiledTemplate(input);
+-    const normalizedStrings = runtimeDefinition
+-      ? null
+-      : normalizeTemplateStrings(input);
+-    const compiled = runtimeDefinition
+-      ? normalizeRuntimeCompiledTemplate(input)
+-      : getCachedCompiledRuntimeTemplate(normalizedStrings!);
+-
+-    if (!compiled) {
+-      return html(normalizedStrings!, ...values);
+-    }
+-
+-    try {
+-      const fragment = document.createDocumentFragment();
+-      const collected = collectCleanupNodes(() => {
+-        for (const node of compiled.nodes) {
+-          appendCompiledNode(fragment, node, values);
+-        }
+-      });
+-
+-      pruneInsignificantWhitespace(fragment);
+-
+-      return createHtmlResult(
+-        fragment,
+-        createCompiledHtmlArtifact(
+-          runtimeDefinition ? input : normalizedStrings!,
+-          values,
+-          runtime,
+-        ),
+-        {
+-          cleanupNodes: collected.nodes,
+-          dynamic: collected.nodes.length > 0,
+-        },
+-      );
+-    } catch (error) {
+-      // Compiled definitions are an optimization. On failure, string templates
+-      // reclaim the canonical html`` semantics instead of diverging.
+-      if (!runtimeDefinition) {
+-        return html(normalizedStrings!, ...values);
+-      }
+-      throw error;
+-    }
+-  };
+-
+-  return boundRuntime
+-    ? runWithFabricaRuntime(boundRuntime, materialize)
+-    : runWithCurrentFabricaRuntime(materialize);
+-}
+-
+-function createCompiledHtmlArtifact(
+-  input: RuntimeCompiledTemplateInput | TemplateStringsArray,
+-  values: readonly RenderValue[],
+-  runtime: FabricaRuntimeContext,
+-): HtmlArtifact {
+-  const capturedValues = Object.freeze(
+-    Array.from(values),
+-  ) as readonly RenderValue[];
+-  const artifactStrings = Object.freeze(
+-    isRuntimeCompiledTemplate(input) ? [] : Array.from(input),
+-  );
+-
+-  return Object.freeze({
+-    kind: "fabrica.html" as const,
+-    strings: artifactStrings,
+-    values: capturedValues,
+-    jsx: false,
+-    materialize: () =>
+-      runWithFabricaRuntime(runtime, () =>
+-        createCompiledTemplate(input, ...capturedValues),
+-      ),
+-  });
+-}
+-
+-function isRuntimeCompiledTemplate(
+-  value: unknown,
+-): value is RuntimeCompiledTemplateInput {
+-  if (!value || typeof value !== "object") return false;
+-  if (Array.isArray((value as { nodes?: unknown }).nodes)) return true;
+-  if (!Array.isArray(value)) return false;
+-  // Compact definitions are arrays of tuple nodes; template strings are string[].
+-  return value.length === 0 || Array.isArray(value[0]);
+-}
+-
+-function normalizeRuntimeCompiledTemplate(
+-  input: RuntimeCompiledTemplateInput,
+-): RuntimeCompiledTemplate {
+-  if (!Array.isArray(input)) return input as RuntimeCompiledTemplate;
+-  return { nodes: input.map(normalizeCompactNode) };
+-}
+-
+-function getCachedCompiledRuntimeTemplate(
+-  strings: readonly string[],
+-): RuntimeCompiledTemplate | null {
+-  const key = strings.join(TEMPLATE_CACHE_KEY_SEPARATOR);
+-  if (runtimeTemplateCache.has(key)) {
+-    return runtimeTemplateCache.get(key) ?? null;
+-  }
+-  const compiled = compileRuntimeTemplate(strings);
+-  runtimeTemplateCache.set(key, compiled);
+-  return compiled;
+-}
+-
+-function compileRuntimeTemplate(
+-  strings: readonly string[],
+-): RuntimeCompiledTemplate | null {
+-  if (containsUnsupportedTemplateShape(strings)) return null;
+-  const source = buildCompiledRuntimeSource(strings);
+-  const roots = parseCompiledNodes<string | ((props: never) => RenderValue)>(
+-    source,
+-  );
+-  return roots ? { nodes: roots as RuntimeNode[] } : null;
+-}
++export * from "./compiler/runtime/index.js";
+diff --git a/fabrica/compiler-utils.ts b/fabrica/compiler-utils.ts
+deleted file mode 100644
+index d9ef49ff131027bf094e79a4e080ffd87e9c9ed8..0000000000000000000000000000000000000000
+--- a/fabrica/compiler-utils.ts
++++ /dev/null
+@@ -1,189 +0,0 @@
+-import {
+-  FABRICA_SPREAD_PREFIX,
+-  FABRICA_SPREAD_SUFFIX,
+-  FABRICA_VALUE_PREFIX,
+-  FABRICA_VALUE_SUFFIX,
+-  LEGACY_SPREAD_MARKER_RE,
+-  SPREAD_MARKER_EXACT_RE,
+-  SVG_NAMESPACE,
+-  SVG_TAG_RE,
+-  TAG_BOUNDARY_BEFORE_RE,
+-  VALUE_MARKER_EXACT_RE,
+-  VOID_TAG_RE,
+-} from "@rodkisten/fabrica/compiler-constants";
+-
+-export interface SourceEdit {
+-  readonly start: number;
+-  readonly end: number;
+-  readonly value: string;
+-}
+-
+-export {
+-  FABRICA_VALUE_PREFIX,
+-  FABRICA_VALUE_SUFFIX,
+-  FABRICA_SPREAD_PREFIX,
+-  FABRICA_SPREAD_SUFFIX,
+-} from "@rodkisten/fabrica/compiler-constants";
+-
+-export function normalizeAttributeName(name: string): string {
+-  if (name === "className") return "class";
+-  return name;
+-}
+-
+-export function unquote(value: string): string {
+-  if (
+-    (value.startsWith('"') && value.endsWith('"')) ||
+-    (value.startsWith("'") && value.endsWith("'"))
+-  ) {
+-    return value.slice(1, -1);
+-  }
+-  return value;
+-}
+-
+-export function readValueMarker(value: string): number | null {
+-  const match = value.match(VALUE_MARKER_EXACT_RE);
+-  return match ? Number(match[1]) : null;
+-}
+-
+-export function readSpreadMarker(value: string): number | null {
+-  const spread = value.match(SPREAD_MARKER_EXACT_RE);
+-  if (spread) return Number(spread[1]);
+-  const legacy = value.match(LEGACY_SPREAD_MARKER_RE);
+-  return legacy ? Number(legacy[1]) : null;
+-}
+-
+-export function isVoidTag(tag: string): boolean {
+-  return VOID_TAG_RE.test(tag);
+-}
+-
+-export function isSvgTag(tag: string): boolean {
+-  return SVG_TAG_RE.test(tag);
+-}
+-
+-export function createElementForTag(tag: string): Element {
+-  return isSvgTag(tag)
+-    ? document.createElementNS(SVG_NAMESPACE, tag)
+-    : document.createElement(tag);
+-}
+-
+-export function normalizeTemplateStrings(
+-  strings: TemplateStringsArray | readonly string[],
+-): TemplateStringsArray {
+-  if (isTemplateStringsArray(strings)) return strings;
+-  const cooked = strings.slice() as string[] & { raw?: readonly string[] };
+-  Object.defineProperty(cooked, "raw", {
+-    configurable: false,
+-    enumerable: false,
+-    value: strings.slice(),
+-  });
+-  return cooked as unknown as TemplateStringsArray;
+-}
+-
+-function isTemplateStringsArray(
+-  value: TemplateStringsArray | readonly string[],
+-): value is TemplateStringsArray {
+-  return Array.isArray(value) && Array.isArray((value as { raw?: unknown }).raw);
+-}
+-
+-export function isTagBoundary(source: string, start: number): boolean {
+-  const before = source[start - 1] ?? "";
+-  return !TAG_BOUNDARY_BEFORE_RE.test(before);
+-}
+-
+-export function countTemplateValues(
+-  source: string,
+-  templateStart: number,
+-  templateEnd: number,
+-): number {
+-  let count = 0;
+-  for (let index = templateStart; index < templateEnd; index += 1) {
+-    if (source[index] === "$" && source[index + 1] === "{") count += 1;
+-  }
+-  return count;
+-}
+-
+-/**
+- * Finds the closing backtick of a tagged template, tracking nested `${}` and
+- * quoted string regions so expression bodies are not treated as template ends.
+- */
+-export function findTemplateEnd(source: string, start: number): number {
+-  let escaped = false;
+-  let expressionDepth = 0;
+-  let quote = "";
+-  let templateExpressionDepth = 0;
+-
+-  for (let index = start + 1; index < source.length; index += 1) {
+-    const char = source[index]!;
+-    const next = source[index + 1];
+-
+-    if (quote) {
+-      if (escaped) {
+-        escaped = false;
+-        continue;
+-      }
+-      if (char === "\\") {
+-        escaped = true;
+-        continue;
+-      }
+-      if (quote === "`" && char === "$" && next === "{") {
+-        templateExpressionDepth += 1;
+-        index += 1;
+-        continue;
+-      }
+-      if (quote === "`" && char === "}" && templateExpressionDepth > 0) {
+-        templateExpressionDepth -= 1;
+-        continue;
+-      }
+-      if (char === quote && templateExpressionDepth === 0) quote = "";
+-      continue;
+-    }
+-
+-    if (escaped) {
+-      escaped = false;
+-      continue;
+-    }
+-    if (char === "\\") {
+-      escaped = true;
+-      continue;
+-    }
+-
+-    if (expressionDepth > 0) {
+-      if (char === '"' || char === "'" || char === "`") {
+-        quote = char;
+-        continue;
+-      }
+-      if (char === "{") {
+-        expressionDepth += 1;
+-        continue;
+-      }
+-      if (char === "}") {
+-        expressionDepth -= 1;
+-        continue;
+-      }
+-      continue;
+-    }
+-
+-    if (char === "$" && next === "{") {
+-      expressionDepth = 1;
+-      index += 1;
+-      continue;
+-    }
+-    if (char === "`") return index;
+-  }
+-  return -1;
+-}
+-
+-export function applyEdits(
+-  source: string,
+-  edits: readonly SourceEdit[],
+-): string {
+-  let output = "";
+-  let cursor = 0;
+-  for (const edit of edits) {
+-    if (edit.start < cursor) continue;
+-    output += source.slice(cursor, edit.start);
+-    output += edit.value;
+-    cursor = edit.end;
+-  }
+-  return output + source.slice(cursor);
+-}
+diff --git a/fabrica/compiler.ts b/fabrica/compiler.ts
+index c968054e232a4be3e859f35facd259546cb5dd3f..83c2769833de9f79a1d686f23922871b87d6f7d4 100644
+--- a/fabrica/compiler.ts
++++ b/fabrica/compiler.ts
+@@ -8,16 +8,16 @@ export type {
+   RuntimeComponent,
+   RuntimeNode,
+   RuntimeProp,
+-} from "@rodkisten/fabrica/compiler-runtime-types";
++} from "./compiler/runtime/types.js";
+ export {
+   applyCompiledProps,
+   createCompiledElement,
+   createCompiledFragment,
+-} from "@rodkisten/fabrica/compiler-runtime-element";
+-export { createCompiledTemplate } from "@rodkisten/fabrica/compiler-runtime";
++} from "./compiler/runtime/element.js";
++export { createCompiledTemplate } from "./compiler-runtime.js";
+ export type {
+   FabricaCompileSourceOptions,
+   FabricaCompileSourceResult,
+   FabricaCompiledTemplateManifestEntry,
+-} from "@rodkisten/fabrica/compiler-core";
+-export { compileFabricaSource } from "@rodkisten/fabrica/compiler-core";
++} from "./compiler/transform.js";
++export { compileFabricaSource } from "./compiler/transform.js";
+diff --git a/fabrica/compiler/ast.ts b/fabrica/compiler/ast.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..59a05bc6589f46aa4a31b14642e9dd60f62e54f0
+--- /dev/null
++++ b/fabrica/compiler/ast.ts
+@@ -0,0 +1,49 @@
++import * as ts from "typescript";
++
++export function createSourceFile(
++  source: string,
++  filename: string,
++): ts.SourceFile {
++  return ts.createSourceFile(
++    filename,
++    source,
++    ts.ScriptTarget.Latest,
++    true,
++    readScriptKind(filename),
++  );
++}
++
++export function createSingleFileChecker(
++  sourceFile: ts.SourceFile,
++  filename: string,
++): ts.TypeChecker {
++  const options: ts.CompilerOptions = {
++    allowJs: true,
++    jsx: ts.JsxEmit.Preserve,
++    module: ts.ModuleKind.ESNext,
++    moduleResolution: ts.ModuleResolutionKind.Bundler,
++    noLib: true,
++    noResolve: true,
++    skipLibCheck: true,
++    target: ts.ScriptTarget.ESNext,
++  };
++  const host: ts.CompilerHost = {
++    fileExists: (name) => name === filename,
++    getCanonicalFileName: (name) => name,
++    getCurrentDirectory: () => "",
++    getDefaultLibFileName: () => "lib.d.ts",
++    getNewLine: () => "\n",
++    getSourceFile: (name) => (name === filename ? sourceFile : undefined),
++    readFile: (name) => (name === filename ? sourceFile.text : undefined),
++    useCaseSensitiveFileNames: () => true,
++    writeFile: () => undefined,
++  };
++  return ts.createProgram([filename], options, host).getTypeChecker();
++}
++
++function readScriptKind(filename: string): ts.ScriptKind {
++  if (/\.tsx$/i.test(filename)) return ts.ScriptKind.TSX;
++  if (/\.jsx$/i.test(filename)) return ts.ScriptKind.JSX;
++  if (/\.[cm]?js$/i.test(filename)) return ts.ScriptKind.JS;
++  return ts.ScriptKind.TS;
++}
+diff --git a/fabrica/compiler/bindings.ts b/fabrica/compiler/bindings.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0cdeed7fdee0acd66bbd3e522753f7cafd12d287
+--- /dev/null
++++ b/fabrica/compiler/bindings.ts
+@@ -0,0 +1,446 @@
++import * as ts from "typescript";
++
++export function isFabricaTemplateTag(
++  tag: ts.LeftHandSideExpression,
++  checker: ts.TypeChecker,
++  configuredTags: ReadonlySet<string>,
++): boolean {
++  const text = readTagPath(tag);
++  if (text && configuredTags.has(text)) {
++    return (
++      !hasDefinitelyUnrelatedBinding(tag, checker) &&
++      !hasSyntacticShadowing(tag)
++    );
++  }
++
++  return isImportedFabricaTag(tag, checker);
++}
++
++function isImportedFabricaTag(
++  tag: ts.LeftHandSideExpression,
++  checker: ts.TypeChecker,
++): boolean {
++  if (hasDefinitelyUnrelatedBinding(tag, checker)) return false;
++  if (hasSyntacticShadowing(tag)) return false;
++
++  const sourceFile = tag.getSourceFile();
++
++  if (ts.isIdentifier(tag)) {
++    if (hasNamedFabricaHtmlImport(sourceFile, tag.text)) return true;
++
++    const symbol = checker.getSymbolAtLocation(tag);
++    return Boolean(
++      symbol && symbol.declarations?.some(isFabricaHtmlImport),
++    );
++  }
++
++  if (!ts.isPropertyAccessExpression(tag) || tag.name.text !== "html") {
++    return false;
++  }
++
++  if (!ts.isIdentifier(tag.expression)) return false;
++  if (hasFabricaNamespaceImport(sourceFile, tag.expression.text)) {
++    return true;
++  }
++
++  const symbol = checker.getSymbolAtLocation(tag.expression);
++  return Boolean(
++    symbol && symbol.declarations?.some(isFabricaNamespaceImport),
++  );
++}
++
++function hasSyntacticShadowing(
++  tag: ts.LeftHandSideExpression,
++): boolean {
++  const root = readRootIdentifier(tag);
++  if (!root) return false;
++  const name = root.text;
++
++  let current: ts.Node | undefined = tag.parent;
++  while (current && !ts.isSourceFile(current)) {
++    if (ts.isFunctionLike(current)) {
++      for (const parameter of current.parameters) {
++        if (bindingNameContains(parameter.name, name)) return true;
++      }
++    }
++
++    if (ts.isCatchClause(current) && current.variableDeclaration) {
++      if (bindingNameContains(current.variableDeclaration.name, name)) {
++        return true;
++      }
++    }
++
++    if (ts.isBlock(current)) {
++      if (blockDeclaresUnrelatedName(current, name)) return true;
++    }
++
++    current = current.parent;
++  }
++
++  return false;
++}
++
++function blockDeclaresUnrelatedName(
++  block: ts.Block,
++  name: string,
++): boolean {
++  for (const statement of block.statements) {
++    if (ts.isVariableStatement(statement)) {
++      for (const declaration of statement.declarationList.declarations) {
++        if (!bindingNameContains(declaration.name, name)) continue;
++        return !looksLikeFabricaBinding(declaration);
++      }
++    }
++
++    if (
++      (ts.isFunctionDeclaration(statement) ||
++        ts.isClassDeclaration(statement)) &&
++      statement.name?.text === name
++    ) {
++      return true;
++    }
++  }
++
++  return false;
++}
++
++function bindingNameContains(
++  binding: ts.BindingName,
++  name: string,
++): boolean {
++  if (ts.isIdentifier(binding)) return binding.text === name;
++  for (const element of binding.elements) {
++    if (ts.isOmittedExpression(element)) continue;
++    if (bindingNameContains(element.name, name)) return true;
++  }
++  return false;
++}
++
++function hasNamedFabricaHtmlImport(
++  sourceFile: ts.SourceFile,
++  localName: string,
++): boolean {
++  for (const statement of sourceFile.statements) {
++    if (!ts.isImportDeclaration(statement)) continue;
++    if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
++    if (!isFabricaModule(statement.moduleSpecifier.text)) continue;
++
++    const bindings = statement.importClause?.namedBindings;
++    if (!bindings || !
