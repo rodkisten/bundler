@@ -4,65 +4,33 @@ export function isFabricaTemplateTag(
   tag: ts.LeftHandSideExpression,
   checker: ts.TypeChecker,
   configuredTags: ReadonlySet<string>,
-  fabricaImportModules: ReadonlySet<string>,
 ): boolean {
   const text = readTagPath(tag);
   if (text && configuredTags.has(text)) {
     return (
-      !hasDefinitelyUnrelatedBinding(
-        tag,
-        checker,
-        fabricaImportModules,
-      ) &&
+      !hasDefinitelyUnrelatedBinding(tag, checker) &&
       !hasSyntacticShadowing(tag)
     );
   }
 
-  return isImportedFabricaTag(
-    tag,
-    checker,
-    fabricaImportModules,
-  );
+  return isImportedFabricaTag(tag, checker);
 }
 
 function isImportedFabricaTag(
   tag: ts.LeftHandSideExpression,
   checker: ts.TypeChecker,
-  fabricaImportModules: ReadonlySet<string>,
 ): boolean {
-  if (
-    hasDefinitelyUnrelatedBinding(
-      tag,
-      checker,
-      fabricaImportModules,
-    )
-  ) {
-    return false;
-  }
+  if (hasDefinitelyUnrelatedBinding(tag, checker)) return false;
   if (hasSyntacticShadowing(tag)) return false;
 
   const sourceFile = tag.getSourceFile();
 
   if (ts.isIdentifier(tag)) {
-    if (
-      hasNamedFabricaHtmlImport(
-        sourceFile,
-        tag.text,
-        fabricaImportModules,
-      )
-    ) {
-      return true;
-    }
+    if (hasNamedFabricaHtmlImport(sourceFile, tag.text)) return true;
 
-    const symbol = checker.getSymbolAtLocation(tag);
+    const symbol = getSymbolAtLocationSafe(checker, tag);
     return Boolean(
-      symbol &&
-      symbol.declarations?.some((declaration) =>
-        isFabricaHtmlImport(
-          declaration,
-          fabricaImportModules,
-        ),
-      ),
+      symbol && symbol.declarations?.some(isFabricaHtmlImport),
     );
   }
 
@@ -71,25 +39,13 @@ function isImportedFabricaTag(
   }
 
   if (!ts.isIdentifier(tag.expression)) return false;
-  if (
-    hasFabricaNamespaceImport(
-      sourceFile,
-      tag.expression.text,
-      fabricaImportModules,
-    )
-  ) {
+  if (hasFabricaNamespaceImport(sourceFile, tag.expression.text)) {
     return true;
   }
 
-  const symbol = checker.getSymbolAtLocation(tag.expression);
+  const symbol = getSymbolAtLocationSafe(checker, tag.expression);
   return Boolean(
-    symbol &&
-    symbol.declarations?.some((declaration) =>
-      isFabricaNamespaceImport(
-        declaration,
-        fabricaImportModules,
-      ),
-    ),
+    symbol && symbol.declarations?.some(isFabricaNamespaceImport),
   );
 }
 
@@ -163,19 +119,11 @@ function bindingNameContains(
 function hasNamedFabricaHtmlImport(
   sourceFile: ts.SourceFile,
   localName: string,
-  fabricaImportModules: ReadonlySet<string>,
 ): boolean {
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (
-      !isFabricaModule(
-        statement.moduleSpecifier.text,
-        fabricaImportModules,
-      )
-    ) {
-      continue;
-    }
+    if (!isFabricaModule(statement.moduleSpecifier.text)) continue;
 
     const bindings = statement.importClause?.namedBindings;
     if (!bindings || !ts.isNamedImports(bindings)) continue;
@@ -192,19 +140,11 @@ function hasNamedFabricaHtmlImport(
 function hasFabricaNamespaceImport(
   sourceFile: ts.SourceFile,
   localName: string,
-  fabricaImportModules: ReadonlySet<string>,
 ): boolean {
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (
-      !isFabricaModule(
-        statement.moduleSpecifier.text,
-        fabricaImportModules,
-      )
-    ) {
-      continue;
-    }
+    if (!isFabricaModule(statement.moduleSpecifier.text)) continue;
 
     const bindings = statement.importClause?.namedBindings;
     if (
@@ -219,15 +159,28 @@ function hasFabricaNamespaceImport(
   return false;
 }
 
+function getSymbolAtLocationSafe(
+  checker: ts.TypeChecker,
+  node: ts.Node,
+): ts.Symbol | undefined {
+  try {
+    return checker.getSymbolAtLocation(node);
+  } catch {
+    // Virtual and partially resolved source files can leave TypeScript's
+    // internal symbol tables incomplete. Syntactic import/shadow analysis
+    // remains authoritative when semantic lookup is unavailable.
+    return undefined;
+  }
+}
+
 function hasDefinitelyUnrelatedBinding(
   tag: ts.LeftHandSideExpression,
   checker: ts.TypeChecker,
-  fabricaImportModules: ReadonlySet<string>,
 ): boolean {
   const root = readRootIdentifier(tag);
   if (!root) return false;
 
-  const symbol = checker.getSymbolAtLocation(root);
+  const symbol = getSymbolAtLocationSafe(checker, root);
   if (!symbol?.declarations?.length) return false;
 
   return symbol.declarations.every((declaration) => {
@@ -238,13 +191,7 @@ function hasDefinitelyUnrelatedBinding(
     if (ts.isImportSpecifier(declaration)) {
       const moduleName = readImportModule(declaration);
       if (!moduleName) return false;
-      if (
-        isFabricaModule(
-          moduleName,
-          fabricaImportModules,
-        ) ||
-        moduleName.startsWith(".")
-      ) {
+      if (isFabricaModule(moduleName) || moduleName.startsWith(".")) {
         return false;
       }
       return true;
@@ -254,10 +201,7 @@ function hasDefinitelyUnrelatedBinding(
       const moduleName = readImportModule(declaration);
       return Boolean(
         moduleName &&
-        !isFabricaModule(
-          moduleName,
-          fabricaImportModules,
-        ) &&
+        !isFabricaModule(moduleName) &&
         !moduleName.startsWith("."),
       );
     }
@@ -300,47 +244,28 @@ function looksLikeFabricaBinding(
   return false;
 }
 
-function isFabricaHtmlImport(
-  declaration: ts.Declaration,
-  fabricaImportModules: ReadonlySet<string>,
-): boolean {
+function isFabricaHtmlImport(declaration: ts.Declaration): boolean {
   if (!ts.isImportSpecifier(declaration)) return false;
   const imported = declaration.propertyName?.text ?? declaration.name.text;
   if (imported !== "html") return false;
   const moduleName = readImportModule(declaration);
   return Boolean(
     moduleName &&
-    (isFabricaModule(
-      moduleName,
-      fabricaImportModules,
-    ) || moduleName.startsWith(".")),
+    (isFabricaModule(moduleName) || moduleName.startsWith(".")),
   );
 }
 
-function isFabricaNamespaceImport(
-  declaration: ts.Declaration,
-  fabricaImportModules: ReadonlySet<string>,
-): boolean {
+function isFabricaNamespaceImport(declaration: ts.Declaration): boolean {
   if (!ts.isNamespaceImport(declaration)) return false;
   const moduleName = readImportModule(declaration);
-  return Boolean(
-    moduleName &&
-    isFabricaModule(
-      moduleName,
-      fabricaImportModules,
-    ),
-  );
+  return Boolean(moduleName && isFabricaModule(moduleName));
 }
 
-function isFabricaModule(
-  moduleName: string,
-  fabricaImportModules: ReadonlySet<string>,
-): boolean {
+function isFabricaModule(moduleName: string): boolean {
   return (
     moduleName === "../index.js" ||
     moduleName === "@rodkisten/fabrica" ||
-    moduleName.startsWith("@rodkisten/fabrica/") ||
-    fabricaImportModules.has(moduleName)
+    moduleName.startsWith("@rodkisten/fabrica/")
   );
 }
 
