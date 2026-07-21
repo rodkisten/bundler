@@ -1,0 +1,301 @@
+diff --git a/fabrica/test/compiler-ast.test.ts b/fabrica/test/compiler-ast.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..9accbcd4a3318522f2b62fb09e7577a3211f4df2
+--- /dev/null
++++ b/fabrica/test/compiler-ast.test.ts
+@@ -0,0 +1,209 @@
++import { describe, expect, it } from "vitest";
++import { compileFabricaSource } from "../compiler.js";
++
++describe("Fábrica AST compiler", () => {
++  it("preserves use client directives before injected imports", () => {
++    const source = `"use client";\nconst view = html\`<div>ok</div>\`;`;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(true);
++    expect(result.code.indexOf('"use client"')).toBeLessThan(
++      result.code.indexOf("import { createCompiledTemplate"),
++    );
++  });
++
++  it("preserves a node shebang before compiler imports", () => {
++    const source = `#!/usr/bin/env node\nconst view = html\`<div>ok</div>\`;`;
++    const result = compileFabricaSource(source, {
++      filename: "cli.ts",
++    });
++
++    expect(result.code.startsWith("#!/usr/bin/env node\n")).toBe(true);
++    expect(result.code).toContain("createCompiledTemplate");
++  });
++
++  it("creates a collision-free helper alias", () => {
++    const source = `
++      const createCompiledTemplate = 1;
++      const view = html\`<div>ok</div>\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.code).toContain(
++      "createCompiledTemplate as __fabricaCreateCompiledTemplate",
++    );
++    expect(result.code).toContain("__fabricaCreateCompiledTemplate(html");
++  });
++
++  it("does not compile shadowed html parameters", () => {
++    const source = `
++      import { html } from "@rodkisten/fabrica";
++      function render(html: (value: TemplateStringsArray) => unknown) {
++        return html\`<div>local</div>\`;
++      }
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(false);
++    expect(result.code).toBe(source);
++  });
++
++  it("recognizes aliased Fábrica html imports", () => {
++    const source = `
++      import { html as h } from "@rodkisten/fabrica";
++      const view = h\`<div>ok</div>\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(true);
++    expect(result.code).toContain("createCompiledTemplate(h");
++  });
++
++  it("ignores unrelated tagged template bindings", () => {
++    const source = `
++      import { html } from "lit";
++      const view = html\`<div>lit</div>\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(false);
++  });
++
++  it("compiles nested Fábrica templates inside regular template expressions", () => {
++    const source = `
++      import { html } from "@rodkisten/fabrica";
++      const message = \`before \${html\`<strong>nested</strong>\`} after\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(true);
++    expect(result.code).toContain("createCompiledTemplate(html");
++    expect(result.code).toContain("const message = `before ${");
++  });
++
++  it("handles regex literals and comments inside interpolations", () => {
++    const source = `
++      import { html } from "@rodkisten/fabrica";
++      const view = html\`<div>\${/\\}/.test(value) /* } */ ? "yes" : "no"}</div>\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(true);
++    expect(result.code).toContain("/\\}/.test(value)");
++  });
++
++  it("parses greater-than characters inside quoted attributes", () => {
++    const source = `
++      import { html } from "@rodkisten/fabrica";
++      const view = html\`<div title="a > b">ok</div>\`;
++    `;
++    const result = compileFabricaSource(source);
++
++    expect(result.changed).toBe(true);
++    expect(result.code).toContain('"title","a > b"');
++  });
++
++  it("lowers direct components only when the lexical value binding is visible", () => {
++    const source = `
++      import { html } from "@rodkisten/fabrica";
++      const Card = component(() => html\`<article />\`);
++      const known = html\`<Card />\`;
++      const unknown = html\`<Missing />\`;
++    `;
++    const result = compileFabricaSource(source, {
++      directComponentReferences: true,
++    });
++
++    expect(result.code).toContain("[2,Card,");
++    expect(result.code).toContain('[2,"Missing",');
++  });
++});
+diff --git a/fabrica/test/compiler-runtime-parity.test.ts b/fabrica/test/compiler-runtime-parity.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd3d41ec9fcd1c7d205195e11095228c31ddca98
+--- /dev/null
++++ b/fabrica/test/compiler-runtime-parity.test.ts
+@@ -0,0 +1,218 @@
++import { afterEach, describe, expect, it } from "vitest";
++import {
++  createCompiledTemplate,
++} from "../compiler-runtime.js";
++import {
++  html,
++  render,
++  signal,
++} from "../index.js";
++import type { RenderValue } from "../types.js";
++
++const containers: HTMLElement[] = [];
++
++afterEach(() => {
++  while (containers.length > 0) containers.pop()?.remove();
++});
++
++describe("runtime/compiler semantic parity", () => {
++  it("keeps native attributes reactive on both paths", () => {
++    const title = signal("one");
++    const runtime = mount(html`<button title=${title}>runtime</button>`);
++    const compiled = mount(
++      createCompiledTemplate(
++        html,
++        [
++          [2, "button", [[1, "title", 0]], [[0, "compiled"]]],
++        ],
++        title,
++      ),
++    );
++
++    expect(runtime.button.title).toBe("one");
++    expect(compiled.button.title).toBe("one");
++
++    title.set("two");
++    expect(runtime.button.title).toBe("two");
++    expect(compiled.button.title).toBe("two");
++  });
++
++  it("keeps property bindings reactive on both paths", () => {
++    const value = signal("one");
++    const runtime = mount(html`<input .value=${value}>`);
++    const compiled = mount(
++      createCompiledTemplate(
++        html,
++        [[2, "input", [[1, ".value", 0]], []]],
++        value,
++      ),
++    );
++
++    expect((runtime.button as HTMLInputElement).value).toBe("one");
++    expect((compiled.button as HTMLInputElement).value).toBe("one");
++
++    value.set("two");
++    expect((runtime.button as HTMLInputElement).value).toBe("two");
++    expect((compiled.button as HTMLInputElement).value).toBe("two");
++  });
++
++  it("keeps boolean bindings reactive on both paths", () => {
++    const disabled = signal(false);
++    const runtime = mount(html`<button ?disabled=${disabled}>runtime</button>`);
++    const compiled = mount(
++      createCompiledTemplate(
++        html,
++        [[2, "button", [[1, "?disabled", 0]], []]],
++        disabled,
++      ),
++    );
++
++    expect(runtime.button.hasAttribute("disabled")).toBe(false);
++    expect(compiled.button.hasAttribute("disabled")).toBe(false);
++
++    disabled.set(true);
++    expect(runtime.button.hasAttribute("disabled")).toBe(true);
++    expect(compiled.button.hasAttribute("disabled")).toBe(true);
++  });
++
++  it("keeps conditional class bindings reactive on both paths", () => {
++    const active = signal(false);
++    const runtime = mount(html`<button class:active=${active}>runtime</button>`);
++    const compiled = mount(
++      createCompiledTemplate(
++        html,
++        [[2, "button", [[1, "class:active", 0]], []]],
++        active,
++      ),
++    );
++
++    active.set(true);
++    expect(runtime.button.classList.contains("active")).toBe(true);
++    expect(compiled.button.classList.contains("active")).toBe(true);
++
++    active.set(false);
++    expect(runtime.button.classList.contains("active")).toBe(false);
++    expect(compiled.button.classList.contains("active")).toBe(false);
++  });
++
++  it("reconciles compiled spreads and removes nested attrs and dataset", () => {
++    const props = signal<Record<string, unknown>>({
++      attrs: { title: "hello" },
++      dataset: { rowId: "42" },
++    });
++    const compiled = mount(
++      createCompiledTemplate(
++        html,
++        [[2, "button", [[3, 0]], []]],
++        props,
++      ),
++    );
++
++    expect(compiled.button.getAttribute("title")).toBe("hello");
++    expect(compiled.button.getAttribute("data-row-id")).toBe("42");
++
++    props.set({});
++    expect(compiled.button.hasAttribute("title")).toBe(false);
++    expect(compiled.button.hasAttribute("data-row-id")).toBe(false);
++  });
++
++  it("runs callback-ref cleanup on compiled disposal", () => {
++    let cleaned = 0;
++    const host = document.createElement("div");
++    document.body.append(host);
++    const dispose = render(
++      host,
++      createCompiledTemplate(
++        html,
++        [[2, "button", [[1, "ref", 0]], []]],
++        () => () => {
++          cleaned += 1;
++        },
++      ),
++    );
++
++    dispose();
++    expect(cleaned).toBe(1);
++    host.remove();
++  });
++
++  it("resets compiled object refs to null on disposal", () => {
++    const ref = { current: null as Element | null };
++    const host = document.createElement("div");
++    document.body.append(host);
++    const dispose = render(
++      host,
++      createCompiledTemplate(
++        html,
++        [[2, "button", [[1, "ref", 0]], []]],
++        ref as unknown as RenderValue,
++      ),
++    );
++
++    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
++    dispose();
++    expect(ref.current).toBeNull();
++    host.remove();
++  });
++});
++
++function mount(value: RenderValue): {
++  readonly host: HTMLElement;
++  readonly button: HTMLElement;
++} {
++  const host = document.createElement("div");
++  containers.push(host);
++  document.body.append(host);
++  render(host, value);
++  const button = host.firstElementChild as HTMLElement;
++  return { host, button };
++}
