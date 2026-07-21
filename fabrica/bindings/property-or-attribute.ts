@@ -2,6 +2,36 @@ import { effect } from "@rodkisten/broto/reactivity";
 import { hasReactiveValue, readValue } from "../core/value.js";
 import { registerCleanup } from "../render/cleanup.js";
 
+const BOOLEAN_PROPERTY_NAMES = new Set([
+  "allowFullscreen",
+  "async",
+  "autofocus",
+  "autoplay",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "draggable",
+  "formNoValidate",
+  "hidden",
+  "indeterminate",
+  "inert",
+  "loop",
+  "multiple",
+  "muted",
+  "noModule",
+  "noValidate",
+  "open",
+  "playsInline",
+  "readOnly",
+  "required",
+  "reversed",
+  "selected",
+  "spellcheck",
+  "translate",
+]);
+
 /**
  * Applies the object-prop convention used by Fábrica payloads and prop patches.
  *
@@ -103,7 +133,7 @@ function setElementProperty(
   const record = element as unknown as Record<string, unknown>;
   const currentValue = record[name];
   const nextValue =
-    typeof currentValue === "boolean"
+    typeof currentValue === "boolean" || BOOLEAN_PROPERTY_NAMES.has(name)
       ? readBooleanLike(value)
       : value;
 
