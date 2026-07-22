@@ -351,8 +351,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         ref=${ref<HTMLElement>((node) => {
           rootRef = node;
         })}
-        data-theme=${initialTheme.name}
-        data-line-numbers=${String(lineNumbers)}
+        :theme=${initialTheme.name}
+        :lineNumbers=${String(lineNumbers)}
       >
         <MaquinaViewport
           ref=${ref<HTMLElement>((node) => {
