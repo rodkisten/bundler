@@ -1,22 +1,56 @@
 import { runtime } from '../runtime'
-import type { CipoAstNode, CipoAtomicRule, CipoDeclarationNode, CipoRuleContext, CipoScopedRule, CipoWarning } from '../types'
+import type {
+  CipoAstNode,
+  CipoAtomicRule,
+  CipoDeclarationNode,
+  CipoRuleContext,
+  CipoScopedRule,
+  CipoWarning,
+} from '../types'
 import { warn } from '../utils'
 import { parseDeclarations } from '../syntax/parser'
 import { expandWithCompat } from '../transform/index'
 import { collectDeclaration, resolveBreakpointContext } from './declaration'
 import { resolveScopedSelector } from './selector'
 import { isCipoPseudoName } from './pseudos'
+import {
+  normalizeContainerContext,
+  normalizeContainerQuery,
+} from './container-query'
 
 /** Collects atomic and scoped rules from an AST. */
-export function collectRules(nodes: readonly CipoAstNode[], scopeClassName: string, warnings: CipoWarning[], forceImportant = false) {
+export function collectRules(
+  nodes: readonly CipoAstNode[],
+  scopeClassName: string,
+  warnings: CipoWarning[],
+  forceImportant = false,
+) {
   const atoms: CipoAtomicRule[] = []
   const scopedRules: CipoScopedRule[] = []
-  collect(nodes, {}, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+
+  collect(
+    nodes,
+    {},
+    atoms,
+    scopedRules,
+    warnings,
+    scopeClassName,
+    forceImportant,
+  )
+
   return { atoms, scopedRules }
 }
 
 /** Recursive AST collector for atomic/component mode. */
-export function collect(nodes: readonly CipoAstNode[], context: CipoRuleContext, atoms: CipoAtomicRule[], scopedRules: CipoScopedRule[], warnings: CipoWarning[], scopeClassName: string, forceImportant = false): void {
+export function collect(
+  nodes: readonly CipoAstNode[],
+  context: CipoRuleContext,
+  atoms: CipoAtomicRule[],
+  scopedRules: CipoScopedRule[],
+  warnings: CipoWarning[],
+  scopeClassName: string,
+  forceImportant = false,
+): void {
   for (const node of nodes) {
     if (node.type === 'declaration') {
       collectDeclaration(node, context, atoms, forceImportant)
@@ -25,29 +59,92 @@ export function collect(nodes: readonly CipoAstNode[], context: CipoRuleContext,
 
     if (node.type === 'directive') {
       if (node.name === 'with') {
-        const expanded = expandWithCompat(`@with(${node.args.join(',')});`, warnings)
-        collect(parseDeclarations(expanded, warnings), context, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+        const expanded = expandWithCompat(
+          `@with(${node.args.join(',')});`,
+          warnings,
+        )
+
+        collect(
+          parseDeclarations(expanded, warnings),
+          context,
+          atoms,
+          scopedRules,
+          warnings,
+          scopeClassName,
+          forceImportant,
+        )
       }
+
       continue
     }
 
-    collectBlock(node.name, node.body, context, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+    collectBlock(
+      node.name,
+      node.body,
+      context,
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
   }
 }
 
 /** Collects one block from atomic/component mode. */
-export function collectBlock(name: string, body: readonly CipoAstNode[], context: CipoRuleContext, atoms: CipoAtomicRule[], scopedRules: CipoScopedRule[], warnings: CipoWarning[], scopeClassName: string, forceImportant = false): void {
+export function collectBlock(
+  name: string,
+  body: readonly CipoAstNode[],
+  context: CipoRuleContext,
+  atoms: CipoAtomicRule[],
+  scopedRules: CipoScopedRule[],
+  warnings: CipoWarning[],
+  scopeClassName: string,
+  forceImportant = false,
+): void {
   const normalized = name.trim()
 
-  if (normalized === 'reduce-motion') {
-    collect(body, { ...context, mediaQuery: '(prefers-reduced-motion: reduce)' }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+  if (
+    normalized === 'starting-style' ||
+    normalized === '@starting-style'
+  ) {
+    collect(
+      body,
+      { ...context, startingStyle: true },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
     return
   }
 
-  if (normalized.startsWith('@media ')) {
+  if (normalized === 'reduce-motion') {
     collect(
       body,
-      { ...context, mediaQuery: normalized.slice('@media'.length).trim() },
+      {
+        ...context,
+        mediaQuery: '(prefers-reduced-motion: reduce)',
+      },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
+    return
+  }
+
+  const mediaMatch = normalized.match(/^@media\s+(.+)$/)
+
+  if (mediaMatch) {
+    collect(
+      body,
+      {
+        ...context,
+        mediaQuery: mediaMatch[1].trim(),
+      },
       atoms,
       scopedRules,
       warnings,
@@ -58,28 +155,81 @@ export function collectBlock(name: string, body: readonly CipoAstNode[], context
   }
 
   if (normalized.startsWith('supports(')) {
-    collect(body, { ...context, supports: normalized.slice('supports('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+    collect(
+      body,
+      {
+        ...context,
+        supports: normalized.slice('supports('.length, -1).trim(),
+      },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
     return
   }
 
   if (normalized.startsWith('layer(')) {
-    collect(body, { ...context, layer: normalized.slice('layer('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+    collect(
+      body,
+      {
+        ...context,
+        layer: normalized.slice('layer('.length, -1).trim(),
+      },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
     return
   }
 
   if (normalized.startsWith('container(')) {
-    collect(body, { ...context, container: normalized.slice('container('.length, -1).trim() }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+    collect(
+      body,
+      {
+        ...context,
+        container: normalized.slice('container('.length, -1).trim(),
+      },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
     return
   }
 
   if (normalized.startsWith('x:not(')) {
-    const breakpoint = normalized.replace(/^x:not\(/, '').replace(/\)$/, '').trim()
-    collect(body, { ...context, notBreakpoint: breakpoint }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+    const breakpoint = normalized
+      .replace(/^x:not\(/, '')
+      .replace(/\)$/, '')
+      .trim()
+
+    collect(
+      body,
+      {
+        ...context,
+        notBreakpoint: breakpoint,
+      },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
     return
   }
 
   if (normalized.startsWith('x:')) {
-    const contextParts = normalized.slice(2).split(':').map(part => part.trim()).filter(Boolean)
+    const contextParts = normalized
+      .slice(2)
+      .split(':')
+      .map(part => part.trim())
+      .filter(Boolean)
+
     let nextContext = context
     let consumed = false
 
@@ -89,55 +239,122 @@ export function collectBlock(name: string, body: readonly CipoAstNode[], context
         consumed = true
         continue
       }
+
+      if (part.startsWith('container(')) {
+        nextContext = {
+          ...nextContext,
+          container: normalizeContainerContext(part.slice(10, -1)),
+        }
+        consumed = true
+        continue
+      }
+
       if (part.startsWith('cq(')) {
-        nextContext = { ...nextContext, container: part.slice(3, -1).trim() }
+        nextContext = {
+          ...nextContext,
+          container: normalizeContainerQuery(
+            part.slice(3, -1).trim(),
+          ),
+        }
         consumed = true
         continue
       }
+
       if (part === 'dark') {
-        nextContext = { ...nextContext, dark: true }
+        nextContext = {
+          ...nextContext,
+          dark: true,
+        }
         consumed = true
         continue
       }
+
       if (part === 'motion-safe') {
-        nextContext = { ...nextContext, mediaQuery: '(prefers-reduced-motion: no-preference)' }
+        nextContext = {
+          ...nextContext,
+          mediaQuery: '(prefers-reduced-motion: no-preference)',
+        }
         consumed = true
         continue
       }
+
       if (part === 'motion-reduce') {
-        nextContext = { ...nextContext, mediaQuery: '(prefers-reduced-motion: reduce)' }
+        nextContext = {
+          ...nextContext,
+          mediaQuery: '(prefers-reduced-motion: reduce)',
+        }
         consumed = true
         continue
       }
+
       if (isCipoPseudoName(part)) {
-        nextContext = { ...nextContext, pseudo: `:${part}` }
+        nextContext = {
+          ...nextContext,
+          pseudo: `:${part}`,
+        }
         consumed = true
       }
     }
 
     if (consumed) {
-      collect(body, nextContext, atoms, scopedRules, warnings, scopeClassName, forceImportant)
+      collect(
+        body,
+        nextContext,
+        atoms,
+        scopedRules,
+        warnings,
+        scopeClassName,
+        forceImportant,
+      )
       return
     }
   }
 
   if (runtime.variantRegistry.has(normalized)) {
-    for (const selector of runtime.variantRegistry.get(normalized) ?? []) {
-      scopedRules.push({ selector: resolveScopedSelector(scopeClassName, selector, context), declarations: body.filter(isDeclarationNode), context })
+    for (
+      const selector of runtime.variantRegistry.get(normalized) ?? []
+    ) {
+      scopedRules.push({
+        selector: resolveScopedSelector(
+          scopeClassName,
+          selector,
+          context,
+        ),
+        declarations: body.filter(isDeclarationNode),
+        context,
+      })
     }
+
     return
   }
 
   const declarations = body.filter(isDeclarationNode)
+
   if (declarations.length === 0) {
-    warn(runtime, warnings, 'empty-scoped-rule', `Scoped rule "${normalized}" has no declarations.`, normalized)
+    warn(
+      runtime,
+      warnings,
+      'empty-scoped-rule',
+      `Scoped rule "${normalized}" has no declarations.`,
+      normalized,
+    )
     return
   }
 
-  scopedRules.push({ selector: resolveScopedSelector(scopeClassName, normalized, context), declarations, context })
+  scopedRules.push({
+    selector: resolveScopedSelector(
+      scopeClassName,
+      normalized,
+      context,
+    ),
+    declarations,
+    context,
+  })
 }
 
 /** Type guard for declaration nodes. */
-export function isDeclarationNode(node: CipoAstNode): node is CipoDeclarationNode {
+export function isDeclarationNode(
+  node: CipoAstNode,
+): node is CipoDeclarationNode {
   return node.type === 'declaration'
 }
