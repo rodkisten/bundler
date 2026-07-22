@@ -37,7 +37,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         banner: (chunk) =>
-          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
+          chunk.fileName.contains("iife") ? iifeBanner : "",
       },
     },
     lib: {
