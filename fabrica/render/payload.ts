@@ -10,7 +10,6 @@ import type {
   ElementPayload,
   RenderValue,
 } from "../types.js";
-import { toDataAttributeName } from "../data-attributes.js";
 
 /** Callback used by payload materializers to append nested render values. */
 export type AppendRenderValue = (
@@ -177,7 +176,7 @@ function bindPayloadDataset(
   for (const [name, item] of Object.entries(
     resolved as Record<string, unknown>,
   )) {
-    bindPropertyOrAttributeValue(element, toDataAttributeName(name), item);
+    bindPropertyOrAttributeValue(element, `data-${toKebabCase(name)}`, item);
   }
 }
 
@@ -200,3 +199,9 @@ function bindPayloadEventMap(
   }
 }
 
+function toKebabCase(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .toLowerCase();
+}
