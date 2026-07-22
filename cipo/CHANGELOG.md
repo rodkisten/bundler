@@ -1,16 +1,5 @@
 ## Unreleased
 
-### Fábrica selector interoperability
-
-- Added Fábrica-compatible state selectors: `:name=value`, bare `:name`, and
-  `?boolean` lower to native `data-*` and boolean attribute selectors.
-- Preserved native pseudo-classes, pseudo-elements, selector functions, and
-  attribute-selector string contents while lowering the new shorthand.
-- Added `minw-full` / `min-w-full` and `minh-full` / `min-h-full` built-in
-  sizing aliases used by constrained editor surfaces.
-- Migrated Máquina token and active-state styling to the shared Fábrica/Cipó
-  selector dialect.
-
 ### Fábrica runtime boundary and source maps
 
 - Added the runtime-only `@rodkisten/cipo/runtime-inline` entrypoint so Fábrica
