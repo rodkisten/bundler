@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#110b0a" />
+  <link rel="stylesheet" href="./landing.css" />
+  <title>Fábrica · build interfaces from real DOM</title>
+</head>
+<body>
+  <main class="fabrica-shell">
+    <section class="hero">
+      <div class="hero-number" aria-hidden="true">F/01</div>
+      <p class="eyebrow">HTML runtime / compiler parity / real DOM</p>
+      <h1>Make UI.<br /><em>Not framework archaeology.</em></h1>
+      <div class="hero-bottom">
+        <p>Fábrica turns tagged HTML into live DOM, wires Broto signals exactly where they are read, and keeps interpreted and compiled templates on the same binding kernel.</p>
+        <div class="actions"><a href="#live" class="button hot">Open the assembly line</a><a href="../docs/fabrica-readme.html" class="button">Architecture docs</a></div>
+      </div>
+    </section>
+
+    <section class="ticker" aria-hidden="true"><div>REAL DOM · SIGNAL PARTS · COMPONENTS · DIRECTIVES · EVENTS · HYDRATION · COMPILER PARITY · REAL DOM · SIGNAL PARTS · COMPONENTS · DIRECTIVES · EVENTS · HYDRATION · COMPILER PARITY ·</div></section>
+
+    <section class="assembly" id="live">
+      <div class="assembly-copy">
+        <p class="eyebrow">Live Fábrica render</p>
+        <h2>A component that is already a DOM node.</h2>
+        <p>No VDOM hand-off. No reconciliation universe between you and the browser. The template materializes into native nodes and reactive parts keep their exact subscriptions.</p>
+        <pre><code>const count = signal(0)
+
+render(host, html`
+  &lt;button @click=${() =&gt; count.update(n =&gt; n + 1)}&gt;
+    stamped ${count} times
+  &lt;/button&gt;
+`)</code></pre>
+      </div>
+      <div class="live-machine">
+        <div class="machine-label"><span>runtime</span><strong>DOM ASSEMBLY LINE</strong><i>live</i></div>
+        <div id="fabrica-demo"></div>
+      </div>
+    </section>
+
+    <section class="principles">
+      <article><span>01</span><h3>Compile discovery.<br />Keep semantics.</h3><p>The compiler removes repeated parsing and path discovery, but events, attributes, signals and cleanup converge on the same runtime primitives.</p></article>
+      <article class="invert"><span>02</span><h3>Components without component tax.</h3><p>Named registries, lifecycle, contexts and slots exist where useful. A static fragment is still allowed to be boringly cheap.</p></article>
+      <article class="acid"><span>03</span><h3>Broto below.<br />Cipó beside.</h3><p>State and CSS stay separate packages. Fábrica owns the HTML/UI layer instead of becoming a kitchen-sink framework with a logo problem.</p></article>
+    </section>
+
+    <section class="anatomy">
+      <div class="section-title"><p class="eyebrow">One execution plan</p><h2>Template → parts → browser.</h2></div>
+      <div class="pipeline">
+        <div><b>01</b><strong>html``</strong><span>parse once</span></div><i>→</i>
+        <div><b>02</b><strong>part plan</strong><span>know dynamic paths</span></div><i>→</i>
+        <div><b>03</b><strong>binding kernel</strong><span>events, attrs, signals</span></div><i>→</i>
+        <div><b>04</b><strong>DOM</strong><span>the actual platform</span></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./landing.ts"></script>
+</body>
+</html>
