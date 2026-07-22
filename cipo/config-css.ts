@@ -6,7 +6,7 @@ import { insertCss } from './injection'
 import { registerAlias } from './plugin-registry'
 import { property } from './properties'
 import { runtime } from './runtime'
-import { theme } from './theme'
+import { theme, themeScope } from './theme'
 import type { CipoConfig, CipoCssConfigResult, CipoPropertyDefinition, CipoTheme, CipoWarning, RuntimeState } from './types'
 import { warn } from './utils'
 
@@ -160,6 +160,15 @@ function applyPreparedCssConfig(prepared: PreparedCssConfig): CipoCssConfigResul
     if (operation.kind === 'alias') registerAlias(operation.name, operation.cssText)
     else if (operation.kind === 'property') appliedProperties.push(property(operation.name, operation.definition))
     else if (operation.kind === 'layer') insertCss(operation.cssText)
+    else if (operation.kind === 'theme-scope') {
+      flushTheme()
+      themeScope(
+        operation.name,
+        operation.patch,
+        operation.extends ? { extends: operation.extends } : {},
+        warnings,
+      )
+    }
     else if (operation.kind === 'preset') { flushTheme(); applyPreset(operation.name, warnings) }
     else if (operation.kind === 'plugin') { flushTheme(); applyPlugin(operation.name, warnings) }
   }
