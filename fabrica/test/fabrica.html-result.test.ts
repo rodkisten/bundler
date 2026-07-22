@@ -83,6 +83,20 @@ describe("Fábrica polymorphic html results", () => {
     expect(host.querySelector("strong")?.textContent).toBe("Local");
   });
 
+  it("reuses an existing html artifact when a template materializes to an html result root", () => {
+    const child = html`<span>Nested</span>`;
+    const runtimeView = html`${child}`;
+    const compiledView = createCompiledTemplate(
+      ["", ""] as unknown as TemplateStringsArray,
+      child,
+    );
+
+    expect(runtimeView).toBe(child);
+    expect(compiledView).toBe(child);
+    expect(child.textContent).toBe("Nested");
+    expect(isHtmlResult(child)).toBe(true);
+  });
+
   it("keeps compiled templates polymorphic and artifact-backed", () => {
     const view = createCompiledTemplate(["<section>", "</section>"] as unknown as TemplateStringsArray, "Compiled");
 
