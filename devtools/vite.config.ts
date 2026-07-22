@@ -66,7 +66,7 @@ export default defineConfig({
       usePolling: true,
     },
     open: "/index.html",
-  }
+  },
 
  esbuild: {
     minifyIdentifiers: true,
