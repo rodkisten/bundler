@@ -17,7 +17,7 @@ export function createBuiltDevtoolsLandingHtml(source: string): string {
   return source
     .replace(/\s*<base\s+href=["'][^"']*["']\s*\/?>(?:\s*)/i, "\n")
     .replace(/href=["']\/landing\.css["']/i, 'href="./landing.css"')
-    .replace(/<script\s+type=["']module["']\s+src=["']\/landing\.ts["']\s*><\/script>/i, '<script type="module" src="./landing.ts"></script>');
+    .replace(/<script\s+type=["']module["']\s+src=["']\/landing\.ts["']\s*><\/script>/i, '<script defer src="./devtools.landing.js"></script>');
 }
 
 /** Builds the DevTools application page with the same Vite, Cipó, SEO and ecosystem-shell configuration as every other landing. */
