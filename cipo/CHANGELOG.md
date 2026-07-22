@@ -1,5 +1,33 @@
 ## Unreleased
 
+### Next-generation language primitives
+
+- Added deep `text()` authoring with positional typography, named typography
+  fields, responsive values, line clamping, ellipsis, wrapping, OpenType
+  numeric variants, ligatures, fluid sizes, and theme typography presets.
+- Added `motion()` with `property: from -> to` transitions, `x`/`y` translation,
+  scale, timing options, `@starting-style`, reduced-motion defaults, and
+  built-in
+  entrance presets.
+- Added shared state-condition parsing for `state()`, `group()`, `peer()`, and
+  enhanced `compound()` blocks with arrays and negation.
+- Added responsive object values for ordinary properties and deep helpers while
+  reusing the existing breakpoint and responsive emission pipeline.
+- Extended `fluid()` with named min/max ranges and breakpoint-backed bounds.
+- Added theme-token fallback chains with `??` and `token(...)`, plus derived
+  theme values that reuse the runtime math normalizer.
+- Added named `themeScope()` registration, inheritance, custom selectors, and
+  CSS-first `@theme(name)` / `@theme(child extends parent)` compilation.
+- Added typed `$$name<type>` runtime custom properties through the existing
+  typed-property registry.
+- Added named container definitions and semantic `x:cq(...)` /
+  `x:container(...)` query normalization.
+- Added native attribute comparison operators to Fábrica-shaped state selectors.
+- Added runtime, compiler, CSS-first config, and Vite compiled-build coverage
+  for
+  the new language surface.
+- Added `LANGUAGE.md` as the canonical language-level reference.
+
 ### Fábrica selector interoperability
 
 - Added Fábrica-compatible state selectors: `:name=value`, bare `:name`, and
