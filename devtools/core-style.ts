@@ -409,6 +409,3 @@ export function installDevtoolsStyles(
 
   return style;
 }
-
-
-console.log("devtoolsStyles", devtoolsStyles.cssText);
