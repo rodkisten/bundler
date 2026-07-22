@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import { css, getCssText, reset, sheet } from '@rodkisten/cipo'
+import { normalizeDeclarationSpacing } from './css-test-utils'
 
 /**
  * Installs the exact CSS-first configuration that exposed the production regressions.
@@ -66,7 +67,7 @@ describe('real-world CSS-first colors and declarations', () => {
   it('applies every theme color and compiles the reported patterns', () => {
     installBaseStyles(css)
 
-    const tokenCss = getCssText()
+    const tokenCss = normalizeDeclarationSpacing(getCssText())
     const expectedColors = {
       panel: 'rgb(12 13 15 / 0.94)',
       panelStrong: 'rgb(18 19 22 / 0.98)',
