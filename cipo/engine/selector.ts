@@ -1,9 +1,13 @@
 import { runtime } from '../runtime'
 import type { CipoRuleContext } from '../types'
 import { canonicalizeCssForIdentity } from '../syntax/css-lexer'
+import { normalizeFabricaSelectorSyntax } from './fabrica-selector-syntax'
 
-/** Compiles the selector for an atomic rule, including pseudo and dark contexts. */
-export function compileSelector(className: string, context: CipoRuleContext): string {
+/** Compiles an atomic selector, including pseudo and dark contexts. */
+export function compileSelector(
+  className: string,
+  context: CipoRuleContext,
+): string {
   let selector = `.${className}`
   if (context.pseudo) selector += context.pseudo
   if (context.dark) selector = `${runtime.config.darkSelector} ${selector}`
@@ -21,28 +25,32 @@ export function wrapContext(rule: string, context: CipoRuleContext): string {
   if (context.supports) output = `@supports ${context.supports}{${output}}`
   if (context.container) output = `@container ${context.container}{${output}}`
   if (context.layer) output = `@layer ${context.layer}{${output}}`
+  if (context.startingStyle) output = `@starting-style{${output}}`
   return output
 }
 
-/** Resolves a nested selector against the generated scope class and rule context. */
+/** Resolves a nested selector against its generated scope and rule context. */
 export function resolveScopedSelector(
   scopeClassName: string,
   selector: string,
   context: CipoRuleContext = {},
 ): string {
-  let localSelector = !selector
+  const normalizedSelector = normalizeFabricaSelectorSyntax(selector)
+  let localSelector = !normalizedSelector
     ? `.${scopeClassName}`
-    : selector.includes('&')
-      ? selector.replaceAll('&', `.${scopeClassName}`)
-      : `.${scopeClassName} ${selector}`
+    : normalizedSelector.includes('&')
+      ? normalizedSelector.replaceAll('&', `.${scopeClassName}`)
+      : `.${scopeClassName} ${normalizedSelector}`
 
   if (context.pseudo) localSelector += context.pseudo
-  if (context.dark) localSelector = `${runtime.config.darkSelector} ${localSelector}`
+  if (context.dark) {
+    localSelector = `${runtime.config.darkSelector} ${localSelector}`
+  }
 
   return applyConfiguredScope(localSelector)
 }
 
-/** Applies the configured global scope to a selector with minimal specificity. */
+/** Applies the configured global scope with minimal specificity. */
 export function applyConfiguredScope(selector: string): string {
   const scope = runtime.config.scope
   const prefix = scope.selector.trim()
@@ -53,11 +61,28 @@ export function applyConfiguredScope(selector: string): string {
 }
 
 /** Applies configured scoping to every selector in a selector list. */
-export function applyConfiguredScopeToSelectors(selectors: readonly string[]): string[] {
+export function applyConfiguredScopeToSelectors(
+  selectors: readonly string[],
+): string[] {
   return selectors.map((selector) => applyConfiguredScope(selector))
 }
 
 /** Stable identity for atomic rule cache entries. */
-export function createAtomicRuleId(property: string, value: string, context: CipoRuleContext): string {
-  return [canonicalizeCssForIdentity(property), canonicalizeCssForIdentity(value), context.mediaQuery ?? '', context.pseudo ?? '', context.dark ? 'dark' : '', context.notBreakpoint ?? '', context.supports ?? '', context.container ?? '', context.layer ?? ''].join('|')
+export function createAtomicRuleId(
+  property: string,
+  value: string,
+  context: CipoRuleContext,
+): string {
+  return [
+    canonicalizeCssForIdentity(property),
+    canonicalizeCssForIdentity(value),
+    context.mediaQuery ?? '',
+    context.pseudo ?? '',
+    context.dark ? 'dark' : '',
+    context.notBreakpoint ?? '',
+    context.supports ?? '',
+    context.container ?? '',
+    context.layer ?? '',
+    context.startingStyle ? 'starting-style' : '',
+  ].join('|')
 }
