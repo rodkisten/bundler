@@ -1,4 +1,4 @@
-import { toDataAttributeName } from "./special.js";
+import { toDataAttributeName } from "../data-attributes.js";
 
 /** Normalizes static placeholder attributes into component prop names. */
 export function normalizeStaticComponentPropName(name: string): string {
@@ -22,7 +22,7 @@ export function normalizeComponentPropName(name: string): string {
   return normalizeStaticComponentPropName(name);
 }
 
-/** Converts `@click.modifier` syntax to a React-like component callback prop. */
+/** Converts `@click.modifier` to a React-like component callback prop. */
 export function eventAttributeToPropName(rawName: string): string {
   const dotIndex = rawName.indexOf(".");
   const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);

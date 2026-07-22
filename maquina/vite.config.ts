@@ -26,8 +26,6 @@ const iifeBanner = createIifeBuildBanner(buildInfo, {
 });
 
 export default defineConfig({
-  minify: "esbuild", 
-
   esbuild: {
     minifyIdentifiers: true,
     minifySyntax: true,
@@ -49,6 +47,7 @@ export default defineConfig({
   server: { open: "/index.html" },
   
   build: {
+    minify: "esbuild",
     outDir: "dist",
     rollupOptions: {
       treeshake: {

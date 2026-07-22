@@ -1393,6 +1393,59 @@ The result contains `data-console-log`, `data-rod-camel-case`, `data-console-inp
 
 Data values follow predictable DOM rules: `null` and `undefined` remove the attribute; every other supplied value, including `false`, is written with `String(value)`. A field authored without `=` is written as an empty presence attribute.
 
+### Cipó state-selector interoperability
+
+Fábrica data and boolean bindings form a shared state contract with Cipó.
+The DOM spelling is canonical and can be produced directly with the exported
+`toDataAttributeName()` helper:
+
+```ts
+toDataAttributeName('panelState')
+// data-panel-state
+```
+
+The same state can be authored on both sides without repeating `data-*`:
+
+```ts
+const panel = fabrica.html`
+  <section :panelState=${state} ?disabled=${disabled}></section>
+`
+```
+
+```css
+& :panelState='open' {
+  display: block;
+}
+
+& ?disabled {
+  opacity: 0.5;
+}
+```
+
+Cipó lowers those selectors to native CSS:
+
+```css
+[data-panel-state='open'] {
+  display: block;
+}
+
+[disabled] {
+  opacity: 0.5;
+}
+```
+
+Bare data selectors such as `:selected` map to `[data-selected]`. Native CSS
+pseudo-classes such as `:hover`, `:disabled`, `:not(...)`, and pseudo-elements
+such as `::before` keep their native meaning. Use `?disabled` when the selector
+should target the boolean attribute written by a Fábrica `?disabled` binding.
+
+The special `:data=${object}` binding expands multiple fields and therefore has
+no direct `:data` selector shorthand. Select one of the emitted field names
+instead. `class:*`, `.property`, `@event`, and refs also stay Fábrica-only
+because CSS already has native class selectors and cannot observe JS properties,
+event
+handlers, or refs.
+
 Bracket bindings call `style.setProperty()` and remain reactive:
 
 ```ts
