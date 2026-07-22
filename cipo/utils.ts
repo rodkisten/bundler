@@ -322,7 +322,7 @@ export function parseTypedArguments(input: string): Record<string, string> {
  * @returns Compact declaration.
  */
 export function createDeclaration(property: string, value: string): string {
-  return `${property}:${value};`
+  return `${property}: ${value};`
 }
 
 /**
