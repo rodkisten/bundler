@@ -1,67 +1,254 @@
+import { effect } from "@rodkisten/broto/reactivity";
+import { compileInlineCss } from "@rodkisten/cipo/runtime-inline";
+import { registerCleanup } from "../render/cleanup.js";
+import { hasReactiveValue, readValue } from "../core/value.js";
 import { toDataAttributeName } from "../data-attributes.js";
 
-/** Normalizes static placeholder attributes into component prop names. */
-export function normalizeStaticComponentPropName(name: string): string {
-  if (name === "classname") return "className";
-  if (name === "htmlfor") return "htmlFor";
-  if (name === "tabindex") return "tabIndex";
-  if (name === "readonly") return "readOnly";
-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
-  return name;
+export type SpecialAttributeState = {
+  dataNames: Set<string>;
+  styleNames: Set<string>;
+};
+
+export function createSpecialAttributeState(): SpecialAttributeState {
+  return { dataNames: new Set(), styleNames: new Set() };
 }
 
-/** Normalizes dynamic template syntax into the component prop vocabulary. */
-export function normalizeComponentPropName(name: string): string {
-  if (name.startsWith("@")) {
-    return eventAttributeToPropName(name.slice(1));
-  }
-  if (name.startsWith(".")) return name.slice(1);
-  if (name.startsWith("?")) return name.slice(1);
-  if (name === ":data") return name;
-  if (name.startsWith(":")) return toDataAttributeName(name.slice(1));
-  return normalizeStaticComponentPropName(name);
+export function isSpecialAttributeName(name: string): boolean {
+  return (
+    name === "$css" ||
+    name === "$style" ||
+    name.startsWith(":") ||
+    (name.startsWith("[") && name.endsWith("]"))
+  );
 }
 
-/** Converts `@click.modifier` to a React-like component callback prop. */
-export function eventAttributeToPropName(rawName: string): string {
-  const dotIndex = rawName.indexOf(".");
-  const eventName = dotIndex < 0 ? rawName : rawName.slice(0, dotIndex);
-  return `on${eventName.charAt(0).toUpperCase()}${eventName.slice(1)}`;
-}
-
-/** Expands Fábrica's `:data` object shorthand into concrete data attributes. */
-export function mergeComponentDataProps(
-  target: Record<string, unknown>,
+export function bindSpecialAttribute(
+  element: Element,
+  name: string,
   value: unknown,
-  resolve: (value: unknown) => unknown = identity,
-): void {
-  const resolved = resolve(value);
-  if (!resolved || typeof resolved !== "object") return;
+): boolean {
+  if (!isSpecialAttributeName(name)) return false;
 
-  const source = resolved as Record<string, unknown>;
-  for (const key in source) {
-    const literal = key.startsWith(":");
-    const rawName = literal ? `"${key.slice(1)}"` : key;
-    target[toDataAttributeName(rawName)] = resolve(source[key]);
+  const state = createSpecialAttributeState();
+  const update = (): void => {
+    applySpecialAttribute(element, name, readValueDeep(value), state);
+  };
+  let dispose: (() => void) | null = null;
+  if (hasDeepReactiveValue(value)) {
+    dispose = effect(update, {
+      name: `fabrica.specialAttribute.${name}`,
+      scheduler: "sync",
+    });
+  } else {
+    update();
   }
+
+  if (dispose) registerCleanup(element, dispose);
+  registerCleanup(
+    element,
+    () => clearSpecialAttributeState(element, state),
+  );
+  return true;
 }
 
-/** Merges object spread props using the canonical component name normalizer. */
-export function mergeComponentSpreadProps(
-  target: Record<string, unknown>,
+export function applySpecialAttribute(
+  element: Element,
+  name: string,
   value: unknown,
-  resolve: (value: unknown) => unknown = identity,
-): void {
-  const resolved = resolve(value);
-  if (!resolved || typeof resolved !== "object") return;
+  state: SpecialAttributeState = createSpecialAttributeState(),
+): boolean {
+  // Never resolve ordinary props here. Event handlers, refs and callbacks are
+  // functions too, and resolving them as reactive expressions invokes them
+  // during render with no Event/Node argument. Only special attributes own the
+  // deep-value semantics implemented by this module.
+  if (!isSpecialAttributeName(name)) return false;
 
-  for (const [name, item] of Object.entries(
-    resolved as Record<string, unknown>,
-  )) {
-    target[normalizeComponentPropName(name)] = resolve(item);
+  value = readValueDeep(value);
+
+  if (name === "$css" || name === "$style") {
+    applyCipoInlineStyle(element, value);
+    return true;
+  }
+
+  if (name.startsWith(":")) {
+    applyDataAttribute(element, name.slice(1), value, state);
+    return true;
+  }
+
+  if (name.startsWith("[") && name.endsWith("]")) {
+    applyStyleProperty(element, name.slice(1, -1), value, state);
+    return true;
+  }
+
+  return false;
+}
+
+export function normalizeStaticSpecialAttributes(root: ParentNode): void {
+  const elements = root.querySelectorAll("*");
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index]!;
+    const attributes = Array.from(element.attributes);
+
+    for (const attribute of attributes) {
+      if (
+        !isSpecialAttributeName(attribute.name) ||
+        attribute.value.includes("__fabrica_attr_")
+      ) {
+        continue;
+      }
+      applySpecialAttribute(element, attribute.name, attribute.value);
+      element.removeAttribute(attribute.name);
+    }
   }
 }
 
-function identity(value: unknown): unknown {
-  return value;
+export {
+  encodeLiteralDataAttributeName,
+  toDataAttributeName,
+} from "../data-attributes.js";
+
+function applyCipoInlineStyle(element: Element, value: unknown): void {
+  const style = getStyle(element);
+  if (!style) return;
+
+  if (value == null || value === false) {
+    style.cssText = "";
+    return;
+  }
+
+  const cssText = readInlineCssText(value);
+  style.cssText = cssText;
+}
+
+function readInlineCssText(value: unknown): string {
+  if (value && typeof value === "object") {
+    const artifact = value as { cssText?: unknown; kind?: unknown };
+    if (
+      artifact.kind === "cipo.inline-css" &&
+      typeof artifact.cssText === "string"
+    ) {
+      return artifact.cssText;
+    }
+    return compileInlineCss(
+      resolveObject(value as Record<string, unknown>) as never,
+      [],
+      false,
+    ).cssText;
+  }
+
+  const source = String(value ?? "");
+  const strings = Object.assign(
+    [source],
+    { raw: [source] },
+  ) as unknown as TemplateStringsArray;
+  return compileInlineCss(strings, [], false).cssText;
+}
+
+function applyDataAttribute(
+  element: Element,
+  rawName: string,
+  value: unknown,
+  state: SpecialAttributeState,
+): void {
+  if (rawName === "data") {
+    const nextNames = new Set<string>();
+    if (value && typeof value === "object") {
+      const record = resolveObject(value as Record<string, unknown>);
+      for (const key in record) {
+        const attributeName = toDataAttributeName(
+          key.startsWith(":")
+            ? `"${key.slice(1)}"`
+            : key,
+        );
+        nextNames.add(attributeName);
+        setDataValue(element, attributeName, record[key]);
+      }
+    }
+
+    for (const previousName of state.dataNames) {
+      if (!nextNames.has(previousName)) element.removeAttribute(previousName);
+    }
+    state.dataNames = nextNames;
+    return;
+  }
+
+  const attributeName = toDataAttributeName(rawName);
+  state.dataNames.add(attributeName);
+  setDataValue(element, attributeName, value);
+}
+
+function setDataValue(element: Element, name: string, value: unknown): void {
+  if (value == null) element.removeAttribute(name);
+  else element.setAttribute(name, String(value));
+}
+
+function applyStyleProperty(
+  element: Element,
+  property: string,
+  value: unknown,
+  state: SpecialAttributeState,
+): void {
+  const style = getStyle(element);
+  if (!style) return;
+
+  const propertyName = property.startsWith("--")
+    ? property
+    : toKebabCase(property);
+  state.styleNames.add(propertyName);
+
+  if (value == null || value === false) style.removeProperty(propertyName);
+  else style.setProperty(propertyName, String(value));
+}
+
+export function clearSpecialAttributeState(
+  element: Element,
+  state: SpecialAttributeState,
+): void {
+  for (const name of state.dataNames) element.removeAttribute(name);
+  const style = getStyle(element);
+  if (style) for (const name of state.styleNames) style.removeProperty(name);
+}
+
+function getStyle(element: Element): CSSStyleDeclaration | null {
+  return "style" in element ? (element as HTMLElement).style : null;
+}
+
+function readValueDeep(value: unknown): unknown {
+  const resolved = readValue(value);
+  if (Array.isArray(resolved)) return resolved.map(readValueDeep);
+  if (
+    !resolved ||
+    typeof resolved !== "object" ||
+    resolved.constructor !== Object
+  ) {
+    return resolved;
+  }
+  return resolveObject(resolved as Record<string, unknown>);
+}
+
+function resolveObject(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const key in value) output[key] = readValueDeep(value[key]);
+  return output;
+}
+
+function hasDeepReactiveValue(value: unknown): boolean {
+  if (hasReactiveValue(value)) return true;
+  if (!value || typeof value !== "object") return false;
+  for (const key in value as Record<string, unknown>) {
+    if (hasDeepReactiveValue((value as Record<string, unknown>)[key])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function toKebabCase(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
 }
