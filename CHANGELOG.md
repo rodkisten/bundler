@@ -3,9 +3,12 @@
 - Replaced the monolithic `scripts/build.ts` implementation with a thin orchestrator and focused build modules for bundles, packages, docs, landing pages, SEO and manifests.
 - Made Vite 8/Rolldown the JavaScript production build surface for browser IIFEs, publishable workspace package modules, the generated documentation portal and all public landing pages.
 - Removed the direct esbuild build dependency and migrated production minification to Oxc; TypeScript now remains in package builds only for declaration emission.
-- Centralized Vite library, package, landing and documentation configuration, including shared workspace alias resolution and the dedicated DevTools/Máquina project presets.
+- Centralized Vite library, package, landing and documentation configuration around Vite 8 native tsconfig path resolution and dedicated DevTools/Máquina project presets.
 - Added shared ecosystem navigation, canonical metadata, Open Graph/Twitter cards, JSON-LD, sitemap/robots discovery and a Rod Kisten footer with GitHub, Instagram, X/Twitter and website links.
 - Added new disruptive, interactive Broto and Fábrica landing pages with real runtime examples and cross-links to the rest of `rod.migos.club/bundler`.
+- Fixed compact Cipó declaration serialization after a whitespace regression broke compiler, theme, shorthand and atomic-output contracts.
+- Kept DevTools build-time Cipó configuration on the raw CSS-first source, removed the full stylesheet debug dump, and made Fábrica HTML artifact attachment safe when compiled templates reuse an existing HTML result root.
+- Removed the redundant filesystem workspace resolver in favor of Vite 8 native tsconfig path resolution and explicitly selected named Rolldown exports for mixed-export library entries.
 
 ## Unreleased
 - Switched Vite 8 and Vitest workspace alias resolution from `vite-tsconfig-paths` to native `resolve.tsconfigPaths: true`, removed the redundant plugin dependency, and restored a corrupted Fabrica `dom.ts` TSDoc section that produced invalid Unicode escape syntax during Rolldown transforms.
