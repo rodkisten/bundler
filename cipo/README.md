@@ -556,76 +556,6 @@ This build adds the next layer of the design-system engine:
 - Broto stores now accept middleware and devtools listeners: `store(initial, { middleware, devtools })`, plus runtime `state.use()` and `state.subscribeDevtools()`.
 
 
-
-## 🌿 Fábrica state selectors
-
-Cipó understands the state-attribute dialect authored by Fábrica. This keeps
-markup and component styles on the same vocabulary while the emitted DOM and
-CSS remain standards-based.
-
-Fábrica markup:
-
-```ts
-html`<button :variant="primary" ?disabled=${disabled}>Save</button>`
-```
-
-Cipó component CSS:
-
-```css
-&:variant='primary' {
-  bg: $primary;
-}
-
-&?disabled {
-  opacity: 0.5;
-}
-```
-
-The selectors compile to `[data-variant="primary"]` and `[disabled]`. A space
-still means descendant selection, so `& :token='comment'` targets a descendant
-with `data-token="comment"`, while `&:active='true'` targets the component root
-when it owns `data-active="true"`.
-
-Camel-case data names follow Fábrica normalization:
-
-```css
-& :toolTab='console' {
-  color: $accent;
-}
-```
-
-becomes `[data-tool-tab="console"]`. Bare non-native names such as `:selected`
-become presence selectors such as `[data-selected]`. Native pseudo-classes and
-pseudo-elements remain untouched, including `:hover`, `:disabled`, `:not(...)`,
-`:has(...)`, `:host(...)`, and `::before`.
-
-Fábrica's `:data=${object}` is a multi-attribute spread and is intentionally not
-a selector shorthand. Select its emitted fields individually. Fábrica
-`class:*`, `.property`, `@event`, and ref syntax also stay outside the Cipó
-selector language.
-
-### `$`, `$$`, and `var()`
-
-Use each variable form for a different ownership boundary:
-
-```css
-color: $foreground;
-$$gutterWidth: 48px;
-width: $$gutterWidth;
-color: var(--third-party-color);
-```
-
-- `$token` resolves a Cipó theme/design-system token.
-- `$$name` declares or references a Cipó runtime custom property.
-- `var(--name)` remains the escape hatch for external CSS custom properties.
-
-This keeps design-system tokens, component-local runtime variables, and external
-CSS contracts visibly distinct.
-
-The existing `slot(name)` runtime block follows the same integration model:
-Fábrica can emit `:slot="header"`, while Cipó's `slot(header) { ... }` targets
-`[data-slot="header"]`.
-
 ## Máquina
 
 `src/maquina` is the repository's lightweight code editor. It uses Fábrica for rendering, Cipó styled components for its UI and Broto for editor state. The full interactive landing page is published at `dist/maquina/index.html` by the root build.
@@ -640,7 +570,7 @@ The DevTools build now uses the compact Fábrica + Cipó production pipeline:
 - Cipó emits compact hash-only production classes and minified compiled CSS;
 - styled-component CSS is coupled to a PURE-annotated component expression in style-tag builds, allowing unused JavaScript and its CSS to be eliminated together;
 - private CSS custom-property mangling is available as an explicit opt-in without renaming public theme tokens;
-- the DevTools Vite build enables esbuild minification, source maps, module-side-effect pruning and property-read pruning.
+- the DevTools Vite build uses Oxc minification with Rolldown module-side-effect and property-read pruning, plus source maps.
 
 Readable component names remain available in development source and compilation manifests while production selectors stay compact.
 
