@@ -92,10 +92,7 @@ export default defineConfig({
       },
 
       output: {
-        banner: (chunk) =>
-          chunk.fileName.contains("iife")
-            ? iifeBanner
-            : "",
+        banner: iifeBanner
       },
     },
 
