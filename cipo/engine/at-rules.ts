@@ -6,6 +6,10 @@ import { expandWithCompat } from '../transform/index'
 import { collectDeclaration, resolveBreakpointContext } from './declaration'
 import { resolveScopedSelector } from './selector'
 import { isCipoPseudoName } from './pseudos'
+import {
+  normalizeContainerContext,
+  normalizeContainerQuery,
+} from './container-query'
 
 /** Collects atomic and scoped rules from an AST. */
 export function collectRules(nodes: readonly CipoAstNode[], scopeClassName: string, warnings: CipoWarning[], forceImportant = false) {
@@ -38,6 +42,19 @@ export function collect(nodes: readonly CipoAstNode[], context: CipoRuleContext,
 /** Collects one block from atomic/component mode. */
 export function collectBlock(name: string, body: readonly CipoAstNode[], context: CipoRuleContext, atoms: CipoAtomicRule[], scopedRules: CipoScopedRule[], warnings: CipoWarning[], scopeClassName: string, forceImportant = false): void {
   const normalized = name.trim()
+
+  if (normalized === 'starting-style' || normalized === '@starting-style') {
+    collect(
+      body,
+      { ...context, startingStyle: true },
+      atoms,
+      scopedRules,
+      warnings,
+      scopeClassName,
+      forceImportant,
+    )
+    return
+  }
 
   if (normalized === 'reduce-motion') {
     collect(body, { ...context, mediaQuery: '(prefers-reduced-motion: reduce)' }, atoms, scopedRules, warnings, scopeClassName, forceImportant)
@@ -76,8 +93,19 @@ export function collectBlock(name: string, body: readonly CipoAstNode[], context
         consumed = true
         continue
       }
+      if (part.startsWith('container(')) {
+        nextContext = {
+          ...nextContext,
+          container: normalizeContainerContext(part.slice(10, -1)),
+        }
+        consumed = true
+        continue
+      }
       if (part.startsWith('cq(')) {
-        nextContext = { ...nextContext, container: part.slice(3, -1).trim() }
+        nextContext = {
+          ...nextContext,
+          container: normalizeContainerQuery(part.slice(3, -1).trim()),
+        }
         consumed = true
         continue
       }
