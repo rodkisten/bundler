@@ -26,24 +26,43 @@ const iifeBanner = createIifeBuildBanner(buildInfo, {
 });
 
 export default defineConfig({
+  esbuild: {
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    drop: ["debugger"],
+    pure: [
+      "console.debug",
+      "console.trace",
+    ],
+  },
+  
   root: maquinaDir,
+  
   resolve: {
     // Vite 8 reads compilerOptions.paths directly from the matching tsconfig.
     tsconfigPaths: true,
   },
+  
   server: { open: "/index.html" },
+  
   build: {
+    minify: "esbuild",
     outDir: "dist",
     rollupOptions: {
+      treeshake: {
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+      },
       output: {
-        banner: (chunk) =>
-          chunk.fileName.endsWith(".iife.js") ? iifeBanner : "",
+        banner: iifeBanner,
       },
     },
+    
     lib: {
       entry: resolve(maquinaDir, "index.ts"),
       name: "Maquina",
-      formats: ["es", "iife"],
+      formats: ["es", "cjs", "umd", "iife"],
       fileName: (format) => `maquina.${format}.js`,
     },
   },
