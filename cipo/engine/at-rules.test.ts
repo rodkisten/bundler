@@ -394,6 +394,46 @@ describe('atomic/component at-rule collector', () => {
         false,
       )
     })
+    it('adds raw media-query context while preserving nested selectors', () => {
+      const declaration =
+        createDeclaration(
+          'background',
+          'red',
+        )
+      collectBlock(
+        '@media (hover: hover)',
+        [
+          createBlock(
+            '&:hover',
+            [declaration],
+          ),
+        ],
+        {},
+        [],
+        [],
+        [],
+        'scope',
+      )
+      expect(
+        mocks.resolveScopedSelector,
+      ).toHaveBeenCalledWith(
+        'scope',
+        '&:hover',
+        {
+          mediaQuery: '(hover: hover)',
+        },
+      )
+      expect(
+        mocks.warn,
+      ).not.toHaveBeenCalledWith(
+        mocks.runtime,
+        expect.any(Array),
+        'empty-scoped-rule',
+        expect.any(String),
+        '@media (hover: hover)',
+      )
+    })
+
     it('adds supports context while preserving an existing context', () => {
       const declaration =
         createDeclaration(
