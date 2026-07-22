@@ -1,8 +1,10 @@
 import { isEscapedAt } from '../../runtime-dsl/shared'
 import type { CipoBlockNode } from '../../types'
 import { isStylesheetAtRuleName } from '../at-rule-kinds'
+import { normalizeFabricaSelectorSyntax } from
+  '../fabrica-selector-syntax'
 
-/** Returns true when top-level text contains declarations instead of only blocks. */
+/** Returns whether top-level text has declarations instead of only blocks. */
 export function hasTopLevelLooseStatements(input: string): boolean {
   let buffer = ''
   let depth = 0
@@ -68,7 +70,7 @@ export function isStylesheetRootBlock(node: CipoBlockNode): boolean {
   return isRootSelector(name)
 }
 
-/** Resolves nested selectors while preserving cartesian selector combinations. */
+/** Resolves nested selectors while preserving cartesian combinations. */
 export function resolveNestedSelectors(
   parents: readonly string[],
   children: readonly string[],
@@ -78,13 +80,17 @@ export function resolveNestedSelectors(
   const output: string[] = []
   for (const parent of parents) {
     for (const child of children) {
-      output.push(child.includes('&') ? child.replaceAll('&', parent) : `${parent} ${child}`)
+      output.push(
+        child.includes('&')
+          ? child.replaceAll('&', parent)
+          : `${parent} ${child}`,
+      )
     }
   }
   return output
 }
 
-/** Splits a selector list without breaking commas inside functions or attribute selectors. */
+/** Splits selectors without breaking nested function or attribute commas. */
 export function splitSelectorList(selector: string): readonly string[] {
   const output: string[] = []
   const stack: string[] = []
@@ -130,7 +136,9 @@ export function splitSelectorList(selector: string): readonly string[] {
     else if (isClosingDelimiter(char) && stack.at(-1) === char) stack.pop()
 
     if (char === ',' && stack.length === 0) {
-      if (buffer.trim()) output.push(buffer.trim())
+      if (buffer.trim()) {
+        output.push(normalizeFabricaSelectorSyntax(buffer.trim()))
+      }
       buffer = ''
       continue
     }
@@ -138,17 +146,21 @@ export function splitSelectorList(selector: string): readonly string[] {
     buffer += char
   }
 
-  if (buffer.trim()) output.push(buffer.trim())
+  if (buffer.trim()) {
+    output.push(normalizeFabricaSelectorSyntax(buffer.trim()))
+  }
   return output
 }
 
 export function copyStrings(input: readonly string[]): string[] {
   const output = new Array<string>(input.length)
-  for (let index = 0; index < input.length; index += 1) output[index] = input[index]!
+  for (let index = 0; index < input.length; index += 1) {
+    output[index] = input[index]!
+  }
   return output
 }
 
-/** Splits runtime context chains while preserving colons nested inside functions and brackets. */
+/** Splits runtime contexts while preserving nested function/bracket colons. */
 export function splitRuntimeContextParts(input: string): string[] {
   const output: string[] = []
   const stack: string[] = []
@@ -189,7 +201,10 @@ export function splitRuntimeContextParts(input: string): string[] {
   return output
 }
 
-export function prefixSelectors(prefix: string, selectors: readonly string[]): string[] {
+export function prefixSelectors(
+  prefix: string,
+  selectors: readonly string[],
+): string[] {
   const output = new Array<string>(selectors.length)
   for (let index = 0; index < selectors.length; index += 1) {
     output[index] = `${prefix} ${selectors[index]}`
@@ -197,7 +212,10 @@ export function prefixSelectors(prefix: string, selectors: readonly string[]): s
   return output
 }
 
-export function appendPseudoToSelectors(selectors: readonly string[], pseudo: string): string[] {
+export function appendPseudoToSelectors(
+  selectors: readonly string[],
+  pseudo: string,
+): string[] {
   const output = new Array<string>(selectors.length)
   for (let index = 0; index < selectors.length; index += 1) {
     output[index] = `${selectors[index]}:${pseudo}`
