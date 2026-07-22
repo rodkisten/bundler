@@ -63,6 +63,7 @@ export type MarkdownPageInput = {
   benchmarks?: BenchmarkSummary[];
   packageId?: PackageTheme;
   description?: string;
+  href?: string;
 };
 
 export type CodePageInput = {
@@ -76,6 +77,7 @@ export type CodePageInput = {
   benchmarks?: BenchmarkSummary[];
   packageId?: PackageTheme;
   description?: string;
+  href?: string;
 };
 
 export type Heading = {
