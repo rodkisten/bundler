@@ -1,4 +1,4 @@
-import { effect } from "@rodkisten/broto";
+import { createDeepStore } from "@rodkisten/broto";
 import {
   createRuntimeCompletionResult,
   createScopeCompletionResult,
@@ -9,7 +9,6 @@ import {
   createDocumentSnapshot,
   replaceDocument,
 } from "@rodkisten/maquina/document";
-import { createMaquinaEditorState } from "@rodkisten/maquina/editor-state";
 import { MaquinaHistory } from "@rodkisten/maquina/history";
 import { diffInputValue } from "@rodkisten/maquina/input";
 import { computePopupPlacement } from "@rodkisten/maquina/popup";
@@ -57,6 +56,16 @@ const POPUP_MAX_WIDTH = 440;
 
 let editorInstanceId = 0;
 
+interface EditorState extends Record<string, unknown> {
+  value: string;
+  language: MaquinaLanguage;
+  theme: MaquinaThemeName;
+  suggestions: MaquinaCompletionItem[];
+  suggestionFrom: number;
+  activeSuggestion: number;
+  open: boolean;
+}
+
 interface CaretMeasurement {
   readonly left: number;
   readonly top: number;
@@ -82,11 +91,15 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const lineNumbers = options.lineNumbers !== false;
   const instanceId = ++editorInstanceId;
   const suggestionsId = `maquina-suggestions-${instanceId}`;
-  const state = createMaquinaEditorState({
-    document: createDocumentSnapshot(options.value),
+  const state = createDeepStore<EditorState>({
+    value: options.value,
     language: (options.language ?? "text") as MaquinaLanguage,
     theme: initialTheme.name as MaquinaThemeName,
-  });
+    suggestions: [] as MaquinaCompletionItem[],
+    suggestionFrom: 0,
+    activeSuggestion: 0,
+    open: false,
+  } satisfies EditorState);
 
   let rootRef: HTMLElement | null = null;
   let viewportRef: HTMLElement | null = null;
@@ -102,6 +115,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   let destroyed = false;
   let renderedHighlightTop = 0;
   let renderedHighlightRange = "";
+  let documentState = createDocumentSnapshot(options.value);
   const history = new MaquinaHistory();
 
   function onInput(): void {
@@ -113,7 +127,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       head: textareaRef.selectionEnd,
     };
     const diff = diffInputValue(
-      state.value.peek(),
+      documentState.value,
       nextValue,
       selection,
     );
@@ -127,17 +141,12 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       true,
     );
 
-    if (
-      !state.composing.peek() &&
-      options.activateCompletionOnTyping !== false
-    ) {
+    if (options.activateCompletionOnTyping !== false) {
       void requestCompletions();
     }
   }
 
   function onScroll(): void {
-    syncViewportState();
-
     if (shouldVirtualizeHighlight()) {
       renderHighlight();
     }
@@ -151,7 +160,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   function onFocus(): void {
     clearBlurTimer();
-    state.focused.set(true);
     options.onFocus?.();
   }
 
@@ -167,7 +175,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       return;
     }
 
-    state.focused.set(false);
     blurTimer = window.setTimeout(() => {
       blurTimer = undefined;
 
@@ -177,18 +184,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     }, SUGGESTIONS_BLUR_DELAY_MS);
 
     options.onBlur?.();
-  }
-
-  function onCompositionStart(): void {
-    state.composing.set(true);
-  }
-
-  function onCompositionEnd(): void {
-    state.composing.set(false);
-
-    if (options.activateCompletionOnTyping !== false) {
-      void requestCompletions();
-    }
   }
 
   function onSelectionChange(): void {
@@ -394,8 +389,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             :ms-editor="false"
             ?readonly=${options.readOnly === true}
             @input=${event.input(onInput)}
-            @compositionstart=${event.compositionstart(onCompositionStart)}
-            @compositionend=${event.compositionend(onCompositionEnd)}
             @scroll=${event.scroll(onScroll)}
             @keydown=${event.keydown(onKeyDown)}
             @keyup=${event.keyup(onKeyUp)}
@@ -445,18 +438,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     mountedTextarea.ownerDocument.defaultView ?? window;
   const visualViewport = ownerWindow.visualViewport;
 
-  function syncViewportState(): void {
-    state.setViewport({
-      scrollTop: mountedTextarea.scrollTop,
-      scrollLeft: mountedTextarea.scrollLeft,
-      width: mountedTextarea.clientWidth,
-      height: mountedTextarea.clientHeight,
-    });
-  }
-
   function onViewportGeometryChange(): void {
-    syncViewportState();
-
     if (!destroyed && state.open.peek()) {
       positionSuggestions();
     }
@@ -491,29 +473,20 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     mountedHighlight,
     options,
   );
-  syncViewportState();
-
-  const disposeDocumentViewEffect = effect(() => {
-    state.value();
-    state.language();
-    updateGutterMetrics();
-    renderHighlight();
-    syncScroll();
-  }, {
-    sync: true,
-    name: `maquina:${instanceId}:document-view`,
-  });
+  updateGutterMetrics();
+  renderHighlight();
+  syncScroll();
 
   function syncInputFromDocument(): void {
-    const documentState = state.getDocument();
-
     if (mountedTextarea.value !== documentState.value) {
       mountedTextarea.value = documentState.value;
     }
 
+    const selection = documentState.selection;
+
     mountedTextarea.setSelectionRange(
-      documentState.selection.anchor,
-      documentState.selection.head,
+      selection.anchor,
+      selection.head,
     );
   }
 
@@ -523,11 +496,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   ): void {
     if (destroyed) return;
 
-    const before = state.getDocument();
+    const before = documentState;
     const applied = applyDocumentTransaction(before, transaction);
-    const documentState = applied.snapshot;
-
-    state.setDocument(documentState);
+    documentState = applied.snapshot;
 
     const valueChanged = before.value !== documentState.value;
     const shouldRecord =
@@ -546,12 +517,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       });
     }
 
+    state.value.set(documentState.value);
+
     if (!inputAlreadyApplied) {
       syncInputFromDocument();
     }
 
     if (valueChanged) {
       options.onChange?.(documentState.value);
+      updateGutterMetrics();
+      renderHighlight();
+      syncScroll();
     }
   }
 
@@ -576,7 +552,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   }
 
   function updateGutterMetrics(): void {
-    const lineCount = getLineStarts(state.value.peek()).length;
+    const lineCount = getLineStarts(documentState.value).length;
     const gutterWidth = getLineNumberGutterWidth(
       lineCount,
       lineNumbers,
@@ -599,7 +575,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const language = state.language.peek();
     const range = getHighlightRange(value);
     const rangeKey = [
-      state.version.peek(),
+      documentState.version,
       language,
       range.from,
       range.to,
@@ -661,7 +637,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (options.lineWrapping !== false) return false;
 
     let lines = 1;
-    const value = state.value.peek();
+    const value = documentState.value;
 
     for (let index = 0; index < value.length; index += 1) {
       if (value.charCodeAt(index) !== 10) continue;
@@ -695,12 +671,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       ? parsed
       : DEFAULT_FONT_SIZE * 1.55;
 
-    const viewportState = state.viewport.peek();
-
     return getVisibleLineRange(
       value,
-      viewportState.scrollTop,
-      viewportState.height,
+      mountedTextarea.scrollTop,
+      mountedTextarea.clientHeight,
       lineHeight,
       VIRTUALIZATION_OVERSCAN,
     );
@@ -713,13 +687,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   function syncScroll(): void {
     if (destroyed) return;
 
-    const viewportState = state.viewport.peek();
-
     mountedHighlight.style.transform =
-      `translateY(${renderedHighlightTop - viewportState.scrollTop}px)`;
+      `translateY(${renderedHighlightTop - mountedTextarea.scrollTop}px)`;
     mountedRoot.style.setProperty(
       "--maq-scroll-x",
-      `${-viewportState.scrollLeft}px`,
+      `${-mountedTextarea.scrollLeft}px`,
     );
 
     if (state.open.peek()) {
@@ -737,11 +709,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       state.suggestions.peek().length > 0 ||
       state.activeSuggestion.peek() !== 0
     ) {
-      state.patchCompletion({
-        open: false,
-        suggestions: [],
-        activeSuggestion: 0,
-      });
+      state.patch(
+        {
+          open: false,
+          suggestions: [],
+          activeSuggestion: 0,
+        },
+        {
+          cause: "maquina:close-completions",
+        },
+      );
     }
 
     disposeSuggestionsContent?.();
@@ -1006,12 +983,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       const suggestionFrom = clamp(result.from, 0, cursor);
 
-      state.patchCompletion({
-        suggestions: result.options.slice(0, MAX_COMPLETIONS),
-        suggestionFrom,
-        activeSuggestion: 0,
-        open: true,
-      });
+      state.patch(
+        {
+          suggestions: result.options.slice(0, MAX_COMPLETIONS),
+          suggestionFrom,
+          activeSuggestion: 0,
+          open: true,
+        },
+        {
+          cause: "maquina:completions",
+        },
+      );
 
       renderSuggestions();
     } catch {
@@ -1062,25 +1044,29 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   return {
     getValue(): string {
-      return state.value.peek();
+      return documentState.value;
     },
 
     setValue(value: string): void {
-      if (destroyed || state.value.peek() === value) return;
+      if (destroyed || documentState.value === value) return;
 
       completionVersion += 1;
 
       const replaced = replaceDocument(
-        state.getDocument(),
+        documentState,
         value,
         undefined,
         "api",
       );
 
-      state.setDocument(replaced.snapshot);
+      documentState = replaced.snapshot;
+      state.value.set(value);
       history.clear();
       syncInputFromDocument();
+      updateGutterMetrics();
       closeSuggestions(false);
+      renderHighlight();
+      syncScroll();
     },
 
     focus(): void {
@@ -1100,6 +1086,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       state.language.set(language);
       closeSuggestions();
+      renderedHighlightRange = "";
+      renderHighlight();
     },
 
     setTheme(nextTheme: MaquinaThemeName): void {
@@ -1116,7 +1104,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     },
 
     getState() {
-      return state.getDocument();
+      return {
+        value: documentState.value,
+        selection: documentState.selection,
+        version: documentState.version,
+      };
     },
 
     undo,
@@ -1142,7 +1134,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         onViewportGeometryChange,
       );
       resizeObserver?.disconnect();
-      disposeDocumentViewEffect();
 
       disposeHighlightContent?.();
       disposeSuggestionsContent?.();
