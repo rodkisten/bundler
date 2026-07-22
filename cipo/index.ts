@@ -18,7 +18,7 @@ import { injectGlobal } from './global'
 import { registerAlias, registerHelper, registerNativeFunction, registerProperty, registerVariant, recipe } from './plugins'
 import { properties, property, typed, typedProperty } from './properties'
 import { runtime } from './runtime'
-import { theme } from './theme'
+import { resetThemeScopes, theme, themeScope } from './theme'
 import { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
 import { installBuiltInHelpers } from './helpers'
 import { configSheet, configureCss, configureFromCss, invalidateCssConfigApplications, registerConfigPlugin, registerPreset, setupFromCss } from './config-css'
@@ -37,7 +37,7 @@ export { configSheet, configureCss, configureFromCss, registerConfigPlugin, regi
 export { configureCompiledCssConfig } from './compiled-config'
 export type { CipoCompiledConfigOperation, CipoCompiledCssConfig, CipoCompiledCssConfigResult } from './compiled-config'
 export type { CipoConfigPlugin, CipoConfigPreset, CipoCssConfigureApi, CipoCssConfigResult } from './config-css'
-export { theme } from './theme'
+export { getThemeScope, theme, themeScope } from './theme'
 export { defineThemeType, getThemeType, listThemeTypes, typedTheme, validateThemeValue } from './theme-types'
 export { assertAtomicCssArtifact, atomic, css, isAtomicCssArtifact, isStylesheetArtifact, sheet } from './css'
 export { inline } from './inline'
@@ -96,6 +96,7 @@ export function reset(): void {
   runtime.debugAtoms.clear()
   runtime.warningSink = []
   resetWarningDedupe()
+  resetThemeScopes()
   runtime.generatedCssText = ''
   runtime.registeredProperties.clear()
   runtime.atomicUsageCounts.clear()
@@ -140,6 +141,7 @@ assignPublicApi(cipo, {
   // createBrowserGlobal().
   inline,
   theme,
+  themeScope,
   configure,
   setup,
   injectGlobal,
@@ -204,6 +206,7 @@ export function createBrowserGlobal() {
     html,
     inline,
     theme,
+    themeScope,
     configure,
     setup,
     injectGlobal,
