@@ -3,10 +3,8 @@ import {
   ATTR_MARKER_SUFFIX,
   TEXT_MARKER_PREFIX,
 } from "../core/constants.js";
-import {
-  encodeLiteralDataAttributeName,
-  toDataAttributeKebabCase,
-} from "../data-attributes.js";
+import { encodeLiteralDataAttributeName } from
+  "../bindings/special.js";
 import type { RenderValue } from "../types.js";
 
 const JSX_COMPONENT_NAME = "[\\p{Lu}][\\p{L}\\p{N}_$.-]*";
@@ -21,11 +19,7 @@ export const ATTR_NAME_MARKER_SUFFIX =
  * @param options - Compiler mode options.
  * @returns HTML source with markers.
  */
-export function buildTemplateSource(
-  strings: TemplateStringsArray,
-  values: readonly RenderValue[] = [],
-  options: { jsx?: boolean } = {},
-): string {
+export function buildTemplateSource(strings: TemplateStringsArray, values: readonly RenderValue[] = [], options: { jsx?: boolean } = {}): string {
   let source = "";
   let skipNextPrefix = "";
 
@@ -39,24 +33,10 @@ export function buildTemplateSource(
 
     if (
       index < strings.length - 1
-      && (
-        isSpreadAttributePosition(chunk) ||
-        isImplicitSpreadAttributePosition(
-          chunk,
-          strings[index + 1] ?? "",
-        )
-      )
+      && (isSpreadAttributePosition(chunk) || isImplicitSpreadAttributePosition(chunk, strings[index + 1] ?? ""))
     ) {
-      source += isSpreadAttributePosition(chunk)
-        ? chunk.replace(/\.\.\.\s*$/, "")
-        : chunk;
-      source += [
-        ' data-fabrica-spread="',
-        ATTR_MARKER_PREFIX,
-        index,
-        ATTR_MARKER_SUFFIX,
-        '"',
-      ].join("");
+      source += isSpreadAttributePosition(chunk) ? chunk.replace(/\.\.\.\s*$/, "") : chunk;
+      source += ` data-fabrica-spread="${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}"`;
       continue;
     }
 
@@ -87,28 +67,16 @@ export function buildTemplateSource(
       continue;
     }
 
-    const attributeName =
-      readAttributeBindingName(chunk) ||
-      readOpenAttributeBindingName(source);
+    const attributeName = readAttributeBindingName(chunk) || readOpenAttributeBindingName(source);
     source += attributeName
-      ? [
-          ATTR_MARKER_PREFIX,
-          index,
-          ATTR_MARKER_SUFFIX,
-          encodeURIComponent(attributeName),
-          ATTR_NAME_MARKER_SUFFIX,
-        ].join("")
+      ? `${ATTR_MARKER_PREFIX}${index}${ATTR_MARKER_SUFFIX}${encodeURIComponent(attributeName)}${ATTR_NAME_MARKER_SUFFIX}`
       : `<!--${TEXT_MARKER_PREFIX}${index}-->`;
   }
 
   const normalizedSource = normalizeStaticDataAttributeNames(
-    normalizeQuotedDataAttributeNames(
-      normalizeInterpolatedComponentSelfClosingTags(source),
-    ),
+    normalizeQuotedDataAttributeNames(normalizeInterpolatedComponentSelfClosingTags(source)),
   );
-  return options.jsx
-    ? transformMicroJsxChunk(normalizedSource)
-    : normalizedSource;
+  return options.jsx ? transformMicroJsxChunk(normalizedSource) : normalizedSource;
 }
 
 function isComponentTagValue(value: unknown): boolean {
@@ -165,9 +133,7 @@ export function normalizeQuotedDataAttributeNames(source: string): string {
       const nameEnd = source.indexOf('"', index + 2);
       const next = nameEnd === -1 ? "" : source[nameEnd + 1] ?? "";
       if (nameEnd !== -1 && nameEnd > index + 2 && /[\s=/>]/.test(next)) {
-        output += encodeLiteralDataAttributeName(
-          source.slice(index + 2, nameEnd),
-        );
+        output += encodeLiteralDataAttributeName(source.slice(index + 2, nameEnd));
         index = nameEnd + 1;
         continue;
       }
@@ -180,28 +146,24 @@ export function normalizeQuotedDataAttributeNames(source: string): string {
   return output;
 }
 
-/** Preserves camelCase static `:dataName` before HTML lowercases it. */
+/** Preserves camelCase authoring for static `:dataName` attributes before HTML lowercases them. */
 export function normalizeStaticDataAttributeNames(source: string): string {
   return transformTagAttributeNames(source, (name) => {
-    if (
-      !name.startsWith(":") ||
-      name === ":data" ||
-      name.startsWith(":__fabrica_literal_data__")
-    ) {
+    if (!name.startsWith(":") || name === ":data" || name.startsWith(":__fabrica_literal_data__")) {
       return name;
     }
 
     const rawName = name.slice(1);
     if (!/[A-Z]/.test(rawName)) return name;
-    return `:${toDataAttributeKebabCase(rawName)}`;
+    return `:${rawName
+      .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+      .toLowerCase()}`;
   });
 }
 
-/** Rewrites names only inside opening tags, preserving comments and values. */
-function transformTagAttributeNames(
-  source: string,
-  transform: (name: string) => string,
-): string {
+/** Rewrites attribute names only inside opening tags, preserving comments and values. */
+function transformTagAttributeNames(source: string, transform: (name: string) => string): string {
   return source.replace(/<([A-Za-z][^<>]*?)>/g, (tag) => {
     let output = "";
     let index = 0;
@@ -215,21 +177,11 @@ function transformTagAttributeNames(
         index += 1;
         continue;
       }
-      if (char === '"' || char === "'") {
-        quote = char;
-        output += char;
-        index += 1;
-        continue;
-      }
+      if (char === '"' || char === "'") { quote = char; output += char; index += 1; continue; }
       if (char === ":" && /[A-Za-z_]/.test(tag[index + 1] ?? "")) {
         const start = index;
         index += 1;
-        while (
-          index < tag.length &&
-          /[\w:.$-]/.test(tag[index] ?? "")
-        ) {
-          index += 1;
-        }
+        while (index < tag.length && /[\w:.$-]/.test(tag[index] ?? "")) index += 1;
         output += transform(tag.slice(start, index));
         continue;
       }
@@ -253,41 +205,21 @@ function transformTagAttributeNames(
  * @returns Whether the next value is a spread props object.
  */
 export function isSpreadAttributePosition(chunk: string): boolean {
-  return (
-    /\.\.\.\s*$/.test(chunk) &&
-    chunk.lastIndexOf("<") > chunk.lastIndexOf(">")
-  );
+  return /\.\.\.\s*$/.test(chunk) && chunk.lastIndexOf("<") > chunk.lastIndexOf(">");
 }
 
 /**
- * Detects shorthand component/element props spread `<Button ${props} />`.
+ * Detects the shorthand component/element props spread form `<Button ${props} />`.
  *
- * The interpolation must occupy a standalone slot inside an opening tag.
- * Assignments like `value=${value}` and child interpolations stay untouched.
+ * The interpolation must occupy a standalone slot inside an opening tag. Attribute
+ * assignments such as `value=${value}` and child interpolations remain untouched.
  */
-export function isImplicitSpreadAttributePosition(
-  chunk: string,
-  nextChunk: string,
-): boolean {
+export function isImplicitSpreadAttributePosition(chunk: string, nextChunk: string): boolean {
   if (chunk.lastIndexOf("<") <= chunk.lastIndexOf(">")) return false;
   if (!/\s$/.test(chunk)) return false;
-  if (
-    /([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*"|'[^']*)?$/.test(
-      chunk,
-    )
-  ) {
-    return false;
-  }
+  if (/([.?@:a-zA-Z_][\w:.-]*)\s*=\s*(?:"[^"]*|'[^']*)?$/.test(chunk)) return false;
   if (/^\s*$/.test(nextChunk)) return true;
-
-  const nextPattern = new RegExp(
-    [
-      "^\\s*(?:\\/?>|",
-      "[.?@:a-zA-Z_][\\w:.-]*\\s*=|",
-      "[a-zA-Z_][\\w:.-]*(?:\\s|\\/?>))",
-    ].join(""),
-  );
-  return nextPattern.test(nextChunk);
+  return /^\s*(?:\/?>|[.?@:a-zA-Z_][\w:.-]*\s*=|[a-zA-Z_][\w:.-]*(?:\s|\/?>))/.test(nextChunk);
 }
 
 /**
@@ -311,40 +243,21 @@ export function transformMicroJsxChunk(chunk: string): string {
 
     output = output.replace(
       new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)\\/\\s*>`, "gu"),
-      (_match, name: string, attrs: string) => [
-        '<template data-fabrica-component-name="',
-        escapeComponentName(name),
-        '"',
-        attrs || "",
-        '></template>',
-      ].join(""),
+      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}></template>`,
     );
 
     output = output.replace(
       new RegExp(`<(${JSX_COMPONENT_NAME})([^<>]*?)>`, "gu"),
-      (_match, name: string, attrs: string) => [
-        '<template data-fabrica-component-name="',
-        escapeComponentName(name),
-        '"',
-        attrs || "",
-        '>',
-      ].join(""),
+      (_match, name: string, attrs: string) => `<template data-fabrica-component-name="${escapeComponentName(name)}"${attrs || ""}>`,
     );
 
-    const closingComponentPattern = new RegExp(
-      `</(${JSX_COMPONENT_NAME})\\s*>`,
-      "gu",
-    );
-    output = output.replace(closingComponentPattern, "</template>");
+    output = output.replace(new RegExp(`</(${JSX_COMPONENT_NAME})\\s*>`, "gu"), "</template>");
 
     return output;
   });
 }
 
-function transformOutsideHtmlComments(
-  source: string,
-  transform: (chunk: string) => string,
-): string {
+function transformOutsideHtmlComments(source: string, transform: (chunk: string) => string): string {
   let output = "";
   let cursor = 0;
 
@@ -374,22 +287,8 @@ function transformOutsideHtmlComments(
 
 function rewriteExplicitComponentTags(chunk: string): string {
   return chunk
-    .replace(
-      /<f-component\b([^<>]*?)\/\s*>/g,
-      (_match, attrs: string) => [
-        '<template data-fabrica-explicit-component="true"',
-        attrs || "",
-        '></template>',
-      ].join(""),
-    )
-    .replace(
-      /<f-component\b([^<>]*?)>/g,
-      (_match, attrs: string) => [
-        '<template data-fabrica-explicit-component="true"',
-        attrs || "",
-        '>',
-      ].join(""),
-    )
+    .replace(/<f-component\b([^<>]*?)\/\s*>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}></template>`)
+    .replace(/<f-component\b([^<>]*?)>/g, (_match, attrs: string) => `<template data-fabrica-explicit-component="true"${attrs || ""}>`)
     .replace(/<\/f-component\s*>/g, "</template>");
 }
 
@@ -420,15 +319,7 @@ export function isAttributePosition(chunk: string): boolean {
  * @returns Original binding name or an empty string.
  */
 export function readAttributeBindingName(chunk: string): string {
-  const pattern = new RegExp(
-    [
-      String.raw`(:"[^"\r\n]+"|`,
-      String.raw`[.?@:$a-zA-Z_][\w:.$-]*|`,
-      String.raw`\[[^\]\s=]+\])`,
-      String.raw`\s*=\s*(?:"[^"]*|'[^']*)?$`,
-    ].join(""),
-  );
-  const match = pattern.exec(chunk);
+  const match = /(:"[^"\r\n]+"|[.?@:$a-zA-Z_][\w:.$-]*|\[[^\]\s=]+\])\s*=\s*(?:"[^"]*|'[^']*)?$/.exec(chunk);
   return match?.[1] ?? "";
 }
 
@@ -449,31 +340,14 @@ function readOpenAttributeBindingName(source: string): string {
   let index = tagStart + 1;
   if (source[index] === "/") index += 1;
 
-  while (
-    index < source.length &&
-    !/\s/.test(source[index] ?? "") &&
-    source[index] !== ">"
-  ) {
-    index += 1;
-  }
+  while (index < source.length && !/\s/.test(source[index] ?? "") && source[index] !== ">") index += 1;
 
   while (index < source.length) {
     while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
-    if (
-      index >= source.length ||
-      source[index] === ">" ||
-      source[index] === "/"
-    ) {
-      return "";
-    }
+    if (index >= source.length || source[index] === ">" || source[index] === "/") return "";
 
     const nameStart = index;
-    while (
-      index < source.length &&
-      !/[\s=/>]/.test(source[index] ?? "")
-    ) {
-      index += 1;
-    }
+    while (index < source.length && !/[\s=/>]/.test(source[index] ?? "")) index += 1;
     const name = source.slice(nameStart, index);
 
     while (index < source.length && /\s/.test(source[index] ?? "")) index += 1;
@@ -501,28 +375,18 @@ function readOpenAttributeBindingName(source: string): string {
         index += 1;
       }
 
-      if (
-        index >= source.length &&
-        source[source.length - 1] !== quote
-      ) {
-        return name;
-      }
+      if (index >= source.length && source[source.length - 1] !== quote) return name;
       continue;
     }
 
-    while (
-      index < source.length &&
-      !/[\s>]/.test(source[index] ?? "")
-    ) {
-      index += 1;
-    }
+    while (index < source.length && !/[\s>]/.test(source[index] ?? "")) index += 1;
     if (index >= source.length) return name;
   }
 
   return "";
 }
 
-/** Finds the current opening tag while ignoring comments and quoted `>`. */
+/** Finds the current opening tag while ignoring comments and quoted `>` text. */
 function findOpenTagStart(source: string): number {
   let tagStart = -1;
   let quote: '"' | "'" | null = null;
@@ -557,12 +421,7 @@ function findOpenTagStart(source: string): number {
       continue;
     }
 
-    if (
-      char === "<" &&
-      /[A-Za-z/]/.test(source[index + 1] ?? "")
-    ) {
-      tagStart = index;
-    }
+    if (char === "<" && /[A-Za-z/]/.test(source[index + 1] ?? "")) tagStart = index;
   }
 
   return tagStart;
@@ -581,9 +440,7 @@ function findOpenTagStart(source: string): number {
  * @param source - Marker-rich template source.
  * @returns Source with explicit closing template tags.
  */
-export function normalizeInterpolatedComponentSelfClosingTags(
-  source: string,
-): string {
+export function normalizeInterpolatedComponentSelfClosingTags(source: string): string {
   let output = "";
   let cursor = 0;
 
@@ -610,19 +467,10 @@ export function normalizeInterpolatedComponentSelfClosingTags(
       openingTag.includes("data-fabrica-explicit-component=");
 
     let slashIndex = close - 1;
-    while (
-      slashIndex > start &&
-      /\s/.test(source[slashIndex] ?? "")
-    ) {
-      slashIndex -= 1;
-    }
+    while (slashIndex > start && /\s/.test(source[slashIndex] ?? "")) slashIndex -= 1;
 
     if (isComponentPlaceholder && source[slashIndex] === "/") {
-      output += [
-        source.slice(start, slashIndex),
-        source.slice(slashIndex + 1, close + 1),
-        "</template>",
-      ].join("");
+      output += source.slice(start, slashIndex) + source.slice(slashIndex + 1, close + 1) + "</template>";
     } else {
       output += openingTag;
     }
