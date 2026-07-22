@@ -4,6 +4,7 @@ import { setup } from '@rodkisten/cipo'
 import { createCompiledStyled, compileCipoSourceInline, compiledInlineCss } from '@rodkisten/cipo/compiler'
 import { cipoVite } from '@rodkisten/cipo/vite'
 import { createFabrica } from '@rodkisten/fabrica'
+import { normalizeDeclarationSpacing } from './css-test-utils'
 
 describe('Cipó compiled inline + Vite playground mode', () => {
   it('compiles templates through the existing inline compiler', () => {
@@ -15,7 +16,8 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     `
 
     expect(artifact.kind).toBe('cipo.inline-css')
-    expect(artifact.cssText).toContain('color:red')
+    expect(normalizeDeclarationSpacing(artifact.cssText))
+      .toContain('color:red')
     expect(artifact.cssText).toContain('padding-left')
     expect(artifact.cssText).toContain('padding-right')
   })
@@ -33,7 +35,8 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     const node = Card({ children: 'hello' }) as HTMLElement
 
     expect(node.tagName).toBe('DIV')
-    expect(node.getAttribute('style')).toContain('color:red')
+    expect(normalizeDeclarationSpacing(node.getAttribute('style') ?? ''))
+      .toContain('color:red')
     expect(node.getAttribute('style')).toContain('padding-left')
     expect(Card.className).toBe('')
     expect(Card.artifact).toMatchObject({ kind: 'cipo.inline-css' })
@@ -58,7 +61,8 @@ describe('Cipó compiled inline + Vite playground mode', () => {
     expect(result.code).toContain("import { compiledInlineCss as __cipoCompiledInlineCss } from \"../cipo\"")
     expect(result.code).toContain("styled.div('Panel')(__cipoCompiledInlineCss`")
     expect(result.manifest).toHaveLength(1)
-    expect(result.manifest[0]?.cssText).toContain('color:red')
+    expect(normalizeDeclarationSpacing(result.manifest[0]?.cssText ?? ''))
+      .toContain('color:red')
   })
 
   it('uses the stable public compiler entrypoint in the Vite plugin', () => {

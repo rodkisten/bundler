@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { compileGlobalAtomicStyles } from './global'
+import { normalizeDeclarationSpacing } from '../../test/css-test-utils'
 
 describe('compileGlobalAtomicStyles', () => {
   it('promotes an atomic declaration shared by enough distinct components', () => {
@@ -37,7 +38,12 @@ describe('compileGlobalAtomicStyles', () => {
     expect(buttonClassName).toBe(linkClassName)
 
     // Once promoted globally, the declaration must be emitted only once.
-    expect(countOccurrences(result.css, 'color:red')).toBe(1)
+    expect(
+      countOccurrences(
+        normalizeDeclarationSpacing(result.css),
+        'color:red',
+      ),
+    ).toBe(1)
 
     // A fully promoted component no longer needs its component scope class.
     expect(buttonClassName).not.toContain(' ')
@@ -72,7 +78,7 @@ describe('compileGlobalAtomicStyles', () => {
     expect(className).toBeTruthy()
 
     // The declaration remains component-scoped because only one component uses it.
-    expect(result.css).toContain('color:red')
+    expect(normalizeDeclarationSpacing(result.css)).toContain('color:red')
   })
 
   it('keeps uncommon declarations scoped while promoting declarations shared across components', () => {
@@ -120,10 +126,16 @@ describe('compileGlobalAtomicStyles', () => {
 
     // The uncommon declaration remains attached to Button's private scope.
     expect(result.css).toContain(`.${buttonScope}`)
-    expect(result.css).toContain('padding:0.5rem')
+    expect(normalizeDeclarationSpacing(result.css))
+      .toContain('padding:0.5rem')
 
     // The shared declaration is emitted globally only once.
-    expect(countOccurrences(result.css, 'color:red')).toBe(1)
+    expect(
+      countOccurrences(
+        normalizeDeclarationSpacing(result.css),
+        'color:red',
+      ),
+    ).toBe(1)
   })
 
   it('preserves contextual differences instead of incorrectly promoting atoms with different rule contexts', () => {
@@ -166,7 +178,12 @@ describe('compileGlobalAtomicStyles', () => {
     expect(buttonClassName).not.toBe(linkClassName)
     expect(result.css).toContain(':hover')
     expect(result.css).toContain(':focus')
-    expect(countOccurrences(result.css, 'color:red')).toBe(2)
+    expect(
+      countOccurrences(
+        normalizeDeclarationSpacing(result.css),
+        'color:red',
+      ),
+    ).toBe(2)
   })
 
   it('counts each atomic id at most once per component when deciding promotion', () => {
@@ -204,7 +221,7 @@ describe('compileGlobalAtomicStyles', () => {
     // Repeating the same declaration three times in one component must still
     // represent a single component usage, not three global usages.
     expect(buttonClassName).toBeTruthy()
-    expect(result.css).toContain('color:red')
+    expect(normalizeDeclarationSpacing(result.css)).toContain('color:red')
   })
 
   it('uses a stable result for equivalent repeated compilations', () => {

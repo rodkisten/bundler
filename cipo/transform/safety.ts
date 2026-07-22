@@ -189,8 +189,14 @@ export function restoreNativeSlashes(input: string): string {
 
 /** Resolves deferred value-side `$$name` references outside strings/comments. */
 export function resolveRemainingRuntimeVars(input: string): string {
+  const referencePattern = new RegExp(
+    String.raw`(?<![\w-])\$\$([a-zA-Z_][\w.-]*)(?![\w.-])`
+      + String.raw`(?!\s*(?:<[a-zA-Z][\w-]*>\s*)?:)`,
+    'g',
+  )
+
   return mapCssCodeSegments(input, (segment) => segment.replace(
-    /(?<![\w-])\$\$([a-zA-Z_][\w.-]*)(?![\w.-])(?!\s*:)/g,
+    referencePattern,
     (_match, name: string) => {
       const normalized = name
         .replace(/[._]+/g, '-')

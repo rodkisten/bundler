@@ -99,7 +99,10 @@ function appendContextSegments(output: string[], context: CipoRuleContext): void
     const container = sanitizeAtomicClassSegment(context.container)
     output.push(container ? `container-${container}` : 'container')
   }
-  if (context.layer) output.push(`layer-${sanitizeAtomicClassSegment(String(context.layer))}`)
+  if (context.layer) {
+    output.push(`layer-${sanitizeAtomicClassSegment(String(context.layer))}`)
+  }
+  if (context.startingStyle) output.push('starting-style')
 }
 
 function redactSensitiveCssValue(value: string): string {

@@ -14,6 +14,8 @@ import {
   validateThemeValue,
 } from '@rodkisten/cipo'
 import { createTypedThemeMegaSheet } from '../examples/typed-theme-mega-sheet'
+import { normalizeDeclarationSpacing } from './css-test-utils'
+
 
 function setupTypedThemeRuntime(): void {
   reset()
@@ -55,7 +57,7 @@ describe('Cipó typed theme properties', () => {
     expect(result.warnings[0]?.message).toContain('radius-sm')
     expect(result.warnings[0]?.message).toContain('kkk')
 
-    const output = getCssText()
+    const output = normalizeDeclarationSpacing(getCssText())
     expect(output).toContain('@property --typed-spacing')
     expect(output).toContain('syntax:"<length-percentage>"')
     expect(output).toContain('@property --typed-radius-md')
@@ -79,7 +81,7 @@ describe('Cipó typed theme properties', () => {
       }
     `
 
-    const output = getCssText()
+    const output = normalizeDeclarationSpacing(getCssText())
     expect(output).toContain('--typed-motion-interactive:color 180ms ease, background-color 180ms ease, transform 180ms ease')
     expect(output).toContain('--typed-fonts-sans:ui-sans-serif, system-ui, -apple-system, sans-serif')
     expect(output).toContain('--typed-fonts-mono:ui-monospace, Menlo, Monaco, monospace')
@@ -102,7 +104,7 @@ describe('Cipó typed theme properties', () => {
       }
     `
 
-    const output = getCssText()
+    const output = normalizeDeclarationSpacing(getCssText())
     expect(output).not.toContain('@property --typed-radius-sm')
     expect(output).toContain('@property --typed-progress')
     expect(output).toContain('inherits:false')
@@ -119,7 +121,8 @@ describe('Cipó typed theme properties', () => {
 
     expect(result.warnings.map(warning => warning.code)).toContain('cipo-theme-unit-invalid')
     expect(getCssText()).not.toContain('@property --typed-radius')
-    expect(getCssText()).toContain('--typed-radius:0.875rem')
+    expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--typed-radius:0.875rem')
   })
 
   it('warns when forced registration targets a semantic-only type', () => {
@@ -135,7 +138,9 @@ describe('Cipó typed theme properties', () => {
       'cipo-theme-type-not-registrable',
     )
     expect(getCssText()).not.toContain('@property --typed-elevation-floating')
-    expect(getCssText()).toContain('--typed-elevation-floating:0 1.25rem 3.75rem')
+    expect(normalizeDeclarationSpacing(getCssText())).toContain(
+      '--typed-elevation-floating:0 1.25rem 3.75rem',
+    )
   })
 
   it('throws in strict mode instead of silently accepting an invalid typed token', () => {
@@ -158,7 +163,7 @@ describe('Cipó typed theme properties', () => {
       },
     })
 
-    const output = getCssText()
+    const output = normalizeDeclarationSpacing(getCssText())
     expect(output).toContain('@property --typed-layout-gutters-compact')
     expect(output).toContain('@property --typed-layout-gutters-external')
     expect(output).toContain('--typed-layout-gutters-external:var(--host-gutter)')

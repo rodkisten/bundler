@@ -275,6 +275,7 @@ export interface CipoRuleContext {
   readonly supports?: string;
   readonly container?: string;
   readonly layer?: CipoLayerName | string;
+  readonly startingStyle?: boolean;
 }
 
 export interface CipoAtomicRule {

@@ -38,6 +38,25 @@ describe('Fábrica selector syntax', () => {
     )
   })
 
+
+  it('supports native data-attribute comparison operators', () => {
+    expect(normalizeFabricaSelectorSyntax("& :tags~='selected'")).toBe(
+      '& [data-tags~="selected"]',
+    )
+    expect(normalizeFabricaSelectorSyntax("& :lang^='pt'")).toBe(
+      '& [data-lang^="pt"]',
+    )
+    expect(normalizeFabricaSelectorSyntax("& :file$='.ts'")).toBe(
+      '& [data-file$=".ts"]',
+    )
+    expect(normalizeFabricaSelectorSyntax("& :route*='settings'")).toBe(
+      '& [data-route*="settings"]',
+    )
+    expect(normalizeFabricaSelectorSyntax("& :kind|='button'")).toBe(
+      '& [data-kind|="button"]',
+    )
+  })
+
   it('preserves native pseudo classes and pseudo elements', () => {
     const source = [
       '&:hover',

@@ -1,9 +1,14 @@
 import { DEFAULT_SPACING_VALUE } from "./constants";
 import { registerHelper, registerNativeFunction } from "./plugin-registry";
 import { runtime } from "./runtime";
+import { resolveTokenPath, toCssVar } from "./theme-reference";
 import { createOklchUtilityColor } from "./runtime-dsl";
 import type { CipoHelperContext } from "./types";
-import { splitTopLevel, toKebabMixed } from "./utils";
+import {
+  findTopLevelColon,
+  splitTopLevel,
+  toKebabMixed,
+} from "./utils";
 
 /**
  * Installs CSS-native function names that Cipó should preserve instead of
@@ -165,6 +170,7 @@ export function installBuiltInHelpers(): void {
   );
   registerHelper("rem", (args) => pxToRem(args.trim()));
   registerHelper("fluid", fluidHelper);
+  registerHelper("token", tokenFallbackHelper);
   registerHelper("alpha", alphaHelper);
   registerHelper("mix", mixHelper);
   registerHelper("color", colorSystemHelper);
@@ -339,14 +345,91 @@ function resolveColorToken(value: string, context: CipoHelperContext): string {
   return context.resolveValue(`$${trimmed}`, "color");
 }
 
-function fluidHelper(args: string, context: CipoHelperContext): string {
+function tokenFallbackHelper(
+  args: string,
+  context: CipoHelperContext,
+): string {
+  const parts = splitTopLevel(args, ',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (parts.length === 0) return 'initial'
+
+  const resolved = parts.map((part) =>
+    resolveTokenFallbackPart(part, context),
+  )
+  let fallback = resolved.at(-1) || 'initial'
+
+  for (let index = resolved.length - 2; index >= 0; index -= 1) {
+    const token = readTokenFallbackPath(parts[index] || '')
+    if (!token) {
+      fallback = resolved[index] || fallback
+      continue
+    }
+    fallback = `var(--${runtime.config.prefix}-${token}, ${fallback})`
+  }
+
+  return fallback
+}
+
+function resolveTokenFallbackPart(
+  input: string,
+  context: CipoHelperContext,
+): string {
+  const path = readTokenFallbackPath(input)
+  if (!path) return context.resolveValue(input)
+  return toCssVar(path)
+}
+
+function readTokenFallbackPath(input: string): string {
+  const trimmed = input.trim()
+  const token = trimmed.replace(/^\$/, '')
+  if (!/^[a-zA-Z_][\w.-]*$/.test(token)) return ''
+  return resolveTokenPath(token) || token.replaceAll('.', '-')
+}
+
+function fluidHelper(
+  args: string,
+  context: CipoHelperContext,
+): string {
   const parts = splitTopLevel(args, ",");
+  const named: Record<string, string> = {};
+
+  for (const part of parts) {
+    const colon = findTopLevelColon(part);
+    if (colon <= 0) continue;
+    named[part.slice(0, colon).trim()] = part.slice(colon + 1).trim();
+  }
+
+  if (Object.keys(named).length > 0) {
+    const min = context.resolveValue(named.min || "1rem");
+    const max = context.resolveValue(named.max || "2rem");
+    const from = resolveFluidBreakpoint(named.from || "sm", context);
+    const to = resolveFluidBreakpoint(named.to || "xl", context);
+    const preferred = named.preferred
+      ? context.resolveValue(named.preferred)
+      : [
+          `calc(${min} + (${max} - ${min}) * `,
+          `((100vw - ${from}) / (${to} - ${from})))`,
+        ].join("");
+    return `clamp(${min}, ${preferred}, ${max})`;
+  }
+
   const min = context.resolveValue(parts[0]?.trim() || "1rem");
   const max = context.resolveValue(parts[1]?.trim() || "2rem");
   const preferred = context.resolveValue(
     parts[2]?.trim() || `calc(${min} + 1vw)`,
   );
   return `clamp(${min}, ${preferred}, ${max})`;
+}
+
+function resolveFluidBreakpoint(
+  value: string,
+  context: CipoHelperContext,
+): string {
+  const query = runtime.config.breakpoints[value.trim()];
+  if (!query) return context.resolveValue(value);
+  const match = /min-width\s*:\s*([^\)]+)/.exec(query);
+  return match?.[1]?.trim() || context.resolveValue(value);
 }
 
 function alphaHelper(args: string, context: CipoHelperContext): string {
