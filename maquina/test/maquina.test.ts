@@ -49,17 +49,138 @@ describe("Maquina", () => {
     expect(editor.getValue()).toBe("aXc");
   });
 
-  it("keeps the actual textarea font at 16px while scaling the editor", () => {
+  it(
+    "restores line numbers and updates them with the document",
+    () => {
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const editor = mountMaquina({
+        parent,
+        value: "one\ntwo\nthree",
+      });
+
+      expect(readLineNumbers(parent)).toEqual(["1", "2", "3"]);
+
+      editor.setValue("one\ntwo\nthree\nfour");
+
+      expect(readLineNumbers(parent)).toEqual(["1", "2", "3", "4"]);
+    },
+  );
+
+  it("can explicitly disable the line-number gutter", () => {
     const parent = document.createElement("div");
     document.body.append(parent);
-    mountMaquina({ parent, value: "x", fontSize: 12 });
+    mountMaquina({
+      parent,
+      value: "one\ntwo",
+      lineNumbers: false,
+    });
+
+    const root = parent.firstElementChild as HTMLElement;
+
+    expect(readLineNumbers(parent)).toEqual([]);
+    expect(root.style.getPropertyValue("--maq-gutter-width")).toBe("0px");
+  });
+
+  it(
+    "aligns textarea and highlight metrics without root scaling",
+    () => {
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      mountMaquina({
+        parent,
+        value: "const x = 1",
+        fontSize: 12,
+      });
+
+      const root = parent.firstElementChild as HTMLElement;
+      const textarea = parent.querySelector("textarea")!;
+      const highlight = parent.querySelector<HTMLElement>(
+        "[aria-hidden='true']",
+      )!;
+
+      expect(root.style.transform).toBe("");
+      expect(root.style.width).toBe("100%");
+      expect(root.style.height).toBe("100%");
+      expect(textarea.style.fontSize).toBe(highlight.style.fontSize);
+      expect(textarea.style.fontSize).toBe("16px");
+    },
+  );
+
+  it("keeps the textarea sized to the editor container", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    mountMaquina({ parent, value: "x" });
+
+    const textarea = parent.querySelector("textarea")!;
+    const root = parent.firstElementChild as HTMLElement;
+
+    expect(root.style.width).toBe("100%");
+    expect(root.style.height).toBe("100%");
+    expect(textarea.getAttribute("role")).toBe("combobox");
+  });
+
+  it("renders touch-friendly accessible scope completions", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const value = "const localThing = 1;\nloc";
+
+    mountMaquina({
+      parent,
+      value,
+      language: "javascript",
+    });
+
     const textarea = parent.querySelector("textarea")!;
 
-    expect(getComputedStyle(textarea).fontSize).toBe("16px");
-    expect(
-      (parent.firstElementChild as HTMLElement).style.transform,
-    ).toContain("scale(0.75)");
+    textarea.setSelectionRange(value.length, value.length);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const listbox = parent.querySelector<HTMLElement>("[role='listbox']")!;
+    const options = Array.from(
+      listbox.querySelectorAll<HTMLElement>("[role='option']"),
+    );
+
+    expect(textarea.getAttribute("aria-expanded")).toBe("true");
+    expect(options.some((option) => {
+      return option.textContent?.includes("localThing");
+    })).toBe(true);
+    expect(options.every((option) => option.tagName === "DIV")).toBe(true);
   });
+
+  it(
+    "provides object members declared in the current source scope",
+    async () => {
+      const parent = document.createElement("div");
+      document.body.append(parent);
+      const value = [
+        "const machine = {",
+        "  name: 'Máquina',",
+        "  write(message) { return message; },",
+        "};",
+        "machine.w",
+      ].join("\n");
+
+      mountMaquina({
+        parent,
+        value,
+        language: "javascript",
+      });
+
+      const textarea = parent.querySelector("textarea")!;
+
+      textarea.setSelectionRange(value.length, value.length);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+
+      const optionLabels = Array.from(
+        parent.querySelectorAll<HTMLElement>("[role='option'] > span"),
+      ).map((node) => node.textContent);
+
+      expect(optionLabels).toContain("write");
+    },
+  );
 
   it("tokenizes supported languages", () => {
     const javascriptTokens = tokenizeMaquina(
@@ -106,6 +227,7 @@ describe("Maquina", () => {
     });
 
     const textarea = parent.querySelector("textarea")!;
+
     textarea.setSelectionRange(
       textarea.value.length,
       textarea.value.length,
@@ -116,3 +238,9 @@ describe("Maquina", () => {
     expect(seen).toBe("doc");
   });
 });
+
+function readLineNumbers(parent: HTMLElement): string[] {
+  return Array.from(
+    parent.querySelectorAll<HTMLElement>("[data-maquina-line-number]"),
+  ).map((node) => node.textContent ?? "");
+}
