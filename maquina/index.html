@@ -22,7 +22,7 @@
     <section class="editor-card"><div id="editor"></div></section>
     <section class="grid">
       <article class="card"><h3>Safari-safe by design</h3><p>The input remains 16px and scales visually, preventing surprise zoom while keeping compact layouts.</p></article>
-      <article class="card"><h3>CodeMirror-style gutter</h3><p>A non-selectable line-number gutter stays pinned while code scrolls and tracks wrapped logical lines.</p></article>
+      <article class="card"><h3>Suggestions on type</h3><p>Bring your own completion provider, inspect globals or serve domain-specific APIs.</p></article>
       <article class="card"><h3>No editor cargo ship</h3><p>Fábrica renders, Cipó styles and Broto manages state. No CodeMirror or Monaco aboard.</p></article>
     </section>
     <section class="section"><h2>Every mode, one machine.</h2><div class="demo-grid"><div class="demo" id="html-editor"></div><div class="demo" id="css-editor"></div><div class="demo" id="json-editor"></div><div class="demo" id="readonly-editor"></div></div></section>
@@ -125,7 +125,6 @@ console.log(machine.write("ready"));`,
         fontSize: 14,
         tabSize: 2,
         lineWrapping: true,
-        lineNumbers: true,
         completions(context) {
           const word = context.matchBefore(/[$\w.]+$/);
           if (!word) return null;
@@ -165,7 +164,6 @@ console.log(machine.write("ready"));`,
         language: "html",
         theme: "midnight",
         fontSize: 13,
-        lineNumbers: true,
       });
 
       mountMaquina({
@@ -174,7 +172,6 @@ console.log(machine.write("ready"));`,
         language: "css",
         theme: "forest",
         fontSize: 13,
-        lineNumbers: true,
       });
 
       mountMaquina({
@@ -187,7 +184,6 @@ console.log(machine.write("ready"));`,
         language: "json",
         theme: "paper",
         fontSize: 13,
-        lineNumbers: true,
       });
 
       mountMaquina({
@@ -196,7 +192,6 @@ console.log(machine.write("ready"));`,
         language: "javascript",
         theme: "obsidian",
         fontSize: 13,
-        lineNumbers: true,
         readOnly: true,
       });
     }

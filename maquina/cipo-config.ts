@@ -13,7 +13,7 @@ export const maquinaCipoConfigCss = `
   debug: true;
   layers: false;
   minify: false;
-  atomic-min-uses: 4;
+  atomic-min-uses: 3;
   rem: 16px;
   color-mode: oklch;
   theme-validation: warn;

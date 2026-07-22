@@ -1,6 +1,37 @@
 export type MaquinaLanguage = "javascript" | "json" | "html" | "css" | "text";
 export type MaquinaThemeName = "obsidian" | "paper" | "midnight" | "forest";
 
+export interface MaquinaSelection {
+  readonly anchor: number;
+  readonly head: number;
+}
+
+export interface MaquinaChange {
+  readonly from: number;
+  readonly to: number;
+  readonly insert: string;
+}
+
+export type MaquinaTransactionOrigin =
+  | "input"
+  | "api"
+  | "completion"
+  | "indent"
+  | "history";
+
+export interface MaquinaTransaction {
+  readonly changes?: readonly MaquinaChange[];
+  readonly selection?: MaquinaSelection;
+  readonly origin?: MaquinaTransactionOrigin;
+  readonly addToHistory?: boolean;
+}
+
+export interface MaquinaDocumentState {
+  readonly value: string;
+  readonly selection: MaquinaSelection;
+  readonly version: number;
+}
+
 export interface MaquinaCompletionItem {
   label: string;
   type?: string;
@@ -56,10 +87,24 @@ export interface MaquinaHandle {
   run(): void;
   setLanguage(language: MaquinaLanguage): void;
   setTheme(theme: MaquinaThemeName): void;
+  dispatch(transaction: MaquinaTransaction): void;
+  getState(): MaquinaDocumentState;
+  undo(): boolean;
+  redo(): boolean;
   destroy(): void;
 }
 
 export interface MaquinaToken {
   value: string;
-  kind: "plain" | "keyword" | "string" | "number" | "comment" | "tag" | "attribute" | "property" | "punctuation" | "boolean";
+  kind:
+    | "plain"
+    | "keyword"
+    | "string"
+    | "number"
+    | "comment"
+    | "tag"
+    | "attribute"
+    | "property"
+    | "punctuation"
+    | "boolean";
 }

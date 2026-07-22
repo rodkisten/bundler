@@ -1,12 +1,4 @@
 ## Unreleased
-
-- Added a CodeMirror-style, non-selectable line-number gutter that stays fixed
-  during horizontal scrolling and tracks wrapped logical-line heights.
-- Replaced transformed editor scaling with CSS layout zoom so the native
-  textarea caret stays aligned with highlighted code on iOS/WebKit.
-- Updated the Máquina landing demo and regression coverage for caret scaling,
-  gutter selection behavior, line-number toggling, and scroll synchronization.
-
 - Removed dead `configureFromCss` and CSS-config imports after build-time config lowering so production bundles do not retain raw `@cipo`, `@theme`, or `@breakpoints` source strings.
 - Aligned runtime stylesheet tests with the canonical `STYLE_ELEMENT_ID` and made compiled minified rem assertions accept the equivalent leading-zero-free CSS form.
 - Fixed startup when the callable styled factory already owns the read-only
@@ -205,3 +197,45 @@
 - Persisted the warm/cold benchmark measurements used by CI in `bench/cipo.json`.
 - Synthetic `String.raw` controls remain visible but no longer influence Cipó's overall geometric mean.
 - Noisy runs are marked unstable using Tinybench RME plus cross-round variation.
+
+## Unreleased
+
+### Changed
+
+- Reworked the editor around a document-first transaction model instead of
+  treating the textarea DOM value as the canonical editor state.
+- Added explicit document selections, versioned snapshots, transactions,
+  minimal input diffs, and bounded undo/redo history.
+- Added a public `dispatch()` API plus `getState()`, `undo()`, and `redo()`.
+- Added line-window virtualization for large non-wrapping highlight layers.
+- Kept the native textarea as the browser input, IME, clipboard, accessibility,
+  caret, and selection bridge while syntax rendering remains a separate view.
+- Added focused tests for transactions, inverse edits, history, input diffs,
+  viewport ranges, and editor-level undo/redo behavior.
+
+
+## Maquina editor caret and completion hardening
+
+### Fixed
+
+- Restored line numbers by default and kept gutter rows aligned with wrapped
+  logical lines.
+- Removed root scaling from the native textarea path so caret, selection,
+  highlight text, and container geometry share the same coordinate system.
+- Made the textarea fill the editor container directly without inverse scaled
+  width or height compensation.
+- Replaced completion pills with an accessible listbox and full-width options
+  that support native vertical touch scrolling.
+- Constrained completion geometry to the editor and mobile visual viewport,
+  including automatic above/below caret placement around the software keyboard.
+- Added lexical-scope completion for local variables, parameters, functions,
+  classes, object-literal members, and simple runtime aliases.
+- Filtered getter and setter descriptors from runtime suggestions without
+  invoking accessors during discovery.
+
+### Tests
+
+- Added regressions for line-number rendering and updates, disabled gutters,
+  caret-layer metrics, container sizing, accessible completion options, lexical
+  scope visibility, object members, runtime accessor filtering, runtime aliases,
+  popup viewport bounds, popup flipping, and visual-line token preservation.
