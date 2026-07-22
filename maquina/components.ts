@@ -94,39 +94,39 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   transform: translateY(var(--maq-scroll-y, 0px))
   will-change: transform
 
-  & [data-token='comment'] {
+  & :token='comment' {
     color: var(--maq-comment)
   }
 
-  & [data-token='string'] {
+  & :token='string' {
     color: var(--maq-string)
   }
 
-  & [data-token='number'] {
+  & :token='number' {
     color: var(--maq-number)
   }
 
-  & [data-token='boolean'] {
+  & :token='boolean' {
     color: var(--maq-boolean)
   }
 
-  & [data-token='keyword'] {
+  & :token='keyword' {
     color: var(--maq-keyword)
   }
 
-  & [data-token='property'] {
+  & :token='property' {
     color: var(--maq-property)
   }
 
-  & [data-token='tag'] {
+  & :token='tag' {
     color: var(--maq-tag)
   }
 
-  & [data-token='attribute'] {
+  & :token='attribute' {
     color: var(--maq-attribute)
   }
 
-  & [data-token='punctuation'] {
+  & :token='punctuation' {
     color: var(--maq-punctuation)
   }
 `
@@ -340,7 +340,7 @@ export const MaquinaSuggestion = styled.div(
 
   touch-action: pan-y
 
-  &[data-active='true'] {
+  &:active='true' {
     bg: alpha(var(--maq-accent) / 20%)
   }
 
