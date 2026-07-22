@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { atomic, reset, setup, sheet } from '@rodkisten/cipo'
+import { normalizeDeclarationSpacing } from './css-test-utils'
+
 
 describe('Cipó smart shorthands', () => {
   it('expands size, position and grid declaration functions', () => {
@@ -13,16 +15,17 @@ describe('Cipó smart shorthands', () => {
       grid-template(cols: 220px minmax(0, 1fr), rows: auto minmax(0, 1fr))
       grid-flow(row dense)
     `
+    const css = normalizeDeclarationSpacing(card.compiledCss)
 
-    expect(card.compiledCss).toContain('height:auto')
-    expect(card.compiledCss).toContain('min-height:15rem')
-    expect(card.compiledCss).toContain('max-height:70vh')
-    expect(card.compiledCss).toContain('width:100%')
-    expect(card.compiledCss).toContain('min-width:20rem')
-    expect(card.compiledCss).toContain('position:fixed')
-    expect(card.compiledCss).toContain('right:0')
-    expect(card.compiledCss).toContain('grid-template-columns:13.75rem minmax(0, 1fr)')
-    expect(card.compiledCss).toContain('grid-auto-flow:row dense')
+    expect(css).toContain('height:auto')
+    expect(css).toContain('min-height:15rem')
+    expect(css).toContain('max-height:70vh')
+    expect(css).toContain('width:100%')
+    expect(css).toContain('min-width:20rem')
+    expect(css).toContain('position:fixed')
+    expect(css).toContain('right:0')
+    expect(css).toContain('grid-template-columns:13.75rem minmax(0, 1fr)')
+    expect(css).toContain('grid-auto-flow:row dense')
   })
 
   it('expands typography, word breaking and border shorthands', () => {
@@ -33,11 +36,12 @@ describe('Cipó smart shorthands', () => {
       bor: red
       bor-x: 2px dashed color-amber-245
     `
+    const css = normalizeDeclarationSpacing(card.compiledCss)
 
-    expect(card.compiledCss).toContain('white-space:nowrap')
-    expect(card.compiledCss).toContain('overflow-wrap:anywhere')
-    expect(card.compiledCss).toContain('border:1px solid red')
-    expect(card.compiledCss).toContain('border-inline:0.125rem dashed oklch(')
+    expect(css).toContain('white-space:nowrap')
+    expect(css).toContain('overflow-wrap:anywhere')
+    expect(css).toContain('border:1px solid red')
+    expect(css).toContain('border-inline:0.125rem dashed oklch(')
   })
 
   it('expands modern background helpers', () => {
@@ -47,10 +51,13 @@ describe('Cipó smart shorthands', () => {
       background-image: image(https://example.com/panel.png)
       color: color-amber-245
     `
+    const css = normalizeDeclarationSpacing(card.compiledCss)
 
-    expect(card.compiledCss).toContain('repeating-linear-gradient(90deg, red, blue)')
-    expect(card.compiledCss).toContain('background-image:url("https://example.com/panel.png")')
-    expect(card.compiledCss).toContain('color:oklch(')
+    expect(css).toContain('repeating-linear-gradient(90deg, red, blue)')
+    expect(css).toContain(
+      'background-image:url("https://example.com/panel.png")',
+    )
+    expect(css).toContain('color:oklch(')
   })
 
   it('expands layout helpers', () => {
@@ -62,14 +69,15 @@ describe('Cipó smart shorthands', () => {
       cover(header: auto, main: minmax(0, 1fr), footer: auto)
       sidebar(side: right, width: 280px, gap: 16px)
     `
+    const css = normalizeDeclarationSpacing(card.compiledCss)
 
-    expect(card.compiledCss).toContain('flex-direction:column')
-    expect(card.compiledCss).toContain('flex-wrap:wrap')
-    expect(card.compiledCss).toContain('justify-content:space-between')
-    expect(card.compiledCss).toContain('max-width:45rem')
-    expect(card.compiledCss).toContain('text-align:center')
-    expect(card.compiledCss).toContain('grid-template-rows:auto minmax(0, 1fr) auto')
-    expect(card.compiledCss).toContain('grid-template-columns:minmax(0,1fr) 17.5rem')
+    expect(css).toContain('flex-direction:column')
+    expect(css).toContain('flex-wrap:wrap')
+    expect(css).toContain('justify-content:space-between')
+    expect(css).toContain('max-width:45rem')
+    expect(css).toContain('text-align:center')
+    expect(css).toContain('grid-template-rows:auto minmax(0, 1fr) auto')
+    expect(css).toContain('grid-template-columns:minmax(0,1fr) 17.5rem')
   })
 
   it('expands scroll, snap, interaction and motion helpers', () => {
@@ -87,18 +95,19 @@ describe('Cipó smart shorthands', () => {
       transition(colors, transform)
       animate(fade-in)
     `
+    const css = normalizeDeclarationSpacing(card.compiledCss)
 
-    expect(card.compiledCss).toContain('scroll-behavior:smooth')
-    expect(card.compiledCss).toContain('scrollbar-width:thin')
-    expect(card.compiledCss).toContain('scroll-snap-type:x mandatory')
-    expect(card.compiledCss).toContain('scroll-snap-align:start')
-    expect(card.compiledCss).toContain('overscroll-behavior:contain')
-    expect(card.compiledCss).toContain('touch-action:none')
-    expect(card.compiledCss).toContain('user-select:none')
-    expect(card.compiledCss).toContain('-webkit-user-drag:none')
-    expect(card.compiledCss).toContain('outline:2px solid')
-    expect(card.compiledCss).toContain('transition:color 160ms ease')
-    expect(card.compiledCss).toContain('animation:fade-in 180ms ease-out both')
+    expect(css).toContain('scroll-behavior:smooth')
+    expect(css).toContain('scrollbar-width:thin')
+    expect(css).toContain('scroll-snap-type:x mandatory')
+    expect(css).toContain('scroll-snap-align:start')
+    expect(css).toContain('overscroll-behavior:contain')
+    expect(css).toContain('touch-action:none')
+    expect(css).toContain('user-select:none')
+    expect(css).toContain('-webkit-user-drag:none')
+    expect(css).toContain('outline:2px solid')
+    expect(css).toContain('transition:color 160ms ease')
+    expect(css).toContain('animation:fade-in 180ms ease-out both')
   })
 
   it('wraps supports, layer, container query and reduced motion blocks', () => {
