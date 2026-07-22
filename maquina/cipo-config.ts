@@ -10,10 +10,10 @@
 export const maquinaCipoConfigCss = `
 @cipo {
   prefix: maq;
-  debug: true;
+  debug: false;
   layers: false;
-  minify: false;
-  atomic-min-uses: 4;
+  minify: true;
+  atomic-min-uses: 2;
   rem: 16px;
   color-mode: oklch;
   theme-validation: warn;

@@ -4,13 +4,13 @@ Máquina is a small, dependency-free browser code editor built with **Fábrica**
 
 ## Highlights
 
-- Real `16px` editing surface with layout zoom to keep the native iOS caret aligned.
+- Real `16px` editing surface, optionally scaled down visually to avoid iOS Safari zoom.
 - JavaScript, JSON, HTML, CSS and plain-text highlighting.
 - Completion providers with suggestions while typing.
 - Keyboard and touch friendly completion list.
 - Theme switching at runtime.
 - Read-only source viewer mode.
-- CodeMirror-style non-selectable line numbers, optional wrapping, tabs, run command and change events.
+- Optional line wrapping, tabs, run command and change events.
 - No CodeMirror, Monaco, React or virtual DOM dependency.
 
 ## Basic usage
@@ -25,7 +25,6 @@ const editor = mountMaquina({
   theme: "obsidian",
   fontSize: 13,
   lineWrapping: true,
-  lineNumbers: true,
   onChange(value) {
     console.log(value);
   },
@@ -66,7 +65,7 @@ editor.setTheme("forest");
 
 ## Safari font scaling
 
-The editable control always keeps an actual `16px` font size. `fontSize` uses CSS layout zoom rather than a transform, so the native WebKit caret and the highlighted text share the same coordinate space while compact editors still avoid Safari input zoom.
+The editable control always keeps an actual `16px` font size. `fontSize` controls a scale applied to the whole editor, so a requested `12px` editor remains visually compact without triggering Safari input zoom.
 
 ## CSS-first atomic production build
 
@@ -98,3 +97,56 @@ The checked-in `maquina/index.html` supports both development and published buil
 
 The root publication pipeline also builds Máquina through Cipó's Vite compiler, matching the dedicated `build:maquina` atomic CSS path.
 
+
+## Editor architecture
+
+Maquina uses a document-first architecture. The browser textarea is an input
+bridge, not the source of truth.
+
+```text
+MaquinaDocument
+  -> MaquinaTransaction
+  -> versioned document state
+  -> syntax/token view
+
+Native textarea
+  -> keyboard / IME / paste / selection
+  -> minimal input diff
+  -> MaquinaTransaction
+
+History
+  -> inverse transaction
+  -> undo / redo
+```
+
+The visible syntax layer is rendered separately from the native input. Large,
+non-wrapping documents render only the visible line window plus overscan. This
+keeps the editable text model independent from the DOM representation and
+allows future decorations, diagnostics, folding, and richer view layers to be
+added without making DOM nodes canonical editor state.
+
+### Transactions
+
+```ts
+const editor = mountMaquina({
+  parent,
+  value: "const answer = 41;",
+  language: "javascript",
+});
+
+editor.dispatch({
+  changes: [{
+    from: 15,
+    to: 17,
+    insert: "42",
+  }],
+  selection: {
+    anchor: 17,
+    head: 17,
+  },
+  origin: "api",
+});
+
+editor.undo();
+editor.redo();
+```

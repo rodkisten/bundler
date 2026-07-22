@@ -10,13 +10,18 @@ export type { MaquinaTheme } from "@rodkisten/maquina/theme";
 export { tokenizeMaquina } from "@rodkisten/maquina/tokenizer";
 export { maquinaStyleArtifacts } from "@rodkisten/maquina/components";
 export type {
+  MaquinaChange,
   MaquinaCompletionContext,
   MaquinaCompletionItem,
   MaquinaCompletionMatch,
   MaquinaCompletionProvider,
   MaquinaCompletionResult,
+  MaquinaDocumentState,
   MaquinaHandle,
   MaquinaLanguage,
+  MaquinaSelection,
+  MaquinaTransaction,
+  MaquinaTransactionOrigin,
   MaquinaOptions,
   MaquinaThemeName,
   MaquinaToken,
