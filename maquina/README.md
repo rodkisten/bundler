@@ -4,13 +4,13 @@ Máquina is a small, dependency-free browser code editor built with **Fábrica**
 
 ## Highlights
 
-- Real `16px` editing surface, optionally scaled down visually to avoid iOS Safari zoom.
+- Real `16px` editing surface with layout zoom to keep the native iOS caret aligned.
 - JavaScript, JSON, HTML, CSS and plain-text highlighting.
 - Completion providers with suggestions while typing.
 - Keyboard and touch friendly completion list.
 - Theme switching at runtime.
 - Read-only source viewer mode.
-- Optional line wrapping, tabs, run command and change events.
+- CodeMirror-style non-selectable line numbers, optional wrapping, tabs, run command and change events.
 - No CodeMirror, Monaco, React or virtual DOM dependency.
 
 ## Basic usage
@@ -25,6 +25,7 @@ const editor = mountMaquina({
   theme: "obsidian",
   fontSize: 13,
   lineWrapping: true,
+  lineNumbers: true,
   onChange(value) {
     console.log(value);
   },
@@ -65,7 +66,7 @@ editor.setTheme("forest");
 
 ## Safari font scaling
 
-The editable control always keeps an actual `16px` font size. `fontSize` controls a scale applied to the whole editor, so a requested `12px` editor remains visually compact without triggering Safari input zoom.
+The editable control always keeps an actual `16px` font size. `fontSize` uses CSS layout zoom rather than a transform, so the native WebKit caret and the highlighted text share the same coordinate space while compact editors still avoid Safari input zoom.
 
 ## CSS-first atomic production build
 

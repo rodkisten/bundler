@@ -56,6 +56,54 @@ export const MaquinaViewport = styled.div("MaquinaViewport").css`
   overflow: hidden;
 `;
 
+export const MaquinaGutter = styled.div("MaquinaGutter").css`
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  width: var(--maq-gutter-width, 0px);
+  overflow: hidden;
+  border-right: 1px solid var(--maq-border);
+  background: var(--maq-background);
+  color: var(--maq-muted);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+
+  &[data-enabled="false"] {
+    display: none;
+  }
+`;
+
+export const MaquinaLineNumbers = styled.div("MaquinaLineNumbers").css`
+  min-width: 100%;
+  padding: 14px 0 26px;
+  box-sizing: border-box;
+  font: 500 16px/1.55 var(
+    --maq-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  text-align: right;
+  tab-size: var(--maq-tab-size, 2);
+  will-change: transform;
+
+  & [data-maquina-line-number] {
+    display: block;
+    min-height: 1.55em;
+    padding: 0 10px 0 6px;
+    box-sizing: border-box;
+    line-height: 1.55;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+`;
+
 /**
  * The highlight layer mirrors the textarea contents.
  *
@@ -63,7 +111,7 @@ export const MaquinaViewport = styled.div("MaquinaViewport").css`
  * per-token inline styles. This keeps token rendering cheap and lets the
  * browser reuse the same CSS rules across every token node.
  */
-export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
+export const MaquinaHighlight = styled.div("MaquinaHighlight").css`
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -71,7 +119,8 @@ export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
   min-width: 100%;
   min-height: 100%;
   margin: 0;
-  padding: 14px 16px 26px;
+  padding: 14px 16px 26px
+    calc(var(--maq-gutter-width, 0px) + 16px);
   box-sizing: border-box;
   overflow: visible;
   pointer-events: none;
@@ -89,6 +138,14 @@ export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
   );
   tab-size: var(--maq-tab-size, 2);
   color: var(--maq-foreground);
+  will-change: transform;
+
+  & [data-maquina-code-line] {
+    display: block;
+    min-height: 1.55em;
+    white-space: inherit;
+    overflow-wrap: inherit;
+  }
 
   & [data-token="comment"] {
     color: var(--maq-comment);
@@ -131,20 +188,22 @@ export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
  * The textarea is the editor's only scroll container.
  *
  * The runtime reads textarea.scrollTop/scrollLeft to translate the highlight
- * layer, so keeping scrolling here avoids competing scroll containers and
- * removes an unnecessary synchronization boundary.
+ * and gutter layers. Keeping the native textarea untransformed is important:
+ * WebKit can paint a caret at the wrong visual coordinates when an editable
+ * control lives below a CSS transform.
  */
 export const MaquinaInput = styled.textarea("MaquinaInput").css`
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   display: block;
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 14px 16px 26px;
+  padding: 14px 16px 26px
+    calc(var(--maq-gutter-width, 0px) + 16px);
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;

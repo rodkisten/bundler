@@ -15,6 +15,7 @@ import type {
   MaquinaLanguage,
   MaquinaOptions,
   MaquinaThemeName,
+  MaquinaToken,
 } from "@rodkisten/maquina/types";
 
 const MAX_COMPLETIONS = 100;
@@ -78,13 +79,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   let rootRef: HTMLElement | null = null;
   let textareaRef: HTMLTextAreaElement | null = null;
   let highlightRef: HTMLElement | null = null;
+  let gutterRef: HTMLElement | null = null;
+  let lineNumbersRef: HTMLElement | null = null;
   let suggestionsRef: HTMLElement | null = null;
 
   let caretMirrorRef: HTMLDivElement | null = null;
   let caretMarkerRef: HTMLSpanElement | null = null;
 
   let disposeHighlightContent: Dispose | undefined;
+  let disposeLineNumbersContent: Dispose | undefined;
   let disposeSuggestionsContent: Dispose | undefined;
+  let resizeObserver: ResizeObserver | null = null;
 
   let blurTimer: number | undefined;
   let completionVersion = 0;
@@ -273,6 +278,21 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         data-theme=${initialTheme.name}
       >
         <MaquinaViewport>
+          <MaquinaGutter
+            aria-hidden="true"
+            data-maquina-gutter=""
+            data-enabled=${String(options.lineNumbers !== false)}
+            ref=${ref<HTMLElement>((node) => {
+              gutterRef = node;
+            })}
+          >
+            <MaquinaLineNumbers
+              ref=${ref<HTMLElement>((node) => {
+                lineNumbersRef = node;
+              })}
+            ></MaquinaLineNumbers>
+          </MaquinaGutter>
+
           <MaquinaHighlight
             aria-hidden="true"
             ref=${ref<HTMLElement>((node) => {
@@ -327,12 +347,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const editorRoot = rootRef as HTMLElement | null;
   const editorTextarea = textareaRef as HTMLTextAreaElement | null;
   const editorHighlight = highlightRef as HTMLElement | null;
+  const editorGutter = gutterRef as HTMLElement | null;
+  const editorLineNumbers = lineNumbersRef as HTMLElement | null;
   const editorSuggestions = suggestionsRef as HTMLElement | null;
 
   if (
     !editorRoot ||
     !editorTextarea ||
     !editorHighlight ||
+    !editorGutter ||
+    !editorLineNumbers ||
     !editorSuggestions
   ) {
     disposeEditor();
@@ -347,6 +371,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const mountedRoot = editorRoot;
   const mountedTextarea = editorTextarea;
   const mountedHighlight = editorHighlight;
+  const mountedLineNumbers = editorLineNumbers;
   const mountedSuggestions = editorSuggestions;
 
   /*
@@ -370,11 +395,19 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   renderHighlight();
   syncScroll();
 
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(() => {
+      syncLineNumberHeights();
+    });
+
+    resizeObserver.observe(mountedTextarea);
+    resizeObserver.observe(mountedHighlight);
+  }
+
   /**
-   * Re-renders syntax highlighting through Fabrica.
-   *
-   * The previous Fabrica subtree is disposed before mounting the next one,
-   * preventing retained bindings when the editor updates frequently.
+   * Re-renders syntax highlighting and the logical-line gutter through
+   * Fabrica. The highlight is split by logical lines so wrapped rows can be
+   * measured and the gutter can match their visual height, like CodeMirror.
    */
   function renderHighlight(): void {
     if (destroyed) return;
@@ -382,6 +415,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const value = state.value.peek();
     const language = state.language.peek();
     const tokens = tokenizeMaquina(value, language);
+    const lines = splitTokensByLine(tokens);
+
+    setGutterWidth(
+      mountedRoot,
+      lines.length,
+      options.lineNumbers !== false,
+    );
 
     disposeHighlightContent?.();
     disposeHighlightContent = undefined;
@@ -391,21 +431,79 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     disposeHighlightContent = maquinaFabrica.render(
       mountedHighlight,
       html`
-        ${tokens.map(
-          (token) => html`
-            <span :token=${token.kind}>${token.value}</span>
+        ${lines.map(
+          (line, index) => html`
+            <div data-maquina-code-line=${String(index + 1)}>
+              ${line.map(
+                (token) => html`
+                  <span :token=${token.kind}>${token.value}</span>
+                `,
+              )}
+            </div>
           `,
         )}
-        ${value.endsWith("\n") ? "\n" : ""}
+      `,
+    );
+
+    renderLineNumbers(lines.length);
+    syncLineNumberHeights();
+  }
+
+  /** Renders one non-selectable gutter entry per logical source line. */
+  function renderLineNumbers(lineCount: number): void {
+    disposeLineNumbersContent?.();
+    disposeLineNumbersContent = undefined;
+    mountedLineNumbers.replaceChildren();
+
+    if (options.lineNumbers === false) return;
+
+    disposeLineNumbersContent = maquinaFabrica.render(
+      mountedLineNumbers,
+      html`
+        ${Array.from(
+          { length: lineCount },
+          (_, index) => html`
+            <div data-maquina-line-number=${String(index + 1)}>
+              ${String(index + 1)}
+            </div>
+          `,
+        )}
       `,
     );
   }
 
   /**
-   * Keeps the visual highlight layer aligned with the native textarea.
-   *
-   * The textarea remains the source of truth for scrolling while the highlight
-   * layer is translated instead of independently scrolling.
+   * Matches each gutter row to the corresponding highlighted logical line.
+   * Wrapped source lines therefore consume the same vertical space in both
+   * layers instead of causing the line-number drift common to textarea
+   * overlays.
+   */
+  function syncLineNumberHeights(): void {
+    if (destroyed || options.lineNumbers === false) return;
+
+    const codeLines = mountedHighlight.querySelectorAll<HTMLElement>(
+      "[data-maquina-code-line]",
+    );
+    const numberLines = mountedLineNumbers.querySelectorAll<HTMLElement>(
+      "[data-maquina-line-number]",
+    );
+    const lineHeight = readTextareaLineHeight(mountedTextarea);
+
+    for (let index = 0; index < numberLines.length; index += 1) {
+      const codeLine = codeLines[index];
+      const numberLine = numberLines[index];
+      if (!numberLine) continue;
+
+      const measuredHeight = codeLine?.offsetHeight ?? 0;
+      numberLine.style.height =
+        `${Math.max(lineHeight, measuredHeight)}px`;
+    }
+  }
+
+  /**
+   * Keeps the visual code and gutter layers aligned with the native textarea.
+   * Horizontal scrolling affects code only; the gutter remains pinned while
+   * following the textarea vertically.
    */
   function syncScroll(): void {
     if (destroyed) return;
@@ -413,6 +511,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     mountedHighlight.style.transform =
       `translate(${-mountedTextarea.scrollLeft}px, ` +
       `${-mountedTextarea.scrollTop}px)`;
+
+    mountedLineNumbers.style.transform =
+      `translateY(${-mountedTextarea.scrollTop}px)`;
   }
 
   /**
@@ -672,25 +773,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         container,
       );
 
-    const parsedLineHeight =
-      Number.parseFloat(
-        computedStyle.lineHeight,
-      );
-
-    const parsedFontSize =
-      Number.parseFloat(
-        computedStyle.fontSize,
-      );
-
-    const fontSize =
-      Number.isFinite(parsedFontSize)
-        ? parsedFontSize
-        : DEFAULT_FONT_SIZE;
-
     const lineHeight =
-      Number.isFinite(parsedLineHeight)
-        ? parsedLineHeight
-        : fontSize * 1.55;
+      readTextareaLineHeight(textarea);
 
     return {
       left:
@@ -959,10 +1043,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         blurTimer = undefined;
       }
 
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+
       disposeHighlightContent?.();
+      disposeLineNumbersContent?.();
       disposeSuggestionsContent?.();
 
       disposeHighlightContent =
+        undefined;
+
+      disposeLineNumbersContent =
         undefined;
 
       disposeSuggestionsContent =
@@ -1498,6 +1589,89 @@ function mergeCompletionItems(
 }
 
 /**
+ * Splits a token stream into logical source lines without retokenizing each
+ * line independently. Multiline comments and strings therefore retain the
+ * token kind assigned by the full-source tokenizer.
+ */
+function splitTokensByLine(
+  tokens: readonly MaquinaToken[],
+): MaquinaToken[][] {
+  const lines: MaquinaToken[][] = [[]];
+
+  for (const token of tokens) {
+    let start = 0;
+
+    while (start <= token.value.length) {
+      const newline = token.value.indexOf("\n", start);
+
+      if (newline === -1) {
+        const value = token.value.slice(start);
+
+        if (value) {
+          lines[lines.length - 1]?.push({
+            value,
+            kind: token.kind,
+          });
+        }
+
+        break;
+      }
+
+      const value = token.value.slice(start, newline);
+
+      if (value) {
+        lines[lines.length - 1]?.push({
+          value,
+          kind: token.kind,
+        });
+      }
+
+      lines.push([]);
+      start = newline + 1;
+    }
+  }
+
+  return lines;
+}
+
+/** Returns the native textarea line height in unzoomed layout pixels. */
+function readTextareaLineHeight(
+  textarea: HTMLTextAreaElement,
+): number {
+  const view = textarea.ownerDocument.defaultView ?? window;
+  const style = view.getComputedStyle(textarea);
+  const parsedFontSize = Number.parseFloat(style.fontSize);
+  const fontSize = Number.isFinite(parsedFontSize)
+    ? parsedFontSize
+    : DEFAULT_FONT_SIZE;
+  const parsedLineHeight = Number.parseFloat(style.lineHeight);
+
+  if (Number.isFinite(parsedLineHeight)) {
+    return style.lineHeight.endsWith("px")
+      ? parsedLineHeight
+      : parsedLineHeight * fontSize;
+  }
+
+  return fontSize * 1.55;
+}
+
+/** Keeps enough gutter width for the largest logical line number. */
+function setGutterWidth(
+  root: HTMLElement,
+  lineCount: number,
+  enabled: boolean,
+): void {
+  if (!enabled) {
+    root.style.setProperty("--maq-gutter-width", "0px");
+    return;
+  }
+
+  const digits = String(Math.max(1, lineCount)).length;
+  const width = Math.max(42, 24 + digits * 10);
+  root.style.setProperty("--maq-gutter-width", `${width}px`);
+}
+
+/**
  * Copies layout-affecting textarea styles into the hidden caret mirror.
  */
 function copyTextareaMetrics(
@@ -1736,13 +1910,26 @@ function applyEditorMetrics(
     String(scale),
   );
 
-  root.style.transformOrigin =
-    "top left";
+  setGutterWidth(
+    root,
+    options.value.split("\n").length,
+    options.lineNumbers !== false,
+  );
 
-  root.style.transform =
-    scale === 1
-      ? ""
-      : `scale(${scale})`;
+  /*
+   * Avoid transforms around the native textarea. WebKit, especially iOS, can
+   * paint the insertion caret using pre-transform coordinates while the text
+   * is displayed at transformed coordinates. CSS zoom keeps the textarea at a
+   * computed 16px font size but scales its layout and native caret together.
+   */
+  root.style.transform = "";
+  root.style.transformOrigin = "";
+
+  if (scale === 1) {
+    root.style.removeProperty("zoom");
+  } else {
+    root.style.setProperty("zoom", String(scale));
+  }
 
   root.style.width =
     scale === 1
@@ -1766,7 +1953,7 @@ function applyEditorMetrics(
 
   /*
    * Keeping native inputs at 16px avoids unwanted Safari/iOS focus zoom.
-   * The requested editor font size is represented by the root scale instead.
+   * The requested visual size is represented by layout zoom on the root.
    */
   textarea.style.fontSize =
     `${DEFAULT_FONT_SIZE}px`;

@@ -1,4 +1,12 @@
 ## Unreleased
+
+- Added a CodeMirror-style, non-selectable line-number gutter that stays fixed
+  during horizontal scrolling and tracks wrapped logical-line heights.
+- Replaced transformed editor scaling with CSS layout zoom so the native
+  textarea caret stays aligned with highlighted code on iOS/WebKit.
+- Updated the Máquina landing demo and regression coverage for caret scaling,
+  gutter selection behavior, line-number toggling, and scroll synchronization.
+
 - Removed dead `configureFromCss` and CSS-config imports after build-time config lowering so production bundles do not retain raw `@cipo`, `@theme`, or `@breakpoints` source strings.
 - Aligned runtime stylesheet tests with the canonical `STYLE_ELEMENT_ID` and made compiled minified rem assertions accept the equivalent leading-zero-free CSS form.
 - Fixed startup when the callable styled factory already owns the read-only
