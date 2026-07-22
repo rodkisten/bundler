@@ -174,8 +174,8 @@ export function splitTopLevel(input: string, separator: string): string[] {
       continue
     }
 
-    if (char === '(' || char === '[' || char === '{') depth += 1
-    else if (char === ')' || char === ']' || char === '}') depth -= 1
+    if (char === '(' || char === '[') depth += 1
+    else if (char === ')' || char === ']') depth -= 1
 
     if (char === separator && depth === 0) {
       if (buffer.trim()) output.push(buffer.trim())
@@ -213,8 +213,8 @@ export function findTopLevelColon(input: string): number {
       continue
     }
 
-    if (char === '(' || char === '[' || char === '{') depth += 1
-    else if (char === ')' || char === ']' || char === '}') depth -= 1
+    if (char === '(' || char === '[') depth += 1
+    else if (char === ')' || char === ']') depth -= 1
     else if (char === ':' && depth === 0) return index
   }
 
@@ -322,7 +322,7 @@ export function parseTypedArguments(input: string): Record<string, string> {
  * @returns Compact declaration.
  */
 export function createDeclaration(property: string, value: string): string {
-  return `${property}: ${value};`
+  return `${property}:${value};`
 }
 
 /**
