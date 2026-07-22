@@ -2,7 +2,6 @@ import path from "node:path";
 import type { InlineConfig, Plugin, UserConfig } from "vite";
 import { ecosystemSitePlugin } from "./site-plugin";
 import type { EcosystemProjectId } from "../site/ecosystem";
-import { workspaceAliasPlugin } from "./workspace-alias";
 
 export type SharedLibraryBuildOptions = {
   readonly root: string;
@@ -38,7 +37,7 @@ export function createBrowserLibraryConfig(options: SharedLibraryBuildOptions): 
       "process.env.NODE_ENV": JSON.stringify("production"),
       ...options.define,
     },
-    plugins: [workspaceAliasPlugin(), ...(options.plugins ?? [])],
+    plugins: [...(options.plugins ?? [])],
     build: {
       outDir: options.outDir,
       emptyOutDir: false,
@@ -57,7 +56,7 @@ export function createBrowserLibraryConfig(options: SharedLibraryBuildOptions): 
           moduleSideEffects: false,
           propertyReadSideEffects: false,
         },
-        output: options.banner ? { banner: options.banner } : undefined,
+        output: { exports: "named", ...(options.banner ? { banner: options.banner } : {}) },
       },
     },
   };
@@ -72,7 +71,6 @@ export function createLandingConfig(options: SharedLandingBuildOptions): InlineC
     publicDir: false,
     resolve: { tsconfigPaths: true },
     plugins: [
-      workspaceAliasPlugin(),
       ...(options.plugins ?? []),
       ecosystemSitePlugin({
         projectId: options.projectId,
@@ -121,7 +119,7 @@ export function createMultiFormatLibraryConfig(options: MultiFormatLibraryBuildO
       "process.env.NODE_ENV": JSON.stringify("production"),
       ...options.define,
     },
-    plugins: [workspaceAliasPlugin(), ...(options.plugins ?? [])],
+    plugins: [...(options.plugins ?? [])],
     build: {
       outDir: options.outDir,
       emptyOutDir: options.emptyOutDir ?? false,
@@ -140,7 +138,7 @@ export function createMultiFormatLibraryConfig(options: MultiFormatLibraryBuildO
           moduleSideEffects: false,
           propertyReadSideEffects: false,
         },
-        output: options.banner ? { banner: options.banner } : undefined,
+        output: { exports: "named", ...(options.banner ? { banner: options.banner } : {}) },
       },
     },
   };
