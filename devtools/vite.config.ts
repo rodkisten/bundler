@@ -66,6 +66,17 @@ export default defineConfig({
       usePolling: true,
     },
     open: "/index.html",
+  }
+
+ esbuild: {
+    minifyIdentifiers: true,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    drop: ["debugger"],
+    pure: [
+      "console.debug",
+      "console.trace",
+    ],
   },
 
   build: {
@@ -82,7 +93,7 @@ export default defineConfig({
 
       output: {
         banner: (chunk) =>
-          chunk.fileName.endsWith(".iife.js")
+          chunk.fileName.contains("iife")
             ? iifeBanner
             : "",
       },
@@ -95,17 +106,6 @@ export default defineConfig({
       fileName: (format: string) =>
         `devtools.${format}.js`,
     },
-  },
-
-  esbuild: {
-    minifyIdentifiers: true,
-    minifySyntax: true,
-    minifyWhitespace: true,
-    drop: ["debugger"],
-    pure: [
-      "console.debug",
-      "console.trace",
-    ],
   },
 
   plugins: [
