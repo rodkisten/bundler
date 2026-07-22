@@ -2,7 +2,7 @@
   "name": "@rodkisten/maquina",
   "version": "0.0.1",
   "type": "module",
-  "description": "Lightweight in-browser code editor built on Broto, F\u00e1brica and Cip\u00f3.",
+  "description": "Lightweight in-browser code editor built on Broto, Fábrica and Cipó.",
   "main": "./index.js",
   "types": "./index.d.ts",
   "exports": {
@@ -28,7 +28,7 @@
     "!tsconfig.json"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "pnpm --dir .. exec tsx scripts/build-package.ts maquina && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root .. --dir .",
     "prepublishOnly": "pnpm run build"

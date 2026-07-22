@@ -198,7 +198,8 @@ function readDataAttribute(
 
   if (selector[cursor] === '(') return null
 
-  if (selector[cursor] !== '=') {
+  const operator = readAttributeOperator(selector, cursor)
+  if (!operator) {
     if (isNativePseudoName(rawName) || rawName === FABRICA_DATA_OBJECT_NAME) {
       return null
     }
@@ -209,7 +210,7 @@ function readDataAttribute(
     }
   }
 
-  cursor = skipSpaces(selector, cursor + 1)
+  cursor = skipSpaces(selector, operator.end)
   const value = readAttributeValue(selector, cursor)
   if (!value || rawName === FABRICA_DATA_OBJECT_NAME) return null
 
@@ -217,11 +218,32 @@ function readDataAttribute(
     selector: [
       '[',
       toFabricaDataAttributeName(rawName),
-      '="',
+      operator.value,
+      '"',
       escapeAttributeValue(value.value),
       '"]',
     ].join(''),
     end: value.end,
+  }
+}
+
+
+function readAttributeOperator(
+  selector: string,
+  start: number,
+): { readonly value: string; readonly end: number } | null {
+  if (selector[start] === '=') {
+    return { value: '=', end: start + 1 }
+  }
+
+  const prefix = selector[start] ?? ''
+  if (!'~^$*|'.includes(prefix) || selector[start + 1] !== '=') {
+    return null
+  }
+
+  return {
+    value: `${prefix}=`,
+    end: start + 2,
   }
 }
 
@@ -266,7 +288,7 @@ function isNativePseudoName(name: string): boolean {
 
 function readIdentifierEnd(input: string, start: number): number {
   let end = start
-  while (end < input.length && /[A-Za-z0-9_$.-]/.test(input[end] ?? '')) {
+  while (end < input.length && /[A-Za-z0-9_.-]/.test(input[end] ?? '')) {
     end += 1
   }
   return end

@@ -13,6 +13,7 @@ import {
   normalizeCustomPropertyName,
   normalizeTypedCssValue,
   property as registerCssProperty,
+  typedProperty,
 } from "./properties";
 import { normalizePxValues } from "./helpers";
 import { createHelperResolver } from "./values/helper-resolution";
@@ -86,7 +87,17 @@ export function normalizePropertyDeclaration(
   }
 
   if (propertyKey.startsWith("$$")) {
-    const customProperty = normalizeCustomPropertyName(propertyKey);
+    const annotation = parseTypedPropertyAnnotation(propertyKey);
+    const customProperty = normalizeCustomPropertyName(
+      annotation?.name ?? propertyKey,
+    );
+    if (annotation) {
+      typedProperty(
+        annotation.name,
+        annotation.type,
+        valueInput,
+      );
+    }
     const typedValue = normalizeTypedCssValue(valueInput);
     if (typedValue) {
       registerCssProperty(customProperty, {
@@ -141,6 +152,19 @@ export function normalizePropertyDeclaration(
       source: `${rawProperty}:${valueInput}`,
     },
   ], forceImportant);
+}
+
+function parseTypedPropertyAnnotation(
+  property: string,
+): { readonly name: string; readonly type: string } | null {
+  const match = /^\$\$([a-zA-Z_][\w.-]*)<([a-zA-Z][\w-]*)>$/.exec(
+    property.trim(),
+  );
+  if (!match?.[1] || !match[2]) return null;
+  return {
+    name: `$$${match[1]}`,
+    type: match[2],
+  };
 }
 
 function applyDeclarationImportant(nodes: CipoDeclarationNode[], important: boolean): CipoDeclarationNode[] {

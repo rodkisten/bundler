@@ -19,7 +19,7 @@ export function createIndexHtml(input: LandingInput): string {
   return `<!doctype html>
 <html lang="en">
 <head>
-${createHead("Rod Browser Tools", ".")}
+${createHead("Rod Browser Tools", ".", { description: "Documentation, source, tests, pipelines, benchmarks and browser bundles for the Rod ecosystem.", canonicalPath: "/bundler/" })}
 </head>
 <body data-page-kind="landing" data-package="default">
   ${createBackdrop()}

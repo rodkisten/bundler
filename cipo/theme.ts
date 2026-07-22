@@ -10,7 +10,13 @@ import { createDeclaration, isPlainObject, warn } from './utils'
 import { insertCss } from './injection'
 import { wrapLayer } from './format'
 import { normalizeValue } from './values'
-import { resolveTokenPath, toCssVar } from './theme-reference'
+import { normalizeRuntimeExpression } from './runtime-dsl/math'
+import { mergeTheme } from './config-css/shared'
+import {
+  resolveThemeReferencesForValue as resolveThemeValueReferences,
+  resolveTokenPath,
+  toCssVar,
+} from './theme-reference'
 export { inferThemeNamespace, resolveThemeReferencesForValue, resolveTokenPath, toCssVar } from './theme-reference'
 import { getTypedInitialValue, isTypedValue, property } from './properties'
 import {
@@ -33,11 +39,16 @@ export type FlattenedThemeValue = string | number | CipoTypedValue | CipoTypedTh
 export type FlattenedThemeEntry = readonly [string, FlattenedThemeValue]
 
 const themeValueSignatures = new Map<string, string>()
+const namedThemes = new Map<string, CipoTheme>()
 
 export function theme(tokens: CipoTheme, warnings: CipoWarning[] = []): void {
   const flattened = flattenTheme(tokens)
   registerThemeEntries(flattened)
-  injectThemeEntries(flattened, warnings)
+  injectThemeEntries(
+    flattened,
+    warnings,
+    runtime.config.themeRootSelector,
+  )
 }
 
 /** Registers token lookup metadata without injecting CSS. */
@@ -47,7 +58,78 @@ export function registerThemeTokens(tokens: CipoTheme): void {
 
 /** Injects the theme custom property declarations. */
 export function injectThemeTokens(tokens: CipoTheme, warnings: CipoWarning[] = []): void {
-  injectThemeEntries(flattenTheme(tokens), warnings)
+  injectThemeEntries(
+    flattenTheme(tokens),
+    warnings,
+    runtime.config.themeRootSelector,
+  )
+}
+
+
+
+export interface CipoThemeScopeOptions {
+  readonly extends?: string
+  readonly selector?: string
+}
+
+/**
+ * Registers a named theme scope and emits its variables under a data-theme
+ * selector. Parent scopes are merged eagerly so a scope is self-contained even
+ * when it is mounted without an ancestor theme element.
+ */
+export function themeScope(
+  name: string,
+  tokens: CipoTheme,
+  options: CipoThemeScopeOptions = {},
+  warnings: CipoWarning[] = [],
+): void {
+  const key = normalizeThemeScopeName(name)
+  if (!key) return
+
+  const parentName = normalizeThemeScopeName(options.extends ?? '')
+  const parent = parentName ? namedThemes.get(parentName) : undefined
+  if (parentName && !parent) {
+    warn(
+      runtime,
+      warnings,
+      'cipo-theme-scope-parent-missing',
+      `Theme scope "${key}" extends unknown theme "${parentName}".`,
+      { name: key, extends: parentName },
+    )
+  }
+
+  const merged = parent ? mergeTheme(parent, tokens) : tokens
+  namedThemes.set(key, merged)
+  const flattened = flattenTheme(merged)
+  registerThemeEntries(flattened)
+  injectThemeEntries(
+    flattened,
+    warnings,
+    options.selector ?? `[data-theme="${escapeThemeSelector(key)}"]`,
+  )
+}
+
+/** Returns a registered named theme for tooling and compiler integration. */
+export function getThemeScope(name: string): CipoTheme | undefined {
+  return namedThemes.get(normalizeThemeScopeName(name))
+}
+
+/** Clears named theme scope metadata during a public runtime reset. */
+export function resetThemeScopes(): void {
+  namedThemes.clear()
+  themeValueSignatures.clear()
+}
+
+function normalizeThemeScopeName(name: string): string {
+  return String(name || '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function escapeThemeSelector(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 function registerThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
@@ -84,6 +166,7 @@ function registerThemeEntries(flattened: readonly FlattenedThemeEntry[]): void {
 function injectThemeEntries(
   flattened: readonly FlattenedThemeEntry[],
   warnings: CipoWarning[],
+  selector: string,
 ): void {
   let declarations = ''
 
@@ -106,11 +189,16 @@ function injectThemeEntries(
       continue
     }
 
-    declarations += createDeclaration(propertyName, normalizeValue('theme-token', String(value)))
+    declarations += createDeclaration(
+      propertyName,
+      normalizeRuntimeExpression(
+        normalizeValue('theme-token', String(value)),
+      ),
+    )
   }
 
   if (declarations) {
-    insertCss(wrapLayer('tokens', `${runtime.config.themeRootSelector}{${declarations}}`))
+    insertCss(wrapLayer('tokens', `${selector}{${declarations}}`))
   }
 }
 
@@ -143,7 +231,10 @@ function compileTypedThemeDeclaration(
   }
 
   registerTypedThemeProperty(path, propertyName, token, result.status, warnings)
-  return createDeclaration(propertyName, normalizeValue('theme-token', rawValue))
+  return createDeclaration(
+    propertyName,
+    normalizeRuntimeExpression(normalizeValue('theme-token', rawValue)),
+  )
 }
 
 function registerTypedThemeProperty(
@@ -318,38 +409,7 @@ function themeValueSignature(value: FlattenedThemeValue): string {
  * ```
  */
 export function resolveThemeReferences(input: string): string {
-  let output = ''
-
-  for (let index = 0; index < input.length; index += 1) {
-    const char = input[index]
-
-    if (char !== '$') {
-      output += char
-      continue
-    }
-
-    if (input[index + 1] === '$') {
-      output += '$$'
-      index += 1
-      continue
-    }
-
-    const next = input[index + 1] ?? ''
-    if (!/[a-zA-Z_]/.test(next)) {
-      output += char
-      continue
-    }
-
-    let end = index + 1
-    while (end < input.length && /[a-zA-Z0-9_.-]/.test(input[end] ?? '')) end += 1
-
-    const token = input.slice(index + 1, end)
-    const resolved = token.startsWith('theme.') ? token.slice('theme.'.length).replaceAll('.', '-') : resolveTokenPath(token)
-    output += resolved ? toCssVar(resolved) : `$${token}`
-    index = end - 1
-  }
-
-  return output
+  return resolveThemeValueReferences(input)
 }
 
 function isThemeBranch(value: CipoThemeValue): value is CipoTheme {

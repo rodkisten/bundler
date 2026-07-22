@@ -34,6 +34,60 @@ describe('Cipó + Fábrica compiled build mode', () => {
     expect(result.manifest[0]?.kind).toBe('styled-css')
   })
 
+  it(
+    'keeps next-generation Cipó syntax in compiled styled output',
+    () => {
+      setup({
+        adapter: 'dom',
+        prefix: 'rd',
+        debug: false,
+        breakpoints: {
+          base: null,
+          md: '(min-width: 768px)',
+        },
+      })
+
+      const source = `
+        import { styled } from '@rodkisten/cipo'
+        export const Panel = styled.div('Panel').css\`
+          text(14px / 1.4 / 500, ellipsis)
+          motion(
+            opacity: 0 -> 1,
+            y: 8px -> 0,
+            duration: 120ms
+          )
+
+          gap: {
+            base: 8px,
+            md: 16px
+          }
+
+          &:state='open' {
+            color: red
+          }
+        \`
+      `
+
+      const result = compileCipoSourceBuild(source, {
+        filename: '/project/src/panel.ts',
+        classPrefix: 'rd',
+        injectCssImport: false,
+      })
+      const css = result.css.replace(/\s+/g, '')
+
+      expect(result.changed).toBe(true)
+      expect(css).toContain('font-size:0.875rem')
+      expect(css).toContain('line-height:1.4')
+      expect(css).toContain('font-weight:500')
+      expect(css).toContain('text-overflow:ellipsis')
+      expect(css).toContain('transition-duration:120ms')
+      expect(css).toContain('@starting-style')
+      expect(css).toContain('[data-state=\"open\"]')
+      expect(css).toContain('@media(min-width:768px)')
+      expect(css).toContain('gap:1rem')
+    },
+  )
+
   it('leaves dynamic Cipó templates on the runtime path', () => {
     const result = compileCipoSourceBuild("const Box = styled.div('Box').css`color: ${tone};`", {
       injectCssImport: false,

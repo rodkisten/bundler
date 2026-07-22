@@ -3,15 +3,6 @@
 
 ## Unreleased - Structural runtime/compiler convergence
 
-### Cipó state-selector contract
-
-- Added public data-attribute naming helpers so templates, payloads, component
-  props, and integrations share one camelCase-to-`data-*` normalization rule.
-- Documented the shared Fábrica/Cipó state contract for `:dataName=value`, bare
-  data presence bindings, `?boolean` attributes, and `slot()` conventions.
-- Kept `:data` object spreads, `class:*`, `.property`, events, and refs outside
-  the CSS selector shorthand where no direct CSS state contract exists.
-
 ### Breaking changes
 
 - Removed the misleading `hydrate()` API. The previous implementation appended

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { configSheet, configure, configureCss, configureFromCss, getCssText, registerConfigPlugin, registerPreset, reset, sheet, setupFromCss } from '@rodkisten/cipo'
 import { insertCss, setRuntimeStyleTarget } from '../injection'
 import { runtime } from '../runtime'
+import { normalizeDeclarationSpacing } from './css-test-utils'
 
 describe('Cipó CSS-first configuration', () => {
   beforeEach(() => reset())
@@ -44,7 +45,8 @@ describe('Cipó CSS-first configuration', () => {
     expect(runtime.config.layers).toBe(false)
     expect(runtime.config.breakpoints.md).toBe('(min-width: 768px)')
     expect(runtime.config.breakpoints.wide).toBe('(min-width: 1200px)')
-    expect(getCssText()).toContain('--rod-colors-brand:#f97316')
+    expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--rod-colors-brand:#f97316')
     expect(getCssText()).toContain('@property --rod-angle')
 
     const css = String(sheet.css`.card {
@@ -60,7 +62,7 @@ describe('Cipó CSS-first configuration', () => {
       @theme { colors: (background: var(--background), border: var(--border)); }
     `)
 
-    const cssText = getCssText()
+    const cssText = normalizeDeclarationSpacing(getCssText())
     expect(cssText).toContain(':host')
     expect(cssText).toContain('--shadow-colors-background:var(--background)')
     expect(cssText).toContain('--shadow-colors-border:var(--border)')
@@ -93,7 +95,8 @@ describe('Cipó CSS-first configuration', () => {
 
     expect(runtime.config.prefix).toBe('app')
     expect(runtime.config.breakpoints.panel).toBe('(min-width: 900px)')
-    expect(getCssText()).toContain('--app-colors-brand:#38bdf8')
+    expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--app-colors-brand:#38bdf8')
   })
 
   it('applies registered @preset stylesheets and config objects', () => {
@@ -111,7 +114,8 @@ describe('Cipó CSS-first configuration', () => {
     expect(result.appliedPresets).toEqual(['forest', 'debug-off'])
     expect(runtime.config.prefix).toBe('leaf')
     expect(runtime.config.debug).toBe(false)
-    expect(getCssText()).toContain('--leaf-colors-brand:#22c55e')
+    expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--leaf-colors-brand:#22c55e')
   })
 
   it('applies registered @plugin hooks', () => {
@@ -185,14 +189,16 @@ describe('Cipó CSS-first configuration', () => {
 
     try {
       configureFromCss(source)
-      expect(getCssText()).toContain('--restored-colors-brand:#22c55e')
+      expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--restored-colors-brand:#22c55e')
       expect(getCssText()).toContain('@property --restored-angle')
 
       reset()
       expect(getCssText()).toBe('')
 
       configureFromCss(source)
-      expect(getCssText()).toContain('--restored-colors-brand:#22c55e')
+      expect(normalizeDeclarationSpacing(getCssText()))
+      .toContain('--restored-colors-brand:#22c55e')
       expect(getCssText()).toContain('@property --restored-angle')
     } finally {
       configure(previousConfig)

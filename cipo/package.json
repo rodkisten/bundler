@@ -46,7 +46,7 @@
     "COMPILED_INLINE.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "pnpm --dir .. exec tsx scripts/build-package.ts cipo && tsc -p tsconfig.build.json --emitDeclarationOnly",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root .. --dir .",
     "prepublishOnly": "pnpm run check && pnpm run build",

@@ -44,7 +44,16 @@ export function compileCssConfigPayload(input: string): CipoCompiledCssConfig | 
     const operation = prepared.operations[index]!
     if (operation.kind === 'preset' || operation.kind === 'plugin') return null
     if (operation.kind === 'config') operations.push([CipoCompiledConfigOpcode.Config, operation.patch])
-    else if (operation.kind === 'theme') operations.push([CipoCompiledConfigOpcode.Theme, operation.patch])
+    else if (operation.kind === 'theme') {
+      operations.push([CipoCompiledConfigOpcode.Theme, operation.patch])
+    } else if (operation.kind === 'theme-scope') {
+      operations.push([
+        CipoCompiledConfigOpcode.ThemeScope,
+        operation.name,
+        operation.extends ?? '',
+        operation.patch,
+      ])
+    }
     else if (operation.kind === 'alias') operations.push([CipoCompiledConfigOpcode.Alias, operation.name, operation.cssText])
     else if (operation.kind === 'property') operations.push([CipoCompiledConfigOpcode.Property, operation.name, operation.definition])
     else if (operation.kind === 'layer') operations.push([CipoCompiledConfigOpcode.Css, operation.cssText])
@@ -76,9 +85,11 @@ function prepareCssConfig(rawSource: string): PreparedCssConfig {
     const directive = source.slice(nameStart, nameEnd)
     const cursor = skipSpaces(source, nameEnd)
     const namedBlock = readNamedBlock(source, cursor)
+    const functionalBlock = readFunctionalBlock(source, cursor)
+    const directiveBlock = functionalBlock ?? namedBlock
 
-    if (source[cursor] === '{' || namedBlock) {
-      const open = namedBlock ? namedBlock.open : cursor
+    if (source[cursor] === '{' || directiveBlock) {
+      const open = directiveBlock ? directiveBlock.open : cursor
       const close = findMatchingBrace(source, open)
       if (close < 0) {
         warnings.push(createWarning('cipo-config-unclosed-block', `Unclosed @${directive} block.`))
@@ -93,14 +104,26 @@ function prepareCssConfig(rawSource: string): PreparedCssConfig {
         operations.push({ kind: 'config', patch })
       } else if (directive === 'theme' || directive === 'tokens') {
         const patch = parseThemeBlock(body)
-        themePatch = mergeTheme(themePatch, patch)
-        operations.push({ kind: 'theme', patch })
+        const scope = functionalBlock
+          ? parseThemeScopeHeader(functionalBlock.name)
+          : null
+        if (scope) {
+          operations.push({
+            kind: 'theme-scope',
+            name: scope.name,
+            ...(scope.extends ? { extends: scope.extends } : {}),
+            patch,
+          })
+        } else {
+          themePatch = mergeTheme(themePatch, patch)
+          operations.push({ kind: 'theme', patch })
+        }
       } else if (directive === 'breakpoints') {
         const patch: Partial<Mutable<CipoConfig>> = { breakpoints: parseBreakpointsBlock(body) }
         mergeConfigPatch(configPatch, patch)
         operations.push({ kind: 'config', patch })
       } else if (directive === 'alias' || directive === 'helper') {
-        const aliasName = namedBlock?.name || ''
+        const aliasName = directiveBlock?.name || ''
         if (aliasName) {
           operations.push({ kind: 'alias', name: aliasName, cssText: body.trim() })
           appliedAliases.push(aliasName)
@@ -108,7 +131,7 @@ function prepareCssConfig(rawSource: string): PreparedCssConfig {
           warnings.push(createWarning('cipo-config-alias-name-missing', `@${directive} needs a name.`))
         }
       } else if (directive === 'property') {
-        const rawName = namedBlock?.name || ''
+        const rawName = directiveBlock?.name || ''
         if (rawName) {
           operations.push({ kind: 'property', name: rawName, definition: parsePropertyDefinition(body) })
           appliedProperties.push(rawName)
@@ -425,6 +448,58 @@ function startsObjectEntryAfter(input: string, start: number): boolean {
   }
 
   return false
+}
+
+function readFunctionalBlock(
+  input: string,
+  start: number,
+): { readonly name: string; readonly open: number } | null {
+  if (input[start] !== '(') return null
+  let quote: string | null = null
+  let depth = 1
+
+  for (let index = start + 1; index < input.length; index += 1) {
+    const char = input[index] ?? ''
+    if (quote) {
+      if (char === quote && input[index - 1] !== '\\') quote = null
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '(') depth += 1
+    else if (char === ')') {
+      depth -= 1
+      if (depth === 0) {
+        const open = skipSpaces(input, index + 1)
+        if (input[open] !== '{') return null
+        return {
+          name: input.slice(start + 1, index).trim(),
+          open,
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+function parseThemeScopeHeader(
+  input: string,
+): { readonly name: string; readonly extends?: string } | null {
+  const match = [
+    '^',
+    '([a-zA-Z][\\w-]*)',
+    '(?:\\s+extends\\s+([a-zA-Z][\\w-]*))?',
+    '$',
+  ].join('')
+  const result = new RegExp(match).exec(input.trim())
+  if (!result?.[1]) return null
+  return {
+    name: result[1],
+    ...(result[2] ? { extends: result[2] } : {}),
+  }
 }
 
 function readNamedBlock(input: string, start: number): { readonly name: string; readonly open: number } | null {

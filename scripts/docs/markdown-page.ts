@@ -11,7 +11,7 @@ export function createMarkdownPageHtml(input: MarkdownPageInput): string {
   return `<!doctype html>
 <html lang="en">
 <head>
-${createHead(`${input.title} · Rod Docs`, "..")}
+${createHead(`${input.title} · Rod Docs`, "..", { description: input.description, canonicalPath: input.href ? `/bundler/${input.href}` : "/bundler/" })}
 </head>
 <body data-page-kind="markdown" data-package="${escapeHtml(packageId)}">
   ${createBackdrop()}

@@ -2,7 +2,7 @@ import { configure } from './config'
 import { insertCss } from './injection'
 import { registerAlias } from './plugin-registry'
 import { property } from './properties'
-import { theme } from './theme'
+import { theme, themeScope } from './theme'
 import type { CipoConfig, CipoPropertyDefinition, CipoTheme, CipoWarning } from './types'
 import { clearObject, mergeConfigPatch, mergeTheme } from './config-css/shared'
 
@@ -13,6 +13,7 @@ export const enum CipoCompiledConfigOpcode {
   Alias = 2,
   Property = 3,
   Css = 4,
+  ThemeScope = 5,
 }
 
 export type CipoCompiledConfigOperation =
@@ -21,6 +22,12 @@ export type CipoCompiledConfigOperation =
   | readonly [CipoCompiledConfigOpcode.Alias, string, string]
   | readonly [CipoCompiledConfigOpcode.Property, string, CipoPropertyDefinition]
   | readonly [CipoCompiledConfigOpcode.Css, string]
+  | readonly [
+      CipoCompiledConfigOpcode.ThemeScope,
+      string,
+      string,
+      CipoTheme,
+    ]
 
 /** Serializable runtime representation emitted by the Cipó build plugin. */
 export interface CipoCompiledCssConfig {
@@ -100,6 +107,16 @@ export function configureCompiledCssConfig(payload: CipoCompiledCssConfig): Cipo
       case CipoCompiledConfigOpcode.Css:
         flushConfig()
         insertCss(operation[1])
+        break
+      case CipoCompiledConfigOpcode.ThemeScope:
+        flushConfig()
+        flushTheme()
+        themeScope(
+          operation[1],
+          operation[3],
+          operation[2] ? { extends: operation[2] } : {},
+          warnings,
+        )
         break
     }
   }

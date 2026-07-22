@@ -543,6 +543,18 @@ still work, emit one migration warning, and are documented as deprecated.
 Use `Cipo.createStyled({ fabrica: instance })` when each Fabrica instance needs
 its own named styled-component registry.
 
+## 🌿 Language reference
+
+The complete Cipó language specification lives in
+[`LANGUAGE.md`](./LANGUAGE.md). It documents variable ownership, Fábrica state
+selectors, variants, compound states, group and peer relations, responsive
+values, `fluid()`, deep `text()`, `motion()`, container queries, typed custom
+properties, token fallbacks, derived tokens, and named theme scopes.
+
+The runtime and compiled Vite paths are expected to preserve the same semantics.
+Focused tests cover both authoring modes so language features do not become
+runtime-only conveniences.
+
 ## 🌿 Cipó + Broto enterprise ergonomics
 
 This build adds the next layer of the design-system engine:

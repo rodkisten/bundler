@@ -1,9 +1,9 @@
 # Rod Browser Toolbox
-[see online](https://rodkisten.github.io/bundler)
+[see online](https://rod.migos.club/bundler/)
 
 [![📦 Publish browser bundle](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml/badge.svg)](https://github.com/rodkisten/bundler/actions/workflows/publish-browser-bundle.yml)
 
-Browser-first build system for the Rod ecosystem. The project emits one browser global per root entrypoint, plus ESM/IIFE builds, extracted examples, and a generated landing page.
+Vite-first build system for the Rod ecosystem. Vite 8/Rolldown produces the published JavaScript, Oxc handles production minification, and the same shared pipeline builds documentation plus every landing page under `rod.migos.club/bundler`.
 
 ## Packages
 
@@ -54,7 +54,9 @@ Cipo
  └── stylesheet compiler
 ```
 
-## Build outputs
+## Build system
+
+`scripts/build.ts` is intentionally a thin orchestrator. JavaScript production builds are owned by Vite and shared configuration in `scripts/vite/`, while focused modules in `scripts/build/` own browser bundles, package modules, documentation, landing pages, SEO discovery files and the manifest. See [`scripts/BUILD_ARCHITECTURE.md`](./scripts/BUILD_ARCHITECTURE.md).
 
 ```txt
 src/broto.ts              -> dist/broto.iife.js              -> window.Broto
@@ -64,7 +66,19 @@ src/cipo.ts               -> dist/cipo.iife.js               -> window.Cipo
 src/index.ts              -> dist/index.iife.js              -> window.Rod
 ```
 
-Every entry also gets `.iife.min.js`, `.esm.js`, `.esm.min.js`, source maps and build metadata when enabled.
+Every browser entry gets normal and minified IIFE output plus source maps. Publishable package JavaScript also goes through Vite/Rolldown in preserve-modules mode; TypeScript is limited to declaration emission.
+
+### Ecosystem pages
+
+- Docs: `https://rod.migos.club/bundler/`
+- Broto: `https://rod.migos.club/bundler/broto/`
+- Fábrica: `https://rod.migos.club/bundler/fabrica/`
+- Cipó: `https://rod.migos.club/bundler/cipo/`
+- Máquina: `https://rod.migos.club/bundler/maquina/`
+- DevTools: `https://rod.migos.club/bundler/devtools/`
+- Nascente: `https://rod.migos.club/bundler/nascente/`
+
+All pages share canonical metadata, Open Graph/Twitter cards, JSON-LD, cross-project navigation, Rod Kisten social links, `sitemap.xml` and `robots.txt`.
 
 ## Commands
 
@@ -568,7 +582,7 @@ The DevTools build now uses the compact Fábrica + Cipó production pipeline:
 - Cipó emits compact hash-only production classes and minified compiled CSS;
 - styled-component CSS is coupled to a PURE-annotated component expression in style-tag builds, allowing unused JavaScript and its CSS to be eliminated together;
 - private CSS custom-property mangling is available as an explicit opt-in without renaming public theme tokens;
-- the DevTools Vite build enables esbuild minification, source maps, module-side-effect pruning and property-read pruning.
+- the DevTools Vite build uses Oxc minification with Rolldown module-side-effect and property-read pruning, plus source maps.
 
 Readable component names remain available in development source and compilation manifests while production selectors stay compact.
 

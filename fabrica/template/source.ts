@@ -654,4 +654,3 @@ function findTagClose(source: string, start: number): number {
 
   return -1;
 }
-

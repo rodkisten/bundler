@@ -3,7 +3,12 @@ import { runtime } from '../../runtime'
 import type { CipoAstNode, CipoBlockNode, CipoDeclarationNode } from '../../types'
 import { classifyAtRule, isStylesheetAtRuleName } from '../at-rule-kinds'
 import { addImportant } from '../important'
+import { expandResponsiveDeclaration } from '../declaration'
 import { isCipoPseudoName } from '../pseudos'
+import {
+  normalizeContainerContext,
+  normalizeContainerQuery,
+} from '../container-query'
 import { applyConfiguredScopeToSelectors } from '../selector'
 import { formatStylesheetText } from './format'
 import {
@@ -39,7 +44,22 @@ function compileStylesheetNode(node: CipoAstNode, parentSelectors: readonly stri
 function compileStylesheetBlock(block: CipoBlockNode, parentSelectors: readonly string[], forceImportant: boolean): string {
   const name = block.name.trim()
   if (isStylesheetAtRuleName(name)) return compileStylesheetAtRule(block, parentSelectors, forceImportant)
-  if (name === 'reduce-motion') return wrapStylesheetRuntimeWrapper('@media (prefers-reduced-motion: reduce)', block, parentSelectors, forceImportant)
+  if (name === 'reduce-motion') {
+    return wrapStylesheetRuntimeWrapper(
+      '@media (prefers-reduced-motion: reduce)',
+      block,
+      parentSelectors,
+      forceImportant,
+    )
+  }
+  if (name === 'starting-style') {
+    return wrapStylesheetRuntimeWrapper(
+      '@starting-style',
+      block,
+      parentSelectors,
+      forceImportant,
+    )
+  }
 
   const supports = readRuntimeWrapperArgument(name, 'supports')
   if (supports !== undefined) {
@@ -127,7 +147,18 @@ function compileStylesheetRuntimeBlock(
         if (query) wrappers.push(`@media ${query}`)
         continue
       }
-      if (part.startsWith('cq(')) { wrappers.push(`@container ${part.slice(3, -1).trim()}`); continue }
+      if (part.startsWith('container(')) {
+        wrappers.push(
+          `@container ${normalizeContainerContext(part.slice(10, -1))}`,
+        )
+        continue
+      }
+      if (part.startsWith('cq(')) {
+        wrappers.push(
+          `@container ${normalizeContainerQuery(part.slice(3, -1).trim())}`,
+        )
+        continue
+      }
       if (part === 'dark') { selectors = prefixSelectors(runtime.config.darkSelector, selectors); continue }
       if (part === 'motion-safe') { wrappers.push('@media (prefers-reduced-motion: no-preference)'); continue }
       if (part === 'motion-reduce') { wrappers.push('@media (prefers-reduced-motion: reduce)'); continue }
@@ -192,9 +223,47 @@ function compileStylesheetRule(
   declarations: readonly CipoDeclarationNode[],
   forceImportant: boolean,
 ): string {
-  let body = ''
-  for (const declaration of declarations) body += compileDeclaration(declaration, forceImportant)
-  return `${joinSelectors(applyConfiguredScopeToSelectors(selectors))}{${body}}`
+  const groups = new Map<string, CipoDeclarationNode[]>()
+  groups.set('base', [])
+
+  for (const declaration of declarations) {
+    const responsive = expandResponsiveDeclaration(declaration)
+    if (!responsive) {
+      groups.get('base')!.push(declaration)
+      continue
+    }
+
+    for (const item of responsive) {
+      const list = groups.get(item.breakpoint) ?? []
+      list.push({
+        ...declaration,
+        value: item.value,
+        source: `${declaration.property}:${item.value}`,
+      })
+      groups.set(item.breakpoint, list)
+    }
+  }
+
+  const scopedSelectors = joinSelectors(
+    applyConfiguredScopeToSelectors(selectors),
+  )
+  let output = ''
+
+  for (const [breakpoint, items] of groups) {
+    if (items.length === 0) continue
+    let body = ''
+    for (const item of items) {
+      body += compileDeclaration(item, forceImportant)
+    }
+    const rule = `${scopedSelectors}{${body}}`
+    const query = breakpoint === 'base'
+      ? null
+      : runtime.config.breakpoints[breakpoint]
+    const chunk = query ? `@media ${query}{${rule}}` : rule
+    output += output ? `\n${chunk}` : chunk
+  }
+
+  return output
 }
 
 function compileDeclaration(

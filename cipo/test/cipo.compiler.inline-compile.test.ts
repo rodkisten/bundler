@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
 import { collectInlineCss, compileInlineCss } from '@rodkisten/cipo/compiler'
 import { parseStylesheet } from '../syntax/parser'
+import { normalizeDeclarationSpacing } from './css-test-utils'
 
 describe('Cipó compiler/inline-compile', () => {
   beforeEach(() => {
@@ -11,7 +12,8 @@ describe('Cipó compiler/inline-compile', () => {
 
   it('collects top-level inline declarations only', () => {
     const ast = parseStylesheet('color: red; .nested { color: blue }', [])
-    expect(collectInlineCss(ast)).toBe('color:red;')
+    expect(normalizeDeclarationSpacing(collectInlineCss(ast)))
+      .toBe('color:red;')
   })
 
   it('compiles inline template and style object inputs', () => {

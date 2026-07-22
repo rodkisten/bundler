@@ -104,7 +104,9 @@ function isRuntimeDeclarationProperty(value: string): boolean {
   if (property[0] === '#') property = property.slice(1).trim()
 
   if (property.startsWith('$$')) {
-    return /^[a-zA-Z_][\w.-]*$/.test(property.slice(2))
+    return /^[a-zA-Z_][\w.-]*(?:<[a-zA-Z][\w-]*>)?$/.test(
+      property.slice(2),
+    )
   }
 
   if (property.startsWith('--')) {

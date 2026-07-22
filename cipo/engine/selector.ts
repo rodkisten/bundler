@@ -25,6 +25,7 @@ export function wrapContext(rule: string, context: CipoRuleContext): string {
   if (context.supports) output = `@supports ${context.supports}{${output}}`
   if (context.container) output = `@container ${context.container}{${output}}`
   if (context.layer) output = `@layer ${context.layer}{${output}}`
+  if (context.startingStyle) output = `@starting-style{${output}}`
   return output
 }
 
@@ -82,5 +83,6 @@ export function createAtomicRuleId(
     context.supports ?? '',
     context.container ?? '',
     context.layer ?? '',
+    context.startingStyle ? 'starting-style' : '',
   ].join('|')
 }

@@ -1,6 +1,8 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const ROOT_DIR = process.cwd();
+const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
+export const ROOT_DIR = path.resolve(SCRIPTS_DIR, "..");
 /** @deprecated Prefer PACKAGE_DIRS — kept for gradual migration of collect helpers. */
 export const SRC_DIR = ROOT_DIR;
 export const DIST_DIR = path.join(ROOT_DIR, "dist");

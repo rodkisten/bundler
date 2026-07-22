@@ -12,7 +12,7 @@ export function createCodePageHtml(input: CodePageInput): string {
   return `<!doctype html>
 <html lang="en">
 <head>
-${createHead(`${input.title} · Rod ${label}`, "..")}
+${createHead(`${input.title} · Rod ${label}`, "..", { description: input.description, canonicalPath: input.href ? `/bundler/${input.href}` : "/bundler/" })}
 </head>
 <body data-page-kind="code" data-code-kind="${escapeHtml(input.kind)}" data-package="${escapeHtml(packageId)}">
   ${createBackdrop()}

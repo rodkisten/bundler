@@ -2,6 +2,11 @@ import type { CipoWarning } from '../types'
 import { splitTopLevel, toKebabMixed } from '../utils'
 import { createOklchUtilityColor } from './colors'
 import {
+  parseRuntimeStateCondition,
+  parseRuntimeStateValues,
+  renderRuntimeStateCondition,
+} from './state-selectors'
+import {
   findMatching,
   findTopLevelChar,
   isEscapedAt,
@@ -137,6 +142,22 @@ function renderRuntimeFeatureBlock(
   if (name === "slot") return renderSlotBlock(args, body, warnings);
   if (name === "variant") return renderVariantBlock(args, body, warnings);
   if (name === "compound") return renderCompoundBlock(args, body, warnings);
+  if (name === "container") {
+    return renderContainerDefinitionBlock(args, body);
+  }
+  if (name === "state") return renderStateBlock(args, body, warnings);
+  if (name === "group") return renderRelationBlock(
+    "group",
+    args,
+    body,
+    warnings,
+  );
+  if (name === "peer") return renderRelationBlock(
+    "peer",
+    args,
+    body,
+    warnings,
+  );
   return null;
 }
 
@@ -196,39 +217,61 @@ function renderVariantBlock(
   return output;
 }
 
+function renderContainerDefinitionBlock(
+  rawName: string,
+  body: string,
+): string | null {
+  const type = body.trim().replace(/;$/, '').trim();
+  if (type !== 'inline-size' && type !== 'size' && type !== 'normal') {
+    return null;
+  }
+  const name = toKebabMixed(
+    sanitizeRuntimeIdentifier(
+      rawName.trim().replace(/^["']|["']$/g, ''),
+    ),
+  );
+  if (!name) return null;
+  return `container-name: ${name}\ncontainer-type: ${type}`;
+}
+
 function renderCompoundBlock(
   rawArgs: string,
   body: string,
   warnings: CipoWarning[],
 ): string {
-  const parts = splitTopLevel(rawArgs, ",");
-  let attrSelector = "&";
-  let classSelector = "&";
-  let count = 0;
+  const groups: string[][] = [];
+  const classGroups: string[][] = [];
 
-  for (let index = 0; index < parts.length; index += 1) {
-    const part = (parts[index] || "").trim();
-    if (!part) continue;
+  for (const part of splitTopLevel(rawArgs, ",")) {
     const colon = findTopLevelChar(part, ":");
     if (colon <= 0) continue;
+
+    const rawKey = part.slice(0, colon).trim();
+    const rawValue = part.slice(colon + 1).trim();
+    const negate = rawKey.startsWith("!");
     const key = toKebabMixed(
-      sanitizeRuntimeIdentifier(part.slice(0, colon).trim()),
+      sanitizeRuntimeIdentifier(rawKey.replace(/^!/, "")),
     );
-    const value = toKebabMixed(
-      sanitizeRuntimeIdentifier(
-        part
-          .slice(colon + 1)
-          .trim()
-          .replace(/^['"]|['"]$/g, ""),
-      ),
+    if (!key) continue;
+
+    const values = parseRuntimeStateValues(rawValue);
+    if (values.length === 0) continue;
+
+    groups.push(
+      values.map((value) => {
+        const selector = `[data-${key}="${value}"]`;
+        return negate ? `:not(${selector})` : selector;
+      }),
     );
-    if (!key || !value) continue;
-    attrSelector += `[data-${key}="${value}"]`;
-    classSelector += `.${key}-${value}`;
-    count += 1;
+    classGroups.push(
+      values.map((value) => {
+        const selector = `.${key}-${value}`;
+        return negate ? `:not(${selector})` : selector;
+      }),
+    );
   }
 
-  if (count === 0) {
+  if (groups.length === 0) {
     warnings.push({
       code: "cipo-compound-empty",
       message: "Runtime compound() needs at least one key/value pair.",
@@ -236,7 +279,82 @@ function renderCompoundBlock(
     return body;
   }
 
-  return `${attrSelector}, ${classSelector}{${body}}`;
+  const selectors = [
+    ...expandSelectorProducts(groups, "&"),
+    ...expandSelectorProducts(classGroups, "&"),
+  ];
+  return `${selectors.join(", ")}{${body}}`;
+}
+
+function renderStateBlock(
+  rawArgs: string,
+  body: string,
+  warnings: CipoWarning[],
+): string {
+  const conditions = splitTopLevel(rawArgs, ",")
+    .map(parseRuntimeStateCondition)
+    .filter((value) => value !== null);
+
+  if (conditions.length === 0) {
+    warnings.push({
+      code: "cipo-state-empty",
+      message: "Runtime state() needs at least one state condition.",
+    });
+    return body;
+  }
+
+  const selector = conditions
+    .map(renderRuntimeStateCondition)
+    .join("");
+  return `&${selector}{${body}}`;
+}
+
+function renderRelationBlock(
+  kind: "group" | "peer",
+  rawArgs: string,
+  body: string,
+  warnings: CipoWarning[],
+): string {
+  const parts = splitTopLevel(rawArgs, ",");
+  const name = toKebabMixed(
+    sanitizeRuntimeIdentifier(
+      (parts.shift() || "").trim().replace(/^["']|["']$/g, ""),
+    ),
+  );
+
+  if (!name) {
+    warnings.push({
+      code: `cipo-${kind}-empty`,
+      message: `Runtime ${kind}() needs a relation name.`,
+    });
+    return body;
+  }
+
+  const conditions = parts
+    .map(parseRuntimeStateCondition)
+    .filter((value) => value !== null);
+  const relation = `[data-${kind}="${name}"]${conditions
+    .map(renderRuntimeStateCondition)
+    .join("")}`;
+  const combinator = kind === "group" ? " " : " ~ ";
+  return `${relation}${combinator}&{${body}}`;
+}
+
+function expandSelectorProducts(
+  groups: readonly string[][],
+  prefix: string,
+): string[] {
+  let selectors = [prefix];
+
+  for (const group of groups) {
+    const next: string[] = [];
+    for (const selector of selectors) {
+      for (const fragment of group) next.push(`${selector}${fragment}`);
+    }
+    selectors = next;
+  }
+
+  return selectors;
 }
 
 type RuntimeNamedBlock = { readonly name: string; readonly body: string };

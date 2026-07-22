@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { reset, setup } from '@rodkisten/cipo'
 import { compileAtomicCss, compileAtomicRule, createAtomicRule, joinClassNames } from '@rodkisten/cipo/compiler'
+import { normalizeDeclarationSpacing } from './css-test-utils'
 
 describe('Cipó compiler/atomic-compile', () => {
   beforeEach(() => {
@@ -14,7 +15,9 @@ describe('Cipó compiler/atomic-compile', () => {
     const second = createAtomicRule(declaration, { pseudo: ':hover' })
 
     expect(first).toBe(second)
-    expect(compileAtomicRule(first)).toContain(`.${first.className}:hover{color:red;}`)
+    expect(normalizeDeclarationSpacing(compileAtomicRule(first))).toContain(
+      `.${first.className}:hover{color:red;}`,
+    )
   })
 
   it('joins generated classes without duplicates', () => {
