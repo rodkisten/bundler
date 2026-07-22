@@ -45,11 +45,6 @@ export type {
 } from "./types.js";
 
 export { $ } from "./bag.js";
-export {
-  encodeLiteralDataAttributeName,
-  toDataAttributeKebabCase,
-  toDataAttributeName,
-} from "./data-attributes.js";
 export { css } from "./css.js";
 export {
   clearComponents,
@@ -67,33 +62,9 @@ export {
 } from "./component-registry.js";
 export { boundary } from "./boundary.js";
 export { onDispose, onError, onMount, onUnmount } from "./lifecycle.js";
-export type {
-  ContextProviderProps,
-  FabricaContext,
-  ReactiveFabricaContext,
-} from "./context.js";
-export {
-  createContextProvider,
-  createFabricaContext,
-  createReactiveContextProvider,
-  createReactiveFabricaContext,
-  createRequiredFabricaContext,
-  hasContext,
-  provide,
-  provideReactiveContext,
-  requireContext,
-  requireReactiveContext,
-  useContext,
-  useReactiveContext,
-  useRequiredContext,
-} from "./context.js";
-export {
-  clearDebugRecords,
-  debug,
-  debugRecords,
-  setDebug,
-  subscribeDebug,
-} from "./debug.js";
+export type { FabricaContext, ReactiveFabricaContext, ContextProviderProps } from "./context.js";
+export { createContextProvider, createFabricaContext, createReactiveContextProvider, createReactiveFabricaContext, createRequiredFabricaContext, hasContext, provide, provideReactiveContext, requireContext, requireReactiveContext, useContext, useReactiveContext, useRequiredContext } from "./context.js";
+export { clearDebugRecords, debug, debugRecords, setDebug, subscribeDebug } from "./debug.js";
 export {
   bind,
   childrenToArray,
@@ -122,20 +93,8 @@ export {
   render,
 } from "./render/dom.js";
 export { createEventHelper, event } from "./event-typing.js";
-export type {
-  FabricaEvent,
-  FabricaEventFor,
-  FabricaEventHandler,
-  FabricaEventHelper,
-  FabricaEventName,
-} from "./event-typing.js";
-export {
-  batch,
-  computed,
-  effect,
-  flushSync,
-  signal,
-} from "@rodkisten/broto/reactivity";
+export type { FabricaEvent, FabricaEventFor, FabricaEventHandler, FabricaEventHelper, FabricaEventName } from "./event-typing.js";
+export { batch, computed, effect, flushSync, signal } from "@rodkisten/broto/reactivity";
 export { defineElement, elements } from "./elements.js";
 export { rawHtml, sanitizedHtml, trustedHtml, unsafeHtml } from "./raw.js";
 import { createDefaultFabricaApi } from "./public-api.js";
