@@ -2,7 +2,8 @@ import { effect } from "@rodkisten/broto/reactivity";
 import { compileInlineCss } from "@rodkisten/cipo/runtime-inline";
 import { registerCleanup } from "../render/cleanup.js";
 import { hasReactiveValue, readValue } from "../core/value.js";
-import { toDataAttributeName } from "../data-attributes.js";
+
+const LITERAL_DATA_ATTRIBUTE_PREFIX = "__fabrica_literal_data__";
 
 export type SpecialAttributeState = {
   dataNames: Set<string>;
@@ -14,19 +15,10 @@ export function createSpecialAttributeState(): SpecialAttributeState {
 }
 
 export function isSpecialAttributeName(name: string): boolean {
-  return (
-    name === "$css" ||
-    name === "$style" ||
-    name.startsWith(":") ||
-    (name.startsWith("[") && name.endsWith("]"))
-  );
+  return name === "$css" || name === "$style" || name.startsWith(":") || (name.startsWith("[") && name.endsWith("]"));
 }
 
-export function bindSpecialAttribute(
-  element: Element,
-  name: string,
-  value: unknown,
-): boolean {
+export function bindSpecialAttribute(element: Element, name: string, value: unknown): boolean {
   if (!isSpecialAttributeName(name)) return false;
 
   const state = createSpecialAttributeState();
@@ -35,10 +27,7 @@ export function bindSpecialAttribute(
   };
   let dispose: (() => void) | null = null;
   if (hasDeepReactiveValue(value)) {
-    dispose = effect(update, {
-      name: `fabrica.specialAttribute.${name}`,
-      scheduler: "sync",
-    });
+    dispose = effect(update, { name: `fabrica.specialAttribute.${name}`, scheduler: "sync" });
   } else {
     update();
   }
@@ -90,22 +79,47 @@ export function normalizeStaticSpecialAttributes(root: ParentNode): void {
     const attributes = Array.from(element.attributes);
 
     for (const attribute of attributes) {
-      if (
-        !isSpecialAttributeName(attribute.name) ||
-        attribute.value.includes("__fabrica_attr_")
-      ) {
-        continue;
-      }
+      if (!isSpecialAttributeName(attribute.name) || attribute.value.includes("__fabrica_attr_")) continue;
       applySpecialAttribute(element, attribute.name, attribute.value);
       element.removeAttribute(attribute.name);
     }
   }
 }
 
-export {
-  encodeLiteralDataAttributeName,
-  toDataAttributeName,
-} from "../data-attributes.js";
+export function toDataAttributeName(name: string): string {
+  const decodedName = decodeLiteralDataAttributeName(name);
+  const withoutPrefix = decodedName.value.replace(/^data-?/, "");
+  return `data-${decodedName.literal ? withoutPrefix : toKebabCase(withoutPrefix)}`;
+}
+
+/** Encodes quoted data names into an HTML-parser-safe attribute name. */
+export function encodeLiteralDataAttributeName(name: string): string {
+  return `:${LITERAL_DATA_ATTRIBUTE_PREFIX}${Array.from(name, (char) => char.codePointAt(0)!.toString(16).padStart(6, "0")).join("")}`;
+}
+
+function decodeLiteralDataAttributeName(name: string): { literal: boolean; value: string } {
+  const unquoted = readQuotedDataAttributeName(name);
+  if (unquoted != null) return { literal: true, value: unquoted };
+
+  const encodedPrefix = LITERAL_DATA_ATTRIBUTE_PREFIX;
+  if (!name.startsWith(encodedPrefix)) return { literal: false, value: name };
+
+  const encoded = name.slice(encodedPrefix.length);
+  if (!encoded || encoded.length % 6 !== 0 || /[^0-9a-f]/i.test(encoded)) {
+    return { literal: true, value: encoded };
+  }
+
+  let value = "";
+  for (let index = 0; index < encoded.length; index += 6) {
+    value += String.fromCodePoint(Number.parseInt(encoded.slice(index, index + 6), 16));
+  }
+  return { literal: true, value };
+}
+
+function readQuotedDataAttributeName(name: string): string | null {
+  if (!name.startsWith('"') || !name.endsWith('"')) return null;
+  return name.slice(1, -1);
+}
 
 function applyCipoInlineStyle(element: Element, value: unknown): void {
   const style = getStyle(element);
@@ -123,43 +137,22 @@ function applyCipoInlineStyle(element: Element, value: unknown): void {
 function readInlineCssText(value: unknown): string {
   if (value && typeof value === "object") {
     const artifact = value as { cssText?: unknown; kind?: unknown };
-    if (
-      artifact.kind === "cipo.inline-css" &&
-      typeof artifact.cssText === "string"
-    ) {
-      return artifact.cssText;
-    }
-    return compileInlineCss(
-      resolveObject(value as Record<string, unknown>) as never,
-      [],
-      false,
-    ).cssText;
+    if (artifact.kind === "cipo.inline-css" && typeof artifact.cssText === "string") return artifact.cssText;
+    return compileInlineCss(resolveObject(value as Record<string, unknown>) as never, [], false).cssText;
   }
 
   const source = String(value ?? "");
-  const strings = Object.assign(
-    [source],
-    { raw: [source] },
-  ) as unknown as TemplateStringsArray;
+  const strings = Object.assign([source], { raw: [source] }) as unknown as TemplateStringsArray;
   return compileInlineCss(strings, [], false).cssText;
 }
 
-function applyDataAttribute(
-  element: Element,
-  rawName: string,
-  value: unknown,
-  state: SpecialAttributeState,
-): void {
+function applyDataAttribute(element: Element, rawName: string, value: unknown, state: SpecialAttributeState): void {
   if (rawName === "data") {
     const nextNames = new Set<string>();
     if (value && typeof value === "object") {
       const record = resolveObject(value as Record<string, unknown>);
       for (const key in record) {
-        const attributeName = toDataAttributeName(
-          key.startsWith(":")
-            ? `"${key.slice(1)}"`
-            : key,
-        );
+        const attributeName = toDataAttributeName(key.startsWith(":") ? `"${key.slice(1)}"` : key);
         nextNames.add(attributeName);
         setDataValue(element, attributeName, record[key]);
       }
@@ -182,18 +175,11 @@ function setDataValue(element: Element, name: string, value: unknown): void {
   else element.setAttribute(name, String(value));
 }
 
-function applyStyleProperty(
-  element: Element,
-  property: string,
-  value: unknown,
-  state: SpecialAttributeState,
-): void {
+function applyStyleProperty(element: Element, property: string, value: unknown, state: SpecialAttributeState): void {
   const style = getStyle(element);
   if (!style) return;
 
-  const propertyName = property.startsWith("--")
-    ? property
-    : toKebabCase(property);
+  const propertyName = property.startsWith("--") ? property : toKebabCase(property);
   state.styleNames.add(propertyName);
 
   if (value == null || value === false) style.removeProperty(propertyName);
@@ -216,19 +202,11 @@ function getStyle(element: Element): CSSStyleDeclaration | null {
 function readValueDeep(value: unknown): unknown {
   const resolved = readValue(value);
   if (Array.isArray(resolved)) return resolved.map(readValueDeep);
-  if (
-    !resolved ||
-    typeof resolved !== "object" ||
-    resolved.constructor !== Object
-  ) {
-    return resolved;
-  }
+  if (!resolved || typeof resolved !== "object" || resolved.constructor !== Object) return resolved;
   return resolveObject(resolved as Record<string, unknown>);
 }
 
-function resolveObject(
-  value: Record<string, unknown>,
-): Record<string, unknown> {
+function resolveObject(value: Record<string, unknown>): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const key in value) output[key] = readValueDeep(value[key]);
   return output;
@@ -238,9 +216,7 @@ function hasDeepReactiveValue(value: unknown): boolean {
   if (hasReactiveValue(value)) return true;
   if (!value || typeof value !== "object") return false;
   for (const key in value as Record<string, unknown>) {
-    if (hasDeepReactiveValue((value as Record<string, unknown>)[key])) {
-      return true;
-    }
+    if (hasDeepReactiveValue((value as Record<string, unknown>)[key])) return true;
   }
   return false;
 }
