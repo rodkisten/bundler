@@ -207,13 +207,16 @@
       <div class="footer-meta"><span>RodEruda Browser Laboratory</span><span>GMT-3 / Built for the unruly web</span></div>
     </footer>
   </main>
+
+  <script type="module" src="./devtools.landing.js"></script>
+  
 <script type="module">
   async function main() {
     const isLocalDevelopment = () => {
       return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     };
     
-    await import("./landing.ts");
+    await import("./devtools.landing.js");
   }
   try {
     await main();
