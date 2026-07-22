@@ -8,6 +8,10 @@ import { DIST_DIR, ROOT_DIR } from "./config";
 const PACKAGE_DIR = path.join(ROOT_DIR, "nascente");
 const OUTPUT_DIR = path.join(DIST_DIR, "nascente");
 
+export type BuildNascenteDocsOptions = {
+  readonly outputDirectory?: string;
+};
+
 export type NascenteApiItem = {
   name: string;
   kind: "function" | "class" | "type" | "const";
@@ -58,7 +62,7 @@ const CATEGORY_DEFINITIONS: readonly CategoryDefinition[] = [
   ]),
 ];
 
-export async function buildNascenteDocs(): Promise<void> {
+export async function buildNascenteDocs(options: BuildNascenteDocsOptions = {}): Promise<void> {
   const [sourceModules, readme, changelog] = await Promise.all([
     readNascenteSourceModules(),
     fs.readFile(path.join(PACKAGE_DIR, "README.md"), "utf8"),
@@ -68,8 +72,9 @@ export async function buildNascenteDocs(): Promise<void> {
   const api = extractNascenteApi(sourceModules.join("\n\n"));
   const html = createNascenteDocsHtml({ api, readme, changelog });
 
-  await fs.mkdir(OUTPUT_DIR, { recursive: true });
-  await fs.writeFile(path.join(OUTPUT_DIR, "index.html"), html);
+  const outputDirectory = options.outputDirectory ?? OUTPUT_DIR;
+  await fs.mkdir(outputDirectory, { recursive: true });
+  await fs.writeFile(path.join(outputDirectory, "index.html"), html);
 }
 
 
