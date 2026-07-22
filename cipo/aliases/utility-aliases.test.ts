@@ -44,7 +44,9 @@ describe('built-in utility aliases', () => {
         ).toBeGreaterThan(0)
       }
     })
-    it('automatically generates kebab-case aliases for camel-case names', () => {
+    it(
+      'automatically generates kebab-case aliases for camel-case names',
+      () => {
       const cases = [
         'flowRoot',
         'normalCase',
@@ -480,6 +482,22 @@ describe('built-in utility aliases', () => {
   })
   describe('sizing utilities', () => {
     it.each([
+      [
+        'minw-full',
+        'min-width:100%;',
+      ],
+      [
+        'min-w-full',
+        'min-width:100%;',
+      ],
+      [
+        'minh-full',
+        'min-height:100%;',
+      ],
+      [
+        'min-h-full',
+        'min-height:100%;',
+      ],
       [
         'w-auto',
         'width:auto;',
@@ -1211,7 +1229,9 @@ describe('built-in utility aliases', () => {
       'bento',
       'auto-grid',
     ] as const
-    it('derives every compatibility layout alias from the main registry', () => {
+    it(
+      'derives every compatibility layout alias from the main registry',
+      () => {
       for (
         const name of layoutNames
       ) {
@@ -1286,7 +1306,12 @@ describe('built-in utility aliases', () => {
           'interactive',
         )
       expect(css).toContain(
-        'transition:transform 160ms ease,background 160ms ease,border-color 160ms ease,box-shadow 160ms ease;',
+        [
+          'transition:transform 160ms ease,',
+          'background 160ms ease,',
+          'border-color 160ms ease,',
+          'box-shadow 160ms ease;',
+        ].join(''),
       )
       expect(css).toContain(
         'x:hover{transform:translateY(-1px);}',
@@ -1408,22 +1433,43 @@ describe('built-in utility aliases', () => {
       expect(resolveBuiltInUtilityAlias('min-h-0')).toBe('min-height:0;')
     })
     it('keeps rounded-full as the static 9999px compatibility value', () => {
-      expect(resolveBuiltInUtilityAlias('rounded-full')).toBe('border-radius:9999px;')
+      expect(resolveBuiltInUtilityAlias('rounded-full')).toBe(
+        'border-radius:9999px;',
+      )
     })
-    it('keeps font-smoothing compatibility utilities as explicit static built-ins', () => {
-      expect(resolveBuiltInUtilityAlias('antialiased')).toContain('-webkit-font-smoothing:antialiased;')
-      expect(resolveBuiltInUtilityAlias('subpixel-antialiased')).toContain('-webkit-font-smoothing:auto;')
+    it(
+      'keeps font-smoothing utilities as explicit static built-ins',
+      () => {
+      expect(resolveBuiltInUtilityAlias('antialiased')).toContain(
+        '-webkit-font-smoothing:antialiased;',
+      )
+      expect(resolveBuiltInUtilityAlias('subpixel-antialiased')).toContain(
+        '-webkit-font-smoothing:auto;',
+      )
     })
-    it('keeps gpu out of the static alias registry so the smart expander can compose transforms', () => {
+    it(
+      'keeps gpu out of static aliases so the smart expander can compose',
+      'transforms',
+      () => {
       expect(resolveBuiltInUtilityAlias('gpu')).toBeUndefined()
       expect(BUILT_IN_UTILITY_ALIASES.gpu).toBeUndefined()
     })
-    it('keeps dynamic and compositional utility families out of the static registry', () => {
-      for (const utility of ['p-4', 'bg-red-500', 'translate-x-2', 'blur-sm', 'rotate-45']) {
+    it(
+      'keeps dynamic utility families out of the static registry',
+      () => {
+      for (const utility of [
+        'p-4',
+        'bg-red-500',
+        'translate-x-2',
+        'blur-sm',
+        'rotate-45',
+      ]) {
         expect(resolveBuiltInUtilityAlias(utility)).toBeUndefined()
       }
     })
-    it('covers the representative static compatibility manifest without introducing empty entries', () => {
+    it(
+      'covers the static compatibility manifest without empty entries',
+      () => {
       const compatibilityManifest = [
         'hidden',
         'flex',
