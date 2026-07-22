@@ -1,12 +1,17 @@
 import { createDeepStore } from "@rodkisten/broto";
 import {
+  createRuntimeCompletionResult,
+  createScopeCompletionResult,
+  resolveCompletionResult,
+} from "@rodkisten/maquina/completion";
+import {
   applyDocumentTransaction,
   createDocumentSnapshot,
   replaceDocument,
 } from "@rodkisten/maquina/document";
 import { MaquinaHistory } from "@rodkisten/maquina/history";
 import { diffInputValue } from "@rodkisten/maquina/input";
-import { getVisibleLineRange } from "@rodkisten/maquina/viewport";
+import { computePopupPlacement } from "@rodkisten/maquina/popup";
 import {
   event,
   html,
@@ -25,18 +30,31 @@ import type {
   MaquinaThemeName,
   MaquinaTransaction,
 } from "@rodkisten/maquina/types";
+import {
+  getLineStarts,
+  getVisibleLineRange,
+} from "@rodkisten/maquina/viewport";
+import {
+  createVisualLines,
+  getLineNumberGutterWidth,
+} from "@rodkisten/maquina/visual";
 
 const MAX_COMPLETIONS = 100;
 const DEFAULT_TAB_SIZE = 2;
 const DEFAULT_FONT_SIZE = 16;
-const MIN_FONT_SCALE = 0.5;
-const MAX_FONT_SCALE = 2;
+const MIN_FONT_SIZE = 16;
+const MAX_FONT_SIZE = 32;
 const MIN_TAB_SIZE = 1;
 const MAX_TAB_SIZE = 16;
-const SUGGESTIONS_BLUR_DELAY_MS = 80;
-const MAX_RUNTIME_PROTOTYPE_DEPTH = 16;
+const SUGGESTIONS_BLUR_DELAY_MS = 100;
 const VIRTUALIZATION_MIN_LINES = 200;
 const VIRTUALIZATION_OVERSCAN = 12;
+const POPUP_VIEWPORT_MARGIN = 8;
+const POPUP_GAP = 6;
+const POPUP_MIN_WIDTH = 220;
+const POPUP_MAX_WIDTH = 440;
+
+let editorInstanceId = 0;
 
 interface EditorState extends Record<string, unknown> {
   value: string;
@@ -54,28 +72,25 @@ interface CaretMeasurement {
   readonly height: number;
 }
 
-interface CompletionResultLike {
+interface HighlightRange {
+  readonly fromLine: number;
+  readonly toLine: number;
   readonly from: number;
-  readonly options: readonly MaquinaCompletionItem[];
-}
-
-interface RuntimeCompletionResult extends CompletionResultLike {
-  readonly memberAccess: boolean;
+  readonly to: number;
+  readonly top: number;
 }
 
 type Dispose = () => void;
 
 /**
- * Mounts a Maquina editor into the provided parent.
- *
- * The editor shell, token highlights, suggestion items, refs, and event
- * handlers are all rendered through Fabrica. Direct DOM access is
- * intentionally limited to browser-specific mutable state such as textarea
- * selection and scrolling.
+ * Mounts a document-first code editor with native textarea input and a separate
+ * visual layer for syntax highlighting, line numbers, and completion UI.
  */
 export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const initialTheme = resolveMaquinaTheme(options.theme, options.dark);
-
+  const lineNumbers = options.lineNumbers !== false;
+  const instanceId = ++editorInstanceId;
+  const suggestionsId = `maquina-suggestions-${instanceId}`;
   const state = createDeepStore<EditorState>({
     value: options.value,
     language: (options.language ?? "text") as MaquinaLanguage,
@@ -87,16 +102,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   } satisfies EditorState);
 
   let rootRef: HTMLElement | null = null;
+  let viewportRef: HTMLElement | null = null;
   let textareaRef: HTMLTextAreaElement | null = null;
   let highlightRef: HTMLElement | null = null;
   let suggestionsRef: HTMLElement | null = null;
-
   let caretMirrorRef: HTMLDivElement | null = null;
   let caretMarkerRef: HTMLSpanElement | null = null;
-
   let disposeHighlightContent: Dispose | undefined;
   let disposeSuggestionsContent: Dispose | undefined;
-
   let blurTimer: number | undefined;
   let completionVersion = 0;
   let destroyed = false;
@@ -105,23 +118,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   let documentState = createDocumentSnapshot(options.value);
   const history = new MaquinaHistory();
 
-  /*
-   * Event handlers use function declarations intentionally. They can be safely
-   * referenced by the Fabrica template before the mounted refs are normalized
-   * into the non-null local constants below.
-   */
-
   function onInput(): void {
-    if (destroyed) return;
+    if (destroyed || !textareaRef) return;
 
-    const textarea = textareaRef;
-
-    if (!textarea) return;
-
-    const nextValue = textarea.value;
+    const nextValue = textareaRef.value;
     const selection = {
-      anchor: textarea.selectionStart,
-      head: textarea.selectionEnd,
+      anchor: textareaRef.selectionStart,
+      head: textareaRef.selectionEnd,
     };
     const diff = diffInputValue(
       documentState.value,
@@ -129,11 +132,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       selection,
     );
 
-    dispatchTransaction({
-      changes: diff.changes,
-      selection: diff.selection,
-      origin: "input",
-    }, true);
+    dispatchTransaction(
+      {
+        changes: diff.changes,
+        selection: diff.selection,
+        origin: "input",
+      },
+      true,
+    );
 
     if (options.activateCompletionOnTyping !== false) {
       void requestCompletions();
@@ -153,26 +159,28 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   }
 
   function onFocus(): void {
-    if (blurTimer !== undefined) {
-      window.clearTimeout(blurTimer);
-      blurTimer = undefined;
-    }
-
+    clearBlurTimer();
     options.onFocus?.();
   }
 
-  function onBlur(): void {
-    if (blurTimer !== undefined) {
-      window.clearTimeout(blurTimer);
+  function onBlur(blurEvent: FocusEvent): void {
+    clearBlurTimer();
+
+    const nextTarget = blurEvent.relatedTarget;
+
+    if (
+      nextTarget instanceof Node &&
+      suggestionsRef?.contains(nextTarget)
+    ) {
+      return;
     }
 
-    /*
-     * Pointer selection starts by blurring the textarea. Delaying the close
-     * gives a suggestion's pointerdown handler time to apply the completion.
-     */
     blurTimer = window.setTimeout(() => {
       blurTimer = undefined;
-      closeSuggestions();
+
+      if (!textareaRef?.matches(":focus")) {
+        closeSuggestions();
+      }
     }, SUGGESTIONS_BLUR_DELAY_MS);
 
     options.onBlur?.();
@@ -181,30 +189,32 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   function onSelectionChange(): void {
     if (destroyed || !textareaRef) return;
 
-    dispatchTransaction({
-      selection: {
-        anchor: textareaRef.selectionStart,
-        head: textareaRef.selectionEnd,
+    dispatchTransaction(
+      {
+        selection: {
+          anchor: textareaRef.selectionStart,
+          head: textareaRef.selectionEnd,
+        },
+        origin: "input",
+        addToHistory: false,
       },
-      origin: "input",
-      addToHistory: false,
-    }, true);
+      true,
+    );
   }
 
   function onClick(): void {
-    if (options.activateCompletionOnTyping === false) return;
+    onSelectionChange();
 
-    void requestCompletions();
+    if (options.activateCompletionOnTyping !== false) {
+      void requestCompletions();
+    }
   }
 
   function onKeyUp(keyboardEvent: KeyboardEvent): void {
+    onSelectionChange();
+
     if (options.activateCompletionOnTyping === false) return;
 
-    /*
-     * Regular typing is already handled by the input event. Only request again
-     * when the keyboard changed the cursor without changing the textarea value.
-     * This avoids issuing two completion requests for every typed character.
-     */
     switch (keyboardEvent.key) {
       case "ArrowLeft":
       case "ArrowRight":
@@ -227,8 +237,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       if (
         items.length > 0 &&
-        (keyboardEvent.key === "ArrowDown" ||
-          keyboardEvent.key === "ArrowUp")
+        (
+          keyboardEvent.key === "ArrowDown" ||
+          keyboardEvent.key === "ArrowUp"
+        )
       ) {
         keyboardEvent.preventDefault();
 
@@ -237,14 +249,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         const next = (current + delta + items.length) % items.length;
 
         state.activeSuggestion.set(next);
-        renderSuggestions();
+        syncActiveSuggestion();
         return;
       }
 
       if (
         items.length > 0 &&
-        (keyboardEvent.key === "Tab" ||
-          keyboardEvent.key === "Enter")
+        (
+          keyboardEvent.key === "Tab" ||
+          keyboardEvent.key === "Enter"
+        )
       ) {
         keyboardEvent.preventDefault();
         applySuggestion(state.activeSuggestion.peek());
@@ -312,7 +326,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           MAX_TAB_SIZE,
         ),
       );
-
       const textarea = textareaRef;
 
       if (!textarea) return;
@@ -339,8 +352,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           rootRef = node;
         })}
         data-theme=${initialTheme.name}
+        data-line-numbers=${String(lineNumbers)}
       >
-        <MaquinaViewport>
+        <MaquinaViewport
+          ref=${ref<HTMLElement>((node) => {
+            viewportRef = node;
+          })}
+        >
           <MaquinaHighlight
             aria-hidden="true"
             ref=${ref<HTMLElement>((node) => {
@@ -355,6 +373,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             .value=${options.value}
             .placeholder=${options.placeholder ?? ""}
             aria-label=${options.ariaLabel ?? "Code editor"}
+            aria-autocomplete="list"
+            aria-controls=${suggestionsId}
+            aria-expanded="false"
+            role="combobox"
             .spellcheck="false"
             .autocapitalize="off"
             .autocomplete="off"
@@ -375,9 +397,12 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             @focus=${event.focus(onFocus)}
             @blur=${event.blur(onBlur)}
           />
+
           <MaquinaSuggestions
+            id=${suggestionsId}
             hidden
             role="listbox"
+            aria-label="Code completions"
             ref=${ref<HTMLElement>((node) => {
               suggestionsRef = node;
             })}
@@ -387,19 +412,15 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     `,
   );
 
-  /*
-   * Normalize callback refs once after the synchronous Fabrica mount.
-   *
-   * Keeping these as stable non-null references makes every hot-path function
-   * simpler and avoids repeated optional checks after successful mounting.
-   */
   const editorRoot = rootRef as HTMLElement | null;
+  const editorViewport = viewportRef as HTMLElement | null;
   const editorTextarea = textareaRef as HTMLTextAreaElement | null;
   const editorHighlight = highlightRef as HTMLElement | null;
   const editorSuggestions = suggestionsRef as HTMLElement | null;
 
   if (
     !editorRoot ||
+    !editorViewport ||
     !editorTextarea ||
     !editorHighlight ||
     !editorSuggestions
@@ -408,15 +429,53 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     throw new Error("[Maquina] Editor failed to mount");
   }
 
-  /*
-   * Callback refs are guaranteed by the synchronous Fabrica mount above.
-   * Copy the narrowed values into immutable aliases so nested hot-path
-   * closures retain their non-null types without repeated runtime guards.
-   */
   const mountedRoot = editorRoot;
+  const mountedViewport = editorViewport;
   const mountedTextarea = editorTextarea;
   const mountedHighlight = editorHighlight;
   const mountedSuggestions = editorSuggestions;
+  const ownerWindow =
+    mountedTextarea.ownerDocument.defaultView ?? window;
+  const visualViewport = ownerWindow.visualViewport;
+
+  function onViewportGeometryChange(): void {
+    if (!destroyed && state.open.peek()) {
+      positionSuggestions();
+    }
+  }
+
+  const resizeObserver =
+    typeof ownerWindow.ResizeObserver === "function"
+      ? new ownerWindow.ResizeObserver(onViewportGeometryChange)
+      : null;
+
+  resizeObserver?.observe(mountedViewport);
+  ownerWindow.addEventListener("resize", onViewportGeometryChange, {
+    passive: true,
+  });
+  visualViewport?.addEventListener("resize", onViewportGeometryChange, {
+    passive: true,
+  });
+  visualViewport?.addEventListener("scroll", onViewportGeometryChange, {
+    passive: true,
+  });
+
+  mountedTextarea.value = options.value;
+  mountedTextarea.setSelectionRange(
+    options.value.length,
+    options.value.length,
+  );
+
+  applyTheme(mountedRoot, initialTheme.name);
+  applyEditorMetrics(
+    mountedRoot,
+    mountedTextarea,
+    mountedHighlight,
+    options,
+  );
+  updateGutterMetrics();
+  renderHighlight();
+  syncScroll();
 
   function syncInputFromDocument(): void {
     if (mountedTextarea.value !== documentState.value) {
@@ -424,6 +483,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     }
 
     const selection = documentState.selection;
+
     mountedTextarea.setSelectionRange(
       selection.anchor,
       selection.head,
@@ -465,6 +525,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     if (valueChanged) {
       options.onChange?.(documentState.value);
+      updateGutterMetrics();
       renderHighlight();
       syncScroll();
     }
@@ -490,32 +551,22 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     return true;
   }
 
-  /*
-   * Explicitly mirror the initial value because consumers may query getValue()
-   * immediately after mounting, before any browser painting occurs.
-   */
-  mountedTextarea.value = options.value;
-  mountedTextarea.setSelectionRange(
-    options.value.length,
-    options.value.length,
-  );
+  function updateGutterMetrics(): void {
+    const lineCount = getLineStarts(documentState.value).length;
+    const gutterWidth = getLineNumberGutterWidth(
+      lineCount,
+      lineNumbers,
+    );
 
-  applyTheme(mountedRoot, initialTheme.name);
-  applyEditorMetrics(
-    mountedRoot,
-    mountedTextarea,
-    mountedHighlight,
-    options,
-  );
-
-  renderHighlight();
-  syncScroll();
+    mountedRoot.style.setProperty(
+      "--maq-gutter-width",
+      gutterWidth,
+    );
+  }
 
   /**
-   * Re-renders syntax highlighting through Fabrica.
-   *
-   * The previous Fabrica subtree is disposed before mounting the next one,
-   * preventing retained bindings when the editor updates frequently.
+   * Re-renders highlighted logical rows. Line-number cells share each row's
+   * height, so wrapped lines cannot drift away from their corresponding code.
    */
   function renderHighlight(): void {
     if (destroyed) return;
@@ -523,68 +574,98 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const value = state.value.peek();
     const language = state.language.peek();
     const range = getHighlightRange(value);
-    const rangeKey =
-      `${documentState.version}:${language}:${range.from}:${range.to}`;
+    const rangeKey = [
+      documentState.version,
+      language,
+      range.from,
+      range.to,
+      lineNumbers,
+    ].join(":");
 
-    if (rangeKey === renderedHighlightRange) {
-      return;
-    }
+    if (rangeKey === renderedHighlightRange) return;
 
     renderedHighlightRange = rangeKey;
     renderedHighlightTop = range.top;
 
     const visibleValue = value.slice(range.from, range.to);
     const tokens = tokenizeMaquina(visibleValue, language);
+    const expectedLines = Math.max(1, range.toLine - range.fromLine);
+    const visualLines = createVisualLines(tokens, range.fromLine).slice(
+      0,
+      expectedLines,
+    );
 
     disposeHighlightContent?.();
     disposeHighlightContent = undefined;
-
     mountedHighlight.replaceChildren();
 
     disposeHighlightContent = maquinaFabrica.render(
       mountedHighlight,
       html`
-        ${tokens.map(
-          (token) => html`
-            <span :token=${token.kind}>${token.value}</span>
+        ${visualLines.map(
+          (line) => html`
+            <MaquinaLine data-maquina-line=${String(line.number)}>
+              ${lineNumbers
+                ? html`
+                    <MaquinaLineNumber
+                      data-maquina-line-number=${String(line.number)}
+                    >${String(line.number)}</MaquinaLineNumber>
+                  `
+                : ""}
+              <MaquinaCodeClip>
+                <MaquinaLineCode
+                  data-maquina-line-code=${String(line.number)}
+                >${line.tokens.length > 0
+                    ? line.tokens.map(
+                        (token) =>
+                          html`
+                            <span :token=${token.kind}>
+                              ${token.value}
+                            </span>
+                          `,
+                      )
+                    : "\u200b"}</MaquinaLineCode>
+              </MaquinaCodeClip>
+            </MaquinaLine>
           `,
         )}
-        ${visibleValue.endsWith("\n") ? "\n" : ""}
       `,
     );
   }
 
   function shouldVirtualizeHighlight(): boolean {
-    if (options.lineWrapping !== false) {
-      return false;
-    }
+    if (options.lineWrapping !== false) return false;
 
-    const value = documentState.value;
     let lines = 1;
+    const value = documentState.value;
 
     for (let index = 0; index < value.length; index += 1) {
-      if (value.charCodeAt(index) === 10) {
-        lines += 1;
+      if (value.charCodeAt(index) !== 10) continue;
 
-        if (lines >= VIRTUALIZATION_MIN_LINES) {
-          return true;
-        }
+      lines += 1;
+
+      if (lines >= VIRTUALIZATION_MIN_LINES) {
+        return true;
       }
     }
 
     return false;
   }
 
-  function getHighlightRange(value: string) {
+  function getHighlightRange(value: string): HighlightRange {
+    const lineCount = getLineStarts(value).length;
+
     if (!shouldVirtualizeHighlight()) {
       return {
+        fromLine: 0,
+        toLine: lineCount,
         from: 0,
         to: value.length,
         top: 0,
       };
     }
 
-    const style = getComputedStyle(mountedTextarea);
+    const style = ownerWindow.getComputedStyle(mountedTextarea);
     const parsed = Number.parseFloat(style.lineHeight);
     const lineHeight = Number.isFinite(parsed)
       ? parsed
@@ -600,23 +681,24 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   }
 
   /**
-   * Keeps the visual highlight layer aligned with the native textarea.
-   *
-   * The textarea remains the source of truth for scrolling while the highlight
-   * layer is translated instead of independently scrolling.
+   * Keeps vertical scrolling shared by the full visual layer while horizontal
+   * scrolling moves code cells only, leaving the line-number gutter anchored.
    */
   function syncScroll(): void {
     if (destroyed) return;
 
     mountedHighlight.style.transform =
-      `translate(${-mountedTextarea.scrollLeft}px, ` +
-      `${renderedHighlightTop - mountedTextarea.scrollTop}px)`;
+      `translateY(${renderedHighlightTop - mountedTextarea.scrollTop}px)`;
+    mountedRoot.style.setProperty(
+      "--maq-scroll-x",
+      `${-mountedTextarea.scrollLeft}px`,
+    );
+
+    if (state.open.peek()) {
+      positionSuggestions();
+    }
   }
 
-  /**
-   * Closes completion UI and optionally invalidates pending asynchronous
-   * completion requests.
-   */
   function closeSuggestions(invalidatePending = true): void {
     if (invalidatePending) {
       completionVersion += 1;
@@ -641,17 +723,15 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     disposeSuggestionsContent?.();
     disposeSuggestionsContent = undefined;
-
     mountedSuggestions.replaceChildren();
     mountedSuggestions.hidden = true;
+    mountedTextarea.setAttribute("aria-expanded", "false");
+    mountedTextarea.removeAttribute("aria-activedescendant");
   }
 
   /**
-   * Renders the completion popup through Fabrica.
-   *
-   * Pointer handlers live inside the template so their lifecycle is tied to
-   * the rendered suggestion subtree rather than manually managed DOM
-   * listeners.
+   * Renders a semantic listbox. Options deliberately keep focus on the native
+   * textarea, which preserves the software keyboard and native caret on touch.
    */
   function renderSuggestions(): void {
     if (destroyed) return;
@@ -659,349 +739,253 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     const items = state.suggestions.peek();
 
     if (!state.open.peek() || items.length === 0) {
-      mountedSuggestions.hidden = true;
+      closeSuggestions(false);
       return;
     }
 
-    const activeSuggestion = state.activeSuggestion.peek();
-
     disposeSuggestionsContent?.();
     disposeSuggestionsContent = undefined;
-
     mountedSuggestions.replaceChildren();
 
     disposeSuggestionsContent = maquinaFabrica.render(
       mountedSuggestions,
       html`
-        ${items.map((item, index) => {
-          const active = index === activeSuggestion;
-
-          return html`
-            <button
-              type="button"
+        ${items.map(
+          (item, index) => html`
+            <MaquinaSuggestion
+              id=${getSuggestionId(index)}
               role="option"
-              :active=${active}
-              aria-selected=${String(active)}
-              @pointerdown=${event.pointerdown((pointerEvent) => {
-                /*
-                 * Prevent textarea blur from winning the race against applying
-                 * the selected completion.
-                 */
-                pointerEvent.preventDefault();
+              aria-selected="false"
+              data-active="false"
+              data-maquina-suggestion-index=${String(index)}
+              @pointerdown=${event.pointerdown(() => {
+                state.activeSuggestion.set(index);
+                syncActiveSuggestion();
+              })}
+              @click=${event.click(() => {
                 applySuggestion(index);
               })}
             >
               <span>${item.label}</span>
-              <small>${item.detail || item.type || ""}</small>
-            </button>
-          `;
-        })}
+              <small>${formatSuggestionDetail(item)}</small>
+            </MaquinaSuggestion>
+          `,
+        )}
       `,
     );
 
     mountedSuggestions.hidden = false;
-
+    mountedTextarea.setAttribute("aria-expanded", "true");
+    syncActiveSuggestion();
     positionSuggestions();
   }
 
-  /**
-   * Positions the completion popup beside the real native textarea caret.
-   *
-   * A hidden layout mirror is used instead of estimating column width. This
-   * stays accurate with tabs, wrapping, custom fonts, letter spacing, zoom,
-   * scrolling, and other text metrics that invalidate character-based math.
-   */
-  function positionSuggestions(): void {
-    if (
-      destroyed ||
-      mountedSuggestions.hidden
-    ) {
+  function syncActiveSuggestion(): void {
+    if (destroyed || !state.open.peek()) return;
+
+    const activeIndex = state.activeSuggestion.peek();
+    const optionsNodes = mountedSuggestions.querySelectorAll<HTMLElement>(
+      "[data-maquina-suggestion-index]",
+    );
+    let activeNode: HTMLElement | null = null;
+
+    for (const node of optionsNodes) {
+      const index = Number(node.dataset.maquinaSuggestionIndex);
+      const active = index === activeIndex;
+
+      node.dataset.active = String(active);
+      node.setAttribute("aria-selected", String(active));
+
+      if (active) activeNode = node;
+    }
+
+    if (!activeNode) return;
+
+    mountedTextarea.setAttribute(
+      "aria-activedescendant",
+      activeNode.id,
+    );
+    ensureSuggestionVisible(activeNode);
+  }
+
+  function ensureSuggestionVisible(activeNode: HTMLElement): void {
+    const top = activeNode.offsetTop;
+    const bottom = top + activeNode.offsetHeight;
+    const visibleTop = mountedSuggestions.scrollTop;
+    const visibleBottom = visibleTop + mountedSuggestions.clientHeight;
+
+    if (top < visibleTop) {
+      mountedSuggestions.scrollTop = top;
       return;
     }
 
-    const measurement = measureCaretPosition();
-
-    const offsetParent =
-      mountedSuggestions.offsetParent as HTMLElement | null;
-
-    const container =
-      offsetParent ??
-      mountedRoot;
-
-    const popupWidth =
-      mountedSuggestions.offsetWidth ||
-      230;
-
-    const popupHeight =
-      mountedSuggestions.offsetHeight ||
-      180;
-
-    const maxLeft = Math.max(
-      8,
-      container.clientWidth -
-        popupWidth -
-        8,
-    );
-
-    const maxTop = Math.max(
-      8,
-      container.clientHeight -
-        popupHeight -
-        8,
-    );
-
-    const desiredLeft =
-      measurement.left;
-
-    const desiredTop =
-      measurement.top +
-      measurement.height +
-      4;
-
-    mountedSuggestions.style.left =
-      `${clamp(
-        desiredLeft,
-        8,
-        maxLeft,
-      )}px`;
-
-    mountedSuggestions.style.top =
-      `${clamp(
-        desiredTop,
-        8,
-        maxTop,
-      )}px`;
+    if (bottom > visibleBottom) {
+      mountedSuggestions.scrollTop = bottom - mountedSuggestions.clientHeight;
+    }
   }
 
   /**
-   * Measures the actual textarea caret position using a hidden text mirror.
+   * Positions the listbox inside both the editor and the mobile visual
+   * viewport. It flips above the caret when the keyboard leaves more room
+   * there.
+   */
+  function positionSuggestions(): void {
+    if (destroyed || mountedSuggestions.hidden) return;
+
+    const measurement = measureCaretPosition();
+    const bounds = getVisiblePopupBounds(
+      mountedViewport,
+      ownerWindow,
+    );
+    const preferredWidth = Math.max(
+      POPUP_MIN_WIDTH,
+      mountedSuggestions.scrollWidth || mountedSuggestions.offsetWidth || 280,
+    );
+    const preferredHeight = Math.max(
+      1,
+      mountedSuggestions.scrollHeight || mountedSuggestions.offsetHeight || 220,
+    );
+    const placement = computePopupPlacement({
+      anchor: measurement,
+      bounds,
+      preferredWidth,
+      preferredHeight,
+      minWidth: POPUP_MIN_WIDTH,
+      maxWidth: POPUP_MAX_WIDTH,
+      gap: POPUP_GAP,
+    });
+
+    mountedSuggestions.style.left = `${placement.left}px`;
+    mountedSuggestions.style.top = `${placement.top}px`;
+    mountedSuggestions.style.width = `${placement.width}px`;
+    mountedSuggestions.style.maxHeight = `${placement.maxHeight}px`;
+    mountedSuggestions.dataset.side = placement.side;
+  }
+
+  /**
+   * Measures the caret with a hidden textarea-layout mirror that copies the
+   * input's real width, padding, font, wrapping, and gutter-aware text origin.
    */
   function measureCaretPosition(): CaretMeasurement {
-    const textarea =
-      mountedTextarea;
-
-    const documentRef =
-      textarea.ownerDocument;
-
-    let mirror =
-      caretMirrorRef;
-
-    let marker =
-      caretMarkerRef;
+    const documentRef = mountedTextarea.ownerDocument;
+    let mirror = caretMirrorRef;
+    let marker = caretMarkerRef;
 
     if (!mirror) {
-      mirror =
-        documentRef.createElement("div");
-
-      mirror.setAttribute(
-        "aria-hidden",
-        "true",
-      );
-
+      mirror = documentRef.createElement("div");
+      mirror.setAttribute("aria-hidden", "true");
       mirror.style.position = "absolute";
       mirror.style.left = "-100000px";
       mirror.style.top = "0";
       mirror.style.visibility = "hidden";
       mirror.style.pointerEvents = "none";
       mirror.style.overflow = "hidden";
-
-      mountedRoot.append(mirror);
-
+      mirror.style.height = "auto";
+      mirror.style.minHeight = "0";
+      mountedViewport.append(mirror);
       caretMirrorRef = mirror;
     }
 
     if (!marker) {
-      marker =
-        documentRef.createElement("span");
-
-      marker.style.display =
-        "inline-block";
-
+      marker = documentRef.createElement("span");
+      marker.style.display = "inline-block";
       marker.style.width = "0";
       marker.style.padding = "0";
       marker.style.margin = "0";
       marker.style.border = "0";
       marker.style.overflow = "hidden";
-
       caretMarkerRef = marker;
     }
 
-    const view =
-      documentRef.defaultView ??
-      window;
+    const computedStyle = ownerWindow.getComputedStyle(mountedTextarea);
 
-    const computedStyle =
-      view.getComputedStyle(textarea);
+    copyTextareaMetrics(mirror, computedStyle);
 
-    copyTextareaMetrics(
-      mirror,
-      computedStyle,
+    const beforeCursor = mountedTextarea.value.slice(
+      0,
+      mountedTextarea.selectionStart,
     );
 
-    const beforeCursor =
-      textarea.value.slice(
-        0,
-        textarea.selectionStart,
-      );
-
-    /*
-     * The zero-width marker stays measurable after a trailing newline without
-     * adding visible layout width to the mirrored content.
-     */
     marker.textContent = "\u200b";
-
     mirror.replaceChildren(
-      documentRef.createTextNode(
-        beforeCursor,
-      ),
+      documentRef.createTextNode(beforeCursor),
       marker,
     );
 
-    const offsetParent =
-      mountedSuggestions.offsetParent as HTMLElement | null;
-
-    const container =
-      offsetParent ??
-      mountedRoot;
-
-    const textareaOffset =
-      getOffsetWithin(
-        textarea,
-        container,
-      );
-
-    const parsedLineHeight =
-      Number.parseFloat(
-        computedStyle.lineHeight,
-      );
-
-    const parsedFontSize =
-      Number.parseFloat(
-        computedStyle.fontSize,
-      );
-
-    const fontSize =
-      Number.isFinite(parsedFontSize)
-        ? parsedFontSize
-        : DEFAULT_FONT_SIZE;
-
-    const lineHeight =
-      Number.isFinite(parsedLineHeight)
-        ? parsedLineHeight
-        : fontSize * 1.55;
+    const textareaOffset = getOffsetWithin(
+      mountedTextarea,
+      mountedViewport,
+    );
+    const parsedLineHeight = Number.parseFloat(computedStyle.lineHeight);
+    const parsedFontSize = Number.parseFloat(computedStyle.fontSize);
+    const fontSize = Number.isFinite(parsedFontSize)
+      ? parsedFontSize
+      : DEFAULT_FONT_SIZE;
+    const lineHeight = Number.isFinite(parsedLineHeight)
+      ? parsedLineHeight
+      : fontSize * 1.55;
 
     return {
       left:
         textareaOffset.left +
         marker.offsetLeft -
-        textarea.scrollLeft,
-
+        mountedTextarea.scrollLeft,
       top:
         textareaOffset.top +
         marker.offsetTop -
-        textarea.scrollTop,
-
+        mountedTextarea.scrollTop,
       height: lineHeight,
     };
   }
 
   /**
-   * Requests provider and browser-runtime completions.
-   *
-   * Older asynchronous requests are ignored instead of overwriting a newer
-   * result. Runtime completion is available even when no external provider is
-   * configured.
+   * Requests external, lexical-scope, and browser-runtime completions.
    */
   async function requestCompletions(): Promise<void> {
-    if (
-      destroyed ||
-      options.readOnly
-    ) {
+    if (destroyed || options.readOnly) return;
+
+    const language = state.language.peek();
+    const supportsJavaScript = supportsRuntimeCompletions(language);
+
+    if (!options.completions && !supportsJavaScript) {
+      closeSuggestions();
       return;
     }
 
-    const language =
-      state.language.peek();
-
-    const supportsRuntime =
-      supportsRuntimeCompletions(
-        language,
-      );
-
-    if (
-      !options.completions &&
-      !supportsRuntime
-    ) {
-      return;
-    }
-
-    const version =
-      ++completionVersion;
-
-    const cursor =
-      mountedTextarea.selectionStart;
-
-    const value =
-      mountedTextarea.value;
-
-    const context =
-      createCompletionContext(
-        value,
-        cursor,
-      );
+    const version = ++completionVersion;
+    const cursor = mountedTextarea.selectionStart;
+    const value = mountedTextarea.value;
+    const context = createCompletionContext(value, cursor);
 
     try {
-      const externalResult =
-        options.completions
-          ? await options.completions(
-              context,
-            )
-          : null;
+      const externalResult = options.completions
+        ? await options.completions(context)
+        : null;
 
-      if (
-        destroyed ||
-        version !== completionVersion
-      ) {
-        return;
-      }
+      if (destroyed || version !== completionVersion) return;
 
-      const runtimeRoot =
-        mountedTextarea.ownerDocument.defaultView ??
-        window;
-
-      const runtimeResult =
-        supportsRuntime
-          ? createRuntimeCompletionResult(
-              value,
-              cursor,
-              runtimeRoot,
-            )
-          : null;
-
-      const result =
-        resolveCompletionResult(
-          externalResult,
-          runtimeResult,
-        );
+      const scopeResult = supportsJavaScript
+        ? createScopeCompletionResult(value, cursor)
+        : null;
+      const runtimeResult = supportsJavaScript
+        ? createRuntimeCompletionResult(value, cursor, ownerWindow)
+        : null;
+      const result = resolveCompletionResult(
+        externalResult,
+        scopeResult,
+        runtimeResult,
+      );
 
       if (!result?.options.length) {
         closeSuggestions(false);
         return;
       }
 
-      const suggestionFrom = clamp(
-        result.from,
-        0,
-        cursor,
-      );
+      const suggestionFrom = clamp(result.from, 0, cursor);
 
       state.patch(
         {
-          suggestions:
-            result.options.slice(
-              0,
-              MAX_COMPLETIONS,
-            ),
+          suggestions: result.options.slice(0, MAX_COMPLETIONS),
           suggestionFrom,
           activeSuggestion: 0,
           open: true,
@@ -1013,30 +997,16 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       renderSuggestions();
     } catch {
-      /*
-       * Completion providers are optional extensions. A provider failure
-       * should not break editing or surface an unhandled promise rejection.
-       */
-      if (
-        !destroyed &&
-        version === completionVersion
-      ) {
+      if (!destroyed && version === completionVersion) {
         closeSuggestions(false);
       }
     }
   }
 
-  /**
-   * Applies the selected completion through the native textarea API.
-   *
-   * setRangeText preserves browser-native selection semantics while avoiding
-   * manual string slicing and cursor calculations.
-   */
   function applySuggestion(index: number): void {
     if (destroyed) return;
 
-    const item =
-      state.suggestions.peek()[index];
+    const item = state.suggestions.peek()[index];
 
     if (!item) return;
 
@@ -1045,13 +1015,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       0,
       mountedTextarea.selectionStart,
     );
-
-    const to =
-      mountedTextarea.selectionStart;
-
-    const insert =
-      item.apply ??
-      item.label;
+    const to = mountedTextarea.selectionStart;
+    const insert = item.apply ?? item.label;
 
     dispatchTransaction({
       changes: [{ from, to, insert }],
@@ -1063,7 +1028,18 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     });
 
     closeSuggestions();
-    mountedTextarea.focus();
+    mountedTextarea.focus({ preventScroll: true });
+  }
+
+  function getSuggestionId(index: number): string {
+    return `${suggestionsId}-option-${index}`;
+  }
+
+  function clearBlurTimer(): void {
+    if (blurTimer === undefined) return;
+
+    ownerWindow.clearTimeout(blurTimer);
+    blurTimer = undefined;
   }
 
   return {
@@ -1072,12 +1048,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     },
 
     setValue(value: string): void {
-      if (
-        destroyed ||
-        mountedTextarea.value === value
-      ) {
-        return;
-      }
+      if (destroyed || documentState.value === value) return;
 
       completionVersion += 1;
 
@@ -1092,7 +1063,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       state.value.set(value);
       history.clear();
       syncInputFromDocument();
-
+      updateGutterMetrics();
       closeSuggestions(false);
       renderHighlight();
       syncScroll();
@@ -1100,7 +1071,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     focus(): void {
       if (!destroyed) {
-        mountedTextarea.focus();
+        mountedTextarea.focus({ preventScroll: true });
       }
     },
 
@@ -1110,40 +1081,22 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       }
     },
 
-    setLanguage(
-      language: MaquinaLanguage,
-    ): void {
-      if (
-        destroyed ||
-        state.language.peek() === language
-      ) {
-        return;
-      }
+    setLanguage(language: MaquinaLanguage): void {
+      if (destroyed || state.language.peek() === language) return;
 
       state.language.set(language);
       closeSuggestions();
+      renderedHighlightRange = "";
       renderHighlight();
     },
 
-    setTheme(
-      nextTheme: MaquinaThemeName,
-    ): void {
+    setTheme(nextTheme: MaquinaThemeName): void {
       if (destroyed) return;
 
-      const resolvedTheme =
-        resolveMaquinaTheme(
-          nextTheme,
-          undefined,
-        );
+      const resolvedTheme = resolveMaquinaTheme(nextTheme, undefined);
 
-      state.theme.set(
-        resolvedTheme.name,
-      );
-
-      applyTheme(
-        mountedRoot,
-        resolvedTheme.name,
-      );
+      state.theme.set(resolvedTheme.name);
+      applyTheme(mountedRoot, resolvedTheme.name);
     },
 
     dispatch(transaction: MaquinaTransaction): void {
@@ -1159,7 +1112,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     },
 
     undo,
-
     redo,
 
     destroy(): void {
@@ -1167,39 +1119,34 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       destroyed = true;
       completionVersion += 1;
+      clearBlurTimer();
 
-      if (blurTimer !== undefined) {
-        window.clearTimeout(blurTimer);
-        blurTimer = undefined;
-      }
+      ownerWindow.removeEventListener(
+        "resize",
+        onViewportGeometryChange,
+      );
+      visualViewport?.removeEventListener(
+        "resize",
+        onViewportGeometryChange,
+      );
+      visualViewport?.removeEventListener(
+        "scroll",
+        onViewportGeometryChange,
+      );
+      resizeObserver?.disconnect();
 
       disposeHighlightContent?.();
       disposeSuggestionsContent?.();
-
-      disposeHighlightContent =
-        undefined;
-
-      disposeSuggestionsContent =
-        undefined;
-
+      disposeHighlightContent = undefined;
+      disposeSuggestionsContent = undefined;
       caretMirrorRef?.remove();
-
       caretMirrorRef = null;
       caretMarkerRef = null;
-
-      /*
-       * Fabrica owns the editor subtree and its declarative event bindings.
-       * Disposing it is enough; clearing the entire parent would incorrectly
-       * remove unrelated siblings mounted by the consumer.
-       */
       disposeEditor();
     },
   };
 }
 
-/**
- * Creates the lightweight context exposed to completion providers.
- */
 function createCompletionContext(
   value: string,
   cursor: number,
@@ -1208,56 +1155,26 @@ function createCompletionContext(
     value,
     cursor,
 
-    matchBefore(
-      pattern: RegExp,
-    ): MaquinaCompletionMatch | null {
-      const prefix =
-        value.slice(
-          0,
-          cursor,
-        );
-
-      /*
-       * Global and sticky expressions carry positional state that conflicts
-       * with matching strictly against the suffix immediately before cursor.
-       */
-      const flags =
-        pattern.flags.replace(
-          /[gy]/g,
-          "",
-        );
-
-      const anchored =
-        new RegExp(
-          `(?:${pattern.source})$`,
-          flags,
-        );
-
-      const match =
-        anchored.exec(prefix);
+    matchBefore(pattern: RegExp): MaquinaCompletionMatch | null {
+      const prefix = value.slice(0, cursor);
+      const flags = pattern.flags.replace(/[gy]/g, "");
+      const anchored = new RegExp(`(?:${pattern.source})$`, flags);
+      const match = anchored.exec(prefix);
 
       if (!match) return null;
 
       return {
-        from:
-          cursor -
-          match[0].length,
-
+        from: cursor - match[0].length,
         text: match[0],
       };
     },
   };
 }
 
-/**
- * Returns whether the current language supports browser-runtime completion.
- */
 function supportsRuntimeCompletions(
   language: MaquinaLanguage,
 ): boolean {
-  switch (
-    String(language).toLowerCase()
-  ) {
+  switch (String(language).toLowerCase()) {
     case "javascript":
     case "typescript":
     case "jsx":
@@ -1271,541 +1188,122 @@ function supportsRuntimeCompletions(
   }
 }
 
+function formatSuggestionDetail(item: MaquinaCompletionItem): string {
+  if (item.detail && item.type) {
+    return `${item.detail} · ${item.type}`;
+  }
+
+  return item.detail || item.type || "";
+}
+
 /**
- * Creates completions for identifiers and dotted browser-runtime expressions.
- *
- * Examples:
- *
- * window.
- * window.location.
- * document.
- * document.body.
- * myPageObject.
+ * Returns popup bounds in local CSS pixels for the intersection between the
+ * editor viewport and the browser's visual viewport.
  */
-function createRuntimeCompletionResult(
-  value: string,
-  cursor: number,
-  runtimeRoot: Window,
-): RuntimeCompletionResult | null {
-  const prefix =
-    value.slice(
-      0,
-      cursor,
-    );
+function getVisiblePopupBounds(
+  container: HTMLElement,
+  view: Window,
+): {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+} {
+  const rect = container.getBoundingClientRect();
+  const visualViewport = view.visualViewport;
+  const viewportLeft = visualViewport?.offsetLeft ?? 0;
+  const viewportTop = visualViewport?.offsetTop ?? 0;
+  const viewportWidth = visualViewport?.width ?? view.innerWidth;
+  const viewportHeight = visualViewport?.height ?? view.innerHeight;
+  const viewportRight = viewportLeft + viewportWidth;
+  const viewportBottom = viewportTop + viewportHeight;
+  const intersectLeft = Math.max(rect.left, viewportLeft);
+  const intersectTop = Math.max(rect.top, viewportTop);
+  const intersectRight = Math.min(rect.right, viewportRight);
+  const intersectBottom = Math.min(rect.bottom, viewportBottom);
+  const scaleX =
+    container.clientWidth > 0
+      ? rect.width / container.clientWidth
+      : 1;
+  const scaleY =
+    container.clientHeight > 0
+      ? rect.height / container.clientHeight
+      : 1;
+  const safeScaleX = scaleX || 1;
+  const safeScaleY = scaleY || 1;
 
-  const memberMatch =
-    /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.([\w$]*)$/
-      .exec(prefix);
-
-  if (memberMatch) {
-    const expression =
-      memberMatch[1];
-
-    const propertyPrefix =
-      memberMatch[2] ??
-      "";
-
-    const target =
-      resolveRuntimeTarget(
-        runtimeRoot,
-        expression,
-      );
-
-    if (
-      target === null ||
-      target === undefined
-    ) {
-      return null;
-    }
-
+  if (
+    intersectRight <= intersectLeft ||
+    intersectBottom <= intersectTop
+  ) {
     return {
-      from:
-        cursor -
-        propertyPrefix.length,
-
-      options:
-        createRuntimeCompletionItems(
-          target,
-          propertyPrefix,
-        ),
-
-      memberAccess: true,
+      left: POPUP_VIEWPORT_MARGIN,
+      top: POPUP_VIEWPORT_MARGIN,
+      right: Math.max(
+        POPUP_VIEWPORT_MARGIN,
+        container.clientWidth - POPUP_VIEWPORT_MARGIN,
+      ),
+      bottom: Math.max(
+        POPUP_VIEWPORT_MARGIN,
+        container.clientHeight - POPUP_VIEWPORT_MARGIN,
+      ),
     };
   }
 
-  const identifierMatch =
-    /[A-Za-z_$][\w$]*$/.exec(
-      prefix,
-    );
-
-  if (!identifierMatch) {
-    return null;
-  }
-
-  const identifier =
-    identifierMatch[0];
-
   return {
-    from:
-      cursor -
-      identifier.length,
-
-    options:
-      createRuntimeCompletionItems(
-        runtimeRoot,
-        identifier,
-      ),
-
-    memberAccess: false,
+    left:
+      (intersectLeft - rect.left) / safeScaleX +
+      POPUP_VIEWPORT_MARGIN,
+    top:
+      (intersectTop - rect.top) / safeScaleY +
+      POPUP_VIEWPORT_MARGIN,
+    right:
+      (intersectRight - rect.left) / safeScaleX -
+      POPUP_VIEWPORT_MARGIN,
+    bottom:
+      (intersectBottom - rect.top) / safeScaleY -
+      POPUP_VIEWPORT_MARGIN,
   };
 }
 
 /**
- * Resolves a simple dotted property path against the page global object.
- *
- * Arbitrary JavaScript is deliberately not evaluated. This keeps completion
- * predictable and prevents typing from executing user or page expressions.
- */
-function resolveRuntimeTarget(
-  runtimeRoot: Window,
-  expression: string,
-): unknown {
-  const segments =
-    expression.split(".");
-
-  let current: unknown =
-    runtimeRoot;
-
-  let index = 0;
-
-  switch (segments[0]) {
-    case "window":
-    case "self":
-    case "globalThis":
-    case "this":
-      index = 1;
-      break;
-  }
-
-  for (
-    ;
-    index < segments.length;
-    index += 1
-  ) {
-    const segment =
-      segments[index];
-
-    if (
-      !segment ||
-      current === null ||
-      current === undefined
-    ) {
-      return undefined;
-    }
-
-    try {
-      current =
-        Reflect.get(
-          Object(current),
-          segment,
-        );
-    } catch {
-      return undefined;
-    }
-  }
-
-  return current;
-}
-
-/**
- * Enumerates own and inherited runtime properties without eagerly evaluating
- * getters.
- */
-function createRuntimeCompletionItems(
-  target: unknown,
-  prefix: string,
-): MaquinaCompletionItem[] {
-  const names =
-    collectRuntimePropertyNames(
-      target,
-    );
-
-  const items:
-    MaquinaCompletionItem[] = [];
-
-  for (const name of names) {
-    if (
-      !name.startsWith(prefix)
-    ) {
-      continue;
-    }
-
-    items.push({
-      label: name,
-      type:
-        getRuntimePropertyType(
-          target,
-          name,
-        ),
-      detail: "runtime",
-    });
-
-    if (
-      items.length >=
-      MAX_COMPLETIONS
-    ) {
-      break;
-    }
-  }
-
-  return items;
-}
-
-/**
- * Collects JavaScript identifier-like properties across the prototype chain.
- */
-function collectRuntimePropertyNames(
-  target: unknown,
-): string[] {
-  if (
-    target === null ||
-    target === undefined
-  ) {
-    return [];
-  }
-
-  const names =
-    new Set<string>();
-
-  let current: object | null =
-    Object(target);
-
-  let depth = 0;
-
-  while (
-    current &&
-    depth < MAX_RUNTIME_PROTOTYPE_DEPTH
-  ) {
-    try {
-      for (
-        const name of
-        Object.getOwnPropertyNames(
-          current,
-        )
-      ) {
-        if (
-          /^[A-Za-z_$][\w$]*$/.test(
-            name,
-          )
-        ) {
-          names.add(name);
-        }
-      }
-
-      current =
-        Object.getPrototypeOf(
-          current,
-        );
-    } catch {
-      break;
-    }
-
-    depth += 1;
-  }
-
-  return Array
-    .from(names)
-    .sort(
-      (left, right) =>
-        left.localeCompare(
-          right,
-        ),
-    );
-}
-
-/**
- * Describes a runtime property without invoking accessor getters.
- */
-function getRuntimePropertyType(
-  target: unknown,
-  property: string,
-): string {
-  if (
-    target === null ||
-    target === undefined
-  ) {
-    return "property";
-  }
-
-  let current: object | null =
-    Object(target);
-
-  while (current) {
-    try {
-      const descriptor =
-        Object.getOwnPropertyDescriptor(
-          current,
-          property,
-        );
-
-      if (descriptor) {
-        if (
-          "value" in descriptor
-        ) {
-          return describeRuntimeValue(
-            descriptor.value,
-          );
-        }
-
-        if (descriptor.get) {
-          return "getter";
-        }
-
-        if (descriptor.set) {
-          return "setter";
-        }
-
-        return "property";
-      }
-
-      current =
-        Object.getPrototypeOf(
-          current,
-        );
-    } catch {
-      return "property";
-    }
-  }
-
-  return "property";
-}
-
-/**
- * Returns a compact runtime value category for suggestion metadata.
- */
-function describeRuntimeValue(
-  value: unknown,
-): string {
-  if (value === null) {
-    return "null";
-  }
-
-  if (Array.isArray(value)) {
-    return "array";
-  }
-
-  return typeof value;
-}
-
-/**
- * Combines provider completions with browser-runtime completions.
- *
- * Runtime member completion takes precedence when providers return a different
- * replacement range that could otherwise remove the base expression.
- */
-function resolveCompletionResult(
-  external:
-    | CompletionResultLike
-    | null
-    | undefined,
-  runtime:
-    | RuntimeCompletionResult
-    | null,
-): CompletionResultLike | null {
-  const hasExternal =
-    Boolean(
-      external?.options.length,
-    );
-
-  const hasRuntime =
-    Boolean(
-      runtime?.options.length,
-    );
-
-  if (
-    !hasExternal &&
-    !hasRuntime
-  ) {
-    return null;
-  }
-
-  if (
-    !hasExternal &&
-    runtime
-  ) {
-    return runtime;
-  }
-
-  if (
-    external &&
-    !hasRuntime
-  ) {
-    return external;
-  }
-
-  if (
-    !external ||
-    !runtime
-  ) {
-    return null;
-  }
-
-  if (
-    external.from !== runtime.from
-  ) {
-    return runtime.memberAccess
-      ? runtime
-      : external;
-  }
-
-  return {
-    from: external.from,
-
-    options:
-      mergeCompletionItems(
-        external.options,
-        runtime.options,
-      ),
-  };
-}
-
-/**
- * Merges completion lists while keeping external-provider entries
- * authoritative.
- */
-function mergeCompletionItems(
-  primary:
-    readonly MaquinaCompletionItem[],
-  secondary:
-    readonly MaquinaCompletionItem[],
-): MaquinaCompletionItem[] {
-  const result:
-    MaquinaCompletionItem[] = [];
-
-  const labels =
-    new Set<string>();
-
-  for (
-    const collection of
-    [primary, secondary]
-  ) {
-    for (const item of collection) {
-      if (
-        labels.has(item.label)
-      ) {
-        continue;
-      }
-
-      labels.add(item.label);
-      result.push(item);
-
-      if (
-        result.length >=
-        MAX_COMPLETIONS
-      ) {
-        return result;
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Copies layout-affecting textarea styles into the hidden caret mirror.
+ * Copies every layout-affecting textarea metric into the hidden caret mirror.
  */
 function copyTextareaMetrics(
   mirror: HTMLDivElement,
   style: CSSStyleDeclaration,
 ): void {
-  mirror.style.boxSizing =
-    style.boxSizing;
-
-  mirror.style.width =
-    style.width;
-
-  mirror.style.paddingTop =
-    style.paddingTop;
-
-  mirror.style.paddingRight =
-    style.paddingRight;
-
-  mirror.style.paddingBottom =
-    style.paddingBottom;
-
-  mirror.style.paddingLeft =
-    style.paddingLeft;
-
-  mirror.style.borderTopWidth =
-    style.borderTopWidth;
-
-  mirror.style.borderRightWidth =
-    style.borderRightWidth;
-
-  mirror.style.borderBottomWidth =
-    style.borderBottomWidth;
-
-  mirror.style.borderLeftWidth =
-    style.borderLeftWidth;
-
-  mirror.style.borderStyle =
-    "solid";
-
-  mirror.style.borderColor =
-    "transparent";
-
-  mirror.style.fontFamily =
-    style.fontFamily;
-
-  mirror.style.fontSize =
-    style.fontSize;
-
-  mirror.style.fontWeight =
-    style.fontWeight;
-
-  mirror.style.fontStyle =
-    style.fontStyle;
-
-  mirror.style.fontVariant =
-    style.fontVariant;
-
-  mirror.style.lineHeight =
-    style.lineHeight;
-
-  mirror.style.letterSpacing =
-    style.letterSpacing;
-
-  mirror.style.wordSpacing =
-    style.wordSpacing;
-
-  mirror.style.textAlign =
-    style.textAlign;
-
-  mirror.style.textIndent =
-    style.textIndent;
-
-  mirror.style.textTransform =
-    style.textTransform;
-
-  mirror.style.whiteSpace =
-    style.whiteSpace;
-
-  mirror.style.overflowWrap =
-    style.overflowWrap;
-
-  mirror.style.wordBreak =
-    style.wordBreak;
-
-  mirror.style.direction =
-    style.direction;
-
-  mirror.style.tabSize =
-    style.tabSize;
+  mirror.style.boxSizing = style.boxSizing;
+  mirror.style.width = style.width;
+  mirror.style.paddingTop = style.paddingTop;
+  mirror.style.paddingRight = style.paddingRight;
+  mirror.style.paddingBottom = style.paddingBottom;
+  mirror.style.paddingLeft = style.paddingLeft;
+  mirror.style.borderTopWidth = style.borderTopWidth;
+  mirror.style.borderRightWidth = style.borderRightWidth;
+  mirror.style.borderBottomWidth = style.borderBottomWidth;
+  mirror.style.borderLeftWidth = style.borderLeftWidth;
+  mirror.style.borderStyle = "solid";
+  mirror.style.borderColor = "transparent";
+  mirror.style.fontFamily = style.fontFamily;
+  mirror.style.fontSize = style.fontSize;
+  mirror.style.fontWeight = style.fontWeight;
+  mirror.style.fontStyle = style.fontStyle;
+  mirror.style.fontVariant = style.fontVariant;
+  mirror.style.lineHeight = style.lineHeight;
+  mirror.style.letterSpacing = style.letterSpacing;
+  mirror.style.wordSpacing = style.wordSpacing;
+  mirror.style.textAlign = style.textAlign;
+  mirror.style.textIndent = style.textIndent;
+  mirror.style.textTransform = style.textTransform;
+  mirror.style.whiteSpace = style.whiteSpace;
+  mirror.style.overflowWrap = style.overflowWrap;
+  mirror.style.wordBreak = style.wordBreak;
+  mirror.style.direction = style.direction;
+  mirror.style.tabSize = style.tabSize;
 }
 
-/**
- * Returns an element offset in CSS pixels relative to an ancestor.
- */
+/** Returns an element offset in CSS pixels relative to an ancestor. */
 function getOffsetWithin(
   element: HTMLElement,
   ancestor: HTMLElement,
@@ -1815,98 +1313,55 @@ function getOffsetWithin(
 } {
   let left = 0;
   let top = 0;
+  let current: HTMLElement | null = element;
 
-  let current: HTMLElement | null =
-    element;
-
-  while (
-    current &&
-    current !== ancestor
-  ) {
+  while (current && current !== ancestor) {
     left += current.offsetLeft;
     top += current.offsetTop;
-
-    current =
-      current.offsetParent as
-        | HTMLElement
-        | null;
+    current = current.offsetParent as HTMLElement | null;
   }
 
   if (current === ancestor) {
-    return {
-      left,
-      top,
-    };
+    return { left, top };
   }
 
-  /*
-   * Handles uncommon offset-parent boundaries such as shadow roots.
-   * DOMRect coordinates are converted back into ancestor-local CSS pixels.
-   */
-  const elementRect =
-    element.getBoundingClientRect();
-
-  const ancestorRect =
-    ancestor.getBoundingClientRect();
-
+  const elementRect = element.getBoundingClientRect();
+  const ancestorRect = ancestor.getBoundingClientRect();
   const scaleX =
     ancestor.offsetWidth > 0
-      ? ancestorRect.width /
-        ancestor.offsetWidth
+      ? ancestorRect.width / ancestor.offsetWidth
       : 1;
-
   const scaleY =
     ancestor.offsetHeight > 0
-      ? ancestorRect.height /
-        ancestor.offsetHeight
+      ? ancestorRect.height / ancestor.offsetHeight
       : 1;
 
   return {
     left:
-      (elementRect.left -
-        ancestorRect.left) /
+      (elementRect.left - ancestorRect.left) /
       (scaleX || 1),
-
     top:
-      (elementRect.top -
-        ancestorRect.top) /
+      (elementRect.top - ancestorRect.top) /
       (scaleY || 1),
   };
 }
 
-/**
- * Applies resolved theme tokens as CSS custom properties.
- */
+/** Applies resolved theme tokens as CSS custom properties. */
 function applyTheme(
   root: HTMLElement,
   name: MaquinaThemeName,
 ): void {
-  const theme =
-    resolveMaquinaTheme(
-      name,
-      undefined,
+  const theme = resolveMaquinaTheme(name, undefined);
+
+  root.dataset.theme = theme.name;
+
+  for (const [key, value] of Object.entries(theme)) {
+    if (key === "name" || key === "dark") continue;
+
+    const property = key.replace(
+      /[A-Z]/g,
+      (character) => `-${character.toLowerCase()}`,
     );
-
-  root.dataset.theme =
-    theme.name;
-
-  for (
-    const [key, value] of
-    Object.entries(theme)
-  ) {
-    if (
-      key === "name" ||
-      key === "dark"
-    ) {
-      continue;
-    }
-
-    const property =
-      key.replace(
-        /[A-Z]/g,
-        (character) =>
-          `-${character.toLowerCase()}`,
-      );
 
     root.style.setProperty(
       `--maq-${property}`,
@@ -1916,8 +1371,11 @@ function applyTheme(
 }
 
 /**
- * Configures editor dimensions while keeping the textarea at a mobile-safe
- * 16px font size. Visual scaling is applied to the whole editor instead.
+ * Configures shared text metrics without transforming the editor root.
+ *
+ * A transformed textarea is prone to native-caret drift on iOS. Keeping the
+ * input at a mobile-safe 16px minimum and letting it fill the container avoids
+ * both Safari focus zoom and transformed native selection geometry.
  */
 function applyEditorMetrics(
   root: HTMLElement,
@@ -1926,85 +1384,38 @@ function applyEditorMetrics(
   options: MaquinaOptions,
 ): void {
   const tabSize = clamp(
-    options.tabSize ??
-      DEFAULT_TAB_SIZE,
+    options.tabSize ?? DEFAULT_TAB_SIZE,
     MIN_TAB_SIZE,
     MAX_TAB_SIZE,
   );
-
-  const scale = clamp(
-    (options.fontSize ??
-      DEFAULT_FONT_SIZE) /
-      DEFAULT_FONT_SIZE,
-    MIN_FONT_SCALE,
-    MAX_FONT_SCALE,
+  const fontSize = clamp(
+    Math.max(options.fontSize ?? DEFAULT_FONT_SIZE, MIN_FONT_SIZE),
+    MIN_FONT_SIZE,
+    MAX_FONT_SIZE,
   );
+  const whiteSpace = options.lineWrapping === false
+    ? "pre"
+    : "pre-wrap";
+  const overflowWrap = options.lineWrapping === false
+    ? "normal"
+    : "anywhere";
 
-  root.style.setProperty(
-    "--maq-tab-size",
-    String(tabSize),
-  );
+  root.style.transform = "";
+  root.style.transformOrigin = "";
+  root.style.width = "100%";
+  root.style.height = "100%";
+  root.style.setProperty("--maq-tab-size", String(tabSize));
+  root.style.setProperty("--maq-font-size", `${fontSize}px`);
+  root.style.setProperty("--maq-white-space", whiteSpace);
+  root.style.setProperty("--maq-overflow-wrap", overflowWrap);
 
-  root.style.setProperty(
-    "--maq-scale",
-    String(scale),
-  );
-
-  root.style.transformOrigin =
-    "top left";
-
-  root.style.transform =
-    scale === 1
-      ? ""
-      : `scale(${scale})`;
-
-  root.style.width =
-    scale === 1
-      ? "100%"
-      : `${100 / scale}%`;
-
-  root.style.height =
-    scale === 1
-      ? "100%"
-      : `${100 / scale}%`;
-
-  const whiteSpace =
-    options.lineWrapping === false
-      ? "pre"
-      : "pre-wrap";
-
-  const overflowWrap =
-    options.lineWrapping === false
-      ? "normal"
-      : "anywhere";
-
-  /*
-   * Keeping native inputs at 16px avoids unwanted Safari/iOS focus zoom.
-   * The requested editor font size is represented by the root scale instead.
-   */
-  textarea.style.fontSize =
-    `${DEFAULT_FONT_SIZE}px`;
-
-  highlight.style.fontSize =
-    `${DEFAULT_FONT_SIZE}px`;
-
-  textarea.style.whiteSpace =
-    whiteSpace;
-
-  highlight.style.whiteSpace =
-    whiteSpace;
-
-  textarea.style.overflowWrap =
-    overflowWrap;
-
-  highlight.style.overflowWrap =
-    overflowWrap;
-
-  textarea.style.tabSize =
-    String(tabSize);
-
-  highlight.style.tabSize =
-    String(tabSize);
+  textarea.style.fontSize = `${fontSize}px`;
+  highlight.style.fontSize = `${fontSize}px`;
+  textarea.style.whiteSpace = whiteSpace;
+  highlight.style.whiteSpace = "normal";
+  textarea.style.overflowWrap = overflowWrap;
+  textarea.style.tabSize = String(tabSize);
+  highlight.style.tabSize = String(tabSize);
 }
 
 function clamp(
@@ -2012,11 +1423,5 @@ function clamp(
   minimum: number,
   maximum: number,
 ): number {
-  return Math.min(
-    Math.max(
-      value,
-      minimum,
-    ),
-    maximum,
-  );
+  return Math.min(Math.max(value, minimum), maximum);
 }

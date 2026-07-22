@@ -212,3 +212,30 @@
   caret, and selection bridge while syntax rendering remains a separate view.
 - Added focused tests for transactions, inverse edits, history, input diffs,
   viewport ranges, and editor-level undo/redo behavior.
+
+
+## Maquina editor caret and completion hardening
+
+### Fixed
+
+- Restored line numbers by default and kept gutter rows aligned with wrapped
+  logical lines.
+- Removed root scaling from the native textarea path so caret, selection,
+  highlight text, and container geometry share the same coordinate system.
+- Made the textarea fill the editor container directly without inverse scaled
+  width or height compensation.
+- Replaced completion pills with an accessible listbox and full-width options
+  that support native vertical touch scrolling.
+- Constrained completion geometry to the editor and mobile visual viewport,
+  including automatic above/below caret placement around the software keyboard.
+- Added lexical-scope completion for local variables, parameters, functions,
+  classes, object-literal members, and simple runtime aliases.
+- Filtered getter and setter descriptors from runtime suggestions without
+  invoking accessors during discovery.
+
+### Tests
+
+- Added regressions for line-number rendering and updates, disabled gutters,
+  caret-layer metrics, container sizing, accessible completion options, lexical
+  scope visibility, object members, runtime accessor filtering, runtime aliases,
+  popup viewport bounds, popup flipping, and visual-line token preservation.

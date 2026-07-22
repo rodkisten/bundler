@@ -2,10 +2,7 @@ import { createStyled } from "@rodkisten/cipo";
 import { createFabrica } from "@rodkisten/fabrica";
 
 /**
- * Maquina owns a single isolated Fabrica instance.
- *
- * Keeping the renderer and styled registry module-scoped avoids recreating
- * registries, component definitions, and stylesheet infrastructure per editor.
+ * Maquina owns one isolated Fábrica registry shared by every editor instance.
  */
 export const maquinaFabrica = createFabrica({
   name: "maquina",
@@ -17,10 +14,6 @@ export const component = maquinaFabrica.component;
 export const event = maquinaFabrica.event;
 export const ref = maquinaFabrica.ref;
 
-/**
- * Styled components share Fabrica's registry so component registration and
- * stylesheet delivery use the same isolated rendering boundary.
- */
 export const styled = createStyled({
   fabrica: maquinaFabrica,
 });
@@ -37,6 +30,8 @@ export const MaquinaRoot = styled.div("MaquinaRoot").css`
   min-height: 0;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   border: 1px solid var(--maq-border);
   border-radius: 14px;
@@ -57,28 +52,22 @@ export const MaquinaViewport = styled.div("MaquinaViewport").css`
 `;
 
 /**
- * The highlight layer mirrors the textarea contents.
- *
- * Token colors are resolved entirely through data attributes instead of
- * per-token inline styles. This keeps token rendering cheap and lets the
- * browser reuse the same CSS rules across every token node.
+ * Visual code layer. The textarea remains the input and scroll authority.
+ * Logical rows let line numbers and wrapped code share exactly the same height.
  */
-export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
+export const MaquinaHighlight = styled.div("MaquinaHighlight").css`
   position: absolute;
   inset: 0;
   z-index: 0;
   contain: paint;
   min-width: 100%;
   min-height: 100%;
-  margin: 0;
-  padding: 14px 16px 26px;
+  padding: 14px 0 26px;
   box-sizing: border-box;
-  overflow: visible;
+  overflow: hidden;
   pointer-events: none;
   user-select: none;
-  white-space: pre;
-  overflow-wrap: normal;
-  font: 500 16px/1.55 var(
+  font: 500 var(--maq-font-size, 16px) / 1.55 var(
     --maq-font,
     ui-monospace,
     SFMono-Regular,
@@ -89,6 +78,8 @@ export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
   );
   tab-size: var(--maq-tab-size, 2);
   color: var(--maq-foreground);
+  transform: translateY(var(--maq-scroll-y, 0px));
+  will-change: transform;
 
   & [data-token="comment"] {
     color: var(--maq-comment);
@@ -127,12 +118,51 @@ export const MaquinaHighlight = styled.pre("MaquinaHighlight").css`
   }
 `;
 
+export const MaquinaLine = styled.div("MaquinaLine").css`
+  display: grid;
+  grid-template-columns:
+    var(--maq-gutter-width, 0px)
+    minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 100%;
+  min-height: 1.55em;
+`;
+
+export const MaquinaLineNumber = styled.span("MaquinaLineNumber").css`
+  position: relative;
+  z-index: 2;
+  display: block;
+  align-self: stretch;
+  box-sizing: border-box;
+  padding-right: 12px;
+  border-right: 1px solid var(--maq-border);
+  background: var(--maq-background);
+  color: var(--maq-muted);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+`;
+
+export const MaquinaCodeClip = styled.span("MaquinaCodeClip").css`
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+`;
+
+export const MaquinaLineCode = styled.span("MaquinaLineCode").css`
+  display: block;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 16px;
+  white-space: var(--maq-white-space, pre-wrap);
+  overflow-wrap: var(--maq-overflow-wrap, anywhere);
+  transform: translateX(var(--maq-scroll-x, 0px));
+`;
+
 /**
- * The textarea is the editor's only scroll container.
- *
- * The runtime reads textarea.scrollTop/scrollLeft to translate the highlight
- * layer, so keeping scrolling here avoids competing scroll containers and
- * removes an unnecessary synchronization boundary.
+ * Native input layer. It always fills the viewport and shares exact text
+ * metrics and gutter padding with the visual layer, keeping the native caret
+ * aligned with highlighted glyphs on iOS and desktop browsers.
  */
 export const MaquinaInput = styled.textarea("MaquinaInput").css`
   position: absolute;
@@ -141,10 +171,16 @@ export const MaquinaInput = styled.textarea("MaquinaInput").css`
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 14px 16px 26px;
+  padding:
+    14px
+    16px
+    26px
+    calc(var(--maq-gutter-width, 0px) + 16px);
   box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;
@@ -157,7 +193,7 @@ export const MaquinaInput = styled.textarea("MaquinaInput").css`
   color: transparent;
   caret-color: var(--maq-foreground);
   -webkit-text-fill-color: transparent;
-  font: 500 16px/1.55 var(
+  font: 500 var(--maq-font-size, 16px) / 1.55 var(
     --maq-font,
     ui-monospace,
     SFMono-Regular,
@@ -167,8 +203,8 @@ export const MaquinaInput = styled.textarea("MaquinaInput").css`
     monospace
   );
   tab-size: var(--maq-tab-size, 2);
-  white-space: pre;
-  overflow-wrap: normal;
+  white-space: var(--maq-white-space, pre-wrap);
+  overflow-wrap: var(--maq-overflow-wrap, anywhere);
   user-select: text;
   -webkit-user-select: text;
   touch-action: pan-y pan-x;
@@ -187,16 +223,30 @@ export const MaquinaSuggestions = styled.div("MaquinaSuggestions").css`
   position: absolute;
   z-index: 20;
   contain: layout paint style;
-  min-width: 210px;
-  max-width: min(420px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 280px;
+  max-width: 100%;
   max-height: 240px;
   padding: 6px;
-  overflow: auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid var(--maq-border);
   border-radius: 12px;
-  background: var(--maq-surface);
-  box-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+  background: color-mix(
+    in srgb,
+    var(--maq-surface) 96%,
+    transparent
+  );
+  box-shadow:
+    0 18px 50px rgb(0 0 0 / 35%),
+    inset 0 1px rgb(255 255 255 / 4%);
+  backdrop-filter: blur(18px) saturate(120%);
 
   &[hidden] {
     display: none;
@@ -204,34 +254,47 @@ export const MaquinaSuggestions = styled.div("MaquinaSuggestions").css`
 `;
 
 /**
- * Individual suggestions intentionally avoid transitions, filters, and other
- * paint-heavy effects because keyboard navigation may update the active item
- * several times within a single animation frame.
+ * Options are non-focusable listbox rows. Keeping DOM focus on the textarea
+ * preserves the mobile keyboard while taps and vertical gestures remain native.
  */
-export const MaquinaSuggestion = styled.button("MaquinaSuggestion").css`
+export const MaquinaSuggestion = styled.div("MaquinaSuggestion").css`
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  flex: 0 0 auto;
   width: 100%;
+  min-height: 42px;
   gap: 12px;
   margin: 0;
-  padding: 8px 10px;
+  padding: 9px 11px;
+  box-sizing: border-box;
   border: 0;
   border-radius: 8px;
-  appearance: none;
   background: transparent;
   color: var(--maq-foreground);
   text-align: left;
   font: inherit;
-  cursor: default;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
 
-  &[data-active="true"],
-  &:hover {
+  &[data-active="true"] {
     background: color-mix(
       in srgb,
-      var(--maq-accent) 18%,
+      var(--maq-accent) 20%,
       transparent
     );
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: color-mix(
+        in srgb,
+        var(--maq-accent) 16%,
+        transparent
+      );
+    }
   }
 
   & > span {
@@ -242,17 +305,15 @@ export const MaquinaSuggestion = styled.button("MaquinaSuggestion").css`
   }
 
   & > small {
+    max-width: 14ch;
+    overflow: hidden;
     color: var(--maq-muted);
+    text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 0.78em;
   }
 `;
 
-/**
- * Flush only after every module-level styled component has been registered.
- *
- * Flushing immediately after connectRegistry() happens before these component
- * definitions exist, which can leave the initial registry flush empty.
- */
 styled.flushRegistry();
 
 /** All Cipó artifacts created by this factory, collected automatically. */
