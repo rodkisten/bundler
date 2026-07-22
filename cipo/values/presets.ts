@@ -27,3 +27,30 @@ export const ANIMATION_PRESETS: Readonly<Record<string, string>> = {
   'slide-up': 'slide-up 220ms ease-out both',
   'scale-in': 'scale-in 160ms ease-out both',
 }
+
+/** Reusable source-level motion recipes expanded by motion(...). */
+export const MOTION_PRESETS: Readonly<Record<string, string>> = {
+  enter: [
+    'opacity: 0 -> 1',
+    'y: 8px -> 0',
+    'duration: 200ms',
+    'easing: ease-out',
+  ].join(', '),
+  'fade-in': [
+    'opacity: 0 -> 1',
+    'duration: 180ms',
+    'easing: ease-out',
+  ].join(', '),
+  pop: [
+    'opacity: 0 -> 1',
+    'scale: 0.96 -> 1',
+    'duration: 180ms',
+    'easing: cubic-bezier(0.2, 0.8, 0.2, 1)',
+  ].join(', '),
+  'slide-up': [
+    'opacity: 0 -> 1',
+    'y: 12px -> 0',
+    'duration: 220ms',
+    'easing: ease-out',
+  ].join(', '),
+}
