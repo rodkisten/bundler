@@ -1,5 +1,9 @@
 ## Unreleased
-- Removed dead `configureFromCss` and CSS-config imports after build-time config lowering so production bundles do not retain raw `@cipo`, `@theme`, or `@breakpoints` source strings.
+- Migrated Maquina's real editor styles to Cipó's legacy and modern syntax together, including legacy `@with($alias)`, standalone CSS-first helpers, typed/runtime `$$` properties, `text()`, `fluid()`, Fábrica selectors, `state()`, `peer()`, and `slot()`.
+- Restored `configureFromCss(maquinaCipoConfigCss)` for direct source/package consumers and marked the binding for Vite production lowering, preserving parser-free production builds while keeping runtime/build configuration parity.
+- Fixed the line-grid `grid-template-columns` declaration so `minmax(...)` remains part of the property value instead of being parsed as a standalone declaration helper.
+- Added regression coverage for the CSS-first configuration and the mixed legacy/modern Cipó authoring surface.
+- Kept raw CSS-first configuration out of production bundles through build-time lowering while restoring the trusted runtime binding needed by direct source/package consumers.
 - Aligned runtime stylesheet tests with the canonical `STYLE_ELEMENT_ID` and made compiled minified rem assertions accept the equivalent leading-zero-free CSS form.
 - Fixed startup when the callable styled factory already owns the read-only
   `html` tag helper. `cipo.html` remains the styled `<html>` factory, while the
