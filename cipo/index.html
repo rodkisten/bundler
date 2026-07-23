@@ -596,6 +596,136 @@
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
       .fireflies { display: none; }
     }
+
+
+    /* Complete Cipó capability showroom */
+    .playground-toolbar { align-items: flex-start; }
+    .toolbar-stack { display: grid; gap: 8px; min-width: 0; }
+    .toolbar-label { color: #719575; font: 800 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .mode-group, .preset-group { max-width: 100%; }
+    .preset-group { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: thin; }
+    .toolbar-button.is-accent { border-color: rgb(201 255 89 / .28); color: var(--acid); }
+    .toolbar-button[data-mode="config"] { color: var(--violet); }
+    .toolbar-button[data-mode="inline"] { color: var(--amber); }
+
+    .playground-meta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgb(201 255 89 / .025);
+    }
+    .playground-meta-copy { min-width: 0; }
+    .playground-meta-copy strong { display: block; color: var(--ink); font-size: 13px; }
+    .playground-meta-copy span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .coverage-pill { white-space: nowrap; padding: 8px 10px; border: 1px solid rgb(115 240 179 / .24); border-radius: 999px; background: rgb(115 240 179 / .06); color: var(--mint); font: 800 10px/1 var(--mono); }
+
+    .preview-stage { display: block; padding: 24px; }
+    .preview-toolbar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+      justify-content: space-between;
+      width: min(100%, 820px);
+      margin: 0 auto 18px;
+      padding: 9px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgb(3 16 9 / .72);
+      backdrop-filter: blur(16px);
+    }
+    .preview-control-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .preview-control-label { margin-right: 3px; color: #799b7c; font: 800 9px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .preview-control {
+      min-height: 32px;
+      padding: 0 9px;
+      border: 1px solid rgb(201 255 89 / .14);
+      border-radius: 10px;
+      background: rgb(255 255 255 / .035);
+      color: #b9d1b7;
+      font: 750 10px/1 var(--mono);
+      cursor: pointer;
+    }
+    .preview-control[aria-pressed="true"] { background: rgb(201 255 89 / .14); border-color: rgb(201 255 89 / .36); color: var(--acid); }
+
+    .preview-state-shell {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: min(100%, 820px);
+      min-height: 340px;
+      margin: 0 auto;
+      padding: clamp(20px, 5vw, 52px);
+      border: 1px dashed rgb(201 255 89 / .16);
+      border-radius: 26px;
+      container-type: inline-size;
+      container-name: stage;
+    }
+    .preview-state-shell::before { content: "data-group=panel"; position: absolute; left: 12px; top: 10px; color: #5f8065; font: 700 9px/1 var(--mono); }
+    .preview-peer { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    .cipo-demo-card { position: relative; z-index: 1; }
+    .demo-card-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .demo-card-toolbar code { color: #84a986; font: 700 9px/1 var(--mono); }
+    .demo-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 14px; border-radius: 13px; background: rgb(201 255 89 / .09); color: var(--acid); font-size: 20px; }
+    .demo-meter { height: 5px; margin-top: 20px; overflow: hidden; border-radius: 999px; background: rgb(255 255 255 / .06); }
+    .demo-meter > i { display: block; width: 74%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--mint), var(--acid)); }
+
+    .capability-section, .api-lab, .build-lab { padding: 70px 0 10px; }
+    .capability-head, .api-lab-head, .build-lab-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 520px); gap: 30px; align-items: end; margin-bottom: 22px; }
+    .capability-head h2, .api-lab-head h2, .build-lab-head h2 { margin: 0; font-size: clamp(2.6rem, 6vw, 5.7rem); line-height: .88; letter-spacing: -.065em; }
+    .capability-head p, .api-lab-head p, .build-lab-head p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+    .capability-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .capability-card {
+      min-width: 0;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgb(12 43 24 / .65), rgb(4 18 10 / .78));
+      cursor: pointer;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease;
+    }
+    .capability-card:hover { transform: translateY(-2px); border-color: rgb(201 255 89 / .34); background: rgb(201 255 89 / .065); }
+    .capability-card small { display: block; color: var(--acid); font: 800 9px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .capability-card strong { display: block; margin-top: 11px; color: var(--ink); font-size: 14px; letter-spacing: -.02em; }
+    .capability-card p { margin: 7px 0 0; color: #89a98d; font-size: 11px; line-height: 1.45; }
+    .capability-card code { display: block; margin-top: 12px; overflow: hidden; color: #bdddaf; font: 650 10px/1.45 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+
+    .api-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .api-card { display: grid; align-content: start; min-height: 230px; padding: 20px; border: 1px solid var(--line); border-radius: 22px; background: rgb(7 28 16 / .72); }
+    .api-card-tag { color: var(--mint); font: 800 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .api-card h3 { margin: 20px 0 8px; font-size: 1.45rem; line-height: 1; letter-spacing: -.045em; }
+    .api-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .api-card button { align-self: end; justify-self: start; min-height: 38px; margin-top: 20px; padding: 0 12px; border: 1px solid rgb(201 255 89 / .24); border-radius: 11px; background: rgb(201 255 89 / .08); color: var(--acid); font: 800 11px/1 var(--mono); cursor: pointer; }
+    .api-card button:hover { background: rgb(201 255 89 / .16); }
+    .api-console { margin-top: 14px; min-height: 210px; max-height: 420px; overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #020b06; color: #cae7c1; font: 500 11px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+    .build-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .build-card { padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(145deg, rgb(12 35 22 / .8), rgb(3 14 8 / .9)); }
+    .build-card h3 { margin: 0 0 8px; font-size: 1.4rem; letter-spacing: -.04em; }
+    .build-card p { margin: 0 0 16px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .build-card pre { margin: 0; overflow: auto; padding: 14px; border-radius: 14px; background: #020b06; color: #cfeac5; font: 550 10.5px/1.6 var(--mono); }
+
+    .mode-note { color: #6f9175; font: 700 10px/1.4 var(--mono); }
+
+    @media (max-width: 1080px) {
+      .capability-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .api-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .playground-meta { grid-template-columns: 1fr; }
+      .coverage-pill { justify-self: start; }
+      .capability-head, .api-lab-head, .build-lab-head { grid-template-columns: 1fr; }
+      .capability-grid, .api-grid, .build-grid { grid-template-columns: 1fr; }
+      .preview-toolbar { align-items: flex-start; flex-direction: column; }
+    }
+
   </style>
 </head>
 <body>
@@ -672,16 +802,28 @@
 
         <div class="playground">
           <div class="playground-toolbar">
-            <div class="mode-group" aria-label="Compiler mode">
-              <button class="toolbar-button mode-button" type="button" data-mode="sheet" aria-pressed="true">Stylesheet</button>
-              <button class="toolbar-button mode-button" type="button" data-mode="atomic" aria-pressed="false">Atomic</button>
+            <div class="toolbar-stack">
+              <span class="toolbar-label">Artifact mode</span>
+              <div class="mode-group" aria-label="Compiler mode">
+                <button class="toolbar-button mode-button" type="button" data-mode="polymorphic" aria-pressed="false">css`` auto</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="sheet" aria-pressed="true">Stylesheet</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="atomic" aria-pressed="false">Atomic</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="inline" aria-pressed="false">Inline</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="scoped" aria-pressed="false">Scoped</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="layer" aria-pressed="false">Layer</button>
+                <button class="toolbar-button mode-button" type="button" data-mode="config" aria-pressed="false">Config CSS</button>
+                <button class="toolbar-button is-accent" id="importantToggle" type="button" aria-pressed="false">!important off</button>
+              </div>
             </div>
-            <div class="preset-group" aria-label="Examples">
-              <button class="toolbar-button preset-button" type="button" data-preset="canopy">Canopy</button>
-              <button class="toolbar-button preset-button" type="button" data-preset="glass">Glass</button>
-              <button class="toolbar-button preset-button" type="button" data-preset="responsive">Responsive</button>
-              <button class="toolbar-button preset-button" type="button" data-preset="helpers">Helpers</button>
+            <div class="toolbar-stack" style="min-width:min(100%,780px)">
+              <span class="toolbar-label">Complete language presets</span>
+              <div class="preset-group" id="presetGroup" aria-label="Examples"></div>
             </div>
+          </div>
+
+          <div class="playground-meta">
+            <div class="playground-meta-copy"><strong id="presetTitle">Canopy · aliases + tokens + helpers</strong><span id="presetDescription">A living stylesheet that mixes raw CSS and Cipó syntax.</span></div>
+            <span class="coverage-pill" id="coveragePill">language + browser API coverage</span>
           </div>
 
           <div class="workspace">
@@ -690,7 +832,7 @@
               <div class="editor-shell">
                 <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Cipó CSS editor"></textarea>
               </div>
-              <div class="helper-palette" id="helperPalette" aria-label="Cipó helper palette"></div>
+              <div class="helper-palette" id="helperPalette" aria-label="Cipó helper and DSL insertion palette"></div>
             </section>
 
             <section class="pane" aria-label="Compiled CSS output">
@@ -703,13 +845,44 @@
             </section>
           </div>
 
-          <div class="preview-stage" id="previewStage">
-            <article class="cipo-demo-card" id="previewCard">
-              <p class="demo-kicker">runtime specimen 07</p>
-              <h3 class="demo-title">A small clearing in a very opinionated forest.</h3>
-              <p class="demo-copy">Change the editor. Hover this card. Resize the viewport. The output is compiled by Cipó and applied here immediately.</p>
-              <div class="demo-tags"><span class="demo-tag">tokens</span><span class="demo-tag">helpers</span><span class="demo-tag">variants</span><span class="demo-tag">runtime</span></div>
-            </article>
+          <div class="preview-stage" id="previewStage" data-theme="dark">
+            <div class="preview-toolbar" aria-label="Live state controls">
+              <div class="preview-control-group">
+                <span class="preview-control-label">theme</span>
+                <button class="preview-control theme-control" type="button" data-value="light" aria-pressed="false">light</button>
+                <button class="preview-control theme-control" type="button" data-value="dark" aria-pressed="true">dark</button>
+                <button class="preview-control theme-control" type="button" data-value="amoled" aria-pressed="false">amoled</button>
+              </div>
+              <div class="preview-control-group">
+                <span class="preview-control-label">variant</span>
+                <button class="preview-control variant-control" type="button" data-value="primary" aria-pressed="true">primary</button>
+                <button class="preview-control variant-control" type="button" data-value="danger" aria-pressed="false">danger</button>
+              </div>
+              <div class="preview-control-group">
+                <span class="preview-control-label">size</span>
+                <button class="preview-control size-control" type="button" data-value="sm" aria-pressed="false">sm</button>
+                <button class="preview-control size-control" type="button" data-value="lg" aria-pressed="true">lg</button>
+                <button class="preview-control size-control" type="button" data-value="xl" aria-pressed="false">xl</button>
+              </div>
+              <div class="preview-control-group">
+                <button class="preview-control boolean-control" type="button" data-state="active" aria-pressed="true">:active</button>
+                <button class="preview-control boolean-control" type="button" data-state="open" aria-pressed="true">group open</button>
+                <button class="preview-control boolean-control" type="button" data-state="checked" aria-pressed="true">peer checked</button>
+              </div>
+            </div>
+
+            <div class="preview-state-shell" id="previewGroup" data-group="panel" data-open>
+              <input class="preview-peer" id="previewPeer" data-peer="field" type="checkbox" checked aria-hidden="true" />
+              <article class="cipo-demo-card" id="previewCard" data-variant="primary" data-size="lg" data-active data-selected data-tags="selected featured" data-lang="pt-BR" data-file="demo.ts" data-route="/settings/cipo" data-kind="button-primary" data-tool-tab="console" enabled>
+                <header class="demo-card-toolbar" data-slot="toolbar"><code>slot(toolbar)</code><span class="demo-tag">live state</span></header>
+                <div class="demo-icon" data-slot="icon">🌿</div>
+                <p class="demo-kicker">runtime specimen 07</p>
+                <h3 class="demo-title">A small clearing in a very opinionated forest.</h3>
+                <p class="demo-copy">Change the editor, toggle states, resize the viewport and switch themes. The output comes from the real Cipó browser runtime.</p>
+                <div class="demo-tags"><span class="demo-tag">$tokens</span><span class="demo-tag">$$vars</span><span class="demo-tag">state()</span><span class="demo-tag">x:*</span></div>
+                <div class="demo-meter"><i></i></div>
+              </article>
+            </div>
           </div>
         </div>
 
@@ -720,24 +893,71 @@
         </div>
       </section>
 
+      <section class="capability-section" id="capabilities">
+        <div class="capability-head">
+          <div><p class="eyebrow">Language surface</p><h2>Every branch<br />has a button.</h2></div>
+          <p>The cards below load executable examples into the playground. Together they cover the documented Cipó language primitives, compatibility syntax, smart helpers and browser runtime modes.</p>
+        </div>
+        <div class="capability-grid" id="capabilityGrid"></div>
+      </section>
+
       <section class="features" id="features">
-        <article class="feature"><span class="feature-number">01 / TALK CSS</span><h3>Semantic shorthands, not a new religion.</h3><p>Keep authoring CSS-shaped code. Use compact property aliases where they help and raw CSS where they do not.</p><code>px: 4; bg: $brand; rounded: $xl;</code></article>
-        <article class="feature"><span class="feature-number">02 / HELPERS</span><h3>Functions with roots.</h3><p>Color mixing, alpha, fluid sizing, gradients, shadows, token lookup and context values are resolved by the runtime helper registry.</p><code>bg: alpha($brand / 20%);</code></article>
-        <article class="feature"><span class="feature-number">03 / VARIANTS</span><h3>States stay beside the thing they mutate.</h3><p>Hover, dark mode, breakpoints and container queries remain local and readable instead of scattering across files.</p><code>x:hover { transform: translateY(-4px); }</code></article>
-        <article class="feature"><span class="feature-number">04 / NATIVE FIRST</span><h3>The platform keeps the steering wheel.</h3><p>Modern CSS functions pass through untouched. Cipó only intervenes when a registered helper, token or DSL feature actually needs resolution.</p><code>width: min(100%, 42rem);</code></article>
-        <article class="feature"><span class="feature-number">05 / ATOMIC ENGINE</span><h3>Reuse where reuse earns its keep.</h3><p>Runtime JIT caching and reuse-aware atomic promotion keep repeated declarations compact without forcing every first-use style into an atomic class.</p><code>atomic.css`display:flex; gap:2;`</code></article>
-        <article class="feature"><span class="feature-number">06 / STYLESHEETS</span><h3>One runtime, multiple shapes.</h3><p>Compile atomic declarations, complete stylesheets, scoped sheets or cascade layers through the same browser-first engine.</p><code>sheet.css.scoped('.app')`...`</code></article>
+        <article class="feature"><span class="feature-number">01 / ARTIFACTS</span><h3>Atomic, sheet, inline, scoped and layered.</h3><p>The same value pipeline can emit class artifacts, full stylesheets, inline declarations, scoped sheets and cascade-layer sheets.</p><code>css`` · atomic.css`` · sheet.css`` · inline.css``</code></article>
+        <article class="feature"><span class="feature-number">02 / TOKENS</span><h3>$, $$ and var() know who owns what.</h3><p>Theme tokens, Cipó runtime custom properties and host-owned CSS variables keep separate contracts, with derived math and fallback chains.</p><code>$brand · $$progress&lt;number&gt; · var(--host)</code></article>
+        <article class="feature"><span class="feature-number">03 / STATE DSL</span><h3>Fábrica state becomes observable CSS.</h3><p>Data states, booleans, slots, group, peer, variant and compound selectors all lower to standards-based selectors.</p><code>state() · slot() · group() · peer() · variant()</code></article>
+        <article class="feature"><span class="feature-number">04 / RESPONSIVE</span><h3>Viewport and container contexts share one grammar.</h3><p>Breakpoint objects, x-context chains, negated breakpoints, named containers and literal container bounds stay next to the declaration they affect.</p><code>x:md:hover · x:not(md) · x:cq(card &gt;= md)</code></article>
+        <article class="feature"><span class="feature-number">05 / DEEP HELPERS</span><h3>Typography, motion and layout are composable.</h3><p>text(), fluid(), motion(), stack(), cluster(), center(), cover(), sidebar() and interaction helpers lower into native CSS primitives.</p><code>text(fluid(14px,20px) / 1.5) · motion($enter)</code></article>
+        <article class="feature"><span class="feature-number">06 / EXTENSIBILITY</span><h3>Plugins without surrendering CSS.</h3><p>Register aliases, helpers, properties, variants, native functions, config presets and config plugins, then inspect and benchmark the resulting artifacts.</p><code>registerHelper() · recipe() · explainDetailed()</code></article>
+      </section>
+
+      <section class="api-lab" id="apiLab">
+        <div class="api-lab-head">
+          <div><p class="eyebrow">Programmatic browser API</p><h2>Push the<br />runtime buttons.</h2></div>
+          <p>Some Cipó capabilities are APIs rather than stylesheet syntax. These demos execute them against the same <code>window.Cipo</code> bundle and print the live result below.</p>
+        </div>
+        <div class="api-grid" id="apiGrid"></div>
+        <pre class="api-console" id="apiConsole">Choose an API demo. Output will grow here.</pre>
+      </section>
+
+      <section class="build-lab" id="buildLab">
+        <div class="build-lab-head">
+          <div><p class="eyebrow">Build-time surface</p><h2>Same vine,<br />earlier in time.</h2></div>
+          <p>The browser cannot run Vite inside this page, so the build-only package exports are represented as concrete integration examples. They use the same compiler semantics as the runtime playground.</p>
+        </div>
+        <div class="build-grid">
+          <article class="build-card"><h3>@rodkisten/cipo/compiler</h3><p>Compile Cipó source ahead of time while preserving the same AST, selector, token and DSL rules.</p><pre>import { compileCipoSourceBuild } from "@rodkisten/cipo/compiler";
+
+const result = compileCipoSourceBuild(source, options);
+// Build artifact: standards-based CSS.</pre></article>
+          <article class="build-card"><h3>@rodkisten/cipo/vite</h3><p>Use the Vite integration for whole-build styled extraction, Fábrica compilation, atomic promotion and config lowering.</p><pre>import { cipoVite } from "@rodkisten/cipo/vite";
+
+export default {
+  plugins: [cipoVite({
+    configCss: "./cipo.config.css"
+  })]
+};</pre></article>
+          <article class="build-card"><h3>Compiled runtime</h3><p>Production can consume parser-free configuration payloads and precompiled style artifacts instead of redoing static work in the browser.</p><pre>import {
+  configureCompiledCssConfig
+} from "@rodkisten/cipo/compiled-runtime";</pre></article>
+          <article class="build-card"><h3>Runtime inline</h3><p>The inline-oriented entry keeps styled component styles on the runtime inline path for environments that prefer style attributes.</p><pre>import {
+  compileInlineCss
+} from "@rodkisten/cipo/runtime-inline";</pre></article>
+        </div>
       </section>
 
       <section class="install" id="install">
         <div>
           <p class="eyebrow">Plant it anywhere</p>
           <h2>One script.<br />A lot of leaves.</h2>
-          <p>Use the browser bundle directly in a userscript or consume the package API in your application. The playground above runs against the same published IIFE generated by this repository.</p>
+          <p>Use the browser bundle directly in a userscript or consume the package API in an application. Every executable demo on this page runs against the same published IIFE generated by this repository.</p>
         </div>
-        <pre class="install-code">&lt;script src="./cipo.iife.js"&gt;lt;script src="../cipo.iife.js"&lt;script src="./cipo.iife.js"&gt;gt;&lt;/script&gt;
+        <pre class="install-code">&lt;script src="../cipo.iife.js"&gt;&lt;/script&gt;
 &lt;script&gt;
-  const card = Cipo.css`
+  Cipo.configureFromCss(`
+    @theme { colors: (brand: #b9ff66); }
+  `);
+
+  const card = Cipo.atomic.css`
     glass;
     px: 4;
     bg: alpha($brand / 18%);
@@ -761,26 +981,46 @@
       const statusText = document.querySelector("#statusText");
       const errorBox = document.querySelector("#errorBox");
       const runtimeStyle = document.querySelector("#cipo-playground-runtime");
+      const previewStage = document.querySelector("#previewStage");
+      const previewGroup = document.querySelector("#previewGroup");
+      const previewPeer = document.querySelector("#previewPeer");
       const previewCard = document.querySelector("#previewCard");
       const helperPalette = document.querySelector("#helperPalette");
       const modeLabel = document.querySelector("#modeLabel");
+      const presetGroup = document.querySelector("#presetGroup");
+      const presetTitle = document.querySelector("#presetTitle");
+      const presetDescription = document.querySelector("#presetDescription");
+      const importantToggle = document.querySelector("#importantToggle");
+      const capabilityGrid = document.querySelector("#capabilityGrid");
+      const apiGrid = document.querySelector("#apiGrid");
+      const apiConsole = document.querySelector("#apiConsole");
       const fireflies = document.querySelector("#fireflies");
 
       if (!(editor instanceof HTMLTextAreaElement) || !(output instanceof HTMLElement) || !(runtimeStyle instanceof HTMLStyleElement) || !(previewCard instanceof HTMLElement)) return;
 
       const helpers = [
-        ["spacing", "spacing(4)"], ["rem", "rem(24px)"], ["fluid", "fluid(1rem, 2rem, 4vw)"],
-        ["alpha", "alpha($brand / 24%)"], ["mix", "mix($brand, $ink, 70%)"], ["color", "color(moss-240)"],
-        ["signal", "signal(activeTone)"], ["when", "when(dark, #eaffd8, #17331f)"], ["consume", "consume(surface)"],
-        ["lighten", "lighten($brand, 10%)"], ["darken", "darken($brand, 10%)"], ["saturate", "saturate($brand, 8%)"],
-        ["desaturate", "desaturate($brand, 8%)"], ["gradient", "gradient(linear, $brand, $panel)"], ["image", "image('/leaf.webp')"],
-        ["shadow", "shadow(glass)"], ["glow", "glow(brand)"], ["radius", "radius(xl)"], ["text-size", "text-size(hero)"],
-        ["outlineGlow", "outlineGlow($brand)"], ["softBorder", "softBorder(alpha($ink / 16%))"]
+        ["spacing", "spacing(4)"], ["rem", "rem(24px)"], ["fluid", "fluid(min: 14px, max: 22px, from: sm, to: xl)"],
+        ["token", "token(button.foreground, foreground)"], ["alpha", "alpha($brand / 24%)"], ["mix", "mix($brand, $ink, 70%)"],
+        ["color", "color(amber-245)"], ["signal", "signal(theme.cardBg)"], ["when", "when(dark, #eaffd8, #17331f)"],
+        ["consume", "consume(surface)"], ["lighten", "lighten($brand, 10%)"], ["darken", "darken($brand, 10%)"],
+        ["saturate", "saturate($brand, 8%)"], ["desaturate", "desaturate($brand, 8%)"], ["gradient", "gradient(linear, $brand, $panel)"],
+        ["image", "image('/leaf.webp')"], ["shadow", "shadow(elevation(6))"], ["glow", "glow(brand)"],
+        ["radius", "radius(xl)"], ["text-size", "text-size(lg)"], ["outlineGlow", "outlineGlow($brand)"], ["softBorder", "softBorder(alpha($ink / 16%))"],
+        ["text", "text(16px / 1.5 / 600, ellipsis, tabular)"], ["motion", "motion(opacity: 0 -> 1, y: 8px -> 0, duration: 200ms)"],
+        ["state", "state(:active, variant=primary, ?enabled) {\n  color: $accent\n}"], ["slot", "slot(icon) {\n  color: $brand\n}"],
+        ["group", "group(panel, :open) {\n  transform: translateY(-2px)\n}"], ["peer", "peer(field, ?checked) {\n  opacity: 1\n}"],
+        ["variant", "variant(size) {\n  sm { p: 3 }\n  lg { p: 6 }\n}"], ["compound", "compound(size: [lg, xl], variant: primary) {\n  weight: 800\n}"],
+        ["container", "container(card) { inline-size }"], ["cq", "x:cq(card >= md) {\n  grid\n}"],
+        ["palette", "palette(brand, amber)"], ["provide", "provide(surface: sky-240)"], ["@with", "@with(bg(alpha($brand / 14%)), px(4), display(grid))"],
+        ["mixin", "$$panel(tone: color = $panel) {\n  bg: $tone\n}\npanel($brand)"], ["important", "!color: $brand"]
       ];
 
-      const presets = {
-        canopy: `.cipo-demo-card {
-  glass;
+      const demos = {
+        canopy: {
+          label: "Canopy", mode: "sheet", category: "core", title: "Canopy · aliases + tokens + helpers",
+          description: "Raw CSS and Cipó syntax coexist in one stylesheet, including aliases, token resolution, helpers, nesting and hover contexts.",
+          source: `.cipo-demo-card {
+  demo-glass;
   p: 6;
   rounded: $xl;
   color: $ink;
@@ -797,107 +1037,533 @@
     text: fluid(32px, 52px, 7vw);
     color: lighten($brand, 18%);
   }
+}`
+        },
+        modes: {
+          label: "Artifact modes", mode: "polymorphic", category: "core", title: "Polymorphic css`` · automatic artifact detection",
+          description: "The classic css`` tag stays atomic for declaration-first input and becomes a stylesheet artifact when the root is selector-only.",
+          source: `demo-glass;
+px: 6;
+py: 5;
+rounded: $xl;
+color: $ink;
+bg: alpha($brand / 16%);
 
-  .demo-tag {
-    background: alpha($brand / 14%);
-    border: 1px solid alpha($brand / 22%);
-  }
-}`,
-        glass: `.cipo-demo-card {
-  glass-strong;
-  p: 7;
-  rounded: $xl;
-  border: softBorder(alpha($ink / 18%));
-  box-shadow: shadow(elevation(8));
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklch, $panel 84%, transparent),
-    alpha($brand / 12%)
-  );
+x:hover {
+  bg: alpha($brand / 24%);
+  transform: translateY(-4px);
+}`
+        },
+        tokens: {
+          label: "$ + $$ tokens", mode: "sheet", category: "tokens", title: "$ tokens, $$ runtime vars, typed vars, math and fallbacks",
+          description: "Theme ownership, local custom properties, typed @property registration, derived runtime math and ordered token fallback chains in one specimen.",
+          source: `.cipo-demo-card {
+  $$gutterWidth: 24px;
+  $$progress<number>: 0.94;
+  $$angle<angle>: -1deg;
+  $$cardPadding: $$gutterWidth + 8px;
 
-  x:hover {
-    backdrop-filter: blur(30px) saturate(170%);
-    transform: scale(1.025);
-  }
-}`,
-        responsive: `.cipo-demo-card {
-  container: specimen / inline-size;
-  p: 4;
-  rounded: $lg;
-  bg: alpha($panel / 88%);
-  border: 1px solid alpha($brand / 18%);
+  padding: $$cardPadding;
+  opacity: $$progress;
+  rotate: $$angle;
+  color: $button.foreground ?? $foreground ?? white;
+  border: 1px solid token(button.border, foreground);
+  background: alpha($surface / 92%);
 
-  x:md {
-    p: 8;
-    rounded: $xl;
+  .demo-meter > i {
+    width: calc($$progress * 100%);
   }
+}`
+        },
+        helpers: {
+          label: "All helpers", mode: "sheet", category: "values", title: "Built-in helper registry · complete value pipeline",
+          description: "Exercises every built-in helper family, plus palette(), provide(), signal(), when() and consume() runtime concepts.",
+          source: `.cipo-demo-card {
+  palette(accentRamp, amber);
+  provide(surfaceTone: sky-240);
+  $$space: spacing(5);
 
-  x:cq(md) {
-    background: gradient(linear, alpha($brand / 24%), $panel);
-  }
-
-  x:hover {
-    transform: translateY(-4px);
-  }
-}`,
-        helpers: `.cipo-demo-card {
-  p: spacing(6);
+  p: $$space;
   rounded: radius(xl);
-  color: when(dark, #f1ffe5, #17331f);
-  background: gradient(linear, mix($brand, $panel, 42%), darken($panel, 4%));
-  border: softBorder(alpha($brand / 26%));
-  box-shadow: shadow(glow(brand));
+  font-size: text-size(lg);
+  color: when(dark, lighten($brand, 18%), darken($foreground, 8%));
+  background: gradient(linear, mix($panel, color(emerald-700), 78%), alpha($brand / 12%));
+  border: softBorder(alpha($ink / 18%));
+  outline-color: consume(surfaceTone);
+  box-shadow: shadow(elevation(8)), glow(brand), outlineGlow($brand);
+  min-height: rem(280px);
+  width: min(100%, fluid(320px, 430px, 8vw));
 
-  .demo-title {
-    color: saturate(lighten($brand, 14%), 6%);
-    font-size: fluid(rem(30px), rem(52px), 7vw);
+  .demo-icon {
+    color: saturate(color(amber-245), 8%);
+    background: alpha(desaturate($brand, 8%) / 14%);
+    background-image: image("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E");
   }
 
   .demo-copy {
-    color: desaturate($ink, 12%);
+    color: signal(theme.cardBg);
   }
-}`,
-        atomic: `display: block;
+}`
+        },
+        smart: {
+          label: "Smart DSL", mode: "atomic", category: "values", title: "Smart declarations, layout helpers and utility aliases",
+          description: "Declaration functions cover sizing, positioning, grid, layouts, scrolling, interaction, transitions and animations while static/dynamic utility aliases stay available.",
+          source: `relative;
+w(fill, min: 320px, max: 430px);
+h(contain, min: 280px, max: 70vh);
+pos(relative, top: 0);
+stack(gap: 3);
+center(max: 430px, px: 16px, text: left);
+scroll(smooth);
+scrollbar(thin);
+overscroll(contain);
+tap(manipulation);
+select(none);
+focus-ring($brand);
+transition(colors, transform);
+animate(fade-in);
+rounded: $xl;
+bg-emerald-900;
+color-amber-245;`
+        },
+        fabrica: {
+          label: "Fábrica state", mode: "sheet", category: "selectors", title: "Fábrica selectors · state, slot, group, peer, variant and compound",
+          description: "Use the controls above the preview to mutate the exact data/boolean contracts consumed by Cipó selectors.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 5;
+  color: $ink;
+
+  state(:active, variant=primary, ?enabled) {
+    border: 2px solid $brand;
+    box-shadow: glow(brand);
+  }
+
+  &:selected {
+    outline: 1px solid alpha($brand / 28%);
+  }
+
+  &:toolTab='console' { letter-spacing: 0.001em; }
+  &:tags~='selected' { background: alpha($brand / 10%); }
+  &:lang^='pt' { --language-match: 1; }
+  &:file$='.ts' { --file-match: 1; }
+  &:route*='settings' { --route-match: 1; }
+  &:kind|='button' { --kind-match: 1; }
+
+  slot(toolbar) {
+    color: $brand;
+    border-bottom: 1px solid alpha($brand / 18%);
+  }
+
+  slot(icon) {
+    box-shadow: glow(brand);
+  }
+
+  group(panel, :open) {
+    transform: translateY(-3px);
+  }
+
+  peer(field, ?checked) {
+    opacity: 1;
+  }
+
+  variant(size) {
+    sm { p: 3; }
+    lg { p: 6; }
+    xl { p: 8; }
+  }
+
+  variant(variant) {
+    primary { background: alpha($brand / 12%); }
+    danger { background: alpha($danger / 13%); border-color: $danger; }
+  }
+
+  compound(size: [lg, xl], variant: primary) {
+    font-weight: 700;
+  }
+
+  compound(!size: [sm], variant: danger) {
+    box-shadow: 0 0 0 3px alpha($danger / 16%);
+  }
+}`
+        },
+        responsive: {
+          label: "Responsive", mode: "sheet", category: "contexts", title: "Responsive objects + x:* context chains",
+          description: "Breakpoint objects, named media contexts, negation, dark mode and motion preferences use the same runtime context system.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  gap: {
+    base: 8px,
+    md: 16px,
+    lg: 24px
+  };
+
+  text(
+    size: {
+      base: 14px,
+      md: 18px
+    },
+    lh: 1.4
+  );
+
+  x:not(md) { width: 100%; }
+  x:md { p: 7; }
+  x:lg:hover { transform: translateY(-8px) scale(1.02); }
+  x:dark { background: alpha($panel / 94%); }
+  x:motion-safe:hover { transition: transform 220ms ease; }
+  x:motion-reduce { transition: none; }
+}`
+        },
+        container: {
+          label: "Containers", mode: "sheet", category: "contexts", title: "Named containers + semantic and literal container queries",
+          description: "container() defines a query container; x:cq() binds to configured breakpoints and x:container() accepts literal min/max bounds.",
+          source: `.preview-state-shell {
+  container(specimen) {
+    inline-size
+  }
+}
+
+.cipo-demo-card {
+  demo-glass;
+  p: 4;
+
+  x:cq(specimen >= sm) {
+    grid-template(cols: 56px minmax(0, 1fr));
+    gap: 4;
+  }
+
+  x:container(specimen, min: 400px, max: 900px) {
+    border: 2px solid alpha($brand / 34%);
+  }
+}`
+        },
+        typography: {
+          label: "Typography", mode: "sheet", category: "deep", title: "text() · positional, named, modifiers, presets and fluid ranges",
+          description: "The deep typography helper covers compact shorthand, rich named arguments, modifiers, responsive values and theme typography presets.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 6;
+
+  .demo-kicker {
+    text(12px / 1.3 / 800, upper, tabular);
+  }
+
+  .demo-title {
+    text(
+      size: fluid(min: 30px, max: 54px, from: sm, to: xl),
+      lh: 0.96,
+      weight: 850,
+      family: system-ui,
+      color: $brand,
+      tracking: -0.04em,
+      wrap: balance,
+      ligatures: none
+    );
+  }
+
+  .demo-copy {
+    text($body);
+  }
+
+  .demo-tag {
+    text(11px / 1.2 / 700, ellipsis, tabular, slashed-zero);
+  }
+}`
+        },
+        motion: {
+          label: "Motion", mode: "sheet", category: "deep", title: "motion() + presets + @starting-style + reduced motion",
+          description: "Entrance state, final state, transition metadata and accessibility fallback are emitted together, while starting-style remains usable directly.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 6;
+
+  motion(
+    opacity: 0 -> 1,
+    y: 14px -> 0,
+    scale: 0.96 -> 1,
+    duration: 320ms,
+    easing: cubic-bezier(.2,.8,.2,1),
+    delay: 40ms
+  );
+
+  .demo-icon {
+    motion($pop);
+  }
+
+  starting-style {
+    filter: blur(8px);
+  }
+
+  reduce-motion {
+    transform: none;
+  }
+}`
+        },
+        mixins: {
+          label: "Mixins + @with", mode: "sheet", category: "compat", title: "Runtime mixins + legacy @with compatibility",
+          description: "New parameterized $$mixins and conditional blocks can coexist with the older @with(...) compatibility syntax and registered aliases.",
+          source: `$$surface(tone: color = $panel, compact: boolean = false) {
+  bg: alpha($tone / 18%);
+  border: 1px solid alpha($tone / 28%);
+  if compact {
+    p: 3;
+  }
+}
+
+.cipo-demo-card {
+  surface($brand, false);
+  @with(px(6), py(5), rounded($xl));
+  demo-glass;
+  color: $ink;
+}`
+        },
+        atrules: {
+          label: "Contexts", mode: "sheet", category: "contexts", title: "supports(), layer(), starting-style and reduced-motion contexts",
+          description: "Cipó context blocks lower to native at-rules and preserve ordinary CSS at-rules as an escape hatch.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 6;
+
+  supports(backdrop-filter: blur(1px)) {
+    backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  layer(components) {
+    border-color: alpha($brand / 28%);
+  }
+
+  starting-style {
+    opacity: 0;
+  }
+
+  reduce-motion {
+    transition: none;
+  }
+}
+
+@media (orientation: landscape) {
+  .cipo-demo-card { max-width: 520px; }
+}`
+        },
+        native: {
+          label: "Native CSS", mode: "sheet", category: "compat", title: "Native CSS pass-through and escape hatches",
+          description: "Modern native functions, custom properties, pseudo classes, selector lists, @supports and multiline values survive unless syntax is unambiguously Cipó.",
+          source: `.cipo-demo-card,
+.cipo-demo-card:is([data-size="lg"], [data-size="xl"]) {
+  --host-tone: #d8ffc1;
+  width: min(100%, 430px);
+  padding-right: max(1rem, env(safe-area-inset-right));
+  color: var(--host-tone);
+  background: color-mix(in oklch, #0a2115 88%, #b9ff66);
+  grid-template-columns: minmax(0, 1fr) auto;
+
+  &:has(.demo-icon) { border: 1px solid rgb(201 255 89 / .22); }
+  &:focus-visible { outline: 2px solid #c9ff59; }
+
+  &::before {
+    content: "native";
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
+    opacity: .25;
+    font: 10px ui-monospace;
+  }
+}`
+        },
+        important: {
+          label: "Important", mode: "atomic", category: "core", title: "Safe !important · declaration and namespace modes",
+          description: "Use leading !property or the withImportant APIs. Cipó dedupes priority so output never becomes !important !important.",
+          source: `!color: $brand;
+!background: alpha($panel / 94%);
 p: 6;
 rounded: $xl;
+border: softBorder(alpha($brand / 30%));`
+        },
+        config: {
+          label: "CSS config", mode: "config", category: "config", title: "CSS-first configuration · @cipo, @theme, @tokens, breakpoints, aliases, properties, presets and plugins",
+          description: "This mode applies the editor as configuration CSS, then compiles a live specimen with the resulting runtime state.",
+          source: `@cipo {
+  prefix: grove;
+  layers: false;
+  minify: false;
+  color-mode: oklch;
+  dark-selector: "[data-theme=dark]";
+  theme-root: ":root";
+  atomic-min-uses: 2;
+}
+
+@breakpoints {
+  sm: 640px;
+  md: 768px;
+  lg: 1024px;
+}
+
+@theme {
+  colors: (
+    brand: #b9ff66,
+    panel: #0a2115,
+    ink: #efffe6,
+    foreground: #efffe6,
+    surface: #102c1b,
+    danger: #ff766b
+  );
+  spacing: (
+    sm: 8px,
+    md: 16px
+  );
+  radius: (
+    xl: 34px
+  );
+}
+
+@tokens {
+  colors: (
+    accent: #73f0b3
+  );
+}
+
+@alias config-card {
+  p: 6;
+  rounded: $xl;
+  bg: alpha($panel / 92%);
+  color: $ink;
+}
+
+@property $$configProgress {
+  syntax: "<number>";
+  inherits: false;
+  initial: 0;
+}
+
+@preset forest-demo;
+@plugin demo-config-plugin;
+@layer reset, base, components, utilities;`
+        },
+        inline: {
+          label: "Inline", mode: "inline", category: "core", title: "inline.css · template and style-attribute artifact",
+          description: "The same alias/token/helper pipeline can emit declaration text directly for a style attribute without creating selector rules.",
+          source: `p: 6;
+rounded: $xl;
 color: $ink;
-bg: alpha($brand / 18%);
-border: 1px solid alpha($brand / 28%);
-box-shadow: shadow(glass);
-transition: transform 220ms ease;
-`
+bg: alpha($brand / 15%);
+border: softBorder(alpha($brand / 24%));
+box-shadow: shadow(glass);`
+        },
+        scoped: {
+          label: "Scoped sheet", mode: "scoped", category: "core", title: "sheet.css.scoped() · selector-scoped stylesheet",
+          description: "The playground wraps this stylesheet under #previewStage before compilation, useful for embedded surfaces and isolated app regions.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 6;
+  color: $brand;
+
+  x:hover { transform: scale(1.02); }
+}`
+        },
+        layer: {
+          label: "Layer sheet", mode: "layer", category: "core", title: "sheet.css.layer() · cascade-layer artifact",
+          description: "The resulting stylesheet artifact is wrapped in @layer demo-components while keeping Cipó transformations inside.",
+          source: `.cipo-demo-card {
+  demo-glass;
+  p: 6;
+  border: 2px solid alpha($brand / 24%);
+}`
+        }
       };
+
+      const capabilityItems = [
+        ["Artifacts", "modes", "css / atomic / sheet / inline", "Polymorphic and explicit output modes"],
+        ["Tokens", "tokens", "$ / $$ / typed / fallback", "Theme and runtime variable ownership"],
+        ["Helpers", "helpers", "alpha() · mix() · fluid() · ...", "Complete built-in value helper registry"],
+        ["Smart shorthands", "smart", "stack() · w() · focus-ring()", "Layout, interaction and utility DSL"],
+        ["Fábrica selectors", "fabrica", "state · slot · group · peer", "Observable component state contracts"],
+        ["Responsive", "responsive", "x:md · x:not(md) · objects", "Viewport and preference contexts"],
+        ["Container queries", "container", "container() · x:cq()", "Named and literal container ranges"],
+        ["Typography", "typography", "text() · fluid() · presets", "Deep text composition"],
+        ["Motion", "motion", "motion() · starting-style", "Entrance states and reduced motion"],
+        ["Mixins", "mixins", "$$mixin() · @with()", "New runtime mixins plus legacy compatibility"],
+        ["At-rule contexts", "atrules", "supports · layer · reduce-motion", "Native wrappers from local blocks"],
+        ["Native CSS", "native", "min() · :has() · @media", "Pass-through escape hatch"],
+        ["Important", "important", "!property · withImportant", "Safe priority handling"],
+        ["CSS-first config", "config", "@cipo · @theme · @property", "Runtime configuration language"],
+        ["Inline", "inline", "inline.css", "Style-attribute artifact"],
+        ["Scoped", "scoped", "sheet.css.scoped", "Selector-scoped sheet"],
+        ["Layers", "layer", "sheet.css.layer", "Cascade layer artifact"]
+      ];
 
       const runtimeConfig = `
         @cipo {
           prefix: grove;
           layers: false;
-          color-mode: oklch;
+          minify: false;
           rem: 16px;
+          color-mode: oklch;
+          dark-selector: "[data-theme=dark]";
+          theme-root: ":root";
         }
         @theme {
           colors: (
             brand: #b9ff66,
             panel: #0a2115,
             ink: #efffe6,
-            moss: #4f9b4e
+            foreground: #efffe6,
+            surface: #102c1b,
+            accent: #73f0b3,
+            danger: #ff766b
+          );
+          spacing: (
+            xs: 4px,
+            sm: 8px,
+            md: 16px,
+            lg: 24px,
+            xl: 32px
           );
           radius: (
+            sm: 10px,
             lg: 22px,
             xl: 34px
           );
-          text: (
-            hero: 3rem
+          shadow: (
+            panel: 0 24px 80px rgb(0 0 0 / .35)
           );
-          spacing: 0.25rem;
+          text: (
+            sm: 14px,
+            lg: 20px
+          );
         }
         @breakpoints {
+          sm: 640px;
           md: 768px;
+          lg: 1024px;
+          xl: 1280px;
+        }
+        @theme(dark) {
+          colors: (
+            surface: #102c1b,
+            foreground: #efffe6
+          );
+        }
+        @theme(amoled extends dark) {
+          colors: (
+            panel: #000000,
+            surface: #050805
+          );
+        }
+        @alias demo-glass {
+          background: alpha($panel / 88%);
+          border: 1px solid alpha($ink / 14%);
+          backdrop-filter: blur(18px) saturate(140%);
         }
       `;
 
       let mode = "sheet";
+      let activeDemo = "canopy";
+      let forceImportant = false;
       let compileTimer = 0;
+      let currentAtomicClasses = "";
+
+      const customHelper = (args, context) => `0 0 0 4px ${context.resolveValue(`alpha(${args.trim() || "$brand"} / 22%)`)}`;
+      const interactiveSelectors = ["&:hover", "&:focus-visible"];
 
       function makeTemplate(source) {
         const strings = [source];
@@ -905,19 +1571,44 @@ transition: transform 220ms ease;
         return strings;
       }
 
+      function installExtensions() {
+        window.Cipo.registerHelper("demoRing", customHelper);
+        window.Cipo.registerAlias("demo-glass", "background:alpha($panel / 88%);border:1px solid alpha($ink / 14%);backdrop-filter:blur(18px) saturate(140%);");
+        window.Cipo.registerProperty("bleed", { property: "margin-inline", scale: "spacing" });
+        window.Cipo.registerVariant("interactive", interactiveSelectors);
+        window.Cipo.registerNativeFunction("anchor-size");
+        window.Cipo.registerPreset("forest-demo", `@theme { colors: (brand: #c9ff59); }`);
+        window.Cipo.registerConfigPlugin("demo-config-plugin", (api) => {
+          api.alias("plugin-card", "border:1px solid alpha($brand / 22%);");
+          api.css("@layer components{.plugin-config-marker{display:contents;}}");
+        });
+      }
+
       function configureRuntime() {
         window.Cipo.reset();
+        installExtensions();
         window.Cipo.configureFromCss(runtimeConfig);
+        window.Cipo.theme({
+          spacing: { derived: "$spacing.sm * 2" },
+          text: {
+            body: { size: "16px", lh: 1.55, weight: 450, family: "system-ui", tracking: "0.005em" },
+            heading: { lg: { size: "32px", lh: 1.05, weight: 800 } }
+          }
+        });
+        previewStage?.style.setProperty("--grove-signal-theme-card-bg", "#b8d9b7");
       }
 
       function formatCss(css) {
-        return String(css)
-          .replace(/\{/g, " {\n  ")
-          .replace(/;/g, ";\n  ")
-          .replace(/\}/g, "\n}\n")
-          .replace(/\n\s*\n+/g, "\n")
-          .replace(/\n  \}/g, "\n}")
-          .trim();
+        return String(css || "").replace(/\}\s*/g, "}\n").replace(/\{\s*/g, "{\n  ").replace(/;(?=[^\n])/g, ";\n  ").replace(/\n\s*\n+/g, "\n").trim();
+      }
+
+      function stringify(value) {
+        return JSON.stringify(value, (key, item) => {
+          if (typeof item === "function") return `[Function ${item.name || "anonymous"}]`;
+          if (item instanceof HTMLElement) return `<${item.tagName.toLowerCase()}>`;
+          if (item instanceof ShadowRoot) return "[ShadowRoot]";
+          return item;
+        }, 2);
       }
 
       function setStatus(ok, message) {
@@ -926,30 +1617,71 @@ transition: transform 220ms ease;
         errorBox.classList.toggle("is-visible", !ok);
       }
 
+      function clearPreviewArtifact() {
+        runtimeStyle.textContent = "";
+        previewCard.style.cssText = "";
+        if (currentAtomicClasses) previewCard.classList.remove(...currentAtomicClasses.split(/\s+/).filter(Boolean));
+        currentAtomicClasses = "";
+      }
+
+      function applyAtomicArtifact(artifact) {
+        const classes = artifact.className || String(artifact);
+        currentAtomicClasses = classes;
+        previewCard.className = `cipo-demo-card ${classes}`.trim();
+        return `/* generated classes */\n${classes}\n\n/* artifact compiled CSS */\n${formatCss(artifact.compiledCss)}\n\n/* complete runtime style registry */\n${formatCss(window.Cipo.getCssText())}`;
+      }
+
+      function applySheetArtifact(artifact) {
+        previewCard.className = "cipo-demo-card";
+        runtimeStyle.textContent = String(artifact);
+        return `/* stylesheet artifact */\n${formatCss(String(artifact))}\n\n/* warnings */\n${stringify(artifact.debug?.warnings || [])}`;
+      }
+
       function compile() {
         const source = editor.value;
         try {
           configureRuntime();
+          clearPreviewArtifact();
           errorBox.textContent = "";
+          let text = "";
 
           if (mode === "atomic") {
-            const artifact = window.Cipo.atomic.css(makeTemplate(source));
-            const classes = String(artifact);
-            const cssText = window.Cipo.getCssText();
-            runtimeStyle.textContent = "";
-            previewCard.className = `cipo-demo-card ${classes}`;
-            output.textContent = `/* generated classes */\n${classes}\n\n/* runtime CSS */\n${formatCss(cssText)}`;
-          } else {
-            const artifact = window.Cipo.sheet.css(makeTemplate(source));
-            const cssText = String(artifact);
+            const tag = forceImportant ? window.Cipo.atomic.css.withImportant : window.Cipo.atomic.css;
+            text = applyAtomicArtifact(tag(makeTemplate(source)));
+          } else if (mode === "polymorphic") {
+            const tag = forceImportant ? window.Cipo.css.withImportant : window.Cipo.css;
+            const artifact = tag(makeTemplate(source));
+            text = window.Cipo.isStylesheetArtifact(artifact) ? applySheetArtifact(artifact) : applyAtomicArtifact(artifact);
+          } else if (mode === "inline") {
+            const tag = forceImportant ? window.Cipo.inline.css.withImportant : window.Cipo.inline.css;
+            const artifact = tag(makeTemplate(source));
             previewCard.className = "cipo-demo-card";
-            runtimeStyle.textContent = cssText;
-            output.textContent = formatCss(cssText);
+            previewCard.style.cssText = String(artifact);
+            text = `/* inline artifact */\n${String(artifact)}\n\n/* complete runtime style registry */\n${formatCss(window.Cipo.getCssText())}`;
+          } else if (mode === "scoped") {
+            const scoped = window.Cipo.sheet.css.scoped("#previewStage");
+            const tag = forceImportant ? scoped.withImportant : scoped;
+            text = applySheetArtifact(tag(makeTemplate(source)));
+          } else if (mode === "layer") {
+            const layered = window.Cipo.sheet.css.layer("demo-components");
+            const tag = forceImportant ? layered.withImportant : layered;
+            text = applySheetArtifact(tag(makeTemplate(source)));
+          } else if (mode === "config") {
+            window.Cipo.reset();
+            installExtensions();
+            const result = window.Cipo.configureFromCss(source);
+            const artifact = window.Cipo.sheet.css(makeTemplate(`.cipo-demo-card { config-card; plugin-card; $$configProgress: .88; opacity: $$configProgress; }`));
+            runtimeStyle.textContent = String(artifact);
+            text = `/* configuration result */\n${stringify(result)}\n\n/* generated configuration CSS */\n${formatCss(window.Cipo.getCssText())}\n\n/* live specimen CSS */\n${formatCss(String(artifact))}`;
+          } else {
+            const tag = forceImportant ? window.Cipo.sheet.css.withImportant : window.Cipo.sheet.css;
+            text = applySheetArtifact(tag(makeTemplate(source)));
           }
 
-          setStatus(true, "compiled");
+          output.textContent = text;
+          setStatus(true, forceImportant && mode !== "config" ? "compiled + important" : "compiled");
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
           setStatus(false, "syntax error");
           errorBox.textContent = message;
           output.textContent = `/* The vine hit a knot. */\n${message}`;
@@ -958,54 +1690,309 @@ transition: transform 220ms ease;
 
       function scheduleCompile() {
         window.clearTimeout(compileTimer);
-        compileTimer = window.setTimeout(compile, 120);
+        compileTimer = window.setTimeout(compile, 100);
       }
 
-      function setMode(nextMode) {
+      function setMode(nextMode, options = {}) {
         mode = nextMode;
-        document.querySelectorAll(".mode-button").forEach((button) => {
-          button.setAttribute("aria-pressed", String(button.getAttribute("data-mode") === mode));
-        });
-        modeLabel.textContent = mode === "atomic" ? "atomic.css``" : "sheet.css``";
-        editor.value = mode === "atomic" ? presets.atomic : presets.canopy;
+        document.querySelectorAll(".mode-button").forEach((button) => button.setAttribute("aria-pressed", String(button.getAttribute("data-mode") === mode)));
+        const labels = {
+          polymorphic: "css`` auto", sheet: "sheet.css``", atomic: "atomic.css``", inline: "inline.css``",
+          scoped: "sheet.css.scoped('#previewStage')``", layer: "sheet.css.layer('demo-components')``", config: "configureFromCss()"
+        };
+        modeLabel.textContent = labels[mode] || mode;
+        if (!options.keepSource) {
+          const first = Object.values(demos).find((item) => item.mode === mode);
+          if (first) editor.value = first.source;
+        }
         compile();
+      }
+
+      function loadDemo(key) {
+        const demo = demos[key];
+        if (!demo) return;
+        activeDemo = key;
+        mode = demo.mode;
+        editor.value = demo.source;
+        presetTitle.textContent = demo.title;
+        presetDescription.textContent = demo.description;
+        document.querySelectorAll(".preset-button").forEach((button) => button.setAttribute("aria-pressed", String(button.getAttribute("data-preset") === key)));
+        document.querySelectorAll(".mode-button").forEach((button) => button.setAttribute("aria-pressed", String(button.getAttribute("data-mode") === mode)));
+        const labels = { polymorphic: "css`` auto", sheet: "sheet.css``", atomic: "atomic.css``", inline: "inline.css``", scoped: "sheet.css.scoped('#previewStage')``", layer: "sheet.css.layer('demo-components')``", config: "configureFromCss()" };
+        modeLabel.textContent = labels[mode] || mode;
+        compile();
+        document.querySelector("#playground")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
       function insertAtCursor(text) {
         const start = editor.selectionStart;
         const end = editor.selectionEnd;
-        const before = editor.value.slice(0, start);
-        const after = editor.value.slice(end);
-        editor.value = `${before}${text}${after}`;
-        const cursor = start + text.length;
+        editor.setRangeText(text, start, end, "end");
         editor.focus();
-        editor.setSelectionRange(cursor, cursor);
         scheduleCompile();
+      }
+
+      function createPresetButtons() {
+        for (const [key, demo] of Object.entries(demos)) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "toolbar-button preset-button";
+          button.dataset.preset = key;
+          button.setAttribute("aria-pressed", String(key === activeDemo));
+          button.textContent = demo.label;
+          button.addEventListener("click", () => loadDemo(key));
+          presetGroup?.append(button);
+        }
+      }
+
+      function createCapabilityCards() {
+        for (const [title, demo, code, description] of capabilityItems) {
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "capability-card";
+          card.innerHTML = `<small>load demo ↗</small><strong>${title}</strong><p>${description}</p><code>${code}</code>`;
+          card.addEventListener("click", () => loadDemo(demo));
+          capabilityGrid?.append(card);
+        }
+      }
+
+      function setExclusiveControl(selector, value) {
+        document.querySelectorAll(selector).forEach((button) => button.setAttribute("aria-pressed", String(button.getAttribute("data-value") === value)));
+      }
+
+      function wirePreviewControls() {
+        document.querySelectorAll(".theme-control").forEach((button) => button.addEventListener("click", () => {
+          const value = button.getAttribute("data-value") || "dark";
+          previewStage?.setAttribute("data-theme", value);
+          setExclusiveControl(".theme-control", value);
+        }));
+        document.querySelectorAll(".variant-control").forEach((button) => button.addEventListener("click", () => {
+          const value = button.getAttribute("data-value") || "primary";
+          previewCard.dataset.variant = value;
+          setExclusiveControl(".variant-control", value);
+        }));
+        document.querySelectorAll(".size-control").forEach((button) => button.addEventListener("click", () => {
+          const value = button.getAttribute("data-value") || "lg";
+          previewCard.dataset.size = value;
+          setExclusiveControl(".size-control", value);
+        }));
+        document.querySelectorAll(".boolean-control").forEach((button) => button.addEventListener("click", () => {
+          const state = button.getAttribute("data-state");
+          const next = button.getAttribute("aria-pressed") !== "true";
+          button.setAttribute("aria-pressed", String(next));
+          if (state === "active") previewCard.toggleAttribute("data-active", next);
+          if (state === "open") previewGroup?.toggleAttribute("data-open", next);
+          if (state === "checked" && previewPeer instanceof HTMLInputElement) {
+            previewPeer.checked = next;
+            previewPeer.toggleAttribute("checked", next);
+          }
+        }));
+      }
+
+      const apiDemos = [
+        {
+          tag: "configuration", title: "setup, configure, theme + theme scopes", description: "Applies JS-first setup/theme calls, named scopes and inheritance, then prints generated token CSS.",
+          run() {
+            window.Cipo.reset();
+            window.Cipo.setup({ prefix: "api", layers: false, rem: { enabled: true, baseFontSize: 16 }, theme: { colors: { brand: "#b9ff66", surface: "#102c1b" } } });
+            window.Cipo.theme({ spacing: { sm: "8px", md: "$spacing.sm * 2" } });
+            window.Cipo.themeScope("dark", { colors: { surface: "#111" } });
+            window.Cipo.themeScope("amoled", { colors: { background: "#000" } }, { extends: "dark" });
+            return { css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "plugins", title: "Alias, helper, property, variant + native function", description: "Registers every public extension point used by the CSS compiler and compiles a specimen through them.",
+          run() {
+            configureRuntime();
+            window.Cipo.registerAlias("api-glass", "bg:alpha($panel / 70%);backdrop-filter:blur(12px);");
+            window.Cipo.registerHelper("apiGlow", customHelper);
+            window.Cipo.registerProperty("gutter", { property: "padding-inline", scale: "spacing" });
+            window.Cipo.registerVariant("interactive", interactiveSelectors);
+            window.Cipo.registerNativeFunction("anchor-size");
+            const artifact = window.Cipo.atomic.css(makeTemplate(`api-glass;gutter:4;width:anchor-size(width);interactive { box-shadow: apiGlow($brand); }`));
+            return { className: artifact.className, compiledCss: artifact.compiledCss };
+          }
+        },
+        {
+          tag: "recipes", title: "recipe() variants", description: "Builds a reusable recipe and resolves default and explicit variant selections into normal Cipó class artifacts.",
+          run() {
+            configureRuntime();
+            const button = window.Cipo.recipe({ base: "display:inline-flex;px:4;py:2;rounded:$lg;", variants: { tone: { primary: "bg:$brand;color:$panel;", danger: "bg:$danger;color:white;" }, size: { sm: "text:12px;", lg: "text:18px;" } }, defaults: { tone: "primary", size: "sm" } });
+            const primary = button();
+            const danger = button({ tone: "danger", size: "lg" });
+            return { primary: primary.className, danger: danger.className, css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "typed values", title: "@property, properties(), typed + typedProperty", description: "Exercises JS-first CSS Properties & Values registration and typed token factories.",
+          run() {
+            configureRuntime();
+            const angle = window.Cipo.property("angle", { syntax: "<angle>", inherits: false, initial: "0deg" });
+            const batch = window.Cipo.properties({ progress: { syntax: "<number>", initial: 0 }, duration: { syntax: "<time>", initial: "0ms" } });
+            const typedLength = window.Cipo.typed.length("12px", false);
+            const registered = window.Cipo.typedProperty("api-size", "length", "16px", { inherits: false });
+            window.Cipo.theme({ metrics: { inset: typedLength } });
+            return { angle, batch, registered, typedLength, css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "typed theme", title: "typedTheme + semantic type registry", description: "Defines a custom semantic theme type, validates values, lists types and applies typed theme tokens.",
+          run() {
+            configureRuntime();
+            window.Cipo.defineThemeType("ratio", { cssSyntax: "<number>", registrable: true, initialValue: 1, validate(value) { const valid = Number.isFinite(Number(value)); return { status: valid ? "valid" : "invalid", valid, type: "ratio", value, reason: valid ? undefined : "Expected a finite number." }; } });
+            const validation = window.Cipo.validateThemeValue("ratio", "1.618");
+            const value = window.Cipo.typedTheme("ratio", "1.618", { register: true, inherits: false, initialValue: 1 });
+            window.Cipo.theme({ layout: { goldenRatio: value } });
+            return { validation, type: window.Cipo.getThemeType("ratio"), types: window.Cipo.listThemeTypes(), css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "debug", title: "explain, validate, benchmark + inspect", description: "Runs source explanations, compilation phases, structural validation, a small benchmark and DOM atom inspection.",
+          run() {
+            configureRuntime();
+            const artifact = window.Cipo.atomic.css(makeTemplate(`px:4;color:$brand;x:hover { color:$ink; }`));
+            previewCard.className = `cipo-demo-card ${artifact.className}`;
+            const first = artifact.className.split(/\\s+/)[0] || "";
+            return { explain: window.Cipo.explain(first), explainCss: window.Cipo.explainCss("px:4;color:$brand", "atomic"), detailed: window.Cipo.explainDetailed("px:4;color:$brand", "atomic"), validation: window.Cipo.validateCss(artifact.compiledCss), benchmark: window.Cipo.benchmark("px:4;color:$brand", 25, "atomic"), inspect: window.Cipo.inspect(previewCard), stats: window.Cipo.getDebugOverlayStats() };
+          }
+        },
+        {
+          tag: "injection", title: "injectGlobal, injectStyle + sheet.insertInto", description: "Targets document and ShadowRoot surfaces with global, atomic and stylesheet artifacts.",
+          run() {
+            configureRuntime();
+            window.Cipo.injectGlobal(makeTemplate(`.cipo-global-demo { --injected: 1; }`));
+            const host = document.createElement("div");
+            const shadow = host.attachShadow({ mode: "open" });
+            const atom = window.Cipo.atomic.css(makeTemplate(`color:$brand;p:2;`));
+            window.Cipo.injectStyle(shadow, atom);
+            window.Cipo.sheet.css.insertInto(shadow)(makeTemplate(`:host { display:block; } .leaf { color:$brand; }`));
+            return { shadowHTML: shadow.innerHTML, documentCssBytes: window.Cipo.getCssText().length };
+          }
+        },
+        {
+          tag: "artifacts", title: "Artifact guards + style object + html helper", description: "Checks artifact identity helpers, compiles a style object through css(), and uses the compatibility html template helper.",
+          run() {
+            configureRuntime();
+            const atom = window.Cipo.atomic.css(makeTemplate(`p:4;color:$brand;`));
+            const sheet = window.Cipo.sheet.css(makeTemplate(`.x { color:$brand; }`));
+            const objectArtifact = window.Cipo.css({ padding: "16px", color: "$brand", background: "alpha($panel / 80%)" });
+            window.Cipo.assertAtomicCssArtifact(atom);
+            return { atomic: window.Cipo.isAtomicCssArtifact(atom), stylesheet: window.Cipo.isStylesheetArtifact(sheet), objectArtifact: String(objectArtifact), html: window.Cipo.html`<span class="${atom}">ok</span>`, rodKAlias: window.RodK === window.Cipo };
+          }
+        },
+        {
+          tag: "css config", title: "Presets + config plugins", description: "Registers and executes @preset and @plugin hooks through the CSS-first configuration pipeline.",
+          run() {
+            window.Cipo.reset();
+            installExtensions();
+            window.Cipo.registerPreset("api-preset", `@cipo { prefix: cfg; layers: false; } @theme { colors: (brand: #73f0b3); }`);
+            window.Cipo.registerConfigPlugin("api-plugin", (api) => { api.alias("api-card", "p:4;color:$brand;"); api.property("plugin-progress", { syntax: "<number>", initial: 0 }); });
+            const result = window.Cipo.configureFromCss(`@preset api-preset; @plugin api-plugin;`);
+            const artifact = window.Cipo.atomic.css(makeTemplate(`api-card;`));
+            return { result, className: artifact.className, css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "config aliases", title: "configure.css, css.configure, setupFromCss + configSheet", description: "Executes every public CSS-first configuration alias, plus the JS configure() entry point, and shows that all roads feed the same runtime.",
+          run() {
+            window.Cipo.reset();
+            const viaConfigureCss = window.Cipo.configure.css(makeTemplate(`@cipo { prefix: aliases; layers: false; } @theme { colors: (brand: #c9ff59); }`));
+            const viaCssConfigure = window.Cipo.css.configure(makeTemplate(`@theme { colors: (ink: #efffe6); }`));
+            const viaSetup = window.Cipo.setupFromCss(`@breakpoints { compact: 520px; }`);
+            const viaSheet = window.Cipo.configSheet(`@alias alias-card { p: 3; rounded: 12px; color: $brand; }`);
+            const viaConfigure = window.Cipo.configure({ debug: false, minify: false });
+            const artifact = window.Cipo.atomic.css(makeTemplate(`alias-card;`));
+            return { viaConfigureCss, viaCssConfigure, viaSetup, viaSheet, viaConfigure, artifact: artifact.className, css: window.Cipo.getCssText() };
+          }
+        },
+        {
+          tag: "fabrica bridge", title: "Fábrica registry connect/disconnect/configure/flush", description: "Queues a named styled component without a registry, connects a structural Fábrica-compatible registry, flushes it and then disconnects cleanly.",
+          run() {
+            configureRuntime();
+            const components = new Map();
+            const registry = {
+              register(name, component) { components.set(name, component); return component; },
+              unregister(name) { return components.delete(name); },
+              resolve(name) { return components.get(name); }
+            };
+            window.Cipo.disconnectFabrica();
+            window.Cipo.configureFabricaRegistry({ autoRegister: true, collision: "replace", registry: () => undefined });
+            const BridgeButton = window.Cipo.styled.button("CipoDemoBridgeButton").css(makeTemplate(`display:inline-flex;px:3;py:2;background:$brand;color:$panel;rounded:$lg;`));
+            const pendingBefore = window.Cipo.pendingFabricaComponents();
+            const connected = window.Cipo.connectFabrica(registry);
+            const flushed = window.Cipo.flushFabricaRegistry();
+            const resolved = registry.resolve("CipoDemoBridgeButton") === BridgeButton;
+            const pendingAfter = window.Cipo.pendingFabricaComponents();
+            window.Cipo.disconnectFabrica(registry);
+            window.Cipo.configureFabricaRegistry({ registry: undefined });
+            return { pendingBefore, connected, flushed, resolved, pendingAfter, registeredNames: Array.from(components.keys()) };
+          }
+        },
+        {
+          tag: "styled", title: "styled/cipo component factory", description: "Attempts the Fabrica Elements-backed styled component path and reports registry state without requiring this page to own the renderer.",
+          run() {
+            configureRuntime();
+            const Button = window.Cipo.cipo.button.css(makeTemplate(`display:inline-flex;px:4;py:2;bg:$brand;color:$panel;rounded:$lg;`));
+            const node = Button({ children: "Save" });
+            return { node, pendingComponents: window.Cipo.pendingFabricaComponents(), hasComponentFacade: Boolean(window.Cipo.component), hasCreateStyled: typeof window.Cipo.createStyled === "function" };
+          }
+        },
+        {
+          tag: "debug overlay", title: "Mobile debug observatory", description: "Installs/updates Cipó's built-in page overlay and returns allocation-light atom/CSS statistics.",
+          run() {
+            configureRuntime();
+            window.Cipo.atomic.css(makeTemplate(`p:4;color:$brand;`));
+            window.Cipo.atomic.css(makeTemplate(`p:4;color:$brand;`));
+            const panel = window.Cipo.installDebugOverlay(document);
+            return { panel: panel?.outerHTML, stats: window.Cipo.getDebugOverlayStats() };
+          }
+        },
+        {
+          tag: "browser global", title: "createBrowserGlobal + installBrowserGlobal", description: "Creates an isolated API facade and installs an additional alias on a plain target object.",
+          run() {
+            configureRuntime();
+            const facade = window.Cipo.createBrowserGlobal();
+            const target = {};
+            const installed = window.Cipo.installBrowserGlobal(target, ["ForestCSS"]);
+            return { keys: Object.keys(facade).sort(), installedSame: target.Cipo === installed, aliasSame: target.ForestCSS === installed };
+          }
+        }
+      ];
+
+      function createApiCards() {
+        for (const demo of apiDemos) {
+          const card = document.createElement("article");
+          card.className = "api-card";
+          card.innerHTML = `<span class="api-card-tag">${demo.tag}</span><h3>${demo.title}</h3><p>${demo.description}</p><button type="button">Run live demo ↗</button>`;
+          card.querySelector("button")?.addEventListener("click", () => {
+            try {
+              const result = demo.run();
+              apiConsole.textContent = `${demo.title}\n${"=".repeat(demo.title.length)}\n\n${stringify(result)}`;
+            } catch (error) {
+              apiConsole.textContent = `${demo.title}\n\nERROR\n${error instanceof Error ? error.stack || error.message : String(error)}`;
+            }
+          });
+          apiGrid?.append(card);
+        }
       }
 
       for (const [name, snippet] of helpers) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "helper-chip";
-        button.textContent = `${name}()`;
+        button.textContent = name;
         button.title = `Insert ${snippet}`;
         button.addEventListener("click", () => insertAtCursor(snippet));
         helperPalette.append(button);
       }
 
-      document.querySelectorAll(".mode-button").forEach((button) => {
-        button.addEventListener("click", () => setMode(button.getAttribute("data-mode") || "sheet"));
-      });
-
-      document.querySelectorAll(".preset-button").forEach((button) => {
-        button.addEventListener("click", () => {
-          const preset = button.getAttribute("data-preset") || "canopy";
-          mode = "sheet";
-          document.querySelectorAll(".mode-button").forEach((modeButton) => modeButton.setAttribute("aria-pressed", String(modeButton.getAttribute("data-mode") === "sheet")));
-          modeLabel.textContent = "sheet.css``";
-          editor.value = presets[preset] || presets.canopy;
-          compile();
-        });
+      document.querySelectorAll(".mode-button").forEach((button) => button.addEventListener("click", () => setMode(button.getAttribute("data-mode") || "sheet")));
+      importantToggle?.addEventListener("click", () => {
+        forceImportant = !forceImportant;
+        importantToggle.setAttribute("aria-pressed", String(forceImportant));
+        importantToggle.textContent = forceImportant ? "!important on" : "!important off";
+        compile();
       });
 
       editor.addEventListener("input", scheduleCompile, { passive: true });
@@ -1026,18 +2013,22 @@ transition: transform 220ms ease;
         fly.style.setProperty("--delay", `${-Math.random() * 12}s`);
         fly.style.setProperty("--dx", `${-70 + Math.random() * 140}px`);
         fly.style.setProperty("--dy", `${-90 + Math.random() * 180}px`);
-        fireflies.append(fly);
+        fireflies?.append(fly);
       }
 
       if (!window.Cipo || !window.Cipo.sheet || !window.Cipo.atomic) {
         setStatus(false, "runtime missing");
         errorBox.textContent = "Cipó runtime bundle was not found at ../cipo.iife.js.";
-        editor.value = presets.canopy;
+        editor.value = demos.canopy.source;
         output.textContent = "Build the repository first so dist/cipo.iife.js is available.";
         return;
       }
 
-      editor.value = presets.canopy;
+      createPresetButtons();
+      createCapabilityCards();
+      createApiCards();
+      wirePreviewControls();
+      editor.value = demos.canopy.source;
       compile();
     })();
   </script>
