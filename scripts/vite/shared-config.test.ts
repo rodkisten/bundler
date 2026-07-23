@@ -15,14 +15,12 @@ describe("shared Vite build configuration", () => {
     });
 
     expect(config.build?.minify).toBe("oxc");
+    expect(config.resolve?.tsconfigPaths).toBe(true);
     expect(config).not.toHaveProperty("esbuild");
     expect(config.build).not.toHaveProperty("rollupOptions");
     expect(config.build?.rolldownOptions).toEqual(expect.objectContaining({
       output: expect.objectContaining({ exports: "named" }),
     }));
-    expect(config.plugins).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: "rod-workspace-alias" })]),
-    );
   });
 
   it("keeps package JavaScript on the shared Rolldown preserve-modules path", () => {
@@ -47,6 +45,7 @@ describe("shared Vite build configuration", () => {
     });
 
     expect(config.build?.minify).toBe("oxc");
+    expect(config.resolve?.tsconfigPaths).toBe(true);
     expect(config.build?.cssMinify).toBe("lightningcss");
     expect(config.plugins).toEqual(expect.arrayContaining([expect.objectContaining({ name: "rod-ecosystem-site" })]));
   });
