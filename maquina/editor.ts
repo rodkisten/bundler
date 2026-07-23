@@ -372,6 +372,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           ></MaquinaHighlight>
 
           <MaquinaInput
+            :peer="editor"
+            :open=${state.open}
             ref=${ref<HTMLTextAreaElement>((node) => {
               textareaRef = node;
             })}
@@ -789,8 +791,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
                 applySuggestion(index);
               })}
             >
-              <span>${item.label}</span>
-              <small>${formatSuggestionDetail(item)}</small>
+              <span :slot="label">${item.label}</span>
+              <small :slot="detail">${formatSuggestionDetail(item)}</small>
             </MaquinaSuggestion>
           `,
         )}
