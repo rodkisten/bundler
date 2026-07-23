@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { InlineConfig, Plugin, UserConfig } from "vite";
 import { ecosystemSitePlugin } from "./site-plugin";
+import { workspaceAliasPlugin } from "./workspace-alias";
 import type { EcosystemProjectId } from "../site/ecosystem";
 
 export type SharedLibraryBuildOptions = {
@@ -71,6 +72,7 @@ export function createLandingConfig(options: SharedLandingBuildOptions): InlineC
     publicDir: false,
     resolve: { tsconfigPaths: true },
     plugins: [
+      workspaceAliasPlugin(),
       ...(options.plugins ?? []),
       ecosystemSitePlugin({
         projectId: options.projectId,

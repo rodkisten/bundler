@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import type { UserConfig } from "vite";
 import { cipoVite } from "@rodkisten/cipo/vite";
 import { devtoolsCipoConfigCss } from "../../devtools/cipo-config";
-import { devtoolsStyles } from "../../devtools/core-style";
 import { maquinaCipoConfigCss } from "../../maquina/cipo-config";
 import { createBuildMetadata, createIifeBuildBanner, readPackageVersion } from "../build-metadata";
 import { buildInfoVite } from "../vite-build-info";
@@ -49,7 +48,7 @@ export function createDevtoolsProjectConfig(): UserConfig {
           compileFabrica: true,
           transformCssTag: true,
           styledImportModules: ["@rodkisten/devtools/core/runtime"],
-          configCss: devtoolsStyles.cssText || devtoolsCipoConfigCss,
+          configCss: devtoolsCipoConfigCss,
         }),
       ],
     }),

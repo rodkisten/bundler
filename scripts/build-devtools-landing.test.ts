@@ -21,7 +21,7 @@ describe("DevTools landing build", () => {
 
     expect(built).not.toContain("<base");
     expect(built).toContain('href="./landing.css"');
-    expect(built).toContain('<script type="module" src="./landing.ts"></script>');
+    expect(built).toContain('<script defer src="./devtools.landing.js"></script>');
     expect(built).not.toContain("/landing.ts");
   });
 

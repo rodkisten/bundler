@@ -54,15 +54,42 @@ export function createHtmlResult(
   const result = extractHtmlResultRoot(fragment);
   transferDelegatedEventRoot(fragment, result);
 
-  Object.defineProperty(result, FABRICA_HTML_ARTIFACT, {
-    configurable: false,
-    enumerable: false,
-    writable: false,
-    value: artifact,
-  });
+  const hasArtifact = Object.prototype.hasOwnProperty.call(
+    result,
+    FABRICA_HTML_ARTIFACT,
+  );
 
-  materializedHtmlResultMetadata.set(result, metadata);
+  if (!hasArtifact) {
+    Object.defineProperty(result, FABRICA_HTML_ARTIFACT, {
+      configurable: false,
+      enumerable: false,
+      writable: false,
+      value: artifact,
+    });
+  }
+
+  const existingMetadata = materializedHtmlResultMetadata.get(result);
+  materializedHtmlResultMetadata.set(
+    result,
+    existingMetadata
+      ? mergeHtmlResultMetadata(existingMetadata, metadata)
+      : metadata,
+  );
   return result as HtmlResult;
+}
+
+function mergeHtmlResultMetadata(
+  current: MaterializedHtmlResultMetadata,
+  next: MaterializedHtmlResultMetadata,
+): MaterializedHtmlResultMetadata {
+  const cleanupNodes = Array.from(
+    new Set([...current.cleanupNodes, ...next.cleanupNodes]),
+  );
+
+  return {
+    cleanupNodes,
+    dynamic: current.dynamic || next.dynamic,
+  };
 }
 
 /**

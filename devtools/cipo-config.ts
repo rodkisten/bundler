@@ -1,3 +1,3 @@
 import { devtoolsStyles } from "./core-style";
 
-export const devtoolsCipoConfigCss = devtoolsStyles.cssText;
+export const devtoolsCipoConfigCss = devtoolsStyles.rawCss;
