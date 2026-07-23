@@ -27,15 +27,10 @@ styled.connectRegistry(maquinaFabrica)
 
 export const MaquinaRoot = styled.div('MaquinaRoot').css`
   @with(
-    bg(var(--maq-background)),
-    color(var(--maq-foreground)),
-    rounded(14px)
+    bg($colors.background),
+    color($colors.foreground),
+    rounded($radius.editor)
   )
-
-  $$gutterWidth<length>: 0px
-  $$scrollX<length>: 0px
-  $$fontSize<length>: 16px
-  $$tabSize<number>: 2
 
   relative
   isolate
@@ -51,7 +46,7 @@ export const MaquinaRoot = styled.div('MaquinaRoot').css`
   max-width: 100%
   max-height: 100%
 
-  border: 1px solid var(--maq-border)
+  border: 1px solid $colors.border
 
   shadow:
     0 16px 48px rgb(0 0 0 / 18%),
@@ -77,7 +72,12 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   absolute-fill
   minw-full
   minh-full
-  p: 14px 0 26px
+
+  p:
+    $spacing.editor-top
+    0
+    $spacing.editor-bottom
+
   box-border
   overflow-hidden
 
@@ -86,57 +86,54 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   pointer-events: none
   user-select: none
 
-  text($$fontSize / 1.55 / 500)
-  font-family: var(
-    --maq-font,
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace
+  text(
+    $$fontSize /
+    $typography.editor-line-height /
+    $typography.editor-weight
   )
 
+  font-family: $fonts.code
+
   tab-size: $$tabSize
-  color: var(--maq-foreground)
+  color: $colors.foreground
 
   transform: translateY(var(--maq-scroll-y, 0px))
   will-change: transform
 
   & :token='comment' {
-    color: var(--maq-comment)
+    color: $colors.syntax-comment
   }
 
   & :token='string' {
-    color: var(--maq-string)
+    color: $colors.syntax-string
   }
 
   & :token='number' {
-    color: var(--maq-number)
+    color: $colors.syntax-number
   }
 
   & :token='boolean' {
-    color: var(--maq-boolean)
+    color: $colors.syntax-boolean
   }
 
   & :token='keyword' {
-    color: var(--maq-keyword)
+    color: $colors.syntax-keyword
   }
 
   & :token='property' {
-    color: var(--maq-property)
+    color: $colors.syntax-property
   }
 
   & :token='tag' {
-    color: var(--maq-tag)
+    color: $colors.syntax-tag
   }
 
   & :token='attribute' {
-    color: var(--maq-attribute)
+    color: $colors.syntax-attribute
   }
 
   & :token='punctuation' {
-    color: var(--maq-punctuation)
+    color: $colors.syntax-punctuation
   }
 `
 
@@ -157,14 +154,19 @@ export const MaquinaLineNumber = styled.span(
   block
   self-stretch
   box-border
-  pr: 12px
+
+  pr: $spacing.line-number-inline
 
   z: 2
-  border-right: 1px solid var(--maq-border)
-  bg: var(--maq-background)
-  color: var(--maq-muted)
+
+  border-right: 1px solid $colors.border
+
+  bg: $colors.background
+  color: $colors.muted
+
   text-align: right
   white-space: nowrap
+
   text(tabular)
 `
 
@@ -182,7 +184,8 @@ export const MaquinaLineCode = styled.span(
   block
   minw-0
   box-border
-  px: 16px
+
+  px: $spacing.editor-inline
 
   white-space: var(--maq-white-space, pre-wrap)
   overflow-wrap: var(--maq-overflow-wrap, anywhere)
@@ -212,13 +215,14 @@ export const MaquinaInput = styled.textarea(
   z: 1
   max-width: 100%
   max-height: 100%
+
   m: 0
 
   p:
-    14px
-    16px
-    26px
-    calc($$gutterWidth + 16px)
+    $spacing.editor-top
+    $spacing.editor-inline
+    $spacing.editor-bottom
+    calc($$gutterWidth + $spacing.editor-inline)
 
   overscroll-behavior: contain
   scrollbar-gutter: stable
@@ -228,22 +232,20 @@ export const MaquinaInput = styled.textarea(
 
   bg: transparent
   color: transparent
-  caret-color: var(--maq-foreground)
 
+  caret-color: $colors.foreground
   -webkit-text-fill-color: transparent
 
-  text($$fontSize / 1.55 / 500)
-  font-family: var(
-    --maq-font,
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace
+  text(
+    $$fontSize /
+    $typography.editor-line-height /
+    $typography.editor-weight
   )
 
+  font-family: $fonts.code
+
   tab-size: $$tabSize
+
   white-space: var(--maq-white-space, pre-wrap)
   overflow-wrap: var(--maq-overflow-wrap, anywhere)
 
@@ -253,12 +255,12 @@ export const MaquinaInput = styled.textarea(
   touch-action: pan-y pan-x
 
   &::selection {
-    bg: var(--maq-selection)
+    bg: $colors.selection
   }
 
   &::placeholder {
-    color: var(--maq-muted)
-    -webkit-text-fill-color: var(--maq-muted)
+    color: $colors.muted
+    -webkit-text-fill-color: $colors.muted
   }
 `
 
@@ -276,11 +278,15 @@ export const MaquinaSuggestions = styled.div(
   contain: layout paint style
   flex-direction: column
 
-  width: fluid(280px, 280px)
-  max-width: 100%
-  max-height: 240px
+  width: fluid(
+    $sizes.suggestions-width,
+    $sizes.suggestions-width
+  )
 
-  p: 6px
+  max-width: 100%
+  max-height: $sizes.suggestions-max-height
+
+  p: $spacing.suggestions
 
   touch-scroll
   touch-action: pan-y
@@ -290,16 +296,21 @@ export const MaquinaSuggestions = styled.div(
     pointer-events: auto
   }
 
-  border: 1px solid var(--maq-border)
-  rounded: 12px
+  border: 1px solid $colors.border
+  rounded: $radius.suggestions
 
-  bg: alpha(var(--maq-surface) / 96%)
+  bg: alpha(
+    $colors.surface /
+    $opacity.surface
+  )
 
   shadow:
     0 18px 50px rgb(0 0 0 / 35%),
     inset 0 1px rgb(255 255 255 / 4%)
 
-  backdrop-filter: blur(18px) saturate(120%)
+  backdrop-filter:
+    blur($effects.suggestions-blur)
+    saturate($effects.suggestions-saturation)
 
   &[hidden] {
     hidden
@@ -324,17 +335,20 @@ export const MaquinaSuggestion = styled.div(
   grid-template-columns: minmax(0, 1fr) auto
   flex: 0 0 auto
 
-  min-height: 42px
-  gap: 12px
+  min-height: $sizes.suggestion-min-height
+  gap: $spacing.suggestion-gap
 
   m: 0
-  p: 9px 11px
+
+  p:
+    $spacing.suggestion-block
+    $spacing.suggestion-inline
 
   border: 0
-  rounded: 8px
+  rounded: $radius.suggestion
 
   bg: transparent
-  color: var(--maq-foreground)
+  color: $colors.foreground
 
   text-align: left
   font: inherit
@@ -346,12 +360,18 @@ export const MaquinaSuggestion = styled.div(
   touch-action: pan-y
 
   state(active=true) {
-    bg: alpha(var(--maq-accent) / 20%)
+    bg: alpha(
+      $colors.accent /
+      $opacity.suggestion-active
+    )
   }
 
   @media (hover: hover) {
     x:hover {
-      bg: alpha(var(--maq-accent) / 16%)
+      bg: alpha(
+        $colors.accent /
+        $opacity.suggestion-hover
+      )
     }
   }
 
@@ -366,12 +386,13 @@ export const MaquinaSuggestion = styled.div(
   slot(detail) {
     overflow-hidden
 
-    max-width: 14ch
-    color: var(--maq-muted)
+    max-width: $sizes.suggestion-detail-max-width
+    color: $colors.muted
 
     text-overflow: ellipsis
     white-space: nowrap
-    font-size: 0.78em
+
+    font-size: $typography.suggestion-detail-size
   }
 `
 
