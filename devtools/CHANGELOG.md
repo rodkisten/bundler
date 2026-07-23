@@ -1,4 +1,6 @@
 ## Unreleased
+- Migrated the DevTools shell, shared panel primitives, and primary panel controls to exercise Cipó's legacy and modern authoring surface together: legacy `$alias`/`@with(...)`, `$theme.*`, standalone aliases/helpers, typed/runtime `$$` properties, Fábrica state selectors, `state()`, `group()`, `slot()`, `variant()`, `compound()`, responsive objects, container queries, `fluid()`, `text()`, `motion()`, and `!property` priority syntax.
+- Added regression coverage that keeps this mixed Cipó authoring contract visible in production component sources and verifies the CSS-first alias/helper/property configuration.
 - Fixed the floating entry button so its native drag/click guard forwards activation to the DevTools controller instead of swallowing the delegated click before the dock can open.
 - Added runtime and production-IIFE regression coverage that clicks the real floating entry button and verifies the dock opens and closes.
 - Restored lazy Elements traversal so its root-owned panel shell mounts immediately while the inspected page DOM is only walked after the panel becomes active.
