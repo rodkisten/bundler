@@ -6,6 +6,10 @@ describe("DevTools Cipó build configuration", () => {
     expect(devtoolsCipoConfigCss).toContain("@cipo");
     expect(devtoolsCipoConfigCss).toContain("@theme");
     expect(devtoolsCipoConfigCss).toContain("@breakpoints");
+    expect(devtoolsCipoConfigCss).toContain("@alias control-reset");
+    expect(devtoolsCipoConfigCss).toContain("@helper interactive-surface");
+    expect(devtoolsCipoConfigCss).toContain("@helper touch-scroll");
+    expect(devtoolsCipoConfigCss).toContain("@property $$shellReveal");
     expect(devtoolsCipoConfigCss).not.toContain("@media");
   });
 });

@@ -12,7 +12,9 @@ export { networkListTemplate, networkRowTemplate, networkDetailTemplate } from "
 export const NetworkContext = createRequiredFabricaContext<NetworkContextValue>("NetworkContext");
 
 const NetworkIconButton = styled.button("RodNetworkIconButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
@@ -28,19 +30,19 @@ const NetworkIconButton = styled.button("RodNetworkIconButton").css`
   cursor: pointer;
   transition: color .18s, background .18s, transform .1s;
 
-  &:hover {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
   }
 
-  &:active {
-    transform: scale(.94);
-    color: $accent;
+  x:active {
+    transform: scale(.94)
+    color: $accent
   }
 
-  &[data-active="true"] {
-    color: $accent;
-    background: $highlight;
+  state(active=true) {
+    color: $accent
+    bg: $highlight
   }
 `;
 
@@ -57,8 +59,8 @@ const NetworkSearch = styled.input("RodNetworkSearch").css`
   font-size: 12px;
   outline: none;
 
-  &:focus {
-    border-color: $accent;
+  x:focus {
+    border-color: $accent
   }
 `;
 
@@ -96,17 +98,17 @@ const NetworkTable = styled.table("RodNetworkTable").css`
 const NetworkRow = styled.tr("RodNetworkRow").css`
   cursor: pointer;
 
-  &:hover {
-    background: $highlight;
+  x:hover {
+    bg: $highlight
   }
 
-  &[data-state="pending"] {
-    opacity: .78;
+  &:state='pending' {
+    opacity: .78
   }
 
-  &[data-selected="true"] {
-    color: $selectedForeground;
-    background: $contrast;
+  state(selected=true) {
+    color: $selectedForeground
+    bg: $contrast
   }
 `;
 
@@ -125,22 +127,24 @@ const NetworkStatus = styled.span("RodNetworkStatus").css`
   border-radius: $sm;
   color: $primary;
   background: $highlight;
-  font: 11px / 1.5 $font.mono;
+  text(11px / 1.5, tabular)
+  font-family: $font.mono
 
-  &[data-status^="2"],
-  &[data-status^="3"] {
-    color: $success;
+  &:status^='2',
+  &:status^='3' {
+    color: $success
   }
 
-  &[data-status^="4"],
-  &[data-status^="5"] {
-    color: $danger;
+  &:status^='4',
+  &:status^='5' {
+    color: $danger
   }
 `;
 
 const NetworkMethod = styled.span("RodNetworkMethod").css`
   color: $accent;
-  font: 11px / 1.5 $font.mono;
+  text(11px / 1.5)
+  font-family: $font.mono
 `;
 
 const NetworkDetail = styled.section("RodNetworkDetail").css`
@@ -151,8 +155,8 @@ const NetworkDetail = styled.section("RodNetworkDetail").css`
   padding-top: $$controlHeight;
   background: $background;
 
-  &[data-active="true"] {
-    display: block;
+  state(active=true) {
+    block
   }
 
   x:md {
@@ -176,7 +180,9 @@ const NetworkTabs = styled.div("RodNetworkTabs").css`
 `;
 
 const NetworkTabButton = styled.button("RodNetworkTabButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   flex: 0 0 auto;
   padding: 9px 11px;
   border: 0;
@@ -187,9 +193,9 @@ const NetworkTabButton = styled.button("RodNetworkTabButton").css`
   font-size: 12px;
   cursor: pointer;
 
-  &[data-active="true"] {
-    color: $accent;
-    border-bottom-color: $accent;
+  state(active=true) {
+    color: $accent
+    border-bottom-color: $accent
   }
 `;
 
@@ -197,8 +203,8 @@ const NetworkPane = styled.div("RodNetworkPane").css`
   display: none;
   padding: 10px;
 
-  &[data-active="true"] {
-    display: block;
+  state(active=true) {
+    block
   }
 `;
 
@@ -247,7 +253,8 @@ const NetworkCode = styled.pre("RodNetworkCode").css`
   overflow-y: auto;
   overflow-x: hidden;
   color: $foreground;
-  font: 12px / 1.5 $font.mono;
+  text(12px / 1.5)
+  font-family: $font.mono
   white-space: pre;
   user-select: text;
 `;

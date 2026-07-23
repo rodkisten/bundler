@@ -18,7 +18,9 @@ export const SourcesRoot = styled.div("RodSourcesRoot").css`
 
 
 export const SourcesIconButton = styled.button("RodSourcesIconButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   display: inline-grid;
   place-items: center;
   min-width: 28px;
@@ -31,25 +33,26 @@ export const SourcesIconButton = styled.button("RodSourcesIconButton").css`
   cursor: pointer;
   transition: color .18s, background .18s, transform .1s;
 
-  &:hover,
-  &:focus-visible {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
   }
 
-  &:active {
-    transform: scale(.94);
-    color: $accent;
+  x:focus-visible {
+    color: $selectedForeground
+    bg: $highlight
+  }
+
+  x:active {
+    transform: scale(.94)
+    color: $accent
   }
 `;
 
 export const SourcesTitle = styled.div("RodSourcesTitle").css`
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
+  text(12px, ellipsis)
 `;
 
 export const SourcesBody = styled.div("RodSourcesBody").css`
@@ -58,8 +61,7 @@ export const SourcesBody = styled.div("RodSourcesBody").css`
   padding-top: $$controlHeight;
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  touch-scroll
 `;
 
 export const SourcesEmpty = styled.div("RodSourcesEmpty").css`
@@ -83,7 +85,8 @@ export const SourcesPre = styled.pre("RodSourcesPre").css`
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
-  font: var(--rd-sources-font-size, 12px) / 1.5 $font.mono;
+  text(var(--rd-sources-font-size, 12px) / 1.5)
+  font-family: $font.mono
   color: $foreground;
 `;
 
@@ -100,7 +103,8 @@ export const SourcesBreadcrumb = styled.div("RodSourcesBreadcrumb").css`
   border-bottom: 1px solid $border;
   color: $comment;
   background: $backgroundDark;
-  font: 11px / 1.4 $font.mono;
+  text(11px / 1.4)
+  font-family: $font.mono
   white-space: nowrap;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -126,7 +130,8 @@ export const SourcesObject = styled.div("RodSourcesObject").css`
   white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
-  font: var(--rd-sources-font-size, 12px) / 1.5 $font.mono;
+  text(var(--rd-sources-font-size, 12px) / 1.5)
+  font-family: $font.mono
   color: $foreground;
 `;
 
@@ -161,7 +166,9 @@ export const SourcesLinkList = styled.ul("RodSourcesLinkList").css`
 `;
 
 export const SourcesTextButton = styled.button("RodSourcesTextButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   display: block;
   width: 100%;
   padding: 7px 9px;
@@ -173,10 +180,14 @@ export const SourcesTextButton = styled.button("RodSourcesTextButton").css`
   text-align: left;
   cursor: pointer;
 
-  &:hover,
-  &:focus-visible {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
+  }
+
+  x:focus-visible {
+    color: $selectedForeground
+    bg: $highlight
   }
 `;
 

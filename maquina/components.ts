@@ -1,5 +1,10 @@
-import { createStyled } from '@rodkisten/cipo'
+import { configureFromCss, createStyled } from '@rodkisten/cipo'
+import { maquinaCipoConfigCss } from '@rodkisten/maquina/cipo-config'
 import { createFabrica } from '@rodkisten/fabrica'
+
+// Source/package-module consumers need the same prefix and CSS-first contract
+// that the Vite build lowers into a parser-free compiled configuration payload.
+configureFromCss(maquinaCipoConfigCss)
 
 /**
  * Maquina owns one isolated Fábrica registry shared by every editor instance.
@@ -21,6 +26,17 @@ export const styled = createStyled({
 styled.connectRegistry(maquinaFabrica)
 
 export const MaquinaRoot = styled.div('MaquinaRoot').css`
+  @with(
+    bg(var(--maq-background)),
+    color(var(--maq-foreground)),
+    rounded(14px)
+  )
+
+  $$gutterWidth<length>: 0px
+  $$scrollX<length>: 0px
+  $$fontSize<length>: 16px
+  $$tabSize<number>: 2
+
   relative
   isolate
   grid
@@ -36,9 +52,6 @@ export const MaquinaRoot = styled.div('MaquinaRoot').css`
   max-height: 100%
 
   border: 1px solid var(--maq-border)
-  rounded: 14px
-  bg: var(--maq-background)
-  color: var(--maq-foreground)
 
   shadow:
     0 16px 48px rgb(0 0 0 / 18%),
@@ -73,22 +86,18 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   pointer-events: none
   user-select: none
 
-  font:
-    500
-    var(--maq-font-size, 16px)
-    /
-    1.55
-    var(
-      --maq-font,
-      ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      Monaco,
-      Consolas,
-      monospace
-    )
+  text($$fontSize / 1.55 / 500)
+  font-family: var(
+    --maq-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  )
 
-  tab-size: var(--maq-tab-size, 2)
+  tab-size: $$tabSize
   color: var(--maq-foreground)
 
   transform: translateY(var(--maq-scroll-y, 0px))
@@ -135,9 +144,7 @@ export const MaquinaLine = styled.div('MaquinaLine').css`
   grid
   minw-full
 
-  grid-template-columns:
-    var(--maq-gutter-width, 0px)
-    minmax(0, 1fr)
+  grid-template-columns: $$gutterWidth minmax(0, 1fr)
 
   align-items: stretch
   min-height: 1.55em
@@ -158,7 +165,7 @@ export const MaquinaLineNumber = styled.span(
   color: var(--maq-muted)
   text-align: right
   white-space: nowrap
-  font-variant-numeric: tabular-nums
+  text(tabular)
 `
 
 export const MaquinaCodeClip = styled.span(
@@ -180,7 +187,7 @@ export const MaquinaLineCode = styled.span(
   white-space: var(--maq-white-space, pre-wrap)
   overflow-wrap: var(--maq-overflow-wrap, anywhere)
 
-  transform: translateX(var(--maq-scroll-x, 0px))
+  transform: translateX($$scrollX)
 `
 
 /**
@@ -211,15 +218,13 @@ export const MaquinaInput = styled.textarea(
     14px
     16px
     26px
-    calc(var(--maq-gutter-width, 0px) + 16px)
+    calc($$gutterWidth + 16px)
 
   overscroll-behavior: contain
   scrollbar-gutter: stable
   resize: none
 
-  border: 0
-  outline: 0
-  appearance: none
+  @with($editor-reset)
 
   bg: transparent
   color: transparent
@@ -227,22 +232,18 @@ export const MaquinaInput = styled.textarea(
 
   -webkit-text-fill-color: transparent
 
-  font:
-    500
-    var(--maq-font-size, 16px)
-    /
-    1.55
-    var(
-      --maq-font,
-      ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      Monaco,
-      Consolas,
-      monospace
-    )
+  text($$fontSize / 1.55 / 500)
+  font-family: var(
+    --maq-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  )
 
-  tab-size: var(--maq-tab-size, 2)
+  tab-size: $$tabSize
   white-space: var(--maq-white-space, pre-wrap)
   overflow-wrap: var(--maq-overflow-wrap, anywhere)
 
@@ -275,15 +276,19 @@ export const MaquinaSuggestions = styled.div(
   contain: layout paint style
   flex-direction: column
 
-  w: 280px
+  width: fluid(280px, 280px)
   max-width: 100%
   max-height: 240px
 
   p: 6px
 
-  overscroll-behavior: contain
-  -webkit-overflow-scrolling: touch
+  touch-scroll
   touch-action: pan-y
+  pointer-events: none
+
+  peer(editor, open=true) {
+    pointer-events: auto
+  }
 
   border: 1px solid var(--maq-border)
   rounded: 12px
@@ -340,17 +345,17 @@ export const MaquinaSuggestion = styled.div(
 
   touch-action: pan-y
 
-  &:active='true' {
+  state(active=true) {
     bg: alpha(var(--maq-accent) / 20%)
   }
 
   @media (hover: hover) {
-    &:hover {
+    x:hover {
       bg: alpha(var(--maq-accent) / 16%)
     }
   }
 
-  & > span {
+  slot(label) {
     minw-0
     overflow-hidden
 
@@ -358,7 +363,7 @@ export const MaquinaSuggestion = styled.div(
     white-space: nowrap
   }
 
-  & > small {
+  slot(detail) {
     overflow-hidden
 
     max-width: 14ch

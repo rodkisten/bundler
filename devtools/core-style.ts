@@ -125,6 +125,39 @@ export const devtoolsStyles = sheet.css`
     md: 680px;
   }
 
+  /*
+   * Shared authoring primitives intentionally cover both Cipó generations.
+   * New code can consume aliases as standalone declarations, while legacy
+   * components can keep dollar aliases and @with(...) during incremental migration.
+   */
+  @alias control-reset {
+    appearance: none;
+    border: 0;
+    margin: 0;
+  }
+
+  @alias truncate-inline {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @helper interactive-surface {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  @helper touch-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @property $$shellReveal {
+    syntax: "<number>";
+    inherits: true;
+    initial: 0;
+  }
 
   /*
    * Runtime-only variables that are consumed across independently compiled

@@ -7,17 +7,17 @@ import { styled } from "@rodkisten/devtools/core/runtime";
 /* ******************** */
 
 export const SharedPanelLayout = styled.div("RodSharedPanelLayout").css`
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+  relative
+  w-full
+  h-full
+  overflow-hidden
 `;
 
 export const SharedPanelRoot = styled.section("RodSharedPanelRoot").css`
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: $background;
+  w-full
+  h-full
+  overflow-hidden
+  bg: $background
 `;
 
 export const SharedControlBar = styled.div("RodSharedControlBar").css`
@@ -61,28 +61,32 @@ export const SharedActions = styled.div("RodSharedActions").css`
 /* ******************** */
 
 export const SharedButton = styled.button("RodSharedButton").css`
-  appearance: none;
-  min-width: 28px;
-  min-height: 28px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: $control;
-  color: $primary;
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: color .18s, background .18s, transform .1s;
+  @with($control-reset)
+  interactive-surface
 
-  &:hover,
-  &:focus-visible {
-    color: $selectedForeground;
-    background: $highlight;
+  min-width: 28px
+  min-height: 28px
+  p: 4px 8px
+  rounded: $control
+  color: $primary
+  bg: transparent
+  font: inherit
+  text(12px)
+  transition: color .18s, background .18s, transform .1s
+
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
   }
 
-  &:active {
-    transform: scale(.96);
-    color: $accent;
+  x:focus-visible {
+    color: $selectedForeground
+    bg: $highlight
+  }
+
+  x:active {
+    transform: scale(.96)
+    color: $accent
   }
 `;
 
@@ -91,30 +95,25 @@ export const SharedButton = styled.button("RodSharedButton").css`
 /* ******************** */
 
 export const SharedPanelBody = styled.div("RodSharedPanelBody").css`
-  width: 100%;
-  height: calc(100% - 38px);
-  overflow: auto;
-  padding-bottom: var(--rd-safe-bottom);
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  w-full
+  height: calc(100% - 38px)
+  overflow-auto
+  padding-bottom: var(--rd-safe-bottom)
+  touch-scroll
 `;
 
 export const SharedScrollableBody = styled.div("RodSharedScrollableBody").css`
-  height: 100%;
-  padding-bottom: var(--rd-safe-bottom);
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  h-full
+  padding-bottom: var(--rd-safe-bottom)
+  overflow-auto
+  touch-scroll
 `;
 
 export const SharedDetailTitle = styled.div("RodSharedDetailTitle").css`
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: $primary;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 auto
+  minw-0
+  color: $primary
+  text(12px, ellipsis)
 `;
 
 export const SharedEmptyState = styled.div("RodSharedEmptyState").css`
@@ -143,21 +142,21 @@ export const SharedSection = styled.section("RodSharedSection").css`
 `;
 
 export const SharedTableWrap = styled.div("RodSharedTableWrap").css`
-  width: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  w-full
+  overflow-auto
+  touch-scroll
 `;
 
 export const SharedPreBlock = styled.pre("RodSharedPreBlock").css`
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  color: $foreground;
-  font: 12px / 1.5 $font.mono;
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
+  m: 0
+  p: 10px
+  overflow-auto
+  color: $foreground
+  text(12px / 1.5)
+  font-family: $font.mono
+  white-space: pre-wrap
+  word-break: break-word
+  user-select: text
 `;
 
 /* ******************** */

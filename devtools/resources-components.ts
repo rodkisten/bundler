@@ -19,8 +19,7 @@ export const ResourcesTableWrap = styled.div("RodResourcesTableWrap").css`
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  touch-scroll
 `;
 
 export const ResourcesSectionTitle = styled.div("RodResourcesSectionTitle").css`
@@ -42,7 +41,9 @@ export const ResourcesSectionActions = styled.span("RodResourcesSectionActions")
 `;
 
 export const ResourcesIconButton = styled.button("RodResourcesIconButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   display: inline-grid;
   place-items: center;
   min-width: 28px;
@@ -57,14 +58,14 @@ export const ResourcesIconButton = styled.button("RodResourcesIconButton").css`
   cursor: pointer;
   transition: color .18s, background .18s, transform .1s;
 
-  &:hover {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
   }
 
-  &:active {
-    transform: scale(.94);
-    color: $accent;
+  x:active {
+    transform: scale(.94)
+    color: $accent
   }
 `;
 
@@ -131,7 +132,9 @@ export const ResourcesImageList = styled.div("RodResourcesImageList").css`
 `;
 
 export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
-  appearance: none;
+  @with(appearance(none))
+  interactive-surface
+
   display: grid;
   gap: 6px;
   padding: 7px;
@@ -144,8 +147,8 @@ export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
   text-align: left;
   cursor: pointer;
 
-  &:hover {
-    background: $highlight;
+  x:hover {
+    bg: $highlight
   }
 
   img {
@@ -157,9 +160,7 @@ export const ResourcesImageCard = styled.button("RodResourcesImageCard").css`
   }
 
   span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text(ellipsis)
   }
 `;
 

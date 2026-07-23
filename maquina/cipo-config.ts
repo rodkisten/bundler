@@ -2,10 +2,10 @@
  * Build-time Cipó configuration for Maquina.
  *
  * @remarks
- * Maquina deliberately styles its runtime theme through `--maq-*` custom
- * properties, so the compiler only needs package-level behavior here. Keeping
- * this configuration minimal avoids generating a second theme-token layer and
- * preserves the small standalone editor bundle.
+ * Maquina deliberately keeps host-owned colors in `--maq-*` variables while
+ * Cipó owns package-local breakpoints, aliases, helpers and typed runtime
+ * properties. The same readable sheet is consumed by source/package builds and
+ * lowered to a compact parser-free payload by the Vite integration.
  */
 export const maquinaCipoConfigCss = `
 @cipo {
@@ -17,5 +17,33 @@ export const maquinaCipoConfigCss = `
   rem: 16px;
   color-mode: oklch;
   theme-validation: warn;
+}
+
+@breakpoints {
+  compact: 520px;
+  md: 768px;
+}
+
+@alias editor-reset {
+  border: 0;
+  outline: 0;
+  appearance: none;
+}
+
+@helper touch-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@property $$gutterWidth {
+  syntax: "<length>";
+  inherits: true;
+  initial: 0px;
+}
+
+@property $$scrollX {
+  syntax: "<length>";
+  inherits: true;
+  initial: 0px;
 }
 `;

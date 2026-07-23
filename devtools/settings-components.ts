@@ -52,7 +52,9 @@ export const SettingsSeparator = styled.div("RodSettingsSeparator").css`
 `;
 
 export const SettingsButton = styled.button("RodSettingsButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   min-height: 28px;
   padding: 5px 9px;
   border: 1px solid $border;
@@ -63,9 +65,9 @@ export const SettingsButton = styled.button("RodSettingsButton").css`
   font-size: 12px;
   cursor: pointer;
 
-  &:hover {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
   }
 `;
 
