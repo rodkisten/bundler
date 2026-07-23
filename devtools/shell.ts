@@ -18,10 +18,12 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   transform: translateZ(1px);
   isolation: isolate;
   contain: layout style paint;
-  color: $foreground;
-  font-family: $font.ui;
-  font-size: var(--rd-ui-font-size, 14px);
-  line-height: 1.35;
+  color: $theme.colors.foreground;
+  text(
+    size: var(--rd-ui-font-size, 14px),
+    lh: 1.35,
+    family: $font.ui
+  )
   direction: ltr;
   text-align: left;
   --rd-safe-top: env(safe-area-inset-top, 0px);
@@ -69,39 +71,41 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   }
 
   button {
-    appearance: none;
-    border: 0;
-    margin: 0;
+    @with($control-reset)
   }
 `;
 
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
-  touch-action: none;
-  position: fixed;
-  width: var(--rd-entry-button-size, $$entrySize);
-  height: var(--rd-entry-button-size, $$entrySize);
-  display: grid;
-  place-items: center;
-  border-radius: $panel;
-  background: black;
-  color: white;
-  opacity: .6;
-  z-index: var(--rd-z-entry, 2147483600);
-  cursor: grab;
-  user-select: none;
-  font: 700 23px / 1 $font.ui;
-  transition: opacity .3s, transform .15s;
-  box-shadow: $shadow.entry;
+  $interactive-surface
+  @with(bg(black), rounded($panel))
 
-  &:hover,
-  &:active,
-  &[data-active="true"] {
-    opacity: .82;
+  touch-action: none
+  position: fixed
+  width: var(--rd-entry-button-size, $$entrySize)
+  height: var(--rd-entry-button-size, $$entrySize)
+  display: grid
+  place-items: center
+  color: white
+  $$shellReveal: .6
+  opacity: $$shellReveal
+  z-index: var(--rd-z-entry, 2147483600)
+  cursor: grab
+  text(23px / 1 / 700)
+  font-family: $font.ui
+  transition: opacity .3s, transform .15s
+  shadow: $shadow.entry
+
+  x:hover {
+    $$shellReveal: .82
   }
 
-  &:active {
-    cursor: grabbing;
-    transform: scale(.96);
+  state(active=true) {
+    $$shellReveal: .82
+  }
+
+  x:active {
+    cursor: grabbing
+    transform: scale(.96)
   }
 `;
 
@@ -129,17 +133,21 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   contain: layout style paint;
   backdrop-filter: blur(var(--rd-blur, 0px));
 
-  &[data-active="true"] {
-    visibility: visible;
-    opacity: var(--rd-transparency, .95);
+  container(devtoolsDock) {
+    inline-size
   }
 
-  &[data-inline="true"] {
-    position: absolute;
-    bottom: 0;
-    height: 100%;
-    visibility: visible;
-    opacity: 1;
+  state(active=true) {
+    visibility: visible
+    opacity: var(--rd-transparency, .95)
+  }
+
+  state(inline=true) {
+    position: absolute
+    bottom: 0
+    height: 100%
+    visibility: visible
+    opacity: 1
   }
 `;
 
@@ -181,6 +189,10 @@ const Tabbar = styled.nav("RodDevtoolsTabbar").css`
   color: $primary;
   overscroll-behavior-x: contain;
 
+  group(dock, active=true) {
+    visibility: visible
+  }
+
   &::-webkit-scrollbar {
     display: none;
   }
@@ -201,6 +213,9 @@ const ToolPanel = styled.section("RodDevtoolsToolPanel").css`
 `;
 
 const TabButton = styled.button("RodDevtoolsTabButton").css`
+  @with($control-reset)
+  interactive-surface
+
   position: relative;
   flex: 0 0 auto;
   min-width: var(--rd-tab-min-width, 78px);
@@ -218,15 +233,15 @@ const TabButton = styled.button("RodDevtoolsTabButton").css`
   white-space: nowrap;
   transition: color .2s, background .2s;
 
-  &:hover {
+  x:hover {
     background: mix($highlight, transparent, 70%);
   }
 
-  &[data-selected="true"] {
+  state(selected=true) {
     color: $accent;
   }
 
-  &[data-selected="true"]::after {
+  &:selected='true'::after {
     content: "";
     position: absolute;
     left: 8px;
@@ -237,7 +252,16 @@ const TabButton = styled.button("RodDevtoolsTabButton").css`
     background: $accent;
   }
 
-  x:not(xs) {
+  slot(icon) {
+    display: inline-grid
+    place-items: center
+  }
+
+  slot(label) {
+    truncate-inline
+  }
+
+  x:cq(devtoolsDock <= xs) {
     min-width: var(--rd-compact-tab-min-width, 58px);
     padding-inline: 7px;
   }
@@ -255,13 +279,15 @@ const TabIcon = styled.span("RodDevtoolsTabIcon").css`
     stroke: currentColor;
   }
 
-  x:not(xs) {
+  x:cq(devtoolsDock <= xs) {
     font-size: 17px;
   }
 `;
 
 const TabLabel = styled.span("RodDevtoolsTabLabel").css`
-  x:not(xs) {
+  truncate-inline
+
+  x:container(devtoolsDock, max: xs) {
     display: none;
   }
 `;
@@ -276,8 +302,10 @@ const BuildBadge = styled.span("RodDevtoolsBuildBadge").css`
   border: 1px solid $border;
   border-radius: $pill;
   background: mix($backgroundDark, transparent, 88%);
-  color: $muted;
-  font: 600 9px / 1.4 $font.mono;
+  color: $muted ?? $foreground;
+  text(9px / 1.4 / 600)
+  font-family: $font.mono;
+  motion(opacity: 0 -> 1, y: 2px -> 0, duration: 180ms, easing: ease-out)
   white-space: nowrap;
   pointer-events: auto;
   user-select: text;
@@ -297,7 +325,10 @@ const Notifications = styled.div("RodDevtoolsNotifications").css`
   top: var(--rd-notification-top, 48px);
   left: 50%;
   z-index: var(--rd-z-notification, 2147483560);
-  width: min(92%, var(--rd-notification-width, 440px));
+  width: {
+    base: min(92%, var(--rd-notification-width, 440px)),
+    md: min(92%, var(--rd-notification-width, 440px))
+  }
   display: grid;
   gap: 7px;
   transform: translateX(-50%);
@@ -315,10 +346,14 @@ const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
   backdrop-filter: blur(2px);
   pointer-events: none;
 
-  &[data-active="true"],
+  state(active=true) {
+    display: grid
+    pointer-events: auto
+  }
+
   &.roderuda-active {
-    display: grid;
-    pointer-events: auto;
+    display: grid
+    pointer-events: auto
   }
 `;
 
@@ -335,25 +370,31 @@ const NotificationToast = styled.div("RodDevtoolsNotificationToast").css`
   transform: translateY(-7px) scale(.98);
   transition: opacity .18s ease-out, transform .18s ease-out;
 
-  &[data-active="true"] {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+  state(active=true) {
+    opacity: 1
+    transform: translateY(0) scale(1)
   }
 
-  &[data-type="success"] {
-    border-color: $success;
+  variant(type) {
+    success {
+      border-color: $success
+    }
+
+    warning {
+      border-color: $warningBorder
+      background: $warningBg
+      color: $warningFg
+    }
+
+    error {
+      border-color: $errorBorder
+      background: $errorBg
+      color: $errorFg
+    }
   }
 
-  &[data-type="warning"] {
-    border-color: $warningBorder;
-    background: $warningBg;
-    color: $warningFg;
-  }
-
-  &[data-type="error"] {
-    border-color: $errorBorder;
-    background: $errorBg;
-    color: $errorFg;
+  compound(active: true, type: [warning, error]) {
+    opacity: 1
   }
 `;
 
@@ -407,7 +448,7 @@ const ModalInput = styled.input("RodDevtoolsModalInput").css`
   color: $primary;
   user-select: text;
 
-  &:focus {
+  x:focus {
     border-color: $accent;
   }
 `;
@@ -421,6 +462,9 @@ const ModalActions = styled.div("RodDevtoolsModalActions").css`
 `;
 
 const TextButton = styled.button("RodDevtoolsTextButton").css`
+  @with($control-reset)
+  $interactive-surface
+
   flex: 0 0 auto;
   min-width: 74px;
   min-height: 28px;
@@ -433,20 +477,20 @@ const TextButton = styled.button("RodDevtoolsTextButton").css`
   color: $primary;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: fluid(12px, 12px);
   transition: color .18s, background .18s, transform .1s;
 
-  &:hover {
+  x:hover {
     background: $highlight;
     color: $selectedForeground;
   }
 
-  &:active {
+  x:active {
     transform: scale(.94);
     color: $accent;
   }
 
-  &[data-primary="true"] {
+  state(primary=true) {
     background: $accent;
     color: white;
   }
@@ -527,6 +571,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
 
       <section
         class=${DevtoolsDock.className}
+        data-group="dock"
         data-inline=${String(shared.inline)}
         data-active=${() => String(shared.visible())}
         aria-label="Developer tools"
@@ -574,8 +619,8 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
               @dragover=${event.dragover((drag) => item().dragOver(drag))}
               @drop=${event.drop((drop) => item().drop(drop))}
             >
-              <RodDevtoolsTabIcon>${renderToolIcon(item().icon, item().name)}</RodDevtoolsTabIcon>
-              <RodDevtoolsTabLabel>${() => item().title}</RodDevtoolsTabLabel>
+              <RodDevtoolsTabIcon :slot="icon">${renderToolIcon(item().icon, item().name)}</RodDevtoolsTabIcon>
+              <RodDevtoolsTabLabel :slot="label">${() => item().title}</RodDevtoolsTabLabel>
             </RodDevtoolsTabButton>
           `)}
           <RodDevtoolsBuildBadge :roderudaBuildBadge title=${`Build ${DEVTOOLS_BUILD_INFO.sha} · ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
