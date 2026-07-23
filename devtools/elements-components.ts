@@ -65,7 +65,9 @@ const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
 `;
 
 const ElementsIconButton = styled.button("RodElementsIconButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
@@ -81,19 +83,19 @@ const ElementsIconButton = styled.button("RodElementsIconButton").css`
   cursor: pointer;
   transition: color .18s, background .18s, transform .1s;
 
-  &:hover {
-    background: $highlight;
-    color: $selectedForeground;
+  x:hover {
+    bg: $highlight
+    color: $selectedForeground
   }
 
-  &:active {
-    transform: scale(.94);
-    color: $accent;
+  x:active {
+    transform: scale(.94)
+    color: $accent
   }
 
-  &[data-active="true"] {
-    color: $accent;
-    background: $highlight;
+  state(active=true) {
+    color: $accent
+    bg: $highlight
   }
 
   &:disabled {
@@ -119,7 +121,8 @@ const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
 const DomTree = styled.div("RodElementsDomTree").css`
   min-width: max-content;
   padding: 5px 0 12px 12px;
-  font: 12px / 1.45 $font.mono;
+  text(12px / 1.45)
+  font-family: $font.mono
 
   &[data-wrap="true"] {
     min-width: 100%;
@@ -173,13 +176,13 @@ const DomRow = styled.div("RodElementsDomRow").css`
   touch-action: pan-y;
   white-space: normal;
   
-  &:hover {
-    background: $highlight;
+  x:hover {
+    bg: $highlight
   }
 
-  &[data-selected="true"] {
-    background: $contrast;
-    color: $selectedForeground;
+  state(selected=true) {
+    bg: $contrast
+    color: $selectedForeground
   }
 `;
 
@@ -227,7 +230,9 @@ const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
 `;
 
 const CrumbButton = styled.button("RodElementsCrumbButton").css`
-  appearance: none;
+  @with(appearance(none))
+  interactive-surface
+
   flex: 0 0 auto;
   padding: 5px 8px;
   border: 0;
@@ -248,8 +253,8 @@ const DetailPanel = styled.section("RodElementsDetailPanel").css`
   padding-top: $$controlHeight;
   background: $background;
 
-  &[data-active="true"] {
-    display: block;
+  state(active=true) {
+    block
   }
 
   x:md {
@@ -275,7 +280,9 @@ const DetailSection = styled.section("RodElementsDetailSection").css`
 `;
 
 const SectionTitle = styled.button("RodElementsSectionTitle").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   display: flex;
   align-items: center;
   gap: 8px;
@@ -373,7 +380,8 @@ const BoxModel = styled.div("RodElementsBoxModel").css`
   min-width: 300px;
   padding: 10px;
   text-align: center;
-  font: 11px / 1.35 $font.mono;
+  text(11px / 1.35)
+  font-family: $font.mono
 `;
 
 const BoxLayer = styled.div("RodElementsBoxLayer").css`
@@ -393,7 +401,8 @@ const StyleRule = styled.div("RodElementsStyleRule").css`
   padding: 8px;
   border: 1px solid $border;
   border-radius: $md;
-  font: 12px / 1.45 $font.mono;
+  text(12px / 1.45)
+  font-family: $font.mono
 `;
 
 const StyleSelector = styled.div("RodElementsStyleSelector").css`
@@ -440,7 +449,8 @@ const ListenerBox = styled.div("RodElementsListenerBox").css`
   overflow: hidden;
   border: 1px solid $border;
   border-radius: $md;
-  font: 12px / 1.45 $font.mono;
+  text(12px / 1.45)
+  font-family: $font.mono
 `;
 
 const ListenerTitle = styled.strong("RodElementsListenerTitle").css`
@@ -455,7 +465,8 @@ const ListenerPre = styled.pre("RodElementsListenerPre").css`
   padding: 8px;
   overflow-y: auto;
   overflow-x: hidden;
-  font: 11px / 1.4 $font.mono;
+  text(11px / 1.4)
+  font-family: $font.mono
   user-select: text;
 `;
 
@@ -485,7 +496,9 @@ const ElementsMenu = styled.div("RodElementsMenu").css`
 `;
 
 const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
-  appearance: none;
+  @with($control-reset)
+  interactive-surface
+
   display: block;
   width: 100%;
   padding: 7px 9px;
@@ -497,10 +510,14 @@ const ElementsMenuButton = styled.button("RodElementsMenuButton").css`
   text-align: left;
   cursor: pointer;
 
-  &:hover,
-  &:focus-visible {
-    color: $selectedForeground;
-    background: $highlight;
+  x:hover {
+    color: $selectedForeground
+    bg: $highlight
+  }
+
+  x:focus-visible {
+    color: $selectedForeground
+    bg: $highlight
   }
 `;
 
