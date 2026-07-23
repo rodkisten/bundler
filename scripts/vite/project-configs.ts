@@ -87,6 +87,7 @@ export function createMaquinaProjectConfig(): UserConfig {
           compileFabrica: true,
           transformCssTag: true,
           configCss: maquinaCipoConfigCss,
+          configRuntimeBindings: ["maquinaCipoConfigCss"],
         }),
       ],
     }),
