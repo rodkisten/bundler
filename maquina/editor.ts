@@ -630,17 +630,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       html`
         ${visualLines.map(
           (line) => html`
-            <MaquinaLine data-maquina-line=${String(line.number)}>
+            <MaquinaLine :maquinaLine=${String(line.number)}>
               ${lineNumbers
                 ? html`
                     <MaquinaLineNumber
-                      data-maquina-line-number=${String(line.number)}
+                      :maquinaLineNumber=${String(line.number)}
                     >${String(line.number)}</MaquinaLineNumber>
                   `
                 : ""}
               <MaquinaCodeClip>
                 <MaquinaLineCode
-                  data-maquina-line-code=${String(line.number)}
+                  :maquinaLineCode=${String(line.number)}
                 >${line.tokens.length > 0
                     ? line.tokens.map(
                         (token) =>
@@ -781,8 +781,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
               id=${getSuggestionId(index)}
               role="option"
               aria-selected="false"
-              data-active="false"
-              data-maquina-suggestion-index=${String(index)}
+              :active="false"
+              :maquinaSuggestionIndex=${String(index)}
               @pointerdown=${event.pointerdown(() => {
                 state.activeSuggestion.set(index);
                 syncActiveSuggestion();
