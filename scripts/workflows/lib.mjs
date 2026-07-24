@@ -75,10 +75,37 @@ export function output(name, value) {
   }
 }
 
+const GITHUB_STEP_SUMMARY_MAX_BYTES = 1024 * 1024;
+const GITHUB_STEP_SUMMARY_RESERVE_BYTES = 16 * 1024;
+
 export function summary(markdown) {
   const target = env("GITHUB_STEP_SUMMARY");
   if (!target) return;
-  appendFileSync(target, `${markdown.trimEnd()}\n`);
+
+  const currentBytes = existsSync(target)
+    ? Buffer.byteLength(readFileSync(target))
+    : 0;
+  const availableBytes = Math.max(
+    0,
+    GITHUB_STEP_SUMMARY_MAX_BYTES -
+      GITHUB_STEP_SUMMARY_RESERVE_BYTES -
+      currentBytes,
+  );
+  if (availableBytes === 0) return;
+
+  const text = `${markdown.trimEnd()}\n`;
+  const buffer = Buffer.from(text);
+  if (buffer.byteLength <= availableBytes) {
+    appendFileSync(target, buffer);
+    return;
+  }
+
+  const notice = Buffer.from(
+    "\n> Summary truncated because GitHub accepts at most 1024 KiB. " +
+      "See the complete step log or uploaded artifact.\n",
+  );
+  const contentBytes = Math.max(0, availableBytes - notice.byteLength);
+  appendFileSync(target, Buffer.concat([buffer.subarray(0, contentBytes), notice]));
 }
 
 export function readText(path, fallback = "") {
