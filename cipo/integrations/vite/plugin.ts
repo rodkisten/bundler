@@ -395,7 +395,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
        * optional dependency boundary explicit, source-boundary regression tests
        * verify that the Vite adapter never introduces a static Fábrica import.
        */
-      return import("@rodkisten/fabrica/compiler").then(({ compileFabricaSource }) => {
+      return import('@rodkisten/fabrica/compiler').then(({ compileFabricaSource }) => {
         const fabrica = compileFabricaSource(nextCode, {
           filename,
 
