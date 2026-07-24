@@ -46,6 +46,9 @@ export const MaquinaRoot = styled.div('MaquinaRoot').css`
   max-width: 100%
   max-height: 100%
 
+  $$gutterWidth<length>: 0px
+  $$fontSize<length>: 16px
+
   border: 1px solid $colors.border
 
   shadow:
@@ -86,11 +89,7 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   pointer-events: none
   user-select: none
 
-  text(
-    $$fontSize /
-    $typography.editor-line-height /
-    $typography.editor-weight
-  )
+  text($$fontSize / 1.55 / 500)
 
   font-family: $fonts.code
 
@@ -222,7 +221,7 @@ export const MaquinaInput = styled.textarea(
     $spacing.editor-top
     $spacing.editor-inline
     $spacing.editor-bottom
-    calc($$gutterWidth + $spacing.editor-inline)
+    calc($$gutterWidth + 16px)
 
   overscroll-behavior: contain
   scrollbar-gutter: stable
