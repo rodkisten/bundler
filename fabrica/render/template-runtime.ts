@@ -71,6 +71,13 @@ function materializeHtmlTemplate(
   jsxMode: boolean,
   runtime: FabricaRuntimeContext,
 ): HtmlResult {
+  if (!jsxMode && values.length === 1 && strings.length === 2 && strings[0]?.trim() === "" && strings[1]?.trim() === "") {
+    const value = values[0];
+    if (getHtmlArtifact(value)?.kind === "fabrica.html") {
+      return value as HtmlResult;
+    }
+  }
+
   const compiled = jsxMode
     ? getCompiledJsxTemplate(strings, values)
     : getCompiledTemplate(strings, values);

@@ -36,4 +36,23 @@ describe("ConsoleCapture", () => {
     expect(() => capture.record("error", [new Error("page failure")])).not.toThrow();
     expect(healthy).toHaveBeenCalledTimes(1);
   });
+  it("breaks passthrough cycles that call the captured method again", () => {
+    const capture = new ConsoleCapture();
+    captures.push(capture);
+
+    const nativeLog = console.log;
+    const recursivePassthrough = (...args: unknown[]): void => {
+      console.log(...args);
+    };
+
+    console.log = recursivePassthrough;
+    capture.overrideConsole({ watchdog: false });
+
+    expect(() => console.log("cycle-safe")).not.toThrow();
+    expect(capture.getRecords()).toHaveLength(1);
+
+    capture.restoreConsole();
+    console.log = nativeLog;
+  });
+
 });
