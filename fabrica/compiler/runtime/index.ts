@@ -1,7 +1,7 @@
 import { html } from "../../render/dom.js";
 import {
   createHtmlResult,
-  isHtmlResult,
+  getHtmlArtifact,
   pruneInsignificantWhitespace,
 } from "../../render/html-result.js";
 import { collectCleanupNodes } from "../../render/cleanup.js";
@@ -152,7 +152,9 @@ function getReusableHtmlResult(
   if (strings.length !== 2 || strings.some((part) => part.trim())) return null;
 
   const value = values[0];
-  return isHtmlResult(value) ? value : null;
+  return getHtmlArtifact(value)?.kind === "fabrica.html"
+    ? (value as HtmlResult)
+    : null;
 }
 
 function createCompiledHtmlArtifact(
