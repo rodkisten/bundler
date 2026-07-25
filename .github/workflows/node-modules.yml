@@ -34,7 +34,7 @@ jobs:
         with:
           name: repository-with-node-modules
           path: |
-            .
+            ./node_modules
             !.git
             !.git/**
           include-hidden-files: true
