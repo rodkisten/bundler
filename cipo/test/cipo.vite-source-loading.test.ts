@@ -24,8 +24,8 @@ describe('Cipó Vite adapter package boundaries', () => {
 
     expect(adapter).toContain("import('@rodkisten/fabrica/compiler')")
     expect(adapter).not.toContain("from '@rodkisten/fabrica/compiler'")
-    expect(adapter).toContain("const CIPO_COMPILED_RUNTIME = '@rodkisten/cipo/compiled-runtime'")
-    expect(adapter).toContain("const CIPO_COMPILER = '@rodkisten/cipo/compiler'")
+    expect(adapter).toMatch(/const CIPO_COMPILED_RUNTIME = [\"']@rodkisten\/cipo\/compiled-runtime[\"']/)
+    expect(adapter).toMatch(/const CIPO_COMPILER = [\"']@rodkisten\/cipo\/compiler[\"']/)
     expect(sharedProjectConfigs).toContain('from "@rodkisten/cipo/vite"')
     expect(devtoolsConfig).toContain('createDevtoolsProjectConfig')
     expect(maquinaConfig).toContain('createMaquinaProjectConfig')
