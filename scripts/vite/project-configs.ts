@@ -49,6 +49,7 @@ export function createDevtoolsProjectConfig(): UserConfig {
           transformCssTag: true,
           styledImportModules: ["@rodkisten/devtools/core/runtime"],
           configCss: devtoolsCipoConfigCss,
+          configRuntimeBindings: ["devtoolsCipoConfigCss"],
         }),
       ],
     }),
