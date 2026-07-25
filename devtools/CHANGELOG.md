@@ -1,4 +1,6 @@
 ## Unreleased
+- Prevented cyclic console-wrapper chains from causing repeated `Maximum call stack size exceeded` errors when Rod DevTools coexists with page-realm bridges, another DevTools instance, Eruda, or scripts that replace `console` methods.
+- Added a re-entrancy fuse and wrapper unwrapping metadata to the console capture pipeline, plus regression coverage for cross-capture cycles.
 - Migrated the DevTools shell, shared panel primitives, and primary panel controls to exercise Cipó's legacy and modern authoring surface together: legacy `$alias`/`@with(...)`, `$theme.*`, standalone aliases/helpers, typed/runtime `$$` properties, Fábrica state selectors, `state()`, `group()`, `slot()`, `variant()`, `compound()`, responsive objects, container queries, `fluid()`, `text()`, `motion()`, and `!property` priority syntax.
 - Added regression coverage that keeps this mixed Cipó authoring contract visible in production component sources and verifies the CSS-first alias/helper/property configuration.
 - Fixed the floating entry button so its native drag/click guard forwards activation to the DevTools controller instead of swallowing the delegated click before the dock can open.

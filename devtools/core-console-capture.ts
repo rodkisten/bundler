@@ -52,6 +52,16 @@ const methods: readonly ConsoleMethod[] = [
 
 type Fn = (...args: unknown[]) => void;
 
+interface CaptureWrapper extends Fn {
+  readonly __roderudaCaptureWrapper?: true;
+  readonly __roderudaOriginalConsoleMethod?: Fn;
+}
+
+function isCaptureWrapper(value: unknown): value is CaptureWrapper {
+  return typeof value === "function" &&
+    (value as CaptureWrapper).__roderudaCaptureWrapper === true;
+}
+
 interface InstallOptions {
   overrideConsole?: boolean;
   catchGlobalErrors?: boolean;
@@ -133,6 +143,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private originalConsoleDescriptor: PropertyDescriptor | undefined;
   private pageBridgeCleanup: (() => void) | null = null;
   private readonly bridgeEventName = `__roderuda_console_${Math.random().toString(36).slice(2)}`;
+  private readonly invoking = new Set<ConsoleMethod>();
   private lastGlobalErrorFingerprint = "";
   private lastGlobalErrorAt = 0;
 
@@ -333,35 +344,54 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     }
 
     const existing = consoleRecord[key];
+    const existingOriginal = isCaptureWrapper(existing)
+      ? existing.__roderudaOriginalConsoleMethod
+      : existing;
 
     if (!this.original.has(method)) {
-      this.original.set(method, safeBind(existing));
+      this.original.set(method, safeBind(existingOriginal));
     }
 
     const original = this.original.get(method) ?? noop;
 
     if (!this.current.has(method)) {
-      this.current.set(method, safeBind(existing) || original);
+      this.current.set(method, isCaptureWrapper(existing)
+        ? safeBind(existing.__roderudaOriginalConsoleMethod)
+        : safeBind(existing));
     }
 
     let wrapper = this.wrappers.get(method);
 
     if (!wrapper) {
       wrapper = (...args: unknown[]) => {
-        this.handle(method, args);
+        if (this.invoking.has(method)) {
+          // A passthrough wrapper called back into the captured console method.
+          // Stop here instead of invoking any delegate and rebuilding the cycle.
+          return;
+        }
 
-        const passthrough = this.current.get(method) ?? original;
-
-        if (passthrough === wrapper) return;
+        this.invoking.add(method);
 
         try {
-          passthrough(...args);
-        } catch {
-          try {
+          this.handle(method, args);
+
+          const passthrough = this.current.get(method) ?? original;
+          if (passthrough === wrapper || isCaptureWrapper(passthrough)) {
             original(...args);
-          } catch {
-            // Avoid recursive console failure.
+            return;
           }
+
+          try {
+            passthrough(...args);
+          } catch {
+            try {
+              original(...args);
+            } catch {
+              // Avoid recursive console failure.
+            }
+          }
+        } finally {
+          this.invoking.delete(method);
         }
       };
 
@@ -369,6 +399,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         Object.defineProperties(wrapper, {
           name: { configurable: true, value: method },
           __roderudaCaptureWrapper: { configurable: false, value: true },
+          __roderudaOriginalConsoleMethod: { configurable: false, value: original },
         });
       } catch {
         // Fine.
@@ -379,6 +410,11 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
     const setter = (value: unknown): void => {
       if (value === wrapper) return;
+
+      if (isCaptureWrapper(value)) {
+        this.current.set(method, safeBind(value.__roderudaOriginalConsoleMethod));
+        return;
+      }
 
       const next = typeof value === "function" ? safeBind(value) : original;
       this.current.set(method, next);
@@ -440,7 +476,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
           get: () => wrapper,
           set: (value: unknown) => {
             if (value !== wrapper && typeof value === "function") {
-              this.current.set(method, safeBind(value));
+              this.current.set(method, isCaptureWrapper(value)
+                ? safeBind(value.__roderudaOriginalConsoleMethod)
+                : safeBind(value));
             }
           },
         });
@@ -470,7 +508,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
         if (currentValue !== wrapper) {
           if (typeof currentValue === "function") {
-            this.current.set(method, safeBind(currentValue));
+            this.current.set(method, isCaptureWrapper(currentValue)
+              ? safeBind(currentValue.__roderudaOriginalConsoleMethod)
+              : safeBind(currentValue));
           }
 
           this.installMethod(method, {
@@ -521,7 +561,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
           : undefined;
 
     if (incoming && incoming !== wrapper) {
-      capture.current.set(method, safeBind(incoming));
+      capture.current.set(method, isCaptureWrapper(incoming)
+        ? safeBind(incoming.__roderudaOriginalConsoleMethod)
+        : safeBind(incoming));
     }
 
     if (wrapper) {
@@ -531,7 +573,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         get: () => wrapper,
         set: (value: unknown) => {
           if (value !== wrapper && typeof value === "function") {
-            capture.current.set(method, safeBind(value));
+            capture.current.set(method, isCaptureWrapper(value)
+              ? safeBind(value.__roderudaOriginalConsoleMethod)
+              : safeBind(value));
           }
         },
       });
@@ -575,7 +619,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
           if (typeof value === "function") {
             const wrapper = capture.wrappers.get(method);
-            if (value !== wrapper) capture.current.set(method, safeBind(value));
+            if (value !== wrapper) capture.current.set(method, isCaptureWrapper(value)
+              ? safeBind(value.__roderudaOriginalConsoleMethod)
+              : safeBind(value));
           }
         }
 
@@ -608,7 +654,9 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
             const nextMethod = (nextConsole as Record<string, unknown>)[method];
             if (typeof nextMethod === "function") {
               const wrapper = this.wrappers.get(method);
-              if (nextMethod !== wrapper) this.current.set(method, safeBind(nextMethod));
+              if (nextMethod !== wrapper) this.current.set(method, isCaptureWrapper(nextMethod)
+                ? safeBind(nextMethod.__roderudaOriginalConsoleMethod)
+                : safeBind(nextMethod));
             }
           }
         },
@@ -683,7 +731,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       const originals = {};
       for (const level of levels) {
         const original = console[level];
-        if (typeof original !== 'function' || original.__roderudaCaptureWrapper) continue;
+        if (typeof original !== 'function' || original.__roderudaCaptureWrapper || original.__roderudaPageBridgeWrapper) continue;
         originals[level] = original;
         const wrapped = function(...args) {
           try {
@@ -693,6 +741,12 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
           } catch {}
           return Reflect.apply(original, console, args);
         };
+        try {
+          Object.defineProperties(wrapped, {
+            __roderudaPageBridgeWrapper: { configurable: false, value: true },
+            __roderudaOriginalConsoleMethod: { configurable: false, value: original },
+          });
+        } catch {}
         try { Object.defineProperty(console, level, { configurable: true, writable: true, value: wrapped }); }
         catch { try { console[level] = wrapped; } catch {} }
       }
