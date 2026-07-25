@@ -85,6 +85,9 @@ export interface CipoViteCompiledInlineOptions {
    */
   readonly configRuntimeBindings?: readonly string[];
 
+  /** Additional runtime config bindings mapped to their exact CSS-first source. */
+  readonly additionalConfigRuntimeCss?: Readonly<Record<string, string>>;
+
   /**
    * Isolates compact class names across independently deployed
    * bundles/microfrontends.
@@ -290,6 +293,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
         compiledConfigPayload,
         filename,
         options.configRuntimeBindings ?? ["appConfigCss"],
+        options.additionalConfigRuntimeCss,
       );
 
       const cipo = compileCipoSourceBuild(runtimeConfig.code, {
@@ -705,6 +709,7 @@ function compileRuntimeConfigCalls(
   configuredPayload: CipoCompiledCssConfig | null,
   filename: string,
   configuredBindingNames: readonly string[],
+  additionalConfigRuntimeCss?: Readonly<Record<string, string>>,
 ): {
   readonly code: string;
   readonly changed: boolean;
@@ -733,6 +738,12 @@ function compileRuntimeConfigCalls(
   );
 
   const configuredBindings = new Set(configuredBindingNames);
+  const additionalPayloads = new Map(
+    Object.entries(additionalConfigRuntimeCss ?? {}).map(([binding, css]) => [
+      binding,
+      compileCssConfigPayload(css),
+    ]),
+  );
 
   const edits: SourceEdit[] = [];
 
@@ -753,6 +764,9 @@ function compileRuntimeConfigCalls(
      */
     if (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument)) {
       payload = compileCssConfigPayload(argument.text);
+    } else if (ts.isIdentifier(argument) && additionalPayloads.has(argument.text)) {
+      payload = additionalPayloads.get(argument.text)!;
+      removableBindings.add(argument.text);
     } else if (
       ts.isIdentifier(argument) &&
       configuredPayload &&
