@@ -49,8 +49,10 @@ describe("shared Vite build configuration", () => {
     expect(config.build?.minify).toBe("oxc");
     expect(config.build?.cssMinify).toBe("lightningcss");
     expect(config.plugins).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: "rod-workspace-alias" }),
       expect.objectContaining({ name: "rod-ecosystem-site" }),
+    ]));
+    expect(config.plugins).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "rod-workspace-alias" }),
     ]));
   });
 });
