@@ -1,6 +1,7 @@
 import { html } from "../../render/dom.js";
 import {
   createHtmlResult,
+  isHtmlResult,
   pruneInsignificantWhitespace,
 } from "../../render/html-result.js";
 import { collectCleanupNodes } from "../../render/cleanup.js";
@@ -99,6 +100,8 @@ export function createCompiledTemplate(
 
   const materialize = (): HtmlResult => {
     const runtime = getCurrentFabricaRuntime();
+    const reusableResult = getReusableHtmlResult(input, values);
+    if (reusableResult) return reusableResult;
     const runtimeDefinition = isRuntimeCompiledTemplate(input);
     const normalizedStrings = runtimeDefinition
       ? null
@@ -137,6 +140,19 @@ export function createCompiledTemplate(
   return boundRuntime
     ? runWithFabricaRuntime(boundRuntime, materialize)
     : runWithCurrentFabricaRuntime(materialize);
+}
+
+function getReusableHtmlResult(
+  input: RuntimeCompiledTemplateInput | TemplateStringsArray | readonly string[],
+  values: readonly RenderValue[],
+): HtmlResult | null {
+  if (isRuntimeCompiledTemplate(input) || values.length !== 1) return null;
+
+  const strings = Array.from(input);
+  if (strings.length !== 2 || strings.some((part) => part.trim())) return null;
+
+  const value = values[0];
+  return isHtmlResult(value) ? value : null;
 }
 
 function createCompiledHtmlArtifact(

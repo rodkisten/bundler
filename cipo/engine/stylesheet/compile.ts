@@ -24,14 +24,17 @@ export function compileSheetCss(
 ): CipoStylesheetArtifact {
   const sourceCss = buildSafeSource(strings, values)
   const prepared = prepareSheetSource(sourceCss)
-  const cacheKey = createArtifactCacheKey(prepared.css, important ? 'sheet-important' : 'sheet')
+  const cacheKey = createArtifactCacheKey(sourceCss, important ? 'sheet-important' : 'sheet')
   const cached = getCachedArtifact(cacheKey)
   if (cached && isStylesheetArtifactLike(cached)) return cached
 
   const warnings: CipoWarning[] = []
   const transformedCss = transformCss(prepared.css, warnings)
   const ast = parseStylesheet(transformedCss, warnings)
-  const artifact = createStylesheetArtifact(prepared.css, transformedCss, ast, warnings, important)
+  const compiledArtifact = createStylesheetArtifact(prepared.css, transformedCss, ast, warnings, important)
+  const artifact = prepared.css === sourceCss
+    ? compiledArtifact
+    : { ...compiledArtifact, rawCss: sourceCss }
   setCachedArtifact(cacheKey, artifact)
   return artifact
 }

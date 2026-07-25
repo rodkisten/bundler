@@ -334,7 +334,7 @@ function compilePolymorphicCss(
       ? inline.css.withImportant(first, ...values)
       : inline.css(first, ...values);
 
-  const { source: polymorphic } = getPolymorphicTemplateSource(
+  const { rawCss, source: polymorphic } = getPolymorphicTemplateSource(
     first as TemplateStringsArray,
     values,
   );
@@ -368,13 +368,16 @@ function compilePolymorphicCss(
   const ast = parseStylesheet(transformedCss, warnings);
 
   if (shouldCompileAsStylesheet(polymorphic.css, transformedCss, ast)) {
-    const artifact = createStylesheetArtifact(
+    const compiledArtifact = createStylesheetArtifact(
       polymorphic.css,
       transformedCss,
       ast,
       warnings,
       important,
     );
+    const artifact = polymorphic.configCss
+      ? { ...compiledArtifact, rawCss }
+      : compiledArtifact;
     setCachedArtifact(cacheKey, artifact);
     return artifact;
   }
