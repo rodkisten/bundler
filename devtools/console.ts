@@ -392,6 +392,8 @@ export class Console extends Tool {
       },
       onRun: () => { void this.executeInput(); },
       activateCompletionOnTyping: false,
+      isolateKeyboardEvents: true,
+      modifiedEnter: "newline",
     });
   }
 
@@ -409,15 +411,22 @@ export class Console extends Tool {
   }
 
   private handleInputKey(eventValue: KeyboardEvent): void {
+    eventValue.stopPropagation();
+    eventValue.stopImmediatePropagation();
     const value = this.state.inputValue.peek();
     if (eventValue.key === "Enter" && !eventValue.shiftKey && !eventValue.altKey && !eventValue.ctrlKey && !eventValue.metaKey) {
       eventValue.preventDefault();
       void this.executeInput();
       return;
     }
-    if ((eventValue.metaKey || eventValue.ctrlKey) && eventValue.key === "Enter") {
+    if (eventValue.key === "Enter" && (eventValue.shiftKey || eventValue.ctrlKey)) {
       eventValue.preventDefault();
-      void this.executeInput();
+      const input = eventValue.currentTarget as HTMLTextAreaElement;
+      const from = input.selectionStart;
+      const to = input.selectionEnd;
+      input.setRangeText("\n", from, to, "end");
+      this.state.inputValue.set(input.value);
+      this.expandEditor(true);
       return;
     }
     if (eventValue.key === "ArrowUp" && !value.includes("\n")) {
@@ -435,7 +444,6 @@ export class Console extends Tool {
       return;
     }
     if (eventValue.key === "Escape") this.expandEditor(false);
-    if (eventValue.key === "Enter" && eventValue.shiftKey) this.expandEditor(true);
   }
 
   private async executeInput(): Promise<void> {

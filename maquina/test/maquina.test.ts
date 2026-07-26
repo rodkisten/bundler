@@ -182,6 +182,36 @@ describe("Maquina", () => {
     },
   );
 
+  it("renders token text without template whitespace or host span leakage", () => {
+    const hostStyle = document.createElement("style");
+    hostStyle.textContent = "span { display: block; margin: 20px; letter-spacing: 1em; }";
+    document.head.append(hostStyle);
+
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const source = "const machine = { name: 'Máquina' };";
+
+    mountMaquina({
+      parent,
+      value: source,
+      language: "javascript",
+    });
+
+    const code = parent.querySelector<HTMLElement>(
+      "[data-maquina-line-code='1']",
+    )!;
+    const tokens = Array.from(
+      code.querySelectorAll<HTMLElement>("[data-token]"),
+    );
+
+    expect(code.textContent).toBe(source);
+    expect(tokens.length).toBeGreaterThan(1);
+    expect(tokens.every((token) => token.textContent?.includes("\n") === false)).toBe(true);
+    expect(tokens.every((token) => token.className.includes("MaquinaTokenText"))).toBe(true);
+
+    hostStyle.remove();
+  });
+
   it("tokenizes supported languages", () => {
     const javascriptTokens = tokenizeMaquina(
       "const x = 'a'",
@@ -237,6 +267,40 @@ describe("Maquina", () => {
 
     expect(seen).toBe("doc");
   });
+  it("isolates REPL keyboard events and uses modified Enter for newlines", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    let runs = 0;
+    let bubbled = 0;
+    const onBodyKeyDown = (): void => { bubbled += 1; };
+    document.body.addEventListener("keydown", onBodyKeyDown);
+
+    const editor = mountMaquina({
+      parent,
+      value: "const value = 1",
+      isolateKeyboardEvents: true,
+      modifiedEnter: "newline",
+      onRun: () => { runs += 1; },
+    });
+    const textarea = parent.querySelector("textarea")!;
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true, cancelable: true }));
+    expect(editor.getValue()).toBe("const value = 1\n");
+    expect(runs).toBe(0);
+    expect(bubbled).toBe(0);
+
+    textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(editor.getValue()).toBe("const value = 1\n\n");
+    expect(runs).toBe(0);
+    expect(bubbled).toBe(0);
+
+    textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    expect(runs).toBe(1);
+    expect(bubbled).toBe(0);
+    document.body.removeEventListener("keydown", onBodyKeyDown);
+  });
+
 });
 
 function readLineNumbers(parent: HTMLElement): string[] {

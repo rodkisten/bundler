@@ -1,31 +1,31 @@
-import { configureFromCss, createStyled } from '@rodkisten/cipo'
-import { maquinaCipoConfigCss } from '@rodkisten/maquina/cipo-config'
-import { createFabrica } from '@rodkisten/fabrica'
+import { configureFromCss, createStyled } from "@rodkisten/cipo";
+import { createFabrica } from "@rodkisten/fabrica";
+import { maquinaCipoConfigCss } from "@rodkisten/maquina/cipo-config";
 
 // Source/package-module consumers need the same prefix and CSS-first contract
 // that the Vite build lowers into a parser-free compiled configuration payload.
-configureFromCss(maquinaCipoConfigCss)
+configureFromCss(maquinaCipoConfigCss);
 
 /**
  * Maquina owns one isolated Fábrica registry shared by every editor instance.
  */
 export const maquinaFabrica = createFabrica({
-  name: 'maquina',
+  name: "maquina",
   isolated: true,
-})
+});
 
-export const html = maquinaFabrica.html
-export const component = maquinaFabrica.component
-export const event = maquinaFabrica.event
-export const ref = maquinaFabrica.ref
+export const html = maquinaFabrica.html;
+export const component = maquinaFabrica.component;
+export const event = maquinaFabrica.event;
+export const ref = maquinaFabrica.ref;
 
 export const styled = createStyled({
   fabrica: maquinaFabrica,
-})
+});
 
-styled.connectRegistry(maquinaFabrica)
+styled.connectRegistry(maquinaFabrica);
 
-export const MaquinaRoot = styled.div('MaquinaRoot').css`
+export const MaquinaRoot = styled.div("MaquinaRoot").css`
   @with(
     bg($colors.background),
     color($colors.foreground),
@@ -54,16 +54,16 @@ export const MaquinaRoot = styled.div('MaquinaRoot').css`
   shadow:
     0 16px 48px rgb(0 0 0 / 18%),
     inset 0 1px rgb(255 255 255 / 3.5%)
-`
+`;
 
-export const MaquinaViewport = styled.div('MaquinaViewport').css`
+export const MaquinaViewport = styled.div("MaquinaViewport").css`
   relative
   minw-0
   minh-0
   w-full
   h-full
   overflow-hidden
-`
+`;
 
 /**
  * Visual code layer.
@@ -71,7 +71,7 @@ export const MaquinaViewport = styled.div('MaquinaViewport').css`
  * The textarea remains the input and scroll authority. Logical rows let line
  * numbers and wrapped code share exactly the same height.
  */
-export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
+export const MaquinaHighlight = styled.div("MaquinaHighlight").css`
   absolute-fill
   minw-full
   minh-full
@@ -88,6 +88,9 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   contain: paint
   pointer-events: none
   user-select: none
+  letter-spacing: normal
+  word-spacing: normal
+  text-indent: 0
 
   text($$fontSize / 1.55 / 500)
 
@@ -134,9 +137,33 @@ export const MaquinaHighlight = styled.div('MaquinaHighlight').css`
   & :token='punctuation' {
     color: $colors.syntax-punctuation
   }
-`
+`;
 
-export const MaquinaLine = styled.div('MaquinaLine').css`
+
+/**
+ * Inline syntax token protected from host-page resets.
+ *
+ * DevTools is commonly mounted alongside aggressive global selectors such as
+ * `span { display: block }`. Keeping token geometry explicit prevents those
+ * selectors from changing code spacing and caret alignment.
+ */
+export const MaquinaTokenText = styled.span("MaquinaTokenText").css`
+  inline
+  m: 0
+  p: 0
+  border: 0
+
+  font: inherit
+  letter-spacing: inherit
+  word-spacing: inherit
+  text-indent: 0
+  text-transform: none
+  white-space: inherit
+
+  pointer-events: none
+`;
+
+export const MaquinaLine = styled.div("MaquinaLine").css`
   grid
   minw-full
 
@@ -144,11 +171,9 @@ export const MaquinaLine = styled.div('MaquinaLine').css`
 
   align-items: stretch
   min-height: 1.55em
-`
+`;
 
-export const MaquinaLineNumber = styled.span(
-  'MaquinaLineNumber',
-).css`
+export const MaquinaLineNumber = styled.span("MaquinaLineNumber").css`
   relative
   block
   self-stretch
@@ -167,19 +192,15 @@ export const MaquinaLineNumber = styled.span(
   white-space: nowrap
 
   text(tabular)
-`
+`;
 
-export const MaquinaCodeClip = styled.span(
-  'MaquinaCodeClip',
-).css`
+export const MaquinaCodeClip = styled.span("MaquinaCodeClip").css`
   block
   minw-0
   overflow-hidden
-`
+`;
 
-export const MaquinaLineCode = styled.span(
-  'MaquinaLineCode',
-).css`
+export const MaquinaLineCode = styled.span("MaquinaLineCode").css`
   block
   minw-0
   box-border
@@ -190,7 +211,7 @@ export const MaquinaLineCode = styled.span(
   overflow-wrap: var(--maq-overflow-wrap, anywhere)
 
   transform: translateX($$scrollX)
-`
+`;
 
 /**
  * Native input layer.
@@ -199,9 +220,7 @@ export const MaquinaLineCode = styled.span(
  * padding with the visual layer, keeping the native caret aligned with
  * highlighted glyphs on iOS and desktop browsers.
  */
-export const MaquinaInput = styled.textarea(
-  'MaquinaInput',
-).css`
+export const MaquinaInput = styled.textarea("MaquinaInput").css`
   absolute-fill
   block
   minw-0
@@ -227,13 +246,21 @@ export const MaquinaInput = styled.textarea(
   scrollbar-gutter: stable
   resize: none
 
-  @with($editor-reset)
-
+  border: 0;
+  outline: 0;
+  appearance: none;
+  
   bg: transparent
   color: transparent
 
   caret-color: $colors.foreground
   -webkit-text-fill-color: transparent
+  text-decoration: none
+  text-decoration-color: transparent
+  text-shadow: none
+  letter-spacing: normal
+  word-spacing: normal
+  pointer-events: auto
 
   text(
     $$fontSize /
@@ -261,11 +288,9 @@ export const MaquinaInput = styled.textarea(
     color: $colors.muted
     -webkit-text-fill-color: $colors.muted
   }
-`
+`;
 
-export const MaquinaSuggestions = styled.div(
-  'MaquinaSuggestions',
-).css`
+export const MaquinaSuggestions = styled.div("MaquinaSuggestions").css`
   absolute
   flex
   minw-0
@@ -314,7 +339,7 @@ export const MaquinaSuggestions = styled.div(
   &[hidden] {
     hidden
   }
-`
+`;
 
 /**
  * Options are non-focusable listbox rows.
@@ -322,9 +347,7 @@ export const MaquinaSuggestions = styled.div(
  * Keeping DOM focus on the textarea preserves the mobile keyboard while taps
  * and vertical gestures remain native.
  */
-export const MaquinaSuggestion = styled.div(
-  'MaquinaSuggestion',
-).css`
+export const MaquinaSuggestion = styled.div("MaquinaSuggestion").css`
   grid
   items-center
   minw-0
@@ -393,11 +416,11 @@ export const MaquinaSuggestion = styled.div(
 
     font-size: $typography.suggestion-detail-size
   }
-`
+`;
 
-styled.flushRegistry()
+styled.flushRegistry();
 
 /**
  * All Cipó artifacts created by this factory, collected automatically.
  */
-export const maquinaStyleArtifacts = styled.registry.cssArtifacts
+export const maquinaStyleArtifacts = styled.registry.cssArtifacts;

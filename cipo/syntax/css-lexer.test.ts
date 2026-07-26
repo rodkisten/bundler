@@ -1092,7 +1092,7 @@ describe('CSS lexer utilities', () => {
         )
       expect(second).toBe(first)
       expect(first).toBe(
-        '.button{--a:red;color:var(--a)}',
+        '.button{ --a:red;color:var(--a)}',
       )
     })
   })

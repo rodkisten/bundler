@@ -99,6 +99,24 @@ describe("ElementHighlighter", () => {
     expect(element.style.getPropertyValue("z-index")).toBe("2147483647");
     expect(element.style.getPropertyValue("--roderuda-test")).toBe("ok");
   });
+  it("uses a zero-size non-interactive host instead of a viewport overlay", () => {
+    const element = document.createElement("main");
+    document.body.appendChild(element);
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue(rect(8, 12, 320, 180));
+
+    const highlighter = new ElementHighlighter();
+    highlighter.highlight(element, true, 0);
+    const host = document.querySelector<HTMLElement>(".__roderuda-overlay__")!;
+
+    expect(host.style.inset).toBe("");
+    expect(host.style.width).toBe("0px");
+    expect(host.style.height).toBe("0px");
+    expect(host.style.pointerEvents).toBe("none");
+    expect(host.style.overflow).toBe("visible");
+
+    highlighter.destroy();
+  });
+
 });
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {

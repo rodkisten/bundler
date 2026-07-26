@@ -105,8 +105,20 @@ export class EntryBtn {
       if (Date.now() - this.lastPointerActivation < 350) return;
       if (!this.dragging && !this.moved) this.clickListener?.();
     }));
-    this.cleanup.push(on(window, "resize", () => this.resetPosition(false)));
+    const keepInsideViewport = () => this.resetPosition(false);
+    this.cleanup.push(on(window, "resize", keepInsideViewport));
+    this.cleanup.push(on(window, "orientationchange", () => this.resetPosition(true)));
     this.cleanup.push(on(screen.orientation ?? window, "change", () => this.resetPosition(true)));
+
+    const viewport = window.visualViewport;
+    if (viewport) {
+      viewport.addEventListener("resize", keepInsideViewport);
+      viewport.addEventListener("scroll", keepInsideViewport);
+      this.cleanup.push(() => {
+        viewport.removeEventListener("resize", keepInsideViewport);
+        viewport.removeEventListener("scroll", keepInsideViewport);
+      });
+    }
   }
 
   private resetPosition(orientationChanged: boolean): void {
@@ -120,18 +132,42 @@ export class EntryBtn {
   }
 
   private defaultPosition(): Position {
-    const size = this.element.offsetWidth || 40;
-    return { x: Math.max(0, innerWidth - size - 10), y: Math.max(0, innerHeight - size - 10) };
+    const viewport = this.viewportBounds();
+    const size = this.element.offsetWidth || 56;
+    return {
+      x: viewport.right - size - viewport.margin,
+      y: viewport.bottom - size - viewport.margin,
+    };
   }
 
   private clamp(position: Position): Position {
-    const rect = this.boundary.getBoundingClientRect();
-    const width = rect.width || innerWidth;
-    const height = rect.height || innerHeight;
-    const size = this.element.offsetWidth || 40;
+    const viewport = this.viewportBounds();
+    const size = this.element.offsetWidth || 56;
+    const minX = viewport.left + viewport.margin;
+    const minY = viewport.top + viewport.margin;
+    const maxX = Math.max(minX, viewport.right - size - viewport.margin);
+    const maxY = Math.max(minY, viewport.bottom - size - viewport.margin);
+
     return {
-      x: Math.max(0, Math.min(width - size, Number(position.x) || 0)),
-      y: Math.max(0, Math.min(height - size, Number(position.y) || 0)),
+      x: Math.max(minX, Math.min(maxX, Number(position.x) || 0)),
+      y: Math.max(minY, Math.min(maxY, Number(position.y) || 0)),
+    };
+  }
+
+  private viewportBounds(): { left: number; top: number; right: number; bottom: number; margin: number } {
+    const rect = this.boundary.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const left = Math.max(0, viewport?.offsetLeft ?? rect.left ?? 0);
+    const top = Math.max(0, viewport?.offsetTop ?? rect.top ?? 0);
+    const width = Math.max(1, viewport?.width || rect.width || innerWidth);
+    const height = Math.max(1, viewport?.height || rect.height || innerHeight);
+
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      margin: 8,
     };
   }
 }

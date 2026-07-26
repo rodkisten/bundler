@@ -74,6 +74,8 @@ export interface MaquinaOptions {
   ariaLabel?: string;
   completions?: MaquinaCompletionProvider;
   activateCompletionOnTyping?: boolean;
+  isolateKeyboardEvents?: boolean;
+  modifiedEnter?: "run" | "newline";
   onChange?(value: string): void;
   onRun?(): void;
   onFocus?(): void;

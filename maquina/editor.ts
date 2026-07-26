@@ -17,6 +17,7 @@ import {
   event,
   html,
   maquinaFabrica,
+  MaquinaTokenText,
   ref,
 } from "@rodkisten/maquina/components";
 import { resolveMaquinaTheme } from "@rodkisten/maquina/theme";
@@ -215,7 +216,27 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     }
   }
 
+  function isolateKeyboardEvent(keyboardEvent: KeyboardEvent): void {
+    if (!options.isolateKeyboardEvents) return;
+    keyboardEvent.stopPropagation();
+    keyboardEvent.stopImmediatePropagation();
+  }
+
+  function insertNewline(): void {
+    const textarea = textareaRef;
+    if (!textarea || options.readOnly) return;
+
+    const from = textarea.selectionStart;
+    const to = textarea.selectionEnd;
+    dispatchTransaction({
+      changes: [{ from, to, insert: "\n" }],
+      selection: { anchor: from + 1, head: from + 1 },
+      origin: "input",
+    });
+  }
+
   function onKeyUp(keyboardEvent: KeyboardEvent): void {
+    isolateKeyboardEvent(keyboardEvent);
     onSelectionChange();
 
     if (options.activateCompletionOnTyping === false) return;
@@ -236,6 +257,17 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
   function onKeyDown(keyboardEvent: KeyboardEvent): void {
     if (destroyed) return;
+    isolateKeyboardEvent(keyboardEvent);
+
+    if (
+      keyboardEvent.key === "Enter" &&
+      (keyboardEvent.shiftKey || keyboardEvent.ctrlKey) &&
+      options.modifiedEnter === "newline"
+    ) {
+      keyboardEvent.preventDefault();
+      insertNewline();
+      return;
+    }
 
     if (state.open.peek()) {
       const items = state.suggestions.peek();
@@ -262,7 +294,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
         items.length > 0 &&
         (
           keyboardEvent.key === "Tab" ||
-          keyboardEvent.key === "Enter"
+          (
+            keyboardEvent.key === "Enter" &&
+            !keyboardEvent.shiftKey &&
+            !keyboardEvent.ctrlKey &&
+            !keyboardEvent.metaKey &&
+            !keyboardEvent.altKey
+          )
         )
       ) {
         keyboardEvent.preventDefault();
@@ -304,7 +342,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     if (
       (keyboardEvent.metaKey || keyboardEvent.ctrlKey) &&
-      keyboardEvent.key === "Enter"
+      keyboardEvent.key === "Enter" &&
+      options.modifiedEnter !== "newline"
     ) {
       keyboardEvent.preventDefault();
       options.onRun?.();
@@ -314,6 +353,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (
       keyboardEvent.key === "Enter" &&
       !keyboardEvent.shiftKey &&
+      !keyboardEvent.ctrlKey &&
+      !keyboardEvent.metaKey &&
+      !keyboardEvent.altKey &&
       options.onRun
     ) {
       keyboardEvent.preventDefault();
@@ -644,11 +686,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
                 >${line.tokens.length > 0
                     ? line.tokens.map(
                         (token) =>
-                          html`
-                            <span :token=${token.kind}>
-                              ${token.value}
-                            </span>
-                          `,
+                          html`<MaquinaTokenText :token=${token.kind}>${token.value}</MaquinaTokenText>`,
                       )
                     : "\u200b"}</MaquinaLineCode>
               </MaquinaCodeClip>

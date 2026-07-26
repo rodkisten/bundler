@@ -10,6 +10,7 @@ export type CipoRuntimeStyleTarget = HTMLElement | ShadowRoot | Document | null
 let runtimeStyleTarget: CipoRuntimeStyleTarget | undefined
 let staticCssText = ''
 let atomicCssText = ''
+const replaceableCss = new Map<string, string>()
 const atomicArtifacts = new Set<CipoCssArtifact>()
 
 /**
@@ -39,6 +40,29 @@ export function insertCss(cssText: string): void {
   }
 
   if (changed) rebuildRuntimeStylesheet()
+}
+
+
+/**
+ * Replaces the CSS owned by one development module.
+ *
+ * @remarks
+ * Vite executes transformed modules again after HMR updates. A stable module
+ * key lets Cipó replace stale rules instead of appending another copy on every
+ * edit. Passing an empty string removes the module contribution.
+ */
+export function replaceCss(key: string, cssText: string): void {
+  const normalizedKey = key.trim()
+  if (!normalizedKey) return
+
+  const nextCss = cssText.trim()
+  const previousCss = replaceableCss.get(normalizedKey) ?? ''
+  if (previousCss === nextCss) return
+
+  if (nextCss) replaceableCss.set(normalizedKey, nextCss)
+  else replaceableCss.delete(normalizedKey)
+
+  rebuildRuntimeStylesheet()
 }
 
 /**
@@ -74,6 +98,7 @@ export function resetInjectionState(): void {
   staticCssText = ''
   atomicCssText = ''
   atomicArtifacts.clear()
+  replaceableCss.clear()
 }
 
 export function setRuntimeStyleTarget(target: CipoRuntimeStyleTarget | undefined): HTMLStyleElement | null {
@@ -188,10 +213,13 @@ export function hasDocument(): boolean {
 }
 
 function rebuildRuntimeStylesheet(): void {
-  const hasCss = Boolean(staticCssText || atomicCssText)
+  const replaceableCssText = Array.from(replaceableCss.values())
+    .map((cssText) => `${formatCss(cssText)}\n`)
+    .join('')
+  const hasCss = Boolean(staticCssText || replaceableCssText || atomicCssText)
   const header = runtime.config.layers && hasCss ? `${getLayerDeclaration()}\n` : ''
   runtime.layerHeaderInserted = Boolean(header)
-  runtime.generatedCssText = `${header}${staticCssText}${atomicCssText}`
+  runtime.generatedCssText = `${header}${staticCssText}${replaceableCssText}${atomicCssText}`
 
   if (!hasDocument() || runtimeStyleTarget === null) return
   const style = ensureStyleElement()

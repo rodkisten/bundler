@@ -63,6 +63,52 @@ describe("RodEruda native devtools", () => {
     expect(devtools.get()?.isVisible()).toBe(false);
   });
 
+  it("starts minimized and exposes a working minimize button", () => {
+    devtools.init({ autoScale: false });
+
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const entryButton = shadow?.querySelector<HTMLButtonElement>("[data-roderuda-shell-ref='entryButton']");
+    const minimizeButton = shadow?.querySelector<HTMLButtonElement>("[data-roderuda-shell-ref='minimizeButton']");
+
+    expect(devtools.get()?.isVisible()).toBe(false);
+    expect(entryButton?.getAttribute("aria-expanded")).toBe("false");
+    expect(minimizeButton).toBeInstanceOf(HTMLButtonElement);
+
+    devtools.show();
+    expect(entryButton?.getAttribute("aria-expanded")).toBe("true");
+    minimizeButton?.click();
+
+    expect(devtools.get()?.isVisible()).toBe(false);
+    expect(entryButton?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the entry button inside the visual viewport", async () => {
+    const originalVisualViewport = Object.getOwnPropertyDescriptor(window, "visualViewport");
+    const viewport = new EventTarget() as EventTarget & {
+      width: number;
+      height: number;
+      offsetLeft: number;
+      offsetTop: number;
+    };
+    Object.assign(viewport, { width: 320, height: 480, offsetLeft: 12, offsetTop: 24 });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+
+    devtools.init({ autoScale: false });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    devtools.position({ x: -500, y: 9999 });
+    expect(devtools.position()).toEqual({ x: 20, y: 440 });
+
+    Object.assign(viewport, { width: 240, height: 300, offsetLeft: 30, offsetTop: 50 });
+    viewport.dispatchEvent(new Event("resize"));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    expect(devtools.position()).toEqual({ x: 38, y: 286 });
+
+    if (originalVisualViewport) Object.defineProperty(window, "visualViewport", originalVisualViewport);
+    else Reflect.deleteProperty(window, "visualViewport");
+  });
+
   it("injects shell and styled panel CSS into the shadow root", () => {
     devtools.init({ autoScale: false, tool: ["console", "elements"] });
     const shadow = document.querySelector("#roderuda")?.shadowRoot;

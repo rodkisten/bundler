@@ -69,7 +69,7 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       compactTabMinWidth: 58,
       tabFontSize: 12,
       uiFontSize: 14,
-      entryButtonSize: 48,
+      entryButtonSize: 56,
       safeAreaMinimum: 20,
       dockBottomGap: 0,
       resizerHeight: 30,

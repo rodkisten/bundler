@@ -86,21 +86,24 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   display: grid
   place-items: center
   color: white
-  $$shellReveal: .6
+  $$shellReveal: .92
   opacity: $$shellReveal
   z-index: var(--rd-z-entry, 2147483600)
   cursor: grab
-  text(23px / 1 / 700)
+  text(25px / 1 / 800)
   font-family: $font.ui
-  transition: opacity .3s, transform .15s
-  shadow: $shadow.entry
+  border: 2px solid rgb(255 255 255 / .72)
+  transition: opacity .25s, transform .15s, box-shadow .25s
+  box-shadow: 0 0 0 4px rgb(0 0 0 / .22), 0 10px 28px rgb(0 0 0 / .36)
 
   x:hover {
-    $$shellReveal: .82
+    $$shellReveal: 1
+    transform: translateY(-1px) scale(1.04)
+    box-shadow: 0 0 0 5px rgb(255 255 255 / .18), 0 12px 32px rgb(0 0 0 / .38)
   }
 
   state(active=true) {
-    $$shellReveal: .82
+    $$shellReveal: 1
   }
 
   x:active {
@@ -311,6 +314,37 @@ const BuildBadge = styled.span("RodDevtoolsBuildBadge").css`
   user-select: text;
 `;
 
+
+const DockActionButton = styled.button("RodDevtoolsDockActionButton").css`
+  @with($control-reset)
+  $interactive-surface
+
+  position: sticky;
+  right: 4px;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 30px;
+  margin: 5px 4px 5px 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid $border;
+  border-radius: $control;
+  background: mix($backgroundDark, transparent, 82%);
+  color: $primary;
+  cursor: pointer;
+  transition: color .18s, background .18s, transform .12s;
+
+  x:hover {
+    background: $highlight;
+    color: $accent;
+  }
+
+  x:active {
+    transform: scale(.92);
+  }
+`;
+
 const Tools = styled.main("RodDevtoolsTools").css`
   position: relative;
   width: 100%;
@@ -508,6 +542,7 @@ const SHELL_STYLED_COMPONENTS = Object.freeze([
   TabIcon,
   TabLabel,
   BuildBadge,
+  DockActionButton,
   Tools,
   Notifications,
   ModalRoot,
@@ -552,7 +587,8 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
       <RodDevtoolsEntryButton
         type="button"
         aria-label="Open developer tools"
-        title="RodEruda"
+        aria-expanded=${() => String(shared.visible())}
+        title="Open RodEruda developer tools"
         @click=${event.click((click) => {
           click.preventDefault();
           click.stopPropagation();
@@ -624,6 +660,19 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
             </RodDevtoolsTabButton>
           `)}
           <RodDevtoolsBuildBadge :roderudaBuildBadge title=${`Build ${DEVTOOLS_BUILD_INFO.sha} · ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
+          <RodDevtoolsDockActionButton
+            type="button"
+            aria-label="Minimize developer tools"
+            title="Minimize"
+            :roderudaShellRef="minimizeButton"
+            @click=${event.click((click) => {
+              click.preventDefault();
+              click.stopPropagation();
+              shared.controller.peek()?.hide();
+            })}
+          >
+            ${icon("collapse", { width: 18, height: 18 })}
+          </RodDevtoolsDockActionButton>
         </RodDevtoolsTabbar>
 
         <RodDevtoolsTools

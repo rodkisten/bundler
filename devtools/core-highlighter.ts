@@ -63,18 +63,17 @@ export class ElementHighlighter {
 
     host.style.cssText = `
   position: fixed;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  height: 100%;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   z-index: var(--rd-z-inspector, 2147483580);
   pointer-events: none !important;
   user-select: none;
-  overflow: hidden;
+  overflow: visible;
   font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
-  contain: layout style paint;
+  contain: style;
 `;
-host.inert = true;
     
    
     const colors = [

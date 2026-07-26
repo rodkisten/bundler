@@ -761,6 +761,56 @@ describe('cipoVite', () => {
         'export const Button = compiled',
       )
     })
+    it('compiles and replaces per-module CSS during Vite development', async () => {
+      mocks.compileCipoSourceBuild.mockReturnValue({
+        code:
+          'export const Button = compiled',
+        css:
+          '.button{color:red}',
+        changed: true,
+        manifest: [],
+      })
+      const plugin = cipoVite({
+        configCss:
+          '@cipo { prefix: cp; }',
+        compileFabrica: false,
+        cssDelivery: 'style-tag',
+      })
+      callHook(
+        plugin.configResolved,
+        {},
+        {
+          command: 'serve',
+        },
+      )
+      const result =
+        await callAsyncHook(
+          plugin.transform,
+          {},
+          'export const Button = source',
+          '/src/button.ts',
+        )
+      expect(
+        mocks.compileCipoSourceBuild,
+      ).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          deferAtomicCss: false,
+          coupleStyledCss: true,
+          injectCssImport: false,
+        }),
+      )
+      expect(result?.code).toContain(
+        'import { replaceCss as __cipoReplaceCompiledCss } from "@rodkisten/cipo/compiled-runtime";',
+      )
+      expect(result?.code).toContain(
+        '__cipoReplaceCompiledCss(__cipoCompiledStyleId, ".button{color:red}");',
+      )
+      expect(result?.code).toContain(
+        'import.meta.hot.dispose',
+      )
+    })
+
     it('does not prepend style injection for CSS asset delivery', async () => {
       mocks.compileCipoSourceBuild.mockReturnValue({
         code:

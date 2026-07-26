@@ -176,7 +176,10 @@ const CONFIG_IMPORT_MODULES = new Set(["@rodkisten/cipo"]);
 export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
   const mode = options.mode ?? "build";
 
-  const wholeBuildAtomic = mode === "build" && Boolean(options.configCss);
+  let isDevelopmentServer = false;
+
+  const usesWholeBuildAtomic = () =>
+    mode === "build" && Boolean(options.configCss) && !isDevelopmentServer;
 
   const state = createCipoViteBuildState();
 
@@ -203,6 +206,10 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
     name: mode === "build" ? "cipo:compiled-build" : "cipo:compiled-inline",
 
     enforce: "pre",
+
+    configResolved(config) {
+      isDevelopmentServer = config.command === "serve";
+    },
 
     buildStart() {
       resetCipoViteBuildState(state);
@@ -243,7 +250,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       }
 
       if (id === VIRTUAL_CSS_ASSET_ID || id === VIRTUAL_CSS_ASSET_ID.slice(1)) {
-        return wholeBuildAtomic ? "" : dedupeCssChunks(state.cssChunks);
+        return usesWholeBuildAtomic() ? "" : dedupeCssChunks(state.cssChunks);
       }
 
       return null;
@@ -287,6 +294,8 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
           },
         } satisfies CipoViteTransformResult;
       }
+
+      const wholeBuildAtomic = usesWholeBuildAtomic();
 
       const runtimeConfig = compileRuntimeConfigCalls(
         code,
@@ -333,7 +342,9 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
       let nextCode = cipo.code;
 
       if (!wholeBuildAtomic && cipo.css && options.cssDelivery !== "asset") {
-        nextCode = prependStyleTagInjection(nextCode, cipo.css);
+        nextCode = isDevelopmentServer
+          ? prependDevelopmentStyleInjection(nextCode, cipo.css, filename)
+          : prependStyleTagInjection(nextCode, cipo.css);
       }
 
       const finalizeTransform = (
@@ -415,7 +426,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
     },
 
     renderChunk(code, chunk) {
-      if (!wholeBuildAtomic) {
+      if (!usesWholeBuildAtomic()) {
         return null;
       }
 
@@ -441,7 +452,7 @@ export function cipoVite(options: CipoViteCompiledInlineOptions = {}): Plugin {
     },
 
     generateBundle(_outputOptions, bundle) {
-      if (!wholeBuildAtomic) {
+      if (!usesWholeBuildAtomic()) {
         const css = dedupeCssChunks(state.cssChunks);
 
         if (options.cssDelivery === "asset" && css.trim()) {
@@ -618,6 +629,36 @@ function isVirtualStyleTagImporter(importer: string | undefined): boolean {
 /**
  * Injects compiled CSS emitted directly from a real source module.
  */
+function prependDevelopmentStyleInjection(
+  code: string,
+  cssText: string,
+  filename: string,
+): string {
+  const styleId = `cipo-vite:${hashString64(filename)}`;
+
+  return [
+    `import { replaceCss as __cipoReplaceCompiledCss } from ${JSON.stringify(
+      CIPO_COMPILED_RUNTIME,
+    )};`,
+
+    `const __cipoCompiledStyleId = ${JSON.stringify(styleId)};`,
+
+    `__cipoReplaceCompiledCss(__cipoCompiledStyleId, ${JSON.stringify(cssText)});`,
+
+    `if (import.meta.hot) {`,
+
+    `  import.meta.hot.dispose(() => {`,
+
+    `    __cipoReplaceCompiledCss(__cipoCompiledStyleId, "");`,
+
+    `  });`,
+
+    `}`,
+
+    code,
+  ].join("\n");
+}
+
 function prependStyleTagInjection(code: string, cssText: string): string {
   return [
     `import { insertCss as __cipoInsertCompiledCss } from ${JSON.stringify(
