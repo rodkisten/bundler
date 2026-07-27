@@ -309,7 +309,7 @@ function resetLanding(): void {
 function refreshPreview(): void {
   const state = readStateFromForm(elements.form);
   const options = createLandingInitOptions(state);
-  elements.preview.textContent = `const api = DevTools.api ?? DevTools;\n\napi.init(${JSON.stringify(options, null, 2)});${state.openAfterInject ? `\napi.show(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}`;
+  elements.preview.textContent = `DevTools.init(${JSON.stringify(options, null, 2)});${state.openAfterInject ? `\nDevTools.show(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}`;
 }
 
 function synchronizeOutputs(): void {
