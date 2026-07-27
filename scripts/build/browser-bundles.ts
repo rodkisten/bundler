@@ -36,6 +36,7 @@ async function buildBrowserEntry(entry: RootEntry): Promise<string[]> {
         globalName: entry.globalName,
         fileName: output.fileName,
         minify: output.minify,
+        exports: entry.name === "devtools" ? "default" : "named",
         banner,
         plugins,
       }));

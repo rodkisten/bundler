@@ -1469,7 +1469,6 @@ export const api = new RodDevtoolsRuntime();
 
 if (typeof window !== "undefined") {
   window.__ROD_DEVTOOLS__ = api;
-  console.log("DevTools installed", window.__ROD_DEVTOOLS__);
 }
 
 export const devtools = api;

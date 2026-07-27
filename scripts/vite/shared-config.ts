@@ -13,6 +13,7 @@ export type SharedLibraryBuildOptions = {
   readonly banner?: string;
   readonly plugins?: readonly Plugin[];
   readonly define?: Record<string, string>;
+  readonly exports?: "auto" | "default" | "named";
 };
 
 export type SharedLandingBuildOptions = {
@@ -56,7 +57,7 @@ export function createBrowserLibraryConfig(options: SharedLibraryBuildOptions): 
           moduleSideEffects: false,
           propertyReadSideEffects: false,
         },
-        output: { exports: "named", ...(options.banner ? { banner: options.banner } : {}) },
+        output: { exports: options.exports ?? "named", ...(options.banner ? { banner: options.banner } : {}) },
       },
     },
   };
@@ -107,6 +108,7 @@ export type MultiFormatLibraryBuildOptions = {
   readonly plugins?: readonly Plugin[];
   readonly define?: Record<string, string>;
   readonly emptyOutDir?: boolean;
+  readonly exports?: "auto" | "default" | "named";
 };
 
 /** Shared multi-format library config for local tool builds such as DevTools and Máquina. */
@@ -138,7 +140,7 @@ export function createMultiFormatLibraryConfig(options: MultiFormatLibraryBuildO
           moduleSideEffects: false,
           propertyReadSideEffects: false,
         },
-        output: { exports: "named", ...(options.banner ? { banner: options.banner } : {}) },
+        output: { exports: options.exports ?? "named", ...(options.banner ? { banner: options.banner } : {}) },
       },
     },
   };

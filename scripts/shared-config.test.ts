@@ -25,6 +25,22 @@ describe("shared Vite build configuration", () => {
     );
   });
 
+  it("supports a direct default export for browser globals", () => {
+    const config = createBrowserLibraryConfig({
+      root,
+      entry: `${root}/devtools/browser-entry.ts`,
+      outDir: `${root}/dist`,
+      globalName: "DevTools",
+      fileName: "devtools.iife.js",
+      minify: false,
+      exports: "default",
+    });
+
+    expect(config.build?.rolldownOptions).toEqual(expect.objectContaining({
+      output: expect.objectContaining({ exports: "default" }),
+    }));
+  });
+
   it("keeps package JavaScript on the shared Rolldown preserve-modules path", () => {
     const config = createPackageModulesConfig({
       root: `${root}/broto`,

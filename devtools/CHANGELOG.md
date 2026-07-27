@@ -1,4 +1,7 @@
 ## Unreleased
+- Exposed the standalone IIFE/userscript runtime directly as `globalThis.DevTools`, with fluent `init`, `destroy`, `get`, `add`, `remove`, `show`, `hide`, `scale`, `position`, and `isInitialized` methods while preserving the previous namespace aliases.
+- Switched the DevTools browser build to its dedicated default-only `browser-entry.ts`, preventing Vite/Rolldown from wrapping the public runtime behind `DevTools.default` or `DevTools.api`.
+- Explicitly installs the facade on `globalThis` so userscript `@require` wrappers do not hide the generated `DevTools` variable inside their local execution scope.
 - Prevented cyclic console-wrapper chains from causing repeated `Maximum call stack size exceeded` errors when Rod DevTools coexists with page-realm bridges, another DevTools instance, Eruda, or scripts that replace `console` methods.
 - Added a re-entrancy fuse and wrapper unwrapping metadata to the console capture pipeline, plus regression coverage for cross-capture cycles.
 - Migrated the DevTools shell, shared panel primitives, and primary panel controls to exercise Cipó's legacy and modern authoring surface together: legacy `$alias`/`@with(...)`, `$theme.*`, standalone aliases/helpers, typed/runtime `$$` properties, Fábrica state selectors, `state()`, `group()`, `slot()`, `variant()`, `compound()`, responsive objects, container queries, `fluid()`, `text()`, `motion()`, and `!property` priority syntax.

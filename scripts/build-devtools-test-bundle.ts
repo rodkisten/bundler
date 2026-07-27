@@ -51,7 +51,7 @@ await build({
     outDir: path.resolve(root, "dist"),
     minify: false,
     lib: {
-      entry: path.resolve(root, "devtools/index.ts"),
+      entry: path.resolve(root, "devtools/browser-entry.ts"),
       name: "DevTools",
       formats: ["iife"],
       fileName: () => "devtools.iife.js",
