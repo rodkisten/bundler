@@ -18,7 +18,7 @@ export function createDevtoolsProjectConfig(): UserConfig {
   const banner = createIifeBuildBanner(buildInfo, {
     tool: "RodEruda DevTools",
     globalName: "DevTools",
-    entry: "devtools/index.ts",
+    entry: "devtools/browser-entry.ts",
     description: "RodEruda browser DevTools bundle",
     generatedBy: "Rod shared Vite build",
   });
@@ -26,11 +26,12 @@ export function createDevtoolsProjectConfig(): UserConfig {
   return {
     ...createMultiFormatLibraryConfig({
       root,
-      entry: resolve(root, "index.ts"),
+      entry: resolve(root, "browser-entry.ts"),
       outDir: resolve(repoRoot, "dist"),
       globalName: "DevTools",
       baseFileName: "devtools",
       formats: ["es", "cjs", "umd", "iife"],
+      exports: "default",
       banner,
       define: {
         __RODERUDA_BUILD__: JSON.stringify(buildInfo),
