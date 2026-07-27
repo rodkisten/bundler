@@ -37,6 +37,21 @@ devtools.scale(1);
 
 The default export also exposes the compatibility aliases `eruda`, `chobitsu`, all tool constructors, `Tool`, `DevTools`, `EntryBtn`, themes, and utilities.
 
+### Browser IIFE / userscript global
+
+The standalone bundle exposes the runtime directly at `globalThis.DevTools`:
+
+```js
+DevTools.init({ autoScale: true });
+DevTools.show("console");
+```
+
+This is the canonical browser API. Compatibility paths remain available for
+older launchers through `DevTools.api`, `DevTools.default`, `DevTools.devtools`,
+`DevTools.eruda`, and `globalThis.__ROD_DEVTOOLS__`. The browser entry assigns
+`globalThis.DevTools` explicitly so `@require` works even when a userscript
+manager wraps required files in an isolated function scope.
+
 ## Styled CSS registry
 
 All DevTools panels keep using the shared `styled` factory from `core-runtime`.
@@ -150,7 +165,7 @@ RodEruda initializes hidden by default. The dock opens during initialization onl
 Userscripts can collect failures before initialization and hand them to the Console:
 
 ```ts
-DevTools.api.init({
+DevTools.init({
   initialLogs: capturedLogs,
   initialErrors: capturedErrors,
   config: {
