@@ -7,8 +7,7 @@ import { filterArray, includesArray } from "@rodkisten/nascente";
 
 export const DEFAULT_DEVTOOLS_BUNDLE_URL =
   "https://rod.migos.club/bundler/devtools.iife.js";
-//export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
-export const DEFAULT_ERUDA_BUNDLE_URL = "https://rod.migos.club/roderuda/roderuda/roderuda.js";
+export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@latest/eruda.js";
 
 export const LANDING_PANEL_NAMES = [
   "console",
@@ -267,8 +266,14 @@ ${erudaRequire}// @grant        none
 (function launchRodEruda() {
   "use strict";
 
-  const candidate = globalThis.DevTools;
-  const api = candidate?.api ?? candidate?.default?.api ?? candidate?.default ?? candidate;
+  const candidate =
+    typeof DevTools !== "undefined"
+      ? DevTools
+      : globalThis.DevTools;
+  const api =
+    typeof candidate?.init === "function"
+      ? candidate
+      : candidate?.api ?? candidate?.default?.api ?? candidate?.default;
 
   if (!api || typeof api.init !== "function") {
     console.error("[RodEruda] DevTools API was not found.");
@@ -285,7 +290,7 @@ ${erudaRequire}// @grant        none
 export function createLandingBookmarklet(state: DevtoolsLandingState): string {
   const bundleUrl = normalizeInjectableScriptUrl(state.bundleUrl);
   const options = createLandingInitOptions(state);
-  const source = `(()=>{const d=document,s=d.createElement('script');s.src=${JSON.stringify(bundleUrl)}+${state.cacheBust ? "('?landing='+Date.now())" : "''"};s.onload=()=>{const c=globalThis.DevTools,a=c?.api??c?.default?.api??c?.default??c;if(!a?.init)throw new Error('RodEruda API not found');a.destroy?.();a.init(${JSON.stringify(options)});${state.openAfterInject ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}};d.documentElement.append(s)})()`;
+  const source = `(()=>{const d=document,s=d.createElement('script');s.src=${JSON.stringify(bundleUrl)}+${state.cacheBust ? "('?landing='+Date.now())" : "''"};s.onload=()=>{const c=globalThis.DevTools,a=typeof c?.init==='function'?c:c?.api??c?.default?.api??c?.default;if(!a?.init)throw new Error('RodEruda API not found');a.destroy?.();a.init(${JSON.stringify(options)});${state.openAfterInject ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}};d.documentElement.append(s)})()`;
   return `javascript:${encodeURIComponent(source)}`;
 }
 
