@@ -4,18 +4,24 @@ import { polyfillBrowserApis } from "./_tests.setup";
 import fs from "node:fs";
 import path from "node:path";
 import { TextDecoder, TextEncoder } from "node:util";
-import devtools from "@rodkisten/devtools";
+import devtools, { type RodDevtoolsApi } from "@rodkisten/devtools";
+import type { DevtoolsBrowserGlobal } from "../browser-entry";
 
 const bundlePath = path.resolve(process.cwd(), "dist/devtools.iife.js");
 
-function runtimeFromWindow(): typeof devtools | undefined {
-  const api = (window as Window & { DevTools?: typeof devtools }).DevTools;
+type DevtoolsWindow = Window & {
+  DevTools?: DevtoolsBrowserGlobal;
+  __ROD_DEVTOOLS__?: RodDevtoolsApi;
+};
 
-  return (
-    (api as { devtools?: typeof devtools; default?: typeof devtools } | undefined)?.devtools
-    ?? (api as { default?: typeof devtools } | undefined)?.default
-    ?? api
-  );
+function browserGlobalFromWindow(): DevtoolsBrowserGlobal | undefined {
+  return (window as DevtoolsWindow).DevTools;
+}
+
+function runtimeFromWindow(): RodDevtoolsApi | undefined {
+  const browserGlobal = browserGlobalFromWindow();
+
+  return browserGlobal?.api ?? browserGlobal;
 }
 
 function shadowRoot(): ShadowRoot {
@@ -132,15 +138,29 @@ describe("RodEruda IIFE bundle mount", () => {
 
     window.eval(bundle);
 
+    const browserGlobal = browserGlobalFromWindow();
     const runtime = runtimeFromWindow();
-    expect(runtime).toBeDefined();
 
-    runtime!.init({
+    expect(browserGlobal).toBeDefined();
+    expect(runtime).toBeDefined();
+    expect(typeof browserGlobal?.init).toBe("function");
+    expect(typeof browserGlobal?.destroy).toBe("function");
+    expect(typeof browserGlobal?.show).toBe("function");
+    expect(typeof browserGlobal?.hide).toBe("function");
+    expect(browserGlobal?.api).toBe(runtime);
+    expect(browserGlobal?.default).toBe(runtime);
+    expect(browserGlobal?.devtools).toBe(runtime);
+    expect(browserGlobal?.eruda).toBe(runtime);
+    expect((window as DevtoolsWindow).__ROD_DEVTOOLS__).toBe(browserGlobal);
+
+    const initialized = browserGlobal!.init({
       autoScale: false,
       tool: ["console", "elements", "network", "resources", "sources", "info"],
       debug: false,
     });
 
+    expect(initialized).toBe(browserGlobal);
+    expect(browserGlobal!.isInitialized()).toBe(true);
     expect(runtime!.isInitialized()).toBe(true);
     expect(runtime!.get("console")).toBeDefined();
     expect(runtime!.get("elements")).toBeDefined();
