@@ -70,6 +70,10 @@ export { resource } from "@rodkisten/broto/resources";
 export { createDeepStore, store, type DeepPartial, type DeepStore, type Store, type StorePatchEvent, type StorePatchMeta, type StorePath, type StorePathInput, type StorePathSignal, type StoreSelector, type StoreSubscriber, type StoreUnsubscribe, type StoreView } from "@rodkisten/broto/store";
 
 import * as BrotoApi from "@rodkisten/broto/public-api";
+
+if(typeof window !== "undefined") {
+  window.Broto = BrotoApi;
+}
 export default BrotoApi;
 
 export { flattenOwnerGraph, inspectLeaks, inspectRuntime } from "@rodkisten/broto/devtools";
