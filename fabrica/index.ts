@@ -146,6 +146,10 @@ import { createDefaultFabricaApi } from "./public-api.js";
  */
 const Fabrica = createDefaultFabricaApi();
 
+if(typeof window !== "undefined") {
+  window.Fabrica = Fabrica;
+}
+
 export default Fabrica;
 
 declare global {
