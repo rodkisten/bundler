@@ -3,7 +3,7 @@ import type { RenderValue } from "@rodkisten/fabrica";
 import { ConfigStore } from "@rodkisten/devtools/core/config";
 import { getEventListeners, installEventListenerRegistry } from "@rodkisten/devtools/core/event-listeners";
 import { ElementHighlighter } from "@rodkisten/devtools/core/highlighter";
-import { plainText } from "@rodkisten/devtools/core/serialize";
+import { highlightCode, plainText } from "@rodkisten/devtools/core/serialize";
 import { Tool } from "@rodkisten/devtools/tool";
 import type { Cleanup, ElementsConfig, ElementsContextValue, ToolContext } from "@rodkisten/devtools/types";
 import { copyText, icon, isDevtoolsNode, nodePath } from "@rodkisten/devtools/utils";
@@ -17,6 +17,7 @@ import {
   ElementsContextMenuView,
   ElementsDomTreeView,
   ElementsDomNodeView,
+  ElementsInlineSourceView,
 } from "@rodkisten/devtools/panels/elements-components";
 import { getMatchedRules, clamp, meaningfulText } from "@rodkisten/devtools/panels/elements.functions";
 import { at, drainArray, filterArray, forEachObject, includesArray, mapArray, mapJoinArray, someArray, splitLines, take, toArray } from "@rodkisten/nascente";
@@ -81,6 +82,7 @@ export class Elements extends Tool {
   };
 
   private readonly expanded = new WeakSet<Node>();
+  private readonly prettyInlineSources = new WeakSet<Element>();
   private readonly nodeIds = new WeakMap<Node, string>();
   private readonly idNodes = new Map<string, WeakRef<Node> | Node>();
 
@@ -426,11 +428,12 @@ export class Elements extends Tool {
 
   private renderNode(node: Node, depth: number): import("@rodkisten/fabrica").RenderValue {
     const children = this.visibleChildren(node);
-    const expandable = children.length > 0;
+    const nodeId = this.nodeId(node);
+    const inlineSource = this.renderInlineSource(node, nodeId);
+    const expandable = children.length > 0 || inlineSource != null;
     const expanded = this.expanded.has(node);
     const limited = take(children, this.config.get("maxVisibleChildren"));
     const moreCount = children.length - limited.length;
-    const nodeId = this.nodeId(node);
 
     return ElementsDomNodeView({
       node,
@@ -449,10 +452,52 @@ export class Elements extends Tool {
       onPointerMove: (pointerEvent: Event) => this.trackLongPress(pointerEvent),
       onPointerOver: (pointerEvent: Event) => this.hoverNode(pointerEvent, pointerEvent.currentTarget as HTMLElement),
       onPointerOut: () => this.highlighter?.hide(),
+      inlineSource: expanded ? inlineSource : null,
       children: expanded
         ? mapArray(limited, (child) => this.renderNode(child, depth + 1))
         : null,
     });
+  }
+
+  private renderInlineSource(node: Node, nodeId: string): RenderValue {
+    if (!(node instanceof HTMLScriptElement || node instanceof HTMLStyleElement)) return null;
+    const raw = node.textContent ?? "";
+    if (!raw.trim()) return null;
+
+    const language = node instanceof HTMLStyleElement ? "css" : "javascript";
+    const pretty = this.prettyInlineSources.has(node);
+    const value = pretty ? formatInlineSource(raw, language) : raw;
+
+    return ElementsInlineSourceView({
+      nodeId,
+      language,
+      pretty,
+      highlightedHtml: highlightCode(value, language),
+      onAction: (actionEvent) => this.handleInlineSourceAction(actionEvent),
+    });
+  }
+
+  private handleInlineSourceAction(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const button = event.currentTarget as HTMLElement;
+    const source = button.closest<HTMLElement>("[data-inline-source]");
+    const node = this.resolveNode(source?.dataset.nodeId ?? "");
+    if (!(node instanceof HTMLScriptElement || node instanceof HTMLStyleElement)) return;
+
+    if (button.dataset.inlineSourceAction === "pretty") {
+      if (this.prettyInlineSources.has(node)) this.prettyInlineSources.delete(node);
+      else this.prettyInlineSources.add(node);
+      this.invalidateTree();
+      return;
+    }
+
+    if (button.dataset.inlineSourceAction === "copy") {
+      const language = node instanceof HTMLStyleElement ? "css" : "javascript";
+      const raw = node.textContent ?? "";
+      const value = this.prettyInlineSources.has(node) ? formatInlineSource(raw, language) : raw;
+      void copyText(value).then(() => this.context?.notify("Inline source copied", { type: "success" }));
+    }
   }
 
   private visibleChildren(node: Node): Node[] {
@@ -460,6 +505,13 @@ export class Elements extends Tool {
 
     return filterArray(node.childNodes, (child) => {
       if (isDevtoolsNode(child, host)) {
+        return false;
+      }
+
+      if (
+        (node instanceof HTMLScriptElement || node instanceof HTMLStyleElement)
+        && child.nodeType === Node.TEXT_NODE
+      ) {
         return false;
       }
 
@@ -675,9 +727,9 @@ export class Elements extends Tool {
 
     this.cancelLongPress();
 
-    event.preventDefault();
-    element.setPointerCapture?.(event.pointerId);
-
+    // Do not prevent pointerdown or capture the pointer here. Either action can
+    // cancel native momentum scrolling in iOS Safari. The timer is cancelled
+    // by movement/scroll and only the completed long press suppresses the click.
     const startX = event.clientX;
     const startY = event.clientY;
 
@@ -703,6 +755,7 @@ export class Elements extends Tool {
         return;
       }
 
+      this.suppressNextClickUntil = Date.now() + 500;
       this.select(node, {
         addHistory: true,
         expandAncestors: false,
@@ -1370,4 +1423,134 @@ export class Elements extends Tool {
 
     return value as Node;
   }
+}
+
+
+/**
+ * Small dependency-free formatter used by inline <script>/<style> nodes.
+ * It intentionally lives beside Elements so opening the DOM tree does not
+ * initialize the entire Sources panel or create a circular module graph.
+ */
+function formatInlineSource(source: string, language: "css" | "javascript"): string {
+  if (source.length > 200_000) return source;
+  return formatBracedText(source, language === "css" ? 2 : 2);
+}
+
+function formatBracedText(source: string, indentSize: number): string {
+  const output: string[] = [];
+  let indent = 0;
+  let quote = "";
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  let pendingSpace = false;
+
+  const writeIndent = (): void => {
+    if (!output.length || output[output.length - 1] === "\n") {
+      output.push(" ".repeat(Math.max(0, indent) * indentSize));
+    }
+  };
+  const trimLineEnd = (): void => {
+    while (output.length && /^[ \t]+$/.test(output[output.length - 1]!)) output.pop();
+  };
+  const newline = (): void => {
+    trimLineEnd();
+    if (output[output.length - 1] !== "\n") output.push("\n");
+    pendingSpace = false;
+  };
+  const write = (character: string): void => {
+    writeIndent();
+    if (pendingSpace && output.length && output[output.length - 1] !== "\n") output.push(" ");
+    pendingSpace = false;
+    output.push(character);
+  };
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index]!;
+    const next = source[index + 1] ?? "";
+
+    if (lineComment) {
+      write(character);
+      if (character === "\n") {
+        lineComment = false;
+        newline();
+      }
+      continue;
+    }
+
+    if (blockComment) {
+      write(character);
+      if (character === "*" && next === "/") {
+        write(next);
+        index += 1;
+        blockComment = false;
+      }
+      continue;
+    }
+
+    if (quote) {
+      write(character);
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = "";
+      continue;
+    }
+
+    if (character === "/" && next === "/") {
+      write("//");
+      index += 1;
+      lineComment = true;
+      continue;
+    }
+
+    if (character === "/" && next === "*") {
+      write("/*");
+      index += 1;
+      blockComment = true;
+      continue;
+    }
+
+    if (character === '"' || character === "'" || character === "`") {
+      write(character);
+      quote = character;
+      continue;
+    }
+
+    if (/\s/.test(character)) {
+      pendingSpace = output.length > 0 && output[output.length - 1] !== "\n";
+      continue;
+    }
+
+    if (character === "{") {
+      write(" {");
+      indent += 1;
+      newline();
+      continue;
+    }
+
+    if (character === "}") {
+      indent = Math.max(0, indent - 1);
+      newline();
+      write("}");
+      if (next !== ";" && next !== "," && next !== ")" && next !== "]") newline();
+      continue;
+    }
+
+    if (character === ";") {
+      write(character);
+      newline();
+      continue;
+    }
+
+    if (character === "," && indent > 0) {
+      write(character);
+      if (next && next !== " " && next !== "\n") pendingSpace = true;
+      continue;
+    }
+
+    write(character);
+  }
+
+  trimLineEnd();
+  return output.join("").replace(/\n{3,}/g, "\n\n").trim();
 }
