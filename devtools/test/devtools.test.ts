@@ -142,6 +142,47 @@ describe("RodEruda native devtools", () => {
     expect(shadow?.querySelector("RodElementsDomText, rodelementsdomtext, RodElementsDomTag, rodelementsdomtag")).toBeNull();
   });
 
+  it("ingests external logs through the public API before initialization", async () => {
+    devtools.ingestLogs("clear");
+    devtools.ingestLogs({
+      level: "info",
+      args: ["queued external log", { ready: true }],
+      source: "startup-worker",
+      badge: "wrk",
+    });
+
+    const originalWarn = vi.fn();
+    const externalConsole = { warn: originalWarn };
+    const stream = devtools.ingestLogs(externalConsole, {
+      source: "vendor-sdk",
+      badge: "sdk",
+    });
+
+    externalConsole.warn("intercepted warning");
+
+    devtools.init({ autoScale: false, tool: ["console"] });
+    devtools.show("console");
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const shadow = document.querySelector("#roderuda")?.shadowRoot;
+    const list = shadow?.querySelector<HTMLElement>("[data-console-list]");
+    const badges = Array.from(
+      shadow?.querySelectorAll<HTMLElement>("[title^='External log']") ?? [],
+    );
+
+    expect(list?.textContent).toContain("queued external log");
+    expect(list?.textContent).toContain("intercepted warning");
+    expect(badges.map((badge) => badge.textContent?.trim())).toEqual(
+      expect.arrayContaining(["wrk", "sdk"]),
+    );
+    expect(originalWarn).toHaveBeenCalledWith("intercepted warning");
+
+    stream.destroy();
+    expect(externalConsole.warn).toBe(originalWarn);
+  });
+
   it("captures console methods emitted on window.console without locking global object helpers", async () => {
     const defineProperty = Object.defineProperty;
     const reflectDefineProperty = Reflect.defineProperty;
