@@ -22,6 +22,106 @@ export type ConsoleLevel =
   | "command"
   | "html";
 
+/** Native console methods understood by the public external log ingestion API. */
+export type ConsoleMethodName =
+  | "log"
+  | "debug"
+  | "trace"
+  | "info"
+  | "warn"
+  | "error"
+  | "dir"
+  | "dirxml"
+  | "table"
+  | "assert"
+  | "count"
+  | "countReset"
+  | "time"
+  | "timeLog"
+  | "timeEnd"
+  | "timeStamp"
+  | "group"
+  | "groupCollapsed"
+  | "groupEnd"
+  | "profile"
+  | "profileEnd"
+  | "exception"
+  | "clear";
+
+export type ConsoleLike = object & Partial<
+  Record<ConsoleMethodName, (...args: unknown[]) => unknown>
+>;
+
+export interface ExternalConsoleOrigin {
+  readonly kind: "external";
+  readonly label: string;
+  readonly source?: string;
+}
+
+export interface ExternalLogEntry {
+  /** Native console method semantics. Takes precedence over `level`. */
+  readonly method?: ConsoleMethodName;
+  /** Direct record level for entries that do not require console method semantics. */
+  readonly level?: ConsoleLevel;
+  readonly args?: readonly unknown[];
+  readonly message?: unknown;
+  readonly timestamp?: number;
+  readonly stack?: string;
+  readonly source?: string;
+  readonly badge?: string;
+}
+
+export interface ExternalLogStreamOptions {
+  /** Human-readable source shown in the badge tooltip. */
+  readonly source?: string;
+  /** Tiny badge text. Defaults to `ext`. */
+  readonly badge?: string;
+  /** Optional console-like object whose native methods should be intercepted. */
+  readonly console?: ConsoleLike | null;
+  /** Continue calling the intercepted console's original methods. Defaults to true. */
+  readonly passthrough?: boolean;
+}
+
+export interface ExternalConsoleStream extends ConsoleLike {
+  readonly source: string;
+  readonly badge: string;
+  readonly destroyed: boolean;
+
+  /** Appends one record without applying group/timer/count semantics. */
+  append(level: ConsoleLevel, ...args: unknown[]): ConsoleRecord;
+  /** Applies the behavior of one native console method to the external stream. */
+  ingest(method: ConsoleMethodName, ...args: unknown[]): ConsoleRecord | undefined;
+  /** Intercepts a console-like object and returns a cleanup function for that target. */
+  intercept(consoleObject: ConsoleLike, options?: Pick<ExternalLogStreamOptions, "passthrough">): Cleanup;
+  /** Restores every console-like object intercepted by this stream. */
+  restore(): void;
+  destroy(): void;
+
+  log(...args: unknown[]): void;
+  debug(...args: unknown[]): void;
+  trace(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  dir(...args: unknown[]): void;
+  dirxml(...args: unknown[]): void;
+  table(...args: unknown[]): void;
+  assert(...args: unknown[]): void;
+  count(...args: unknown[]): void;
+  countReset(...args: unknown[]): void;
+  time(...args: unknown[]): void;
+  timeLog(...args: unknown[]): void;
+  timeEnd(...args: unknown[]): void;
+  timeStamp(...args: unknown[]): void;
+  group(...args: unknown[]): void;
+  groupCollapsed(...args: unknown[]): void;
+  groupEnd(...args: unknown[]): void;
+  profile(...args: unknown[]): void;
+  profileEnd(...args: unknown[]): void;
+  exception(...args: unknown[]): void;
+  clear(...args: unknown[]): void;
+}
+
 export type NetworkKind = "fetch" | "xhr" | "websocket" | "resource";
 export type NetworkState = "pending" | "complete" | "failed";
 export type WebSocketMessageDirection = "sent" | "received";
@@ -322,6 +422,8 @@ export interface ConsoleRecord {
   collapsed?: boolean;
   stack?: string;
   repeat?: number;
+  /** Present only for records explicitly ingested through the public API. */
+  origin?: ExternalConsoleOrigin;
 }
 
 export interface NetworkHeader {
