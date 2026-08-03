@@ -99,11 +99,11 @@ describe("Maquina", () => {
         "[aria-hidden='true']",
       )!;
 
-      expect(root.style.transform).toBe("");
+      expect(root.style.transform).toBe("none");
       expect(root.style.width).toBe("100%");
       expect(root.style.height).toBe("100%");
       expect(textarea.style.fontSize).toBe(highlight.style.fontSize);
-      expect(textarea.style.fontSize).toBe("16px");
+      expect(textarea.style.fontSize).toBe("12px");
     },
   );
 

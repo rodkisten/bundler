@@ -14,20 +14,18 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 /* *************** */
 
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
+  position: relative;
   width: 100%;
   height: 100%;
-  padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
-  scroll-padding-bottom: calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  touch-action: pan-y pan-x;
   -webkit-overflow-scrolling: touch;
   background: $background;
   scrollbar-gutter: stable;
-
-  &:jsExecution='false' {
-    padding-bottom: 0
-  }
 `;
 
 export const ConsoleControl = styled.div("RodConsoleControl").css`
@@ -38,7 +36,7 @@ export const ConsoleControl = styled.div("RodConsoleControl").css`
   align-items: center;
   gap: 7px;
   min-height: 44px;
-  padding: 7px 9px;
+  padding: 4px 6px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   scrollbar-width: none;
@@ -102,8 +100,9 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  padding: 45px 0 calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
-  text(12px / 1.5)
+  min-height: 100%;
+  padding: 44px 0 calc(28px + var(--rd-safe-bottom));
+  text(11px / 1.25)
   font-family: $font.mono
   user-select: text;
   overflow-x: hidden;
@@ -111,9 +110,9 @@ export const ConsoleList = styled.div("RodConsoleList").css`
 
 export const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
-  min-height: 24px;
+  min-height: 17px;
   margin: 0;
-  padding: 3px 8px 3px calc(8px + var(--rd-console-depth, 0) * 14px);
+  padding: 0 5px 0 calc(5px + var(--rd-console-depth, 0) * 11px);
   border: 0;
   border-bottom: 1px solid alpha($border / 58%);
   border-radius: 0;
@@ -150,14 +149,14 @@ export const ConsoleRow = styled.div("RodConsoleRow").css`
 
 
 export const ConsoleStack = styled.pre("RodConsoleStack").css`
-  margin: 8px 0 0;
-  padding: 8px 10px;
+  margin: 3px 0 1px 12px;
+  padding: 4px 6px;
   overflow: auto;
   border: 1px solid alpha($border / 68%);
   border-radius: $sm;
   color: $secondary;
   background: alpha($backgroundDark / 72%);
-  text(11px / 1.45)
+  text(10px / 1.35)
   font-family: $font.mono
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -185,8 +184,8 @@ export const ConsoleGroup = styled.span("RodConsoleGroup").css`
 
 export const ConsoleTime = styled.span("RodConsoleTime").css`
   position: absolute;
-  top: 5px;
-  right: 7px;
+  top: 1px;
+  right: 4px;
   opacity: .55;
   text(10px / 1.3, tabular)
   font-family: $font.ui
@@ -200,7 +199,7 @@ export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
   z-index: var(--rd-z-sticky, 2147483540);
   display: flex;
   align-items: stretch;
-  height: calc(25px + var(--rd-safe-bottom));
+  height: calc(27px + var(--rd-safe-bottom));
   padding-bottom: var(--rd-safe-bottom);
   border-top: 1px solid $border;
   background: $background;
@@ -299,7 +298,7 @@ export const ConsoleTable = styled.table("RodConsoleTable").css`
 `;
 
 export const ConsoleTableHead = styled.th("RodConsoleTableHead").css`
-  padding: 7px 9px;
+  padding: 4px 6px;
   border-bottom: 1px solid $border;
   color: $primary;
   background: $backgroundDark;

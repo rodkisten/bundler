@@ -56,6 +56,8 @@ const ElementsTreeSide = styled.section("RodElementsTreeSide").css`
   position: relative;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 
   x:md {
@@ -105,17 +107,21 @@ const ElementsIconButton = styled.button("RodElementsIconButton").css`
 `;
 
 const ElementsTreeWrap = styled.div("RodElementsTreeWrap").css`
-  width: 100%;
-  height: 100%;
-  padding-top: $$controlHeight;
+  position: absolute;
+  inset: $$controlHeight 0 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
   padding-bottom: calc(var(--rd-elements-bottom-padding, 96px) + var(--rd-safe-bottom));
   scroll-padding-bottom: calc(var(--rd-elements-bottom-padding, 96px) + var(--rd-safe-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
   text-wrap: wrap;
-  overflow-wrap: wrap;
-  white-space: wrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pan-x;
 `;
 
 const DomTree = styled.div("RodElementsDomTree").css`
@@ -210,6 +216,60 @@ const DomText = styled.span("RodElementsDomText").css`
   white-space: pre;
 `;
 
+const InlineSource = styled.section("RodElementsInlineSource").css`
+  margin: 3px 8px 7px 15px;
+  overflow: hidden;
+  border: 1px solid $border;
+  border-radius: $sm;
+  background: $backgroundDark;
+  user-select: text;
+  -webkit-user-select: text;
+`;
+
+const InlineSourceToolbar = styled.div("RodElementsInlineSourceToolbar").css`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 5px 3px 8px;
+  border-bottom: 1px solid $border;
+  color: $comment;
+  text(10px / 1.3 / 600)
+  font-family: $font.ui;
+`;
+
+const InlineSourceButton = styled.button("RodElementsInlineSourceButton").css`
+  @with($control-reset)
+  interactive-surface
+
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid $border;
+  border-radius: $pill;
+  color: $primary;
+  background: transparent;
+  text(10px / 1.2)
+  cursor: pointer;
+
+  x:hover { bg: $highlight }
+`;
+
+const InlineSourceCode = styled.pre("RodElementsInlineSourceCode").css`
+  margin: 0;
+  padding: 7px 9px;
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y pan-x;
+  -webkit-overflow-scrolling: touch;
+  color: $foreground;
+  text(11px / 1.4)
+  font-family: $font.mono;
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
+`;
+
 const ElementsCrumbs = styled.div("RodElementsCrumbs").css`
   position: absolute;
   right: 0;
@@ -248,9 +308,10 @@ const CrumbButton = styled.button("RodElementsCrumbButton").css`
 const DetailPanel = styled.section("RodElementsDetailPanel").css`
   position: absolute;
   inset: 0;
+  min-width: 0;
+  min-height: 0;
   z-index: var(--rd-z-dropdown, 2147483550);
   display: none;
-  padding-top: $$controlHeight;
   background: $background;
 
   state(active=true) {
@@ -535,6 +596,10 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   DomAttrName,
   DomAttrValue,
   DomText,
+  InlineSource,
+  InlineSourceToolbar,
+  InlineSourceButton,
+  InlineSourceCode,
   ElementsCrumbs,
   CrumbButton,
   DetailPanel,
@@ -857,6 +922,7 @@ export const ElementsDomNodeView = component<{
   expandable: boolean;
   expanded: boolean;
   children?: RenderValue;
+  inlineSource?: RenderValue;
   moreCount?: number;
   onClick?: (event: Event) => void;
   onDoubleClick?: (event: Event) => void;
@@ -888,6 +954,7 @@ export const ElementsDomNodeView = component<{
         ${ElementsNodeLabelView({ node: props.node })}
       </RodElementsDomRow>
       ${props.expandable && props.expanded ? html`
+        ${props.inlineSource ?? ""}
         <RodElementsDomList>
           ${props.children}
           ${(props.moreCount ?? 0) > 0 ? html`<RodElementsDomMoreItem>... ${props.moreCount} more nodes</RodElementsDomMoreItem>` : ""}
@@ -919,6 +986,26 @@ export const ElementsNodeLabelView = component<{ node: Node }>(
     `;
   },
 );
+
+export const ElementsInlineSourceView = component<{
+  nodeId: string;
+  language: "javascript" | "css";
+  pretty: boolean;
+  highlightedHtml: string;
+  onAction?: (event: Event) => void;
+}>("RodElementsInlineSourceView", function RodElementsInlineSourceView(props) {
+  return html`
+    <RodElementsInlineSource :inlineSource :nodeId=${props.nodeId}>
+      <RodElementsInlineSourceToolbar>
+        <span>${props.language === "css" ? "inline CSS" : "inline JavaScript"}</span>
+        <span style="flex:1"></span>
+        <RodElementsInlineSourceButton type="button" :inlineSourceAction="pretty" @click=${event.click((value) => props.onAction?.(value))}>${props.pretty ? "Raw" : "Pretty"}</RodElementsInlineSourceButton>
+        <RodElementsInlineSourceButton type="button" :inlineSourceAction="copy" @click=${event.click((value) => props.onAction?.(value))}>Copy</RodElementsInlineSourceButton>
+      </RodElementsInlineSourceToolbar>
+      <RodElementsInlineSourceCode>${html.unsafe(props.highlightedHtml)}</RodElementsInlineSourceCode>
+    </RodElementsInlineSource>
+  `;
+});
 
 export const ElementsCrumbsView = component<{
   elements: Element[];

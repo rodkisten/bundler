@@ -1,7 +1,7 @@
 import type { CodeEditorLanguage } from "@rodkisten/devtools/core/code-editor";
 import { isDevtoolsNode } from "@rodkisten/devtools/utils";
 import { inferSourceType } from "@rodkisten/devtools/core/serialize";
-import type { SourcePayload, SourceType } from "@rodkisten/devtools/types";
+import type { NetworkRecord, SourcePayload, SourceType } from "@rodkisten/devtools/types";
 import {
   MAX_FORMAT_SOURCE_LENGTH,
   type UserscriptApi,
@@ -20,7 +20,7 @@ export function isSourcePayload(
   );
 }
 
-export function collectSources(): SourcePayload[] {
+export function collectSources(networkRecords: readonly NetworkRecord[] = []): SourcePayload[] {
   const sources: SourcePayload[] = [
     {
       type: "html",
@@ -30,6 +30,32 @@ export function collectSources(): SourcePayload[] {
     },
   ];
   const seenUrls = new Set<string>();
+
+  for (const record of networkRecords.slice().reverse()) {
+    if (record.kind !== "fetch" && record.kind !== "xhr") continue;
+
+    const responseBody = record.responseBody?.length ? record.responseBody : null;
+    const requestBody = record.requestBody?.length ? record.requestBody : null;
+    const normalized = normalizeSourceUrl(record.url);
+
+    if (responseBody && !seenUrls.has(normalized)) {
+      seenUrls.add(normalized);
+      sources.push({
+        type: inferTextSourceType("auto", record.url, responseBody) as SourceType,
+        value: responseBody,
+        url: record.url,
+        title: `${record.method} ${record.url} · response`,
+      });
+    }
+
+    if (requestBody) {
+      sources.push({
+        type: inferTextSourceType("auto", record.url, requestBody) as SourceType,
+        value: requestBody,
+        title: `${record.method} ${record.url} · request body`,
+      });
+    }
+  }
 
   for (let index = 0; index < document.scripts.length; index++) {
     const script = document.scripts[index]!;

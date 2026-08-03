@@ -85,8 +85,8 @@ function formattedConsoleArgs(args: readonly unknown[]): RenderValue {
 
 function inspectableValue(value: unknown): Node {
   return renderValue(value, {
-    maxDepth: 12,
-    maxEntries: 2_000,
+    maxDepth: 2,
+    maxEntries: 50,
     onNodeSelect: (node) => {
       node.dispatchEvent(new CustomEvent("roderuda:inspect-node", {
         bubbles: true,

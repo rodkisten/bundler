@@ -133,7 +133,7 @@ export class EntryBtn {
 
   private defaultPosition(): Position {
     const viewport = this.viewportBounds();
-    const size = this.element.offsetWidth || 56;
+    const size = this.element.offsetWidth || 24;
     return {
       x: viewport.right - size - viewport.margin,
       y: viewport.bottom - size - viewport.margin,
@@ -142,7 +142,7 @@ export class EntryBtn {
 
   private clamp(position: Position): Position {
     const viewport = this.viewportBounds();
-    const size = this.element.offsetWidth || 56;
+    const size = this.element.offsetWidth || 24;
     const minX = viewport.left + viewport.margin;
     const minY = viewport.top + viewport.margin;
     const maxX = Math.max(minX, viewport.right - size - viewport.margin);

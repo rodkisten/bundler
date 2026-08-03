@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyDocumentTransaction,
   createDocumentSnapshot,
+  normalizeSelection,
 } from "@rodkisten/maquina/document";
 import { MaquinaHistory } from "@rodkisten/maquina/history";
 import { diffInputValue } from "@rodkisten/maquina/input";
@@ -46,6 +47,17 @@ describe("Maquina document model", () => {
         { from: 3, to: 5, insert: "y" },
       ],
     })).toThrow(/cannot overlap/);
+  });
+
+  it("clamps invalid and fractional selection positions", () => {
+    expect(normalizeSelection({ anchor: Number.NaN, head: Number.POSITIVE_INFINITY }, 8)).toEqual({
+      anchor: 0,
+      head: 0,
+    });
+    expect(normalizeSelection({ anchor: 7.9, head: -4 }, 8)).toEqual({
+      anchor: 7,
+      head: 0,
+    });
   });
 });
 

@@ -1,6 +1,7 @@
 import { signal } from "@rodkisten/broto";
 import type { Cleanup, RenderValue } from "@rodkisten/fabrica";
 import { ConfigStore } from "@rodkisten/devtools/core/config";
+import { sharedNetworkCapture } from "@rodkisten/devtools/core/network-capture";
 import {
   mountCodeEditor,
   type CodeEditorHandle,
@@ -111,6 +112,8 @@ export class Sources extends Tool {
   private destroyed = false;
   private dirty = true;
   private indexedSources: SourcePayload[] = [];
+  private sourceIndexOpen = false;
+  private networkRefreshFrame = 0;
 
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
@@ -119,6 +122,10 @@ export class Sources extends Tool {
     this.dirty = true;
     this.titleState.set(this.sourceTitle());
     this.config.on("change", this.onConfigChange);
+    sharedNetworkCapture.on("request", this.onNetworkCaptureChange);
+    sharedNetworkCapture.on("update", this.onNetworkCaptureChange);
+    sharedNetworkCapture.on("clear", this.onNetworkCaptureChange);
+    sharedNetworkCapture.install();
     this.applyTweakVariables();
     this.registerSettings(context);
   }
@@ -170,6 +177,13 @@ export class Sources extends Tool {
     this.renderToken += 1;
 
     this.config.off("change", this.onConfigChange);
+    sharedNetworkCapture.off("request", this.onNetworkCaptureChange);
+    sharedNetworkCapture.off("update", this.onNetworkCaptureChange);
+    sharedNetworkCapture.off("clear", this.onNetworkCaptureChange);
+    sharedNetworkCapture.destroy();
+    if (this.networkRefreshFrame) cancelAnimationFrame(this.networkRefreshFrame);
+    this.networkRefreshFrame = 0;
+    this.sourceIndexOpen = false;
     this.abortRequest();
     this.destroyEditor();
 
@@ -180,6 +194,14 @@ export class Sources extends Tool {
 
     super.destroy();
   }
+
+  private readonly onNetworkCaptureChange = (): void => {
+    if (!this.active || !this.sourceIndexOpen || this.networkRefreshFrame) return;
+    this.networkRefreshFrame = requestAnimationFrame(() => {
+      this.networkRefreshFrame = 0;
+      if (this.active && this.sourceIndexOpen) this.renderSourceIndex();
+    });
+  };
 
   private readonly onConfigChange = (): void => {
     this.applyTweakVariables();
@@ -244,6 +266,7 @@ export class Sources extends Tool {
   }
 
   private async renderSource(): Promise<void> {
+    this.sourceIndexOpen = false;
     if (!this.active) {
       this.dirty = true;
       return;
@@ -404,12 +427,12 @@ export class Sources extends Tool {
       if (this.requestController === controller) this.requestController = null;
     }
 
-const userscriptSource = await readUserscriptSource(
-  url,
-  failures,
-  this.config.get("requestTimeout"),
-);
-    
+    const userscriptSource = await readUserscriptSource(
+      url,
+      failures,
+      this.config.get("requestTimeout"),
+    );
+
     if (userscriptSource != null) {
       return {
         type: inferTextSourceType(type, url, userscriptSource),
@@ -425,12 +448,26 @@ const userscriptSource = await readUserscriptSource(
     };
   }
 
-  private readCapturedNetworkSource(url: string): string | null {
-    const network = this.context?.devtools.get<NetworkSourceTool>("network");
-    if (!network || typeof network.requests !== "function") return null;
+  private capturedNetworkRecords(): NetworkRecord[] {
+    const records = new Map<string, NetworkRecord>();
 
+    for (const record of sharedNetworkCapture.requests()) {
+      records.set(record.id, record);
+    }
+
+    const network = this.context?.devtools.get<NetworkSourceTool>("network");
+    if (network && typeof network.requests === "function") {
+      for (const record of network.requests()) {
+        records.set(record.id, record);
+      }
+    }
+
+    return toArray(records.values());
+  }
+
+  private readCapturedNetworkSource(url: string): string | null {
     const normalized = normalizeSourceUrl(url);
-    const record = findArray(reverseArray(toArray(network.requests())), (candidate) => (
+    const record = findArray(reverseArray(this.capturedNetworkRecords()), (candidate) => (
       normalizeSourceUrl(candidate.url) === normalized
       && typeof candidate.responseBody === "string"
       && candidate.responseBody.length > 0
@@ -555,10 +592,11 @@ const userscriptSource = await readUserscriptSource(
   }
 
   private renderSourceIndex(): void {
+    this.sourceIndexOpen = true;
     this.abortRequest();
     this.destroyEditor();
 
-    const sources = collectSources();
+    const sources = collectSources(this.capturedNetworkRecords());
     this.indexedSources = sources;
 
     this.renderedText = mapJoinArray(sources, (source) => `${source.type}\t${source.title}`, "\n");

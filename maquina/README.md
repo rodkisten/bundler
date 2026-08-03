@@ -4,7 +4,7 @@ Máquina is a small, dependency-free browser code editor built with **Fábrica**
 
 ## Highlights
 
-- Native caret-safe editing surface with a `16px` mobile minimum.
+- Native caret-safe editing surface with shared textarea/highlight metrics and no visual scaling.
 - JavaScript, JSON, HTML, CSS and plain-text highlighting.
 - Completion providers plus lexical-scope and browser-runtime suggestions.
 - Accessible, keyboard and touch-scrollable completion listbox.
@@ -67,10 +67,11 @@ editor.setTheme("forest");
 
 ## Safari caret and font metrics
 
-The editor no longer scales the textarea or its root with CSS transforms. The
+The editor does not scale the textarea or its root with CSS transforms. The
 native input and syntax layer use identical font, line-height, padding, wrapping,
-and gutter metrics. `fontSize` has a `16px` minimum so iOS Safari does not zoom
-the page on focus or drift the native caret away from highlighted text.
+and gutter metrics. `fontSize` is applied natively to both layers, keeping cursor
+positions, selections and syntax highlighting aligned. For editable mobile
+surfaces, use `16px` when avoiding Safari focus zoom is more important than density.
 
 ## CSS-first atomic production build
 

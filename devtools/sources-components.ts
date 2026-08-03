@@ -12,6 +12,8 @@ export const SourcesRoot = styled.div("RodSourcesRoot").css`
   position: relative;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   background: $background;
 `;
@@ -56,12 +58,17 @@ export const SourcesTitle = styled.div("RodSourcesTitle").css`
 `;
 
 export const SourcesBody = styled.div("RodSourcesBody").css`
-  width: 100%;
-  height: 100%;
-  padding-top: $$controlHeight;
+  position: absolute;
+  inset: $$controlHeight 0 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  touch-scroll
+  overscroll-behavior: contain;
+  touch-action: pan-y pan-x;
+  -webkit-overflow-scrolling: touch;
 `;
 
 export const SourcesEmpty = styled.div("RodSourcesEmpty").css`
@@ -93,6 +100,8 @@ export const SourcesPre = styled.pre("RodSourcesPre").css`
 export const SourcesEditor = styled.div("RodSourcesEditor").css`
   height: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 `;
 
 export const SourcesBreadcrumb = styled.div("RodSourcesBreadcrumb").css`
@@ -113,6 +122,8 @@ export const SourcesBreadcrumb = styled.div("RodSourcesBreadcrumb").css`
 export const SourcesCodeMirrorHost = styled.div("RodSourcesCodeMirrorHost").css`
   height: calc(100% - 28px);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 
   .cm-editor {
     height: 100%;
