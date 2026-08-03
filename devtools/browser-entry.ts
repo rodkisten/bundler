@@ -29,7 +29,15 @@ import api, {
   type RodDevtoolsInitOptions,
   type ToolFactory,
 } from "@rodkisten/devtools";
-import type { Position } from "@rodkisten/devtools/types";
+import type {
+  ConsoleLike,
+  ConsoleMethodName,
+  ConsoleRecord,
+  ExternalConsoleStream,
+  ExternalLogEntry,
+  ExternalLogStreamOptions,
+  Position,
+} from "@rodkisten/devtools/types";
 
 /**
  * Browser-global surface published by the standalone IIFE/UMD bundles.
@@ -125,6 +133,14 @@ class RodDevtoolsBrowserGlobal implements DevtoolsBrowserGlobal {
   hide(): this {
     api.hide();
     return this;
+  }
+
+  ingestLogs(method: ConsoleMethodName, ...args: unknown[]): ConsoleRecord | undefined;
+  ingestLogs(entry: ExternalLogEntry): ConsoleRecord | undefined;
+  ingestLogs(consoleObject: ConsoleLike, options?: ExternalLogStreamOptions): ExternalConsoleStream;
+  ingestLogs(options?: ExternalLogStreamOptions): ExternalConsoleStream;
+  ingestLogs(...args: unknown[]): ConsoleRecord | ExternalConsoleStream | undefined {
+    return (api.ingestLogs as (...values: unknown[]) => ConsoleRecord | ExternalConsoleStream | undefined)(...args);
   }
 
   scale(): number;
