@@ -65,14 +65,18 @@ const NetworkSearch = styled.input("RodNetworkSearch").css`
 `;
 
 const NetworkList = styled.div("RodNetworkList").css`
-  width: 100%;
-  height: 100%;
-  padding-top: $$controlHeight;
+  position: absolute;
+  inset: $$controlHeight 0 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
   padding-bottom: calc(var(--rd-network-bottom-padding, 96px) + var(--rd-safe-bottom));
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y pan-x;
 `;
 
 const NetworkTable = styled.table("RodNetworkTable").css`
@@ -152,7 +156,8 @@ const NetworkDetail = styled.section("RodNetworkDetail").css`
   inset: 0;
   z-index: var(--rd-z-dropdown, 2147483550);
   display: none;
-  padding-top: $$controlHeight;
+  min-width: 0;
+  min-height: 0;
   background: $background;
 
   state(active=true) {
