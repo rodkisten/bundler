@@ -10,12 +10,17 @@ export const SharedPanelLayout = styled.div("RodSharedPanelLayout").css`
   relative
   w-full
   h-full
+  minw-0
+  minh-0
   overflow-hidden
 `;
 
 export const SharedPanelRoot = styled.section("RodSharedPanelRoot").css`
+  relative
   w-full
   h-full
+  minw-0
+  minh-0
   overflow-hidden
   bg: $background
 `;
@@ -95,18 +100,27 @@ export const SharedButton = styled.button("RodSharedButton").css`
 /* ******************** */
 
 export const SharedPanelBody = styled.div("RodSharedPanelBody").css`
-  w-full
-  height: calc(100% - 38px)
+  absolute
+  inset: 38px 0 0
+  minw-0
+  minh-0
   overflow-auto
   padding-bottom: var(--rd-safe-bottom)
-  touch-scroll
+  overscroll-behavior: contain
+  touch-action: pan-y pan-x
+  -webkit-overflow-scrolling: touch
 `;
 
 export const SharedScrollableBody = styled.div("RodSharedScrollableBody").css`
+  w-full
   h-full
+  minw-0
+  minh-0
   padding-bottom: var(--rd-safe-bottom)
   overflow-auto
-  touch-scroll
+  overscroll-behavior: contain
+  touch-action: pan-y pan-x
+  -webkit-overflow-scrolling: touch
 `;
 
 export const SharedDetailTitle = styled.div("RodSharedDetailTitle").css`
