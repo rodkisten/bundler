@@ -25,6 +25,15 @@ const ConsoleRecordView = component<{
       ${props.record.collapsed != null
         ? html`<RodConsoleGroup>${props.record.collapsed ? "▸" : "▾"}</RodConsoleGroup>`
         : null}
+      ${props.record.origin?.kind === "external"
+        ? html`
+            <RodConsoleExternalBadge
+              title=${props.record.origin.source
+                ? `External log · ${props.record.origin.source}`
+                : "External log"}
+            >${props.record.origin.label}</RodConsoleExternalBadge>
+          `
+        : null}
       <div class="roderuda-console-output">
         ${props.record.level === "table"
           ? tableView(props.record.args[0])
@@ -145,7 +154,17 @@ export function normalizeVisibleLevel(level: ConsoleLevel): ConsoleLevel {
 
 
 export function sameRecord(left: ConsoleRecord, right: ConsoleRecord): boolean {
-  if (left.level !== right.level || left.groupDepth !== right.groupDepth || left.args.length !== right.args.length) return false;
+  if (
+    left.level !== right.level ||
+    left.groupDepth !== right.groupDepth ||
+    left.args.length !== right.args.length ||
+    left.origin?.kind !== right.origin?.kind ||
+    left.origin?.label !== right.origin?.label ||
+    left.origin?.source !== right.origin?.source
+  ) {
+    return false;
+  }
+
   return everyArray(left.args, (value, index) => Object.is(value, right.args[index]));
 }
 

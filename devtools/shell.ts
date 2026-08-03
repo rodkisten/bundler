@@ -79,7 +79,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
     @with($control-reset)
   }
 
-@media (max-width: 768px) {
+  @media (max-width: 768px) {
   :root {
     /*
      * Escala fluida no mobile:

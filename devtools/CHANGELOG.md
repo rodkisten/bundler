@@ -1,4 +1,6 @@
 ## Unreleased
+- Added the public `DevTools.ingestLogs()` API for direct external records, structured entries, reusable console-compatible streams, and in-place interception of arbitrary console-like objects.
+- External records now carry a compact searchable badge, while groups, timers, and counters remain isolated per source and intercepted methods restore their original descriptors on cleanup.
 - Exposed the standalone IIFE/userscript runtime directly as `globalThis.DevTools`, with fluent `init`, `destroy`, `get`, `add`, `remove`, `show`, `hide`, `scale`, `position`, and `isInitialized` methods while preserving the previous namespace aliases.
 - Switched the DevTools browser build to its dedicated default-only `browser-entry.ts`, preventing Vite/Rolldown from wrapping the public runtime behind `DevTools.default` or `DevTools.api`.
 - Explicitly installs the facade on `globalThis` so userscript `@require` wrappers do not hide the generated `DevTools` variable inside their local execution scope.

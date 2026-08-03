@@ -182,6 +182,29 @@ export const ConsoleGroup = styled.span("RodConsoleGroup").css`
   color: $operator;
 `;
 
+export const ConsoleExternalBadge = styled.span("RodConsoleExternalBadge").css`
+  display: inline-flex;
+  align-items: center;
+  max-width: 64px;
+  height: 12px;
+  margin: 1px 4px 0 0;
+  padding: 0 3px;
+  overflow: hidden;
+  border: 1px solid alpha($border / 72%);
+  border-radius: 3px;
+  color: $secondary;
+  background: alpha($backgroundDark / 52%);
+  opacity: .72;
+  text(8px / 1 / 650)
+  font-family: $font.ui
+  letter-spacing: .025em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: 1px;
+  user-select: none;
+`;
+
 export const ConsoleTime = styled.span("RodConsoleTime").css`
   position: absolute;
   top: 1px;
