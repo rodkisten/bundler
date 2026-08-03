@@ -44,7 +44,7 @@ import {
 const MAX_COMPLETIONS = 100;
 const DEFAULT_TAB_SIZE = 2;
 const DEFAULT_FONT_SIZE = 16;
-const MIN_FONT_SIZE = 16;
+const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 32;
 const MIN_TAB_SIZE = 1;
 const MAX_TAB_SIZE = 16;
@@ -109,10 +109,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (destroyed || !textareaRef) return;
 
     const nextValue = textareaRef.value;
-    const selection = {
-      anchor: textareaRef.selectionStart,
-      head: textareaRef.selectionEnd,
-    };
+    const selection = readTextareaSelection(textareaRef);
     const diff = diffInputValue(
       state.value.peek(),
       nextValue,
@@ -197,10 +194,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     dispatchTransaction(
       {
-        selection: {
-          anchor: textareaRef.selectionStart,
-          head: textareaRef.selectionEnd,
-        },
+        selection: readTextareaSelection(textareaRef),
         origin: "input",
         addToHistory: false,
       },
@@ -523,14 +517,15 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   });
 
   mountedTextarea.value = options.value;
-  mountedTextarea.setSelectionRange(
-    options.value.length,
-    options.value.length,
-  );
+  applyTextareaSelection(mountedTextarea, {
+    anchor: options.value.length,
+    head: options.value.length,
+  });
 
   applyTheme(mountedRoot, initialTheme.name);
   applyEditorMetrics(
     mountedRoot,
+    mountedViewport,
     mountedTextarea,
     mountedHighlight,
     options,
@@ -555,9 +550,9 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       mountedTextarea.value = documentState.value;
     }
 
-    mountedTextarea.setSelectionRange(
-      documentState.selection.anchor,
-      documentState.selection.head,
+    applyTextareaSelection(
+      mountedTextarea,
+      documentState.selection,
     );
   }
 
@@ -680,7 +675,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
                     >${String(line.number)}</MaquinaLineNumber>
                   `
                 : ""}
-              <MaquinaCodeClip>
+              <MaquinaCodeClip :maquinaCodeClip>
                 <MaquinaLineCode
                   :maquinaLineCode=${String(line.number)}
                 >${line.tokens.length > 0
@@ -694,6 +689,12 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
           `,
         )}
       `,
+    );
+    hardenHighlightRows(
+      mountedHighlight,
+      lineNumbers,
+      mountedRoot.style.getPropertyValue("--maq-gutter-width") || "0px",
+      options.lineWrapping !== false,
     );
   }
 
@@ -755,8 +756,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
     const viewportState = state.viewport.peek();
 
-    mountedHighlight.style.transform =
-      `translateY(${renderedHighlightTop - viewportState.scrollTop}px)`;
+    mountedHighlight.style.setProperty(
+      "transform",
+      `translateY(${renderedHighlightTop - viewportState.scrollTop}px)`,
+      "important",
+    );
     mountedRoot.style.setProperty(
       "--maq-scroll-x",
       `${-viewportState.scrollLeft}px`,
@@ -937,26 +941,44 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     if (!mirror) {
       mirror = documentRef.createElement("div");
       mirror.setAttribute("aria-hidden", "true");
-      mirror.style.position = "absolute";
-      mirror.style.left = "-100000px";
-      mirror.style.top = "0";
-      mirror.style.visibility = "hidden";
-      mirror.style.pointerEvents = "none";
-      mirror.style.overflow = "hidden";
-      mirror.style.height = "auto";
-      mirror.style.minHeight = "0";
+      setImportantStyles(mirror, {
+        position: "absolute",
+        display: "block",
+        left: "-100000px",
+        top: "0",
+        width: "auto",
+        height: "auto",
+        minWidth: "0",
+        minHeight: "0",
+        margin: "0",
+        overflow: "hidden",
+        visibility: "hidden",
+        pointerEvents: "none",
+        boxSizing: "border-box",
+        transform: "none",
+      });
       mountedViewport.append(mirror);
       caretMirrorRef = mirror;
     }
 
     if (!marker) {
       marker = documentRef.createElement("span");
-      marker.style.display = "inline-block";
-      marker.style.width = "0";
-      marker.style.padding = "0";
-      marker.style.margin = "0";
-      marker.style.border = "0";
-      marker.style.overflow = "hidden";
+      setImportantStyles(marker, {
+        display: "inline-block",
+        width: "0",
+        height: "1em",
+        minWidth: "0",
+        minHeight: "0",
+        padding: "0",
+        margin: "0",
+        border: "0",
+        overflow: "hidden",
+        font: "inherit",
+        lineHeight: "inherit",
+        verticalAlign: "top",
+        whiteSpace: "pre",
+        transform: "none",
+      });
       caretMarkerRef = marker;
     }
 
@@ -1322,34 +1344,36 @@ function copyTextareaMetrics(
   mirror: HTMLDivElement,
   style: CSSStyleDeclaration,
 ): void {
-  mirror.style.boxSizing = style.boxSizing;
-  mirror.style.width = style.width;
-  mirror.style.paddingTop = style.paddingTop;
-  mirror.style.paddingRight = style.paddingRight;
-  mirror.style.paddingBottom = style.paddingBottom;
-  mirror.style.paddingLeft = style.paddingLeft;
-  mirror.style.borderTopWidth = style.borderTopWidth;
-  mirror.style.borderRightWidth = style.borderRightWidth;
-  mirror.style.borderBottomWidth = style.borderBottomWidth;
-  mirror.style.borderLeftWidth = style.borderLeftWidth;
-  mirror.style.borderStyle = "solid";
-  mirror.style.borderColor = "transparent";
-  mirror.style.fontFamily = style.fontFamily;
-  mirror.style.fontSize = style.fontSize;
-  mirror.style.fontWeight = style.fontWeight;
-  mirror.style.fontStyle = style.fontStyle;
-  mirror.style.fontVariant = style.fontVariant;
-  mirror.style.lineHeight = style.lineHeight;
-  mirror.style.letterSpacing = style.letterSpacing;
-  mirror.style.wordSpacing = style.wordSpacing;
-  mirror.style.textAlign = style.textAlign;
-  mirror.style.textIndent = style.textIndent;
-  mirror.style.textTransform = style.textTransform;
-  mirror.style.whiteSpace = style.whiteSpace;
-  mirror.style.overflowWrap = style.overflowWrap;
-  mirror.style.wordBreak = style.wordBreak;
-  mirror.style.direction = style.direction;
-  mirror.style.tabSize = style.tabSize;
+  setImportantStyles(mirror, {
+    boxSizing: style.boxSizing,
+    width: style.width,
+    paddingTop: style.paddingTop,
+    paddingRight: style.paddingRight,
+    paddingBottom: style.paddingBottom,
+    paddingLeft: style.paddingLeft,
+    borderTopWidth: style.borderTopWidth,
+    borderRightWidth: style.borderRightWidth,
+    borderBottomWidth: style.borderBottomWidth,
+    borderLeftWidth: style.borderLeftWidth,
+    borderStyle: "solid",
+    borderColor: "transparent",
+    fontFamily: style.fontFamily,
+    fontSize: style.fontSize,
+    fontWeight: style.fontWeight,
+    fontStyle: style.fontStyle,
+    fontVariant: style.fontVariant,
+    lineHeight: style.lineHeight,
+    letterSpacing: style.letterSpacing,
+    wordSpacing: style.wordSpacing,
+    textAlign: style.textAlign,
+    textIndent: style.textIndent,
+    textTransform: style.textTransform,
+    whiteSpace: style.whiteSpace,
+    overflowWrap: style.overflowWrap,
+    wordBreak: style.wordBreak,
+    direction: style.direction,
+    tabSize: style.tabSize,
+  });
 }
 
 /** Returns an element offset in CSS pixels relative to an ancestor. */
@@ -1422,12 +1446,13 @@ function applyTheme(
 /**
  * Configures shared text metrics without transforming the editor root.
  *
- * A transformed textarea is prone to native-caret drift on iOS. Keeping the
- * input at a mobile-safe 16px minimum and letting it fill the container avoids
- * both Safari focus zoom and transformed native selection geometry.
+ * A transformed textarea is prone to native-caret drift on iOS. The native
+ * input and visual layer therefore use identical, unscaled metrics and are
+ * hardened with inline invariants against hostile host-page CSS resets.
  */
 function applyEditorMetrics(
   root: HTMLElement,
+  viewport: HTMLElement,
   textarea: HTMLTextAreaElement,
   highlight: HTMLElement,
   options: MaquinaOptions,
@@ -1438,33 +1463,247 @@ function applyEditorMetrics(
     MAX_TAB_SIZE,
   );
   const fontSize = clamp(
-    Math.max(options.fontSize ?? DEFAULT_FONT_SIZE, MIN_FONT_SIZE),
+    options.fontSize ?? DEFAULT_FONT_SIZE,
     MIN_FONT_SIZE,
     MAX_FONT_SIZE,
   );
-  const whiteSpace = options.lineWrapping === false
-    ? "pre"
-    : "pre-wrap";
-  const overflowWrap = options.lineWrapping === false
-    ? "normal"
-    : "anywhere";
+  const lineHeight = fontSize * 1.55;
+  const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
+  const overflowWrap = options.lineWrapping === false ? "normal" : "anywhere";
+  const fontFamily = "var(--maq-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)";
 
-  root.style.transform = "";
-  root.style.transformOrigin = "";
-  root.style.width = "100%";
-  root.style.height = "100%";
+  setImportantStyles(root, {
+    position: "relative",
+    display: "grid",
+    width: "100%",
+    height: "100%",
+    minWidth: "0",
+    minHeight: "0",
+    maxWidth: "100%",
+    maxHeight: "100%",
+    overflow: "hidden",
+    transform: "none",
+    transformOrigin: "0 0",
+    contain: "layout paint style",
+    boxSizing: "border-box",
+  });
+
+  setImportantStyles(viewport, {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    minWidth: "0",
+    minHeight: "0",
+    overflow: "hidden",
+    boxSizing: "border-box",
+    touchAction: "pan-y pan-x",
+  });
+
   root.style.setProperty("--maq-tab-size", String(tabSize));
   root.style.setProperty("--maq-font-size", `${fontSize}px`);
   root.style.setProperty("--maq-white-space", whiteSpace);
   root.style.setProperty("--maq-overflow-wrap", overflowWrap);
 
-  textarea.style.fontSize = `${fontSize}px`;
-  highlight.style.fontSize = `${fontSize}px`;
-  textarea.style.whiteSpace = whiteSpace;
-  highlight.style.whiteSpace = "normal";
-  textarea.style.overflowWrap = overflowWrap;
-  textarea.style.tabSize = String(tabSize);
-  highlight.style.tabSize = String(tabSize);
+  setImportantStyles(highlight, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    minWidth: "100%",
+    minHeight: "100%",
+    margin: "0",
+    padding: "14px 0 26px",
+    overflow: "hidden",
+    boxSizing: "border-box",
+    pointerEvents: "none",
+    userSelect: "none",
+    fontFamily,
+    fontSize: `${fontSize}px`,
+    fontWeight: "500",
+    fontStyle: "normal",
+    lineHeight: `${lineHeight}px`,
+    letterSpacing: "normal",
+    wordSpacing: "normal",
+    textIndent: "0",
+    whiteSpace,
+    overflowWrap,
+    wordBreak: "normal",
+    tabSize: String(tabSize),
+  });
+
+  setImportantStyles(textarea, {
+    position: "absolute",
+    inset: "0",
+    display: "block",
+    width: "100%",
+    height: "100%",
+    minWidth: "0",
+    minHeight: "0",
+    maxWidth: "100%",
+    maxHeight: "100%",
+    margin: "0",
+    paddingTop: "14px",
+    paddingRight: "16px",
+    paddingBottom: "26px",
+    paddingLeft: "calc(var(--maq-gutter-width, 0px) + 16px)",
+    overflow: "auto",
+    boxSizing: "border-box",
+    resize: "none",
+    border: "0",
+    outline: "0",
+    appearance: "none",
+    background: "transparent",
+    color: "transparent",
+    caretColor: "var(--maq-foreground)",
+    fontFamily,
+    fontSize: `${fontSize}px`,
+    fontWeight: "500",
+    fontStyle: "normal",
+    lineHeight: `${lineHeight}px`,
+    letterSpacing: "normal",
+    wordSpacing: "normal",
+    textIndent: "0",
+    textTransform: "none",
+    whiteSpace,
+    overflowWrap,
+    wordBreak: "normal",
+    tabSize: String(tabSize),
+    touchAction: "pan-y pan-x",
+    userSelect: "text",
+  });
+  textarea.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+  textarea.style.setProperty("-webkit-user-select", "text", "important");
+  textarea.style.setProperty("-webkit-overflow-scrolling", "touch");
+}
+
+function hardenHighlightRows(
+  highlight: HTMLElement,
+  lineNumbers: boolean,
+  gutterWidth: string,
+  wraps: boolean,
+): void {
+  const whiteSpace = wraps ? "pre-wrap" : "pre";
+  const overflowWrap = wraps ? "anywhere" : "normal";
+
+  for (const row of highlight.querySelectorAll<HTMLElement>("[data-maquina-line]")) {
+    setImportantStyles(row, {
+      display: "grid",
+      gridTemplateColumns: lineNumbers
+        ? `${gutterWidth || "0px"} minmax(0, 1fr)`
+        : "minmax(0, 1fr)",
+      alignItems: "stretch",
+      minWidth: "100%",
+      minHeight: "1.55em",
+      margin: "0",
+      padding: "0",
+      border: "0",
+      boxSizing: "border-box",
+    });
+  }
+
+  for (const gutter of highlight.querySelectorAll<HTMLElement>("[data-maquina-line-number]")) {
+    setImportantStyles(gutter, {
+      display: "block",
+      alignSelf: "stretch",
+      margin: "0",
+      padding: "0 12px 0 0",
+      borderTop: "0",
+      borderRight: "1px solid var(--maq-border)",
+      borderBottom: "0",
+      borderLeft: "0",
+      boxSizing: "border-box",
+      textAlign: "right",
+      whiteSpace: "nowrap",
+      lineHeight: "inherit",
+    });
+  }
+
+  for (const clip of highlight.querySelectorAll<HTMLElement>("[data-maquina-code-clip]")) {
+    setImportantStyles(clip, {
+      display: "block",
+      minWidth: "0",
+      margin: "0",
+      padding: "0",
+      overflow: "hidden",
+      boxSizing: "border-box",
+    });
+  }
+
+  for (const code of highlight.querySelectorAll<HTMLElement>("[data-maquina-line-code]")) {
+    setImportantStyles(code, {
+      display: "block",
+      minWidth: "0",
+      margin: "0",
+      padding: "0 16px",
+      border: "0",
+      boxSizing: "border-box",
+      font: "inherit",
+      lineHeight: "inherit",
+      letterSpacing: "inherit",
+      wordSpacing: "inherit",
+      whiteSpace,
+      overflowWrap,
+      wordBreak: "normal",
+      transform: "translateX(var(--maq-scroll-x, 0px))",
+    });
+  }
+
+  for (const token of highlight.querySelectorAll<HTMLElement>("[data-token]")) {
+    setImportantStyles(token, {
+      display: "inline",
+      margin: "0",
+      padding: "0",
+      border: "0",
+      font: "inherit",
+      lineHeight: "inherit",
+      letterSpacing: "inherit",
+      wordSpacing: "inherit",
+      whiteSpace: "inherit",
+      textIndent: "0",
+      textTransform: "none",
+    });
+  }
+}
+
+function setImportantStyles(
+  element: HTMLElement,
+  styles: Partial<Record<keyof CSSStyleDeclaration, string>>,
+): void {
+  for (const [key, value] of Object.entries(styles)) {
+    if (value == null) continue;
+    const property = key.replace(/[A-Z]/g, (character) => `-${character.toLowerCase()}`);
+    element.style.setProperty(property, value, "important");
+  }
+}
+
+function readTextareaSelection(textarea: HTMLTextAreaElement): { anchor: number; head: number } {
+  const start = Number.isFinite(textarea.selectionStart) ? textarea.selectionStart : 0;
+  const end = Number.isFinite(textarea.selectionEnd) ? textarea.selectionEnd : start;
+  return textarea.selectionDirection === "backward"
+    ? { anchor: end, head: start }
+    : { anchor: start, head: end };
+}
+
+function applyTextareaSelection(
+  textarea: HTMLTextAreaElement,
+  selection: { anchor: number; head: number },
+): void {
+  const length = textarea.value.length;
+  const anchor = clampFinitePosition(selection.anchor, length);
+  const head = clampFinitePosition(selection.head, length);
+  const start = Math.min(anchor, head);
+  const end = Math.max(anchor, head);
+  const direction: "forward" | "backward" = anchor > head ? "backward" : "forward";
+  try {
+    textarea.setSelectionRange(start, end, direction);
+  } catch {
+    textarea.setSelectionRange(end, end);
+  }
+}
+
+function clampFinitePosition(value: number, length: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(length, Math.max(0, Math.trunc(value)));
 }
 
 function clamp(
