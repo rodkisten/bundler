@@ -18,6 +18,7 @@ import {
   forceAppendToPage,
 } from "@rodkisten/devtools/core/dom";
 import { EntryBtn } from "@rodkisten/devtools/core/entry-button";
+import { sharedNetworkCapture } from "@rodkisten/devtools/core/network-capture";
 import { NativeProtocol } from "@rodkisten/devtools/core/protocol";
 import { styledRegistry } from "@rodkisten/devtools/core/runtime";
 import {
@@ -509,6 +510,14 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     configureDebug(options.debug);
 
     const normalizedOptions = normalizeInitOptions(options);
+
+    // Install the page-realm network bridge before mounting the UI. This keeps
+    // fetch/XHR bodies available to Network, Resources and Sources even when a
+    // request fires while the shell and panels are still being constructed.
+    if (normalizedOptions.tools.some((name) => name === "network" || name === "resources" || name === "sources")) {
+      sharedNetworkCapture.install();
+    }
+
     const finishDebug = debugGroup("runtime", "init", {
       version: VERSION,
       inline: normalizedOptions.inline,
@@ -688,6 +697,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
     this.entryBtn?.destroy();
     this.devtools?.destroy();
+    sharedNetworkCapture.destroy();
     this.style?.remove();
     this.chobitsu.destroy();
     this.disposeRoot?.();
@@ -956,18 +966,22 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
             all: "initial",
             display: "block",
             position: "fixed",
-            inset: "0",
-            width: "100vw",
-            height: "100vh",
+            left: "0",
+            top: "0",
+            width: "0",
+            height: "0",
             minWidth: "0",
             minHeight: "0",
+            maxWidth: "0",
+            maxHeight: "0",
             margin: "0",
             padding: "0",
             border: "0",
             overflow: "visible",
+            background: "transparent",
             zIndex: "2147483647",
             pointerEvents: "none",
-            contain: "layout style paint",
+            contain: "style",
             isolation: "isolate",
           },
     );
@@ -1181,6 +1195,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private rollbackFailedInit(): void {
     this.entryBtn?.destroy();
     this.devtools?.destroy();
+    sharedNetworkCapture.destroy();
     this.style?.remove();
     this.disposeRoot?.();
     this.uninstallHostWatchdog();
