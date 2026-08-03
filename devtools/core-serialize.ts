@@ -34,16 +34,7 @@ export function renderValue(value: unknown, options: RenderValueOptions = {}): N
 
   if (type === "function") {
     const fn = value as Callable & { name?: string };
-    const summary = `[Function ${fn.name || "anonymous"}]`;
-
-    if (depth >= maxDepth) return span("roderuda-value roderuda-value-function", summary);
-
-    return renderObject(fn, summary, {
-      ...options,
-      depth,
-      maxDepth,
-      maxEntries,
-    });
+    return span("roderuda-value roderuda-value-function", `[Function ${fn.name || "anonymous"}]`);
   }
 
   if (isError(value)) return renderError(value);
@@ -67,7 +58,11 @@ export function renderValue(value: unknown, options: RenderValueOptions = {}): N
   }
 
   if (value instanceof RegExp) return span("roderuda-value roderuda-value-keyword", String(value));
-  if (value instanceof Promise) return renderObject(value, "Promise", { ...options, depth, maxDepth, maxEntries });
+  if (value instanceof Promise) return span("roderuda-value roderuda-value-keyword", "Promise {<pending>}" );
+
+  if (value && typeof value === "object" && isOpaqueNativeObject(value)) {
+    return span("roderuda-value", nativeObjectSummary(value));
+  }
 
   if (value && typeof value === "object") {
     return renderObject(value, objectSummary(value), {
@@ -132,50 +127,97 @@ function renderObject(
 
 function getEntries(value: object, maxEntries: number): Array<[string, unknown]> {
   if (maxEntries <= 0) return [[MORE_KEY, "entries hidden"]];
-
   if (value instanceof Map) return mapEntries(value, maxEntries);
   if (value instanceof Set) return setEntries(value, maxEntries);
 
-  const output: Array<[string, unknown]> = [];
-  const seen = new Set<PropertyKey>();
-  let current: object | null = value;
-  let totalSeen = 0;
-
-  while (current && output.length < maxEntries) {
-    for (const key of Reflect.ownKeys(current)) {
-      if (seen.has(key)) continue;
-
-      seen.add(key);
-      totalSeen += 1;
-
-      const label = typeof key === "symbol" ? key.toString() : key;
-
-      let entry: unknown;
-
-      try {
-        const descriptor = Object.getOwnPropertyDescriptor(current, key);
-
-        // Avoid executing getter-only properties in a console inspector.
-        // Getters can be expensive, mutate state, or throw intentionally.
-        if (descriptor?.get && !descriptor.set) entry = "[Getter]";
-        else entry = Reflect.get(value, key);
-      } catch (error) {
-        entry = error;
-      }
-
-      output.push([label, entry]);
-
-      if (output.length >= maxEntries) break;
+  const keys: PropertyKey[] = [];
+  try {
+    keys.push(...Object.keys(value));
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, symbol);
+      if (descriptor?.enumerable) keys.push(symbol);
     }
-
-    current = Object.getPrototypeOf(current) as object | null;
+  } catch {
+    return [];
   }
 
-  if (totalSeen > output.length) {
-    output.push([MORE_KEY, `${totalSeen - output.length}+ more`]);
+  const safeKeys = keys.filter((key) => !isUnsafeInspectorKey(key));
+  const output: Array<[string, unknown]> = [];
+
+  for (const key of safeKeys.slice(0, maxEntries)) {
+    const label = typeof key === "symbol" ? key.toString() : String(key);
+    let entry: unknown;
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor?.get && !("value" in descriptor)) entry = "[Getter]";
+      else entry = Reflect.get(value, key);
+    } catch (error) {
+      entry = error;
+    }
+    output.push([label, entry]);
+  }
+
+  if (safeKeys.length > output.length) {
+    output.push([MORE_KEY, `${safeKeys.length - output.length} more`]);
   }
 
   return output;
+}
+
+const UNSAFE_INSPECTOR_KEYS = new Set<PropertyKey>([
+  "__proto__",
+  "prototype",
+  "constructor",
+  "caller",
+  "callee",
+  "arguments",
+  "__defineGetter__",
+  "__defineSetter__",
+  "__lookupGetter__",
+  "__lookupSetter__",
+]);
+
+function isUnsafeInspectorKey(key: PropertyKey): boolean {
+  return typeof key === "string" && UNSAFE_INSPECTOR_KEYS.has(key);
+}
+
+const OPAQUE_NATIVE_OBJECT_NAMES = new Set([
+  "Window", "WindowProxy", "Document", "HTMLDocument", "XMLDocument",
+  "Location", "Navigator", "Screen", "History", "VisualViewport",
+  "Performance", "PerformanceEntry", "PerformanceTiming",
+  "PerformanceNavigationTiming", "PerformanceResourceTiming",
+  "Event", "CustomEvent", "UIEvent", "MouseEvent", "PointerEvent",
+  "KeyboardEvent", "TouchEvent", "InputEvent", "FocusEvent", "MessageEvent",
+  "Request", "Response", "Headers", "AbortSignal", "AbortController",
+  "ReadableStream", "WritableStream", "TransformStream", "Storage",
+  "CSSStyleDeclaration", "CSSStyleSheet", "CSSRuleList", "DOMTokenList",
+  "NamedNodeMap", "NodeList", "HTMLCollection", "FileList",
+  "MutationObserver", "ResizeObserver", "IntersectionObserver", "WebSocket",
+  "Crypto", "SubtleCrypto", "Permissions", "MediaQueryList",
+]);
+
+function isOpaqueNativeObject(value: object): boolean {
+  return OPAQUE_NATIVE_OBJECT_NAMES.has(safeConstructorName(value));
+}
+
+function nativeObjectSummary(value: object): string {
+  const name = safeConstructorName(value) || "Object";
+  try {
+    if (typeof Response !== "undefined" && value instanceof Response) return `Response { status: ${value.status}, ok: ${value.ok} }`;
+    if (typeof Request !== "undefined" && value instanceof Request) return `Request { ${value.method} ${value.url} }`;
+    if (typeof Headers !== "undefined" && value instanceof Headers) return `Headers(${Array.from(value.keys()).length})`;
+    if (typeof Event !== "undefined" && value instanceof Event) return `${name} { type: ${JSON.stringify(value.type)} }`;
+    if (typeof Storage !== "undefined" && value instanceof Storage) return `${name}(${value.length})`;
+  } catch {}
+  return `${name} {…}`;
+}
+
+function safeConstructorName(value: object): string {
+  try {
+    return value.constructor?.name || Object.prototype.toString.call(value).slice(8, -1);
+  } catch {
+    return "Object";
+  }
 }
 
 function mapEntries(value: Map<unknown, unknown>, maxEntries: number): Array<[string, unknown]> {
@@ -212,10 +254,10 @@ function objectSummary(value: object): string {
   if (Array.isArray(value)) return `Array(${value.length})`;
   if (value instanceof Map) return `Map(${value.size})`;
   if (value instanceof Set) return `Set(${value.size})`;
-  if (ArrayBuffer.isView(value)) return `${value.constructor.name}(${value.byteLength})`;
+  if (ArrayBuffer.isView(value)) return `${safeConstructorName(value)}(${value.byteLength})`;
   if (value instanceof ArrayBuffer) return `ArrayBuffer(${value.byteLength})`;
 
-  const constructorName = value.constructor?.name;
+  const constructorName = safeConstructorName(value);
   if (constructorName && constructorName !== "Object") return constructorName;
 
   try {
