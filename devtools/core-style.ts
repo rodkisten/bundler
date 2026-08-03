@@ -75,6 +75,21 @@ export const devtoolsStyles = sheet.css`
     appearance: none;
   }
 
+  /* Safari needs an explicit scroll contract inside fixed/Shadow DOM panels. */
+  :host [data-roderuda-scroll-key],
+  :host [data-sources-body],
+  :host [data-resources-body],
+  :host [data-elements-tree-wrap],
+  :host [data-network-list] {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y pan-x !important;
+    pointer-events: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /*
    * Generic accessibility utilities are intentionally global because they may
    * be emitted by render helpers instead of a dedicated styled component.
@@ -137,10 +152,24 @@ export const devtoolsStyles = sheet.css`
    * inspectors. The renderer emits semantic native <details>/<summary> markup,
    * making this a global rendering primitive rather than panel UI chrome.
    */
+  .roderuda-console-output {
+    display: inline;
+    min-width: 0;
+    max-width: 100%;
+    line-height: inherit;
+  }
+
+  .roderuda-console-output > * {
+    vertical-align: top;
+  }
+
   details.roderuda-object {
     display: inline-block;
     max-width: 100%;
+    margin: 0;
+    padding: 0;
     vertical-align: top;
+    line-height: inherit;
   }
 
   details.roderuda-object[open] {
@@ -148,7 +177,9 @@ export const devtoolsStyles = sheet.css`
   }
 
   details.roderuda-object > summary {
-    display: inline-block;
+    display: inline;
+    margin: 0;
+    padding: 0;
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
@@ -163,7 +194,7 @@ export const devtoolsStyles = sheet.css`
   details.roderuda-object > summary::before {
     content: "▸";
     display: inline-block;
-    width: 12px;
+    width: 10px;
     color: $operator;
   }
 
@@ -174,8 +205,9 @@ export const devtoolsStyles = sheet.css`
   .roderuda-object-body {
     min-width: 0;
     max-width: 100%;
-    margin: 1px 0 1px 12px;
-    padding-left: 6px;
+    margin: 0 0 0 10px;
+    padding-left: 5px;
+    line-height: 1.25;
     overflow-wrap: anywhere;
     border-left: 1px solid $border;
   }
@@ -183,14 +215,21 @@ export const devtoolsStyles = sheet.css`
   .roderuda-object-row {
     min-width: 0;
     max-width: 100%;
-    min-height: 18px;
+    min-height: 15px;
     overflow-wrap: anywhere;
   }
 
   .roderuda-object-key {
-    margin-right: 5px;
+    margin-right: 4px;
     color: $attr;
   }
+
+  .token-comment { color: $comment; }
+  .token-string { color: $string; }
+  .token-number { color: $number; }
+  .token-keyword { color: $keyword; }
+  .token-tag { color: $tag; }
+  .token-attr { color: $attr; }
 
   /*
    * Search highlighting is produced by shared source/text renderers and may
