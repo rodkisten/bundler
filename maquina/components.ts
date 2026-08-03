@@ -63,6 +63,7 @@ export const MaquinaViewport = styled.div("MaquinaViewport").css`
   w-full
   h-full
   overflow-hidden
+  touch-action: pan-y pan-x
 `;
 
 /**
@@ -165,6 +166,9 @@ export const MaquinaTokenText = styled.span("MaquinaTokenText").css`
 
 export const MaquinaLine = styled.div("MaquinaLine").css`
   grid
+  m: 0
+  p: 0
+  border: 0
   minw-full
 
   grid-template-columns: $$gutterWidth minmax(0, 1fr)
@@ -203,6 +207,8 @@ export const MaquinaCodeClip = styled.span("MaquinaCodeClip").css`
 export const MaquinaLineCode = styled.span("MaquinaLineCode").css`
   block
   minw-0
+  m: 0
+  border: 0
   box-border
 
   px: $spacing.editor-inline
