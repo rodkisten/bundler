@@ -405,6 +405,7 @@ export class NativeProtocol extends Emitter<ProtocolEvents> {
     this.networkCapture.off("request", this.onNetworkRequest);
     this.networkCapture.off("update", this.onNetworkUpdate);
     this.networkCapture.off("clear", this.onNetworkClear);
+    this.networkCapture.destroy();
   }
 
   private readonly onNetworkRequest = (record: NetworkRecord): void => {
