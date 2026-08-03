@@ -1,5 +1,5 @@
 import { Emitter } from "@rodkisten/devtools/core-emitter";
-import type { ConsoleLevel, ConsoleRecord } from "@rodkisten/devtools/types";
+import type { ConsoleLevel, ConsoleMethodName, ConsoleRecord } from "@rodkisten/devtools/types";
 import { concatArrays, drop, filterArray, includesArray, trimArrayStart } from "@rodkisten/nascente";
 
 interface ConsoleCaptureEvents {
@@ -7,29 +7,7 @@ interface ConsoleCaptureEvents {
   clear: [];
 }
 
-type ConsoleMethod = keyof Pick<
-  Console,
-  | "log"
-  | "debug"
-  | "trace"
-  | "info"
-  | "warn"
-  | "error"
-  | "dir"
-  | "table"
-  | "assert"
-  | "count"
-  | "countReset"
-  | "time"
-  | "timeLog"
-  | "timeEnd"
-  | "group"
-  | "groupCollapsed"
-  | "groupEnd"
-  | "clear"
->;
-
-const methods: readonly ConsoleMethod[] = [
+export const CONSOLE_METHODS: readonly ConsoleMethodName[] = [
   "log",
   "debug",
   "trace",
@@ -37,6 +15,7 @@ const methods: readonly ConsoleMethod[] = [
   "warn",
   "error",
   "dir",
+  "dirxml",
   "table",
   "assert",
   "count",
@@ -44,13 +23,32 @@ const methods: readonly ConsoleMethod[] = [
   "time",
   "timeLog",
   "timeEnd",
+  "timeStamp",
   "group",
   "groupCollapsed",
   "groupEnd",
+  "profile",
+  "profileEnd",
+  "exception",
   "clear",
 ];
 
-type Fn = (...args: unknown[]) => void;
+type ConsoleMethod = ConsoleMethodName;
+type Fn = (...args: unknown[]) => unknown;
+
+export interface ConsoleMethodState {
+  groupDepth: number;
+  readonly timers: Map<string, number>;
+  readonly counters: Map<string, number>;
+}
+
+export function createConsoleMethodState(): ConsoleMethodState {
+  return {
+    groupDepth: 0,
+    timers: new Map<string, number>(),
+    counters: new Map<string, number>(),
+  };
+}
 
 interface CaptureWrapper extends Fn {
   readonly __roderudaCaptureWrapper?: true;
@@ -118,7 +116,7 @@ function isConsoleTarget(target: unknown): boolean {
 
 export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private id = 0;
-  private groupDepth = 0;
+  private readonly nativeState = createConsoleMethodState();
   private installed = false;
   private installing = false;
   private catchErrors = false;
@@ -130,8 +128,6 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
   private readonly prototypeDescriptors = new Map<ConsoleMethod, PropertyDescriptor | undefined>();
 
   private readonly records: ConsoleRecord[] = [];
-  private readonly timers = new Map<string, number>();
-  private readonly counters = new Map<string, number>();
   private readonly globals = new Map<string, unknown>();
 
   private watchdogId: number | null = null;
@@ -168,7 +164,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         this.installConsoleObjectLock();
       }
 
-      for (const method of methods) {
+      for (const method of CONSOLE_METHODS) {
         this.installMethod(method, options);
       }
 
@@ -200,7 +196,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
     const prototype = Object.getPrototypeOf(console);
     if (prototype) {
-      for (const method of methods) {
+      for (const method of CONSOLE_METHODS) {
         if (!this.prototypeDescriptors.has(method)) continue;
         const descriptor = this.prototypeDescriptors.get(method);
         try {
@@ -212,7 +208,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       }
     }
 
-    for (const method of methods) {
+    for (const method of CONSOLE_METHODS) {
       const descriptor = this.descriptors.get(method);
       const original = this.original.get(method);
 
@@ -274,7 +270,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       level,
       args,
       timestamp: Date.now(),
-      groupDepth: this.groupDepth,
+      groupDepth: this.nativeState.groupDepth,
       ...extra,
     };
 
@@ -286,6 +282,21 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 
     this.emit("record", record);
     return record;
+  }
+
+  /**
+   * Applies native console method semantics to any log channel.
+   *
+   * External streams pass their own state so groups, timers and counters do
+   * not leak into the page console or into another external source.
+   */
+  ingest(
+    method: ConsoleMethodName,
+    args: unknown[],
+    extra: Partial<ConsoleRecord> = {},
+    state: ConsoleMethodState = this.nativeState,
+  ): ConsoleRecord | undefined {
+    return this.handle(method, args, extra, state);
   }
 
   clear(): void {
@@ -373,7 +384,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         this.invoking.add(method);
 
         try {
-          this.handle(method, args);
+          this.ingest(method, args);
 
           const passthrough = this.current.get(method) ?? original;
           if (passthrough === wrapper || isCaptureWrapper(passthrough)) {
@@ -457,7 +468,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     const proto = Object.getPrototypeOf(console);
     if (!proto) return;
 
-    for (const method of methods) {
+    for (const method of CONSOLE_METHODS) {
       const wrapper = this.wrappers.get(method);
       if (!wrapper) continue;
 
@@ -494,14 +505,14 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     this.watchdogId = window.setInterval(() => {
       if (this.installing) return;
 
-      for (const method of methods) {
+      for (const method of CONSOLE_METHODS) {
         const wrapper = this.wrappers.get(method);
         if (!wrapper) continue;
 
         let currentValue: unknown;
 
         try {
-          currentValue = console[method];
+          currentValue = (console as unknown as Record<string, unknown>)[method];
         } catch {
           currentValue = undefined;
         }
@@ -548,7 +559,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
 ): T {
   if (
     isConsoleTarget(target) &&
-    includesArray(methods, propertyKey as ConsoleMethod)
+    includesArray(CONSOLE_METHODS, propertyKey as ConsoleMethod)
   ) {
     const method = propertyKey as ConsoleMethod;
     const wrapper = capture.wrappers.get(method);
@@ -596,7 +607,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     ): boolean {
       if (
         isConsoleTarget(target) &&
-        includesArray(methods, propertyKey as ConsoleMethod)
+        includesArray(CONSOLE_METHODS, propertyKey as ConsoleMethod)
       ) {
         try {
           Object.defineProperty(target, propertyKey, attributes);
@@ -614,7 +625,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       source: U,
     ): T & U {
       if (isConsoleTarget(target) && source && typeof source === "object") {
-        for (const method of methods) {
+        for (const method of CONSOLE_METHODS) {
           const value = (source as Record<string, unknown>)[method];
 
           if (typeof value === "function") {
@@ -650,7 +661,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
         get: () => capturedConsole,
         set: (nextConsole: unknown) => {
           if (!nextConsole || typeof nextConsole !== "object") return;
-          for (const method of methods) {
+          for (const method of CONSOLE_METHODS) {
             const nextMethod = (nextConsole as Record<string, unknown>)[method];
             if (typeof nextMethod === "function") {
               const wrapper = this.wrappers.get(method);
@@ -709,9 +720,10 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
     const eventName = this.bridgeEventName;
     const onBridge = (event: Event): void => {
       if (!(event instanceof CustomEvent)) return;
-      const detail = event.detail as { level?: ConsoleLevel; args?: unknown[] } | null;
-      if (!detail || typeof detail.level !== "string" || !Array.isArray(detail.args)) return;
-      this.record(detail.level, detail.args);
+      const detail = event.detail as { method?: ConsoleMethodName; args?: unknown[] } | null;
+      if (!detail || typeof detail.method !== "string" || !Array.isArray(detail.args)) return;
+      if (!includesArray(CONSOLE_METHODS, detail.method)) return;
+      this.ingest(detail.method, detail.args);
     };
 
     document.addEventListener(eventName, onBridge as EventListener, true);
@@ -720,7 +732,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       const EVENT = ${JSON.stringify('${EVENT_NAME}')};
       const KEY = '__roderudaConsoleBridge__';
       if (window[KEY]?.event === EVENT) return;
-      const levels = ${JSON.stringify(['log','debug','trace','info','warn','error','dir','table'])};
+      const levels = ${JSON.stringify(CONSOLE_METHODS)};
       const preview = (value) => {
         if (value == null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
         if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack };
@@ -737,7 +749,7 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
           try {
             const previewedArgs = new Array(args.length);
             for (let index = 0; index < args.length; index++) previewedArgs[index] = preview(args[index]);
-            document.dispatchEvent(new CustomEvent(EVENT, { detail: { level, args: previewedArgs } }));
+            document.dispatchEvent(new CustomEvent(EVENT, { detail: { method: level, args: previewedArgs } }));
           } catch {}
           return Reflect.apply(original, console, args);
         };
@@ -799,86 +811,108 @@ export class ConsoleCapture extends Emitter<ConsoleCaptureEvents> {
       document.removeEventListener(eventName, onBridge as EventListener, true);
     };
   }
-  private handle(method: ConsoleMethod, args: unknown[]): void {
+  private handle(
+    method: ConsoleMethod,
+    args: unknown[],
+    extra: Partial<ConsoleRecord>,
+    state: ConsoleMethodState,
+  ): ConsoleRecord | undefined {
+    const record = (
+      level: ConsoleLevel,
+      values: unknown[],
+      recordExtra: Partial<ConsoleRecord> = {},
+    ): ConsoleRecord => this.record(level, values, {
+      ...extra,
+      ...recordExtra,
+      groupDepth: state.groupDepth,
+    });
+
     switch (method) {
       case "clear":
         this.clear();
-        return;
+        return undefined;
 
       case "group":
-      case "groupCollapsed":
-        this.record("log", args.length ? args : ["console.group"], {
+      case "groupCollapsed": {
+        const entry = record("log", args.length ? args : ["console.group"], {
           collapsed: method === "groupCollapsed",
         });
-        this.groupDepth += 1;
-        return;
+        state.groupDepth += 1;
+        return entry;
+      }
 
       case "groupEnd":
-        this.groupDepth = Math.max(0, this.groupDepth - 1);
-        return;
+        state.groupDepth = Math.max(0, state.groupDepth - 1);
+        return undefined;
 
       case "assert":
-        if (args[0]) return;
-        this.record("error", concatArrays(["Assertion failed"], drop(args, 1)));
-        return;
+        if (args[0]) return undefined;
+        return record("error", concatArrays(["Assertion failed"], drop(args, 1)));
 
       case "count": {
         const label = String(args[0] ?? "default");
-        const count = (this.counters.get(label) ?? 0) + 1;
-        this.counters.set(label, count);
-        this.record("info", [`${label}: ${count}`]);
-        return;
+        const count = (state.counters.get(label) ?? 0) + 1;
+        state.counters.set(label, count);
+        return record("info", [`${label}: ${count}`]);
       }
 
       case "countReset": {
         const label = String(args[0] ?? "default");
-        this.counters.set(label, 0);
-        this.record("info", [`${label}: 0`]);
-        return;
+        state.counters.set(label, 0);
+        return record("info", [`${label}: 0`]);
       }
 
       case "time": {
         const label = String(args[0] ?? "default");
-        this.timers.set(label, performance.now());
-        return;
+        state.timers.set(label, performance.now());
+        return undefined;
       }
 
       case "timeLog":
       case "timeEnd": {
         const label = String(args[0] ?? "default");
-        const start = this.timers.get(label);
+        const start = state.timers.get(label);
 
         if (start == null) {
-          this.record("warn", [`Timer '${label}' does not exist`]);
-          return;
+          return record("warn", [`Timer '${label}' does not exist`]);
         }
 
         const elapsed = performance.now() - start;
-        this.record("info", concatArrays([`${label}: ${elapsed.toFixed(3)} ms`], drop(args, 1)));
+        const entry = record(
+          "info",
+          concatArrays([`${label}: ${elapsed.toFixed(3)} ms`], drop(args, 1)),
+        );
 
-        if (method === "timeEnd") {
-          this.timers.delete(label);
-        }
-
-        return;
+        if (method === "timeEnd") state.timers.delete(label);
+        return entry;
       }
 
+      case "timeStamp":
+        return record("info", [args[0] == null ? "Timestamp" : `Timestamp: ${String(args[0])}`]);
+
+      case "profile":
+        return record("info", [args[0] == null ? "Profile started" : `Profile started: ${String(args[0])}`]);
+
+      case "profileEnd":
+        return record("info", [args[0] == null ? "Profile ended" : `Profile ended: ${String(args[0])}`]);
+
       case "table":
-        this.record("table", args);
-        return;
+        return record("table", args);
 
       case "dir":
-        this.record("dir", args);
-        return;
+      case "dirxml":
+        return record("dir", args);
 
       case "trace":
-        this.record("trace", args.length ? args : ["console.trace"], {
-          stack: new Error("console.trace").stack,
+        return record("trace", args.length ? args : ["console.trace"], {
+          stack: extra.stack ?? new Error("console.trace").stack,
         });
-        return;
+
+      case "exception":
+        return record("error", args);
 
       default:
-        this.record(method, args);
+        return record(method, args);
     }
   }
 
