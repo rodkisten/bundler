@@ -350,3 +350,7 @@ function bodyToText(body: unknown): string | undefined {
     return String(body);
   }
 }
+
+
+/** Shared page-realm capture used by Network and Resources. */
+export const sharedNetworkCapture = new NetworkCapture();
