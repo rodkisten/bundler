@@ -249,7 +249,7 @@ export const MaquinaInput = styled.textarea("MaquinaInput").css`
     calc($$gutterWidth + 16px)
 
   overscroll-behavior: contain
-  scrollbar-gutter: stable
+  scrollbar-gutter: auto
   resize: none
 
   border: 0;
