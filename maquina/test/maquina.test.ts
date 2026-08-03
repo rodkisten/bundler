@@ -182,6 +182,54 @@ describe("Maquina", () => {
     },
   );
 
+  it("keeps the native textarea and highlighted projection byte-for-byte aligned", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const source = [
+      "const machine = {",
+      "  name: 'Máquina',",
+      "",
+      "  run() { return true; }",
+      "};",
+    ].join("\n");
+
+    mountMaquina({
+      parent,
+      value: source,
+      language: "javascript",
+    });
+
+    const textarea = parent.querySelector("textarea")!;
+    const highlighted = Array.from(
+      parent.querySelectorAll<HTMLElement>("[data-maquina-line-code]"),
+    ).map((line) => line.textContent ?? "").join("\n");
+
+    expect(textarea.wrap).toBe("off");
+    expect(highlighted).toBe(source);
+  });
+
+  it("does not open runtime completions when a tap only moves the caret", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+
+    mountMaquina({
+      parent,
+      value: "const machine = window;",
+      language: "javascript",
+    });
+
+    const textarea = parent.querySelector("textarea")!;
+    const listbox = parent.querySelector<HTMLElement>("[role='listbox']")!;
+
+    textarea.setSelectionRange(6, 6);
+    textarea.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(textarea.getAttribute("aria-expanded")).toBe("false");
+    expect(listbox.hidden).toBe(true);
+    expect(listbox.childElementCount).toBe(0);
+  });
+
   it("renders token text without template whitespace or host span leakage", () => {
     const hostStyle = document.createElement("style");
     hostStyle.textContent = "span { display: block; margin: 20px; letter-spacing: 1em; }";

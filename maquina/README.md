@@ -8,7 +8,7 @@ Máquina is a small, dependency-free browser code editor built with **Fábrica**
 - JavaScript, JSON, HTML, CSS and plain-text highlighting.
 - Completion providers plus lexical-scope and browser-runtime suggestions.
 - Accessible, keyboard and touch-scrollable completion listbox.
-- Line numbers enabled by default with wrapped-row alignment.
+- Line numbers enabled by default with exact native-input alignment.
 - Smart completion placement constrained by the mobile visual viewport.
 - Theme switching at runtime.
 - Read-only source viewer mode.
@@ -68,10 +68,17 @@ editor.setTheme("forest");
 ## Safari caret and font metrics
 
 The editor does not scale the textarea or its root with CSS transforms. The
-native input and syntax layer use identical font, line-height, padding, wrapping,
-and gutter metrics. `fontSize` is applied natively to both layers, keeping cursor
-positions, selections and syntax highlighting aligned. For editable mobile
-surfaces, use `16px` when avoiding Safari focus zoom is more important than density.
+native input and syntax layer use identical font, line-height, padding, whitespace
+and gutter metrics. Highlight tokens are written with native `textContent`, so
+spaces and blank lines remain exactly equal to the textarea value. `fontSize` is
+applied natively to both layers, keeping cursor positions, selections and syntax
+highlighting aligned.
+
+Long lines use horizontal scrolling by default because this is the most reliable
+mode for iOS caret geometry. Enable `lineWrapping: true` only when visual wrapping
+is required. For editable mobile surfaces, use `16px` when avoiding Safari focus
+zoom is more important than density. A plain tap only places the caret; completion
+menus open from actual text input rather than from focus or cursor navigation.
 
 ## CSS-first atomic production build
 

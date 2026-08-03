@@ -1,4 +1,8 @@
 ## Unreleased
+- Rebuilt the highlighted text projection with native DOM text nodes so whitespace-only tokens and blank lines remain byte-for-byte identical to the textarea value. This fixes syntax-layer drift and invalid caret positions on iOS Safari.
+- Added self-contained critical editor styles for direct-source, Shadow DOM and userscript consumers, with identical native textarea/highlight metrics and syntax token colors even when Cipó CSS extraction is unavailable.
+- Made long-line no-wrap mode the stable default, kept wrapping as an explicit option, and stopped opening browser-runtime completions from a plain tap or cursor-navigation key.
+- Added regression coverage for exact source projection, default wrapping and tap-safe completion behavior.
 - Migrated Maquina's real editor styles to Cipó's legacy and modern syntax together, including legacy `@with($alias)`, standalone CSS-first helpers, typed/runtime `$$` properties, `text()`, `fluid()`, Fábrica selectors, `state()`, `peer()`, and `slot()`.
 - Restored `configureFromCss(maquinaCipoConfigCss)` for direct source/package consumers and marked the binding for Vite production lowering, preserving parser-free production builds while keeping runtime/build configuration parity.
 - Fixed the line-grid `grid-template-columns` declaration so `minmax(...)` remains part of the property value instead of being parsed as a standalone declaration helper.
