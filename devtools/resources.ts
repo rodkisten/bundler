@@ -1,10 +1,11 @@
 import { signal } from "@rodkisten/broto";
 import type { Cleanup, RenderValue } from "@rodkisten/fabrica";
 import { ConfigStore } from "@rodkisten/devtools/core/config";
+import { sharedNetworkCapture } from "@rodkisten/devtools/core/network-capture";
 import { icon, isDevtoolsNode, truncate } from "@rodkisten/devtools/utils";
 import { plainText } from "@rodkisten/devtools/core/serialize";
 import { Tool } from "@rodkisten/devtools/tool";
-import type { ResourcesConfig, ResourcesContextValue, SourcePayload, ToolContext } from "@rodkisten/devtools/types";
+import type { NetworkRecord, ResourcesConfig, ResourcesContextValue, SourcePayload, ToolContext } from "@rodkisten/devtools/types";
 import { event, html, render } from "@rodkisten/devtools/core/runtime";
 import { mountCodeEditor, type CodeEditorHandle } from "@rodkisten/devtools/core/code-editor";
 import { resourcesStyleArtifacts, ResourcesContext } from "@rodkisten/devtools/panels/resources-components";
@@ -63,6 +64,10 @@ export class Resources extends Tool {
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
     this.config.on("change", this.onConfigChange);
+    sharedNetworkCapture.install();
+    sharedNetworkCapture.on("request", this.onNetworkChange);
+    sharedNetworkCapture.on("update", this.onNetworkChange);
+    sharedNetworkCapture.on("clear", this.onNetworkChange);
     this.applyTweakVariables();
     this.registerSettings(context);
   }
@@ -91,6 +96,7 @@ export class Resources extends Tool {
       ${this.storageSection("Session Storage", "session", safeStorage("session"))}
       ${this.cookieSection(parseCookies())}
       ${this.capabilitySection()}
+      ${this.networkEventsSection()}
       ${this.linkSection("Scripts", "script", this.scriptUrls())}
       ${this.linkSection("Stylesheets", "style", this.stylesheetUrls())}
       ${this.linkSection("Iframes", "iframe", this.iframeUrls())}
@@ -123,12 +129,58 @@ export class Resources extends Tool {
     this.observer = null;
     window.clearTimeout(this.refreshTimer);
     this.config.off("change", this.onConfigChange);
+    sharedNetworkCapture.off("request", this.onNetworkChange);
+    sharedNetworkCapture.off("update", this.onNetworkChange);
+    sharedNetworkCapture.off("clear", this.onNetworkChange);
 
     this.contentDispose?.();
     this.contentDispose = null;
     this.contentRoot = null;
     this.closeJsonEditor();
     super.destroy();
+  }
+
+
+  private readonly onNetworkChange = (): void => {
+    if (this.active) this.scheduleRefresh();
+  };
+
+  private networkEventsSection(): RenderValue {
+    const records = filterArray(sharedNetworkCapture.requests(), (record) => record.kind === "fetch" || record.kind === "xhr");
+    const recent = take(records.slice().reverse(), 200);
+
+    return html`
+      <ResourcesSection :section="network-events" draggable="true">
+        <ResourcesSectionTitle>
+          <span :sectionDragHandle aria-label="Drag section">⋮⋮</span>
+          <span>Fetch / XHR (${records.length})</span>
+          <ResourcesSectionActions>
+            <ResourcesIconButton type="button" title="Refresh" @click=${event.click(() => this.refresh())}>${icon("refresh")}</ResourcesIconButton>
+          </ResourcesSectionActions>
+        </ResourcesSectionTitle>
+        <ResourcesTableWrap>
+          <ResourcesTable>
+            <thead><tr><th>Request</th><th>Body</th><th>Response</th></tr></thead>
+            <tbody>
+              ${recent.length ? mapArray(recent, (record) => this.networkEventRow(record)) : html`<tr><td colspan="3">No captured fetch/XHR events</td></tr>`}
+            </tbody>
+          </ResourcesTable>
+        </ResourcesTableWrap>
+      </ResourcesSection>
+    `;
+  }
+
+  private networkEventRow(record: NetworkRecord): RenderValue {
+    const request = `${record.method} ${record.url}`;
+    const requestBody = record.requestBody ?? "";
+    const responseBody = record.responseBody ?? (record.state === "pending" ? "Pending…" : "");
+    return html`
+      <tr>
+        <td title=${request}>${truncate(request, 160)}</td>
+        <td><pre style="margin:0;white-space:pre-wrap;word-break:break-word;max-width:36vw">${truncate(requestBody, 20_000)}</pre></td>
+        <td><pre style="margin:0;white-space:pre-wrap;word-break:break-word;max-width:44vw">${truncate(responseBody, 40_000)}</pre></td>
+      </tr>
+    `;
   }
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
