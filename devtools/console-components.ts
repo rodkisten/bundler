@@ -102,7 +102,7 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
-  padding: 66px var(--rd-panel-padding, 12px) calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
+  padding: 45px 0 calc(var(--rd-console-bottom-padding, 84px) + var(--rd-safe-bottom));
   text(12px / 1.5)
   font-family: $font.mono
   user-select: text;
@@ -111,25 +111,20 @@ export const ConsoleList = styled.div("RodConsoleList").css`
 
 export const ConsoleRow = styled.div("RodConsoleRow").css`
   position: relative;
-  min-height: 31px;
-  margin: 0 0 var(--rd-console-row-gap, 8px);
-  padding: var(--rd-console-row-padding, 10px) 42px var(--rd-console-row-padding, 10px) calc(13px + var(--rd-console-depth, 0) * 14px);
-  border: 1px solid alpha($border / 72%);
-  border-radius: $md;
-  border-bottom: 1px solid alpha($border / 65%);
+  min-height: 24px;
+  margin: 0;
+  padding: 3px 8px 3px calc(8px + var(--rd-console-depth, 0) * 14px);
+  border: 0;
+  border-bottom: 1px solid alpha($border / 58%);
+  border-radius: 0;
   color: $foreground;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  cursor: pointer;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: var(--rd-console-preview-lines, 6);
-  overflow: hidden;
+  overflow: visible;
+  cursor: text;
 
-  state(expanded=true) {
-    display: block
-    -webkit-line-clamp: unset
-    overflow: visible
+  x:hover {
+    bg: alpha($highlight / 42%)
   }
 
   variant(level) {
@@ -138,13 +133,13 @@ export const ConsoleRow = styled.div("RodConsoleRow").css`
 
     warn {
       color: $warningFg
-      border-color: $warningBorder
+      border-bottom-color: $warningBorder
       bg: $warningBg
     }
 
     error {
       color: $errorFg
-      border-color: $errorBorder
+      border-bottom-color: $errorBorder
       bg: $errorBg
     }
 
