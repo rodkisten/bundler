@@ -9,15 +9,19 @@ import { filterArray, flatMap, joinArray, objectKeys } from "@rodkisten/nascente
 
 
 const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
-  min-width: 200px;
-  pointer-events: none;
   position: fixed;
-  inset: 0;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  pointer-events: none !important;
+  background: transparent !important;
   z-index: var(--rd-z-container, 2147483510);
-  -webkit-transform: translate3d(0, 0, 0);
-  transform: translateZ(1px);
   isolation: isolate;
-  contain: layout style paint;
+  contain: style;
   color: $theme.colors.foreground;
   text(
     size: var(--rd-ui-font-size, 14px),
@@ -35,7 +39,9 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
     position: relative;
     width: 100%;
     height: 100%;
+    min-width: 200px;
     min-height: 320px;
+    overflow: hidden;
   }
 
   *,
@@ -45,7 +51,6 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
-    pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: none;
   }
@@ -78,6 +83,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   $interactive-surface
 
+  pointer-events: auto !important
   touch-action: none
   position: fixed
   width: var(--rd-entry-button-size, 24px)
@@ -118,8 +124,8 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
 `;
 
 const DevtoolsDock = styled.section("RodDevtoolsDock").css`
-  pointer-events: auto;
-  position: absolute;
+  pointer-events: none !important;
+  position: fixed;
   left: 0;
   bottom: calc(var(--rd-safe-bottom) + var(--rd-dock-bottom-gap, 0px));
   width: 100%;
@@ -129,9 +135,8 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   );
   max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
   z-index: var(--rd-z-dock, 2147483520);
-  display: block;
+  display: none;
   visibility: hidden;
-  padding-top: var(--rd-tab-height, $$tabHeight);
   opacity: 0;
   background: $background;
   border-top: 1px solid $border;
@@ -140,21 +145,26 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   overflow: hidden;
   contain: layout style paint;
   backdrop-filter: blur(var(--rd-blur, 0px));
+  touch-action: pan-y pan-x;
 
   container(devtoolsDock) {
     inline-size
   }
 
   state(active=true) {
+    display: block
     visibility: visible
+    pointer-events: auto !important
     opacity: var(--rd-transparency, .95)
   }
 
   state(inline=true) {
+    display: block
     position: absolute
     bottom: 0
     height: 100%
     visibility: visible
+    pointer-events: auto !important
     opacity: 1
   }
 `;
@@ -212,7 +222,10 @@ const ToolPanel = styled.section("RodDevtoolsToolPanel").css`
   inset: 0;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  touch-action: pan-y pan-x;
   background: $background;
 
   &[hidden] {
@@ -351,16 +364,17 @@ const DockActionButton = styled.button("RodDevtoolsDockActionButton").css`
 `;
 
 const Tools = styled.main("RodDevtoolsTools").css`
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: var(--rd-tab-height, $$tabHeight) 0 0;
+  width: auto;
+  height: auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 `;
 
 const Notifications = styled.div("RodDevtoolsNotifications").css`
-  position: absolute;
+  position: fixed;
   top: var(--rd-notification-top, 48px);
   left: 50%;
   z-index: var(--rd-z-notification, 2147483560);
@@ -375,7 +389,7 @@ const Notifications = styled.div("RodDevtoolsNotifications").css`
 `;
 
 const ModalRoot = styled.div("RodDevtoolsModalRoot").css`
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: var(--rd-z-modal, 2147483570);
   display: none;
