@@ -18,6 +18,13 @@ import {
   forceAppendToPage,
 } from "@rodkisten/devtools/core/dom";
 import { EntryBtn } from "@rodkisten/devtools/core/entry-button";
+import {
+  createExternalConsoleOrigin,
+  createExternalConsoleStream,
+  isConsoleLike,
+  isConsoleMethodName,
+} from "@rodkisten/devtools/core/external-console";
+import { createConsoleMethodState } from "@rodkisten/devtools/core/console-capture";
 import { sharedNetworkCapture } from "@rodkisten/devtools/core/network-capture";
 import { NativeProtocol } from "@rodkisten/devtools/core/protocol";
 import { styledRegistry } from "@rodkisten/devtools/core/runtime";
@@ -37,7 +44,7 @@ import {
   isDevtoolsNode,
   viewportScale,
 } from "@rodkisten/devtools/core/utils";
-import { Console } from "@rodkisten/devtools/panels/console";
+import { Console, sharedConsoleCapture } from "@rodkisten/devtools/panels/console";
 import { Elements } from "@rodkisten/devtools/panels/elements";
 import { Info } from "@rodkisten/devtools/panels/info";
 import { Network } from "@rodkisten/devtools/panels/network";
@@ -47,7 +54,14 @@ import { Snippets } from "@rodkisten/devtools/panels/snippets";
 import { Sources } from "@rodkisten/devtools/panels/sources";
 import { Tool } from "@rodkisten/devtools/tool";
 import type {
+  ConsoleLevel,
+  ConsoleLike,
+  ConsoleMethodName,
+  ConsoleRecord,
   DevtoolsInitOptions,
+  ExternalConsoleStream,
+  ExternalLogEntry,
+  ExternalLogStreamOptions,
   Position,
   ToolLike,
 } from "@rodkisten/devtools/types";
@@ -120,6 +134,14 @@ export interface RodDevtoolsApi {
   remove(name: string): RodDevtoolsApi;
   show(name?: string): RodDevtoolsApi;
   hide(): RodDevtoolsApi;
+  /** Appends an external record using native console method semantics. */
+  ingestLogs(method: ConsoleMethodName, ...args: unknown[]): ConsoleRecord | undefined;
+  /** Appends a structured external record. */
+  ingestLogs(entry: ExternalLogEntry): ConsoleRecord | undefined;
+  /** Creates a console-compatible stream and intercepts the supplied object. */
+  ingestLogs(consoleObject: ConsoleLike, options?: ExternalLogStreamOptions): ExternalConsoleStream;
+  /** Creates a console-compatible external stream. */
+  ingestLogs(options?: ExternalLogStreamOptions): ExternalConsoleStream;
   scale(): number;
   scale(value: number): RodDevtoolsApi;
   position(): Position | undefined;
@@ -149,6 +171,7 @@ type ResponsiveViewportResult = {
 
 declare global {
   interface Window {
+    DevTools?: RodDevtoolsApi;
     __GLOBAL_EVENTS_BAG__?: unknown[];
     __ROD_PRE_CAPTURE__?: PreCaptureBridge;
     __ROD_DEVTOOLS__?: RodDevtoolsApi;
@@ -475,6 +498,9 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   private disposeRoot: (() => void) | null = null;
   private hostObserver: MutationObserver | null = null;
   private viewportMetaCleanup: (() => void) | null = null;
+  private readonly externalLogStreams = new Set<ExternalConsoleStream>();
+  private readonly directExternalState = createConsoleMethodState();
+  private defaultExternalLogStream: ExternalConsoleStream | null = null;
 
   private readonly reattachHost = (): void => {
     if (typeof document === "undefined") return;
@@ -691,7 +717,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   }
 
   destroy(): this {
-    if (!this.initialized && !this.host) return this;
+    if (!this.initialized && !this.host) {
+      this.destroyExternalLogStreams();
+      return this;
+    }
 
     const finishDebug = debugGroup("runtime", "destroy");
 
@@ -704,6 +733,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.uninstallHostWatchdog();
     this.clearMountRetry();
     this.restoreViewportMeta();
+    this.destroyExternalLogStreams();
 
     if (this.ownsHost) this.host?.remove();
     else this.host?.replaceChildren();
@@ -779,6 +809,72 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.devtools?.hide();
 
     return this;
+  }
+
+  ingestLogs(method: ConsoleMethodName, ...args: unknown[]): ConsoleRecord | undefined;
+  ingestLogs(entry: ExternalLogEntry): ConsoleRecord | undefined;
+  ingestLogs(consoleObject: ConsoleLike, options?: ExternalLogStreamOptions): ExternalConsoleStream;
+  ingestLogs(options?: ExternalLogStreamOptions): ExternalConsoleStream;
+  ingestLogs(
+    input: ConsoleMethodName | ExternalLogEntry | ConsoleLike | ExternalLogStreamOptions = {},
+    ...rest: unknown[]
+  ): ConsoleRecord | ExternalConsoleStream | undefined {
+    if (isConsoleMethodName(input)) {
+      return this.getDefaultExternalLogStream().ingest(input, ...rest);
+    }
+
+    if (isConsoleLike(input)) {
+      const stream = createExternalConsoleStream(
+        sharedConsoleCapture,
+        {
+          ...(isExternalLogStreamOptions(rest[0]) ? rest[0] : {}),
+          console: input,
+        },
+      );
+      this.externalLogStreams.add(stream);
+      return stream;
+    }
+
+    if (isExternalLogEntry(input)) {
+      const args = input.args
+        ? toArray(input.args)
+        : "message" in input
+          ? [input.message]
+          : [];
+      const origin = createExternalConsoleOrigin(input.source, input.badge);
+      const extra: Partial<ConsoleRecord> = {
+        origin,
+        ...(typeof input.timestamp === "number"
+          ? { timestamp: input.timestamp }
+          : {}),
+        ...(input.stack ? { stack: input.stack } : {}),
+      };
+
+      if (input.method && isConsoleMethodName(input.method)) {
+        return sharedConsoleCapture.ingest(
+          input.method,
+          args,
+          extra,
+          this.directExternalState,
+        );
+      }
+
+      return sharedConsoleCapture.record(
+        isConsoleLevel(input.level) ? input.level : "log",
+        args,
+        {
+          ...extra,
+          groupDepth: this.directExternalState.groupDepth,
+        },
+      );
+    }
+
+    const stream = createExternalConsoleStream(
+      sharedConsoleCapture,
+      isExternalLogStreamOptions(input) ? input : {},
+    );
+    this.externalLogStreams.add(stream);
+    return stream;
   }
 
   scale(): number;
@@ -1219,6 +1315,34 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     this.ownsHost = false;
   }
 
+  private getDefaultExternalLogStream(): ExternalConsoleStream {
+    if (!this.defaultExternalLogStream || this.defaultExternalLogStream.destroyed) {
+      this.defaultExternalLogStream = createExternalConsoleStream(
+        sharedConsoleCapture,
+        { source: "external", badge: "ext" },
+      );
+      this.externalLogStreams.add(this.defaultExternalLogStream);
+    }
+
+    return this.defaultExternalLogStream;
+  }
+
+  private destroyExternalLogStreams(): void {
+    for (const stream of this.externalLogStreams) {
+      try {
+        stream.destroy();
+      } catch {
+        // External console restoration is best-effort during global teardown.
+      }
+    }
+
+    this.externalLogStreams.clear();
+    this.defaultExternalLogStream = null;
+    this.directExternalState.groupDepth = 0;
+    this.directExternalState.timers.clear();
+    this.directExternalState.counters.clear();
+  }
+
   private checkInitialized(): boolean {
     if (!this.initialized) {
       console.error('[RodEruda] Please call "devtools.init()" first');
@@ -1226,6 +1350,37 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
 
     return this.initialized;
   }
+}
+
+function isConsoleLevel(value: unknown): value is ConsoleLevel {
+  return value === "log" ||
+    value === "debug" ||
+    value === "trace" ||
+    value === "info" ||
+    value === "warn" ||
+    value === "error" ||
+    value === "table" ||
+    value === "dir" ||
+    value === "result" ||
+    value === "command" ||
+    value === "html";
+}
+
+function isExternalLogEntry(value: unknown): value is ExternalLogEntry {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as ExternalLogEntry;
+  return candidate.method != null || candidate.level != null || "message" in candidate || "args" in candidate;
+}
+
+function isExternalLogStreamOptions(value: unknown): value is ExternalLogStreamOptions {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as ExternalLogStreamOptions;
+  return (
+    "console" in candidate ||
+    "source" in candidate ||
+    "badge" in candidate ||
+    "passthrough" in candidate
+  );
 }
 
 type NormalizedInitOptions = RodDevtoolsInitOptions & {
