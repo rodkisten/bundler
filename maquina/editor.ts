@@ -17,7 +17,6 @@ import {
   event,
   html,
   maquinaFabrica,
-  MaquinaTokenText,
   ref,
 } from "@rodkisten/maquina/components";
 import { resolveMaquinaTheme } from "@rodkisten/maquina/theme";
@@ -81,6 +80,9 @@ type Dispose = () => void;
 export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   const initialTheme = resolveMaquinaTheme(options.theme, options.dark);
   const lineNumbers = options.lineNumbers !== false;
+  // Code editors are materially more reliable on iOS when long logical lines
+  // scroll horizontally. Wrapping remains available as an explicit opt-in.
+  const wraps = options.lineWrapping === true;
   const instanceId = ++editorInstanceId;
   const suggestionsId = `maquina-suggestions-${instanceId}`;
   const state = createMaquinaEditorState({
@@ -96,7 +98,6 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   let suggestionsRef: HTMLElement | null = null;
   let caretMirrorRef: HTMLDivElement | null = null;
   let caretMarkerRef: HTMLSpanElement | null = null;
-  let disposeHighlightContent: Dispose | undefined;
   let disposeSuggestionsContent: Dispose | undefined;
   let blurTimer: number | undefined;
   let completionVersion = 0;
@@ -205,9 +206,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   function onClick(): void {
     onSelectionChange();
 
-    if (options.activateCompletionOnTyping !== false) {
-      void requestCompletions();
-    }
+    // A tap is a caret-placement action, not an autocomplete request. Opening
+    // the complete browser runtime on focus covered the editor and made the
+    // native caret appear displaced on mobile Safari.
+    closeSuggestions();
   }
 
   function isolateKeyboardEvent(keyboardEvent: KeyboardEvent): void {
@@ -233,20 +235,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     isolateKeyboardEvent(keyboardEvent);
     onSelectionChange();
 
-    if (options.activateCompletionOnTyping === false) return;
-
-    switch (keyboardEvent.key) {
-      case "ArrowLeft":
-      case "ArrowRight":
-      case "ArrowUp":
-      case "ArrowDown":
-      case "Home":
-      case "End":
-      case "PageUp":
-      case "PageDown":
-        void requestCompletions();
-        break;
-    }
+    // Cursor navigation must not summon a popup. Completion is intentionally
+    // input-driven so touch caret placement remains visually stable on iOS.
   }
 
   function onKeyDown(keyboardEvent: KeyboardEvent): void {
@@ -418,14 +408,14 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
             aria-label=${options.ariaLabel ?? "Code editor"}
             aria-autocomplete="list"
             aria-controls=${suggestionsId}
-            aria-expanded="false"
+            aria-expanded=${() => String(state.open())}
             role="combobox"
             .spellcheck="false"
             .autocapitalize="off"
             .autocomplete="off"
             .autocorrect="off"
             .inputmode="text"
-            .wrap=${options.lineWrapping === false ? "off" : "soft"}
+            .wrap=${wraps ? "soft" : "off"}
             :gramm="false"
             :gramm_editor="false"
             :enable-grammarly="false"
@@ -515,6 +505,13 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
   visualViewport?.addEventListener("scroll", onViewportGeometryChange, {
     passive: true,
   });
+
+  mountedRoot.dataset.maquinaEditorInstance = String(instanceId);
+  mountedViewport.dataset.maquinaViewport = "";
+  mountedHighlight.dataset.maquinaHighlight = "";
+  mountedTextarea.dataset.maquinaInput = "";
+  mountedSuggestions.dataset.maquinaSuggestions = "";
+  installCriticalEditorStyles(mountedRoot, instanceId);
 
   mountedTextarea.value = options.value;
   applyTextareaSelection(mountedTextarea, {
@@ -658,48 +655,60 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       expectedLines,
     );
 
-    disposeHighlightContent?.();
-    disposeHighlightContent = undefined;
-    mountedHighlight.replaceChildren();
+    // Highlight text must be written through textContent. Fábrica intentionally
+    // normalizes whitespace-only template interpolations, which removed the
+    // spaces between tokens (for example `constmachine={`) and made the visual
+    // layer diverge from the native textarea/caret. Native DOM nodes preserve
+    // every code unit exactly and make the overlay a faithful projection.
+    const fragment = mountedHighlight.ownerDocument.createDocumentFragment();
 
-    disposeHighlightContent = maquinaFabrica.render(
-      mountedHighlight,
-      html`
-        ${visualLines.map(
-          (line) => html`
-            <MaquinaLine :maquinaLine=${String(line.number)}>
-              ${lineNumbers
-                ? html`
-                    <MaquinaLineNumber
-                      :maquinaLineNumber=${String(line.number)}
-                    >${String(line.number)}</MaquinaLineNumber>
-                  `
-                : ""}
-              <MaquinaCodeClip :maquinaCodeClip>
-                <MaquinaLineCode
-                  :maquinaLineCode=${String(line.number)}
-                >${line.tokens.length > 0
-                    ? line.tokens.map(
-                        (token) =>
-                          html`<MaquinaTokenText :token=${token.kind}>${token.value}</MaquinaTokenText>`,
-                      )
-                    : "\u200b"}</MaquinaLineCode>
-              </MaquinaCodeClip>
-            </MaquinaLine>
-          `,
-        )}
-      `,
-    );
+    for (const line of visualLines) {
+      const row = mountedHighlight.ownerDocument.createElement("div");
+      row.className = "MaquinaLine";
+      row.dataset.maquinaLine = String(line.number);
+
+      if (lineNumbers) {
+        const number = mountedHighlight.ownerDocument.createElement("span");
+        number.className = "MaquinaLineNumber";
+        number.dataset.maquinaLineNumber = String(line.number);
+        number.textContent = String(line.number);
+        row.append(number);
+      }
+
+      const clip = mountedHighlight.ownerDocument.createElement("span");
+      clip.className = "MaquinaCodeClip";
+      clip.dataset.maquinaCodeClip = "";
+
+      const code = mountedHighlight.ownerDocument.createElement("span");
+      code.className = "MaquinaLineCode";
+      code.dataset.maquinaLineCode = String(line.number);
+
+      if (line.tokens.length > 0) {
+        for (const token of line.tokens) {
+          const tokenNode = mountedHighlight.ownerDocument.createElement("span");
+          tokenNode.className = "MaquinaTokenText";
+          tokenNode.dataset.token = token.kind;
+          tokenNode.textContent = token.value;
+          code.append(tokenNode);
+        }
+      }
+
+      clip.append(code);
+      row.append(clip);
+      fragment.append(row);
+    }
+
+    mountedHighlight.replaceChildren(fragment);
     hardenHighlightRows(
       mountedHighlight,
       lineNumbers,
       mountedRoot.style.getPropertyValue("--maq-gutter-width") || "0px",
-      options.lineWrapping !== false,
+      wraps,
     );
   }
 
   function shouldVirtualizeHighlight(): boolean {
-    if (options.lineWrapping !== false) return false;
+    if (wraps) return false;
 
     let lines = 1;
     const value = state.value.peek();
@@ -792,6 +801,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     disposeSuggestionsContent = undefined;
     mountedSuggestions.replaceChildren();
     mountedSuggestions.hidden = true;
+    mountedSuggestions.style.setProperty("display", "none", "important");
     mountedTextarea.setAttribute("aria-expanded", "false");
     mountedTextarea.removeAttribute("aria-activedescendant");
   }
@@ -842,6 +852,8 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
     );
 
     mountedSuggestions.hidden = false;
+    mountedSuggestions.style.setProperty("display", "flex", "important");
+    hardenSuggestions(mountedSuggestions);
     mountedTextarea.setAttribute("aria-expanded", "true");
     syncActiveSuggestion();
     positionSuggestions();
@@ -862,6 +874,11 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
 
       node.dataset.active = String(active);
       node.setAttribute("aria-selected", String(active));
+      node.style.setProperty(
+        "background",
+        active ? "var(--maq-selection)" : "transparent",
+        "important",
+      );
 
       if (active) activeNode = node;
     }
@@ -922,10 +939,10 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       gap: POPUP_GAP,
     });
 
-    mountedSuggestions.style.left = `${placement.left}px`;
-    mountedSuggestions.style.top = `${placement.top}px`;
-    mountedSuggestions.style.width = `${placement.width}px`;
-    mountedSuggestions.style.maxHeight = `${placement.maxHeight}px`;
+    mountedSuggestions.style.setProperty("left", `${placement.left}px`, "important");
+    mountedSuggestions.style.setProperty("top", `${placement.top}px`, "important");
+    mountedSuggestions.style.setProperty("width", `${placement.width}px`, "important");
+    mountedSuggestions.style.setProperty("max-height", `${placement.maxHeight}px`, "important");
     mountedSuggestions.dataset.side = placement.side;
   }
 
@@ -1037,9 +1054,18 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       return;
     }
 
-    const version = ++completionVersion;
+    if (state.composing.peek()) return;
+
     const cursor = mountedTextarea.selectionStart;
+    const selectionEnd = mountedTextarea.selectionEnd;
     const value = mountedTextarea.value;
+
+    if (cursor !== selectionEnd || !hasCompletionTrigger(value, cursor, language)) {
+      closeSuggestions();
+      return;
+    }
+
+    const version = ++completionVersion;
     const context = createCompletionContext(value, cursor);
 
     try {
@@ -1206,9 +1232,7 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       resizeObserver?.disconnect();
       disposeDocumentViewEffect();
 
-      disposeHighlightContent?.();
       disposeSuggestionsContent?.();
-      disposeHighlightContent = undefined;
       disposeSuggestionsContent = undefined;
       caretMirrorRef?.remove();
       caretMirrorRef = null;
@@ -1216,6 +1240,221 @@ export function mountMaquina(options: MaquinaOptions): MaquinaHandle {
       disposeEditor();
     },
   };
+}
+
+
+/**
+ * Keeps the editor usable even when a consumer bundles Máquina without Cipó's
+ * build-time CSS extraction. The stylesheet lives inside the editor's own DOM
+ * tree, so it also works when the editor is mounted inside a closed ShadowRoot.
+ */
+function installCriticalEditorStyles(
+  root: HTMLElement,
+  instanceId: number,
+): void {
+  const style = root.ownerDocument.createElement("style");
+  const scope = `[data-maquina-editor-instance="${instanceId}"]`;
+
+  style.dataset.maquinaCriticalStyles = String(instanceId);
+  style.textContent = `
+    ${scope},
+    ${scope} * {
+      box-sizing: border-box !important;
+    }
+
+    ${scope} [data-maquina-highlight],
+    ${scope} [data-maquina-highlight] *,
+    ${scope} [data-maquina-input] {
+      font-family: var(--maq-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace) !important;
+      font-size: var(--maq-font-size, 16px) !important;
+      font-weight: 500 !important;
+      font-style: normal !important;
+      line-height: var(--maq-line-height, 24.8px) !important;
+      font-variant-ligatures: none !important;
+      font-kerning: none !important;
+      font-feature-settings: normal !important;
+      letter-spacing: 0 !important;
+      word-spacing: 0 !important;
+      text-indent: 0 !important;
+      text-transform: none !important;
+      font-synthesis: none !important;
+    }
+
+    ${scope} [data-maquina-input] {
+      -webkit-text-fill-color: transparent !important;
+      caret-color: var(--maq-foreground) !important;
+      scrollbar-gutter: auto !important;
+      overscroll-behavior: contain !important;
+    }
+
+    ${scope} [data-maquina-input]::selection {
+      background: var(--maq-selection) !important;
+    }
+
+    ${scope} [data-maquina-input]::placeholder {
+      color: var(--maq-muted) !important;
+      -webkit-text-fill-color: var(--maq-muted) !important;
+    }
+
+    ${scope} [data-token="plain"] { color: var(--maq-foreground) !important; }
+    ${scope} [data-token="keyword"] { color: var(--maq-keyword) !important; }
+    ${scope} [data-token="string"] { color: var(--maq-string) !important; }
+    ${scope} [data-token="number"] { color: var(--maq-number) !important; }
+    ${scope} [data-token="boolean"] { color: var(--maq-boolean) !important; }
+    ${scope} [data-token="comment"] { color: var(--maq-comment) !important; }
+    ${scope} [data-token="tag"] { color: var(--maq-tag) !important; }
+    ${scope} [data-token="attribute"] { color: var(--maq-attribute) !important; }
+    ${scope} [data-token="property"] { color: var(--maq-property) !important; }
+    ${scope} [data-token="punctuation"] { color: var(--maq-punctuation) !important; }
+
+    ${scope} [data-maquina-suggestions] {
+      position: absolute !important;
+      z-index: 20 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 1px !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      padding: 5px !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      overscroll-behavior: contain !important;
+      -webkit-overflow-scrolling: touch !important;
+      touch-action: pan-y !important;
+      border: 1px solid var(--maq-border) !important;
+      border-radius: 10px !important;
+      background: var(--maq-surface) !important;
+      color: var(--maq-foreground) !important;
+      box-shadow: 0 16px 44px rgb(0 0 0 / 38%) !important;
+      backdrop-filter: blur(16px) saturate(120%) !important;
+      -webkit-backdrop-filter: blur(16px) saturate(120%) !important;
+    }
+
+    ${scope} [data-maquina-suggestions][hidden] {
+      display: none !important;
+    }
+
+    ${scope} [data-maquina-suggestion-index] {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto !important;
+      align-items: center !important;
+      gap: 10px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 32px !important;
+      margin: 0 !important;
+      padding: 5px 8px !important;
+      border: 0 !important;
+      border-radius: 7px !important;
+      color: var(--maq-foreground) !important;
+      font: 12px/1.25 var(--maq-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace) !important;
+      text-align: left !important;
+      cursor: pointer !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      touch-action: pan-y !important;
+    }
+
+    ${scope} [data-maquina-suggestion-index] > span,
+    ${scope} [data-maquina-suggestion-index] > small {
+      display: block !important;
+      min-width: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      white-space: nowrap !important;
+      text-overflow: ellipsis !important;
+      font: inherit !important;
+    }
+
+    ${scope} [data-maquina-suggestion-index] > small {
+      max-width: 15ch !important;
+      color: var(--maq-muted) !important;
+      font-size: 10px !important;
+    }
+  `;
+
+  root.prepend(style);
+}
+
+/** Applies critical listbox geometry inline as a final defence against resets. */
+function hardenSuggestions(container: HTMLElement): void {
+  setImportantStyles(container, {
+    position: "absolute",
+    display: "flex",
+    flexDirection: "column",
+    gap: "1px",
+    minWidth: "0",
+    margin: "0",
+    padding: "5px",
+    overflowX: "hidden",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
+    touchAction: "pan-y",
+    zIndex: "20",
+    border: "1px solid var(--maq-border)",
+    borderRadius: "10px",
+    background: "var(--maq-surface)",
+    color: "var(--maq-foreground)",
+    boxShadow: "0 16px 44px rgb(0 0 0 / 38%)",
+  });
+  container.style.setProperty("-webkit-overflow-scrolling", "touch");
+  container.style.setProperty("-webkit-backdrop-filter", "blur(16px) saturate(120%)", "important");
+  container.style.setProperty("backdrop-filter", "blur(16px) saturate(120%)", "important");
+
+  for (const option of container.querySelectorAll<HTMLElement>("[data-maquina-suggestion-index]")) {
+    setImportantStyles(option, {
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr) auto",
+      alignItems: "center",
+      gap: "10px",
+      width: "100%",
+      minWidth: "0",
+      minHeight: "32px",
+      margin: "0",
+      padding: "5px 8px",
+      border: "0",
+      borderRadius: "7px",
+      background: "transparent",
+      color: "var(--maq-foreground)",
+      font: "12px/1.25 var(--maq-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
+      textAlign: "left",
+      cursor: "pointer",
+      userSelect: "none",
+      touchAction: "pan-y",
+    });
+    option.style.setProperty("-webkit-user-select", "none", "important");
+
+    for (const child of option.children) {
+      if (!(child instanceof HTMLElement)) continue;
+      setImportantStyles(child, {
+        display: "block",
+        minWidth: "0",
+        margin: "0",
+        padding: "0",
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        textOverflow: "ellipsis",
+      });
+    }
+  }
+}
+
+/** Prevents the runtime's entire property table from opening on a plain tap. */
+function hasCompletionTrigger(
+  value: string,
+  cursor: number,
+  language: MaquinaLanguage,
+): boolean {
+  if (cursor <= 0) return false;
+
+  const prefix = value.slice(0, cursor);
+
+  if (supportsRuntimeCompletions(language)) {
+    return /(?:[A-Za-z_$][\w$]*|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.[\w$]*)$/.test(prefix);
+  }
+
+  return /[^\s]{1,64}$/.test(prefix);
 }
 
 function createCompletionContext(
@@ -1362,6 +1601,9 @@ function copyTextareaMetrics(
     fontWeight: style.fontWeight,
     fontStyle: style.fontStyle,
     fontVariant: style.fontVariant,
+    fontVariantLigatures: style.fontVariantLigatures,
+    fontKerning: style.fontKerning,
+    fontFeatureSettings: style.fontFeatureSettings,
     lineHeight: style.lineHeight,
     letterSpacing: style.letterSpacing,
     wordSpacing: style.wordSpacing,
@@ -1468,8 +1710,9 @@ function applyEditorMetrics(
     MAX_FONT_SIZE,
   );
   const lineHeight = fontSize * 1.55;
-  const whiteSpace = options.lineWrapping === false ? "pre" : "pre-wrap";
-  const overflowWrap = options.lineWrapping === false ? "normal" : "anywhere";
+  const wraps = options.lineWrapping === true;
+  const whiteSpace = wraps ? "pre-wrap" : "pre";
+  const overflowWrap = wraps ? "break-word" : "normal";
   const fontFamily = "var(--maq-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)";
 
   setImportantStyles(root, {
@@ -1486,6 +1729,11 @@ function applyEditorMetrics(
     transformOrigin: "0 0",
     contain: "layout paint style",
     boxSizing: "border-box",
+    isolation: "isolate",
+    background: "var(--maq-background)",
+    color: "var(--maq-foreground)",
+    border: "1px solid var(--maq-border)",
+    borderRadius: "14px",
   });
 
   setImportantStyles(viewport, {
@@ -1497,10 +1745,12 @@ function applyEditorMetrics(
     overflow: "hidden",
     boxSizing: "border-box",
     touchAction: "pan-y pan-x",
+    overscrollBehavior: "contain",
   });
 
   root.style.setProperty("--maq-tab-size", String(tabSize));
   root.style.setProperty("--maq-font-size", `${fontSize}px`);
+  root.style.setProperty("--maq-line-height", `${lineHeight}px`);
   root.style.setProperty("--maq-white-space", whiteSpace);
   root.style.setProperty("--maq-overflow-wrap", overflowWrap);
 
@@ -1517,13 +1767,21 @@ function applyEditorMetrics(
     boxSizing: "border-box",
     pointerEvents: "none",
     userSelect: "none",
+    zIndex: "0",
+    color: "var(--maq-foreground)",
     fontFamily,
     fontSize: `${fontSize}px`,
     fontWeight: "500",
     fontStyle: "normal",
+    fontVariantLigatures: "none",
+    fontKerning: "none",
+    fontFeatureSettings: "normal",
     lineHeight: `${lineHeight}px`,
-    letterSpacing: "normal",
-    wordSpacing: "normal",
+    letterSpacing: "0px",
+    wordSpacing: "0px",
+    textAlign: "left",
+    direction: "ltr",
+    fontSynthesis: "none",
     textIndent: "0",
     whiteSpace,
     overflowWrap,
@@ -1559,9 +1817,15 @@ function applyEditorMetrics(
     fontSize: `${fontSize}px`,
     fontWeight: "500",
     fontStyle: "normal",
+    fontVariantLigatures: "none",
+    fontKerning: "none",
+    fontFeatureSettings: "normal",
     lineHeight: `${lineHeight}px`,
-    letterSpacing: "normal",
-    wordSpacing: "normal",
+    letterSpacing: "0px",
+    wordSpacing: "0px",
+    textAlign: "left",
+    direction: "ltr",
+    fontSynthesis: "none",
     textIndent: "0",
     textTransform: "none",
     whiteSpace,
@@ -1570,11 +1834,33 @@ function applyEditorMetrics(
     tabSize: String(tabSize),
     touchAction: "pan-y pan-x",
     userSelect: "text",
+    zIndex: "1",
+    opacity: "1",
+    textShadow: "none",
+    textDecoration: "none",
+    borderRadius: "0",
   });
+  root.style.setProperty("-webkit-text-size-adjust", "100%", "important");
+  highlight.style.setProperty("-webkit-text-size-adjust", "100%", "important");
+  textarea.style.setProperty("-webkit-text-size-adjust", "100%", "important");
+  textarea.style.setProperty("scrollbar-gutter", "auto", "important");
   textarea.style.setProperty("-webkit-text-fill-color", "transparent", "important");
   textarea.style.setProperty("-webkit-user-select", "text", "important");
   textarea.style.setProperty("-webkit-overflow-scrolling", "touch");
 }
+
+const TOKEN_COLOR_VARIABLES: Readonly<Record<string, string>> = Object.freeze({
+  plain: "--maq-foreground",
+  keyword: "--maq-keyword",
+  string: "--maq-string",
+  number: "--maq-number",
+  boolean: "--maq-boolean",
+  comment: "--maq-comment",
+  tag: "--maq-tag",
+  attribute: "--maq-attribute",
+  property: "--maq-property",
+  punctuation: "--maq-punctuation",
+});
 
 function hardenHighlightRows(
   highlight: HTMLElement,
@@ -1583,10 +1869,26 @@ function hardenHighlightRows(
   wraps: boolean,
 ): void {
   const whiteSpace = wraps ? "pre-wrap" : "pre";
-  const overflowWrap = wraps ? "anywhere" : "normal";
+  const overflowWrap = wraps ? "break-word" : "normal";
+  const style = highlight.ownerDocument.defaultView?.getComputedStyle(highlight);
+  const typography = {
+    fontFamily: style?.fontFamily || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: style?.fontSize || "16px",
+    fontWeight: style?.fontWeight || "500",
+    fontStyle: style?.fontStyle || "normal",
+    lineHeight: style?.lineHeight || "24.8px",
+    fontVariantLigatures: style?.fontVariantLigatures || "none",
+    fontKerning: style?.fontKerning || "none",
+    fontFeatureSettings: style?.fontFeatureSettings || "normal",
+    letterSpacing: "0px",
+    wordSpacing: "0px",
+    textIndent: "0",
+    textTransform: "none",
+  } satisfies Partial<Record<keyof CSSStyleDeclaration, string>>;
 
   for (const row of highlight.querySelectorAll<HTMLElement>("[data-maquina-line]")) {
     setImportantStyles(row, {
+      ...typography,
       display: "grid",
       gridTemplateColumns: lineNumbers
         ? `${gutterWidth || "0px"} minmax(0, 1fr)`
@@ -1603,6 +1905,7 @@ function hardenHighlightRows(
 
   for (const gutter of highlight.querySelectorAll<HTMLElement>("[data-maquina-line-number]")) {
     setImportantStyles(gutter, {
+      ...typography,
       display: "block",
       alignSelf: "stretch",
       margin: "0",
@@ -1612,6 +1915,8 @@ function hardenHighlightRows(
       borderBottom: "0",
       borderLeft: "0",
       boxSizing: "border-box",
+      background: "var(--maq-background)",
+      color: "var(--maq-muted)",
       textAlign: "right",
       whiteSpace: "nowrap",
       lineHeight: "inherit",
@@ -1620,6 +1925,7 @@ function hardenHighlightRows(
 
   for (const clip of highlight.querySelectorAll<HTMLElement>("[data-maquina-code-clip]")) {
     setImportantStyles(clip, {
+      ...typography,
       display: "block",
       minWidth: "0",
       margin: "0",
@@ -1631,16 +1937,13 @@ function hardenHighlightRows(
 
   for (const code of highlight.querySelectorAll<HTMLElement>("[data-maquina-line-code]")) {
     setImportantStyles(code, {
+      ...typography,
       display: "block",
       minWidth: "0",
       margin: "0",
       padding: "0 16px",
       border: "0",
       boxSizing: "border-box",
-      font: "inherit",
-      lineHeight: "inherit",
-      letterSpacing: "inherit",
-      wordSpacing: "inherit",
       whiteSpace,
       overflowWrap,
       wordBreak: "normal",
@@ -1649,18 +1952,17 @@ function hardenHighlightRows(
   }
 
   for (const token of highlight.querySelectorAll<HTMLElement>("[data-token]")) {
+    const kind = token.dataset.token ?? "plain";
+    const colorVariable = TOKEN_COLOR_VARIABLES[kind] ?? "--maq-foreground";
+
     setImportantStyles(token, {
+      ...typography,
       display: "inline",
       margin: "0",
       padding: "0",
       border: "0",
-      font: "inherit",
-      lineHeight: "inherit",
-      letterSpacing: "inherit",
-      wordSpacing: "inherit",
-      whiteSpace: "inherit",
-      textIndent: "0",
-      textTransform: "none",
+      color: `var(${colorVariable})`,
+      whiteSpace,
     });
   }
 }
