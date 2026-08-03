@@ -77,38 +77,43 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
 
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   $interactive-surface
-  @with(bg(black), rounded($panel))
 
   touch-action: none
   position: fixed
-  width: var(--rd-entry-button-size, $$entrySize)
-  height: var(--rd-entry-button-size, $$entrySize)
+  width: var(--rd-entry-button-size, 24px)
+  height: var(--rd-entry-button-size, 24px)
   display: grid
   place-items: center
-  color: white
-  $$shellReveal: .92
-  opacity: $$shellReveal
+  padding: 0
+  color: rgb(255 255 255 / .9)
+  background: rgb(16 16 20 / .34)
+  backdrop-filter: blur(12px) saturate(145%)
+  -webkit-backdrop-filter: blur(12px) saturate(145%)
+  opacity: .72
   z-index: var(--rd-z-entry, 2147483600)
   cursor: grab
-  text(25px / 1 / 800)
-  font-family: $font.ui
-  border: 2px solid rgb(255 255 255 / .72)
-  transition: opacity .25s, transform .15s, box-shadow .25s
-  box-shadow: 0 0 0 4px rgb(0 0 0 / .22), 0 10px 28px rgb(0 0 0 / .36)
+  border: 1px solid rgb(255 255 255 / .28)
+  rounded: $pill
+  transition: opacity .2s, transform .15s, background .2s
+  box-shadow: 0 4px 14px rgb(0 0 0 / .24)
+
+  svg {
+    width: 14px
+    height: 14px
+  }
 
   x:hover {
-    $$shellReveal: 1
-    transform: translateY(-1px) scale(1.04)
-    box-shadow: 0 0 0 5px rgb(255 255 255 / .18), 0 12px 32px rgb(0 0 0 / .38)
+    opacity: .94
+    background: rgb(16 16 20 / .52)
   }
 
   state(active=true) {
-    $$shellReveal: 1
+    opacity: 1
   }
 
   x:active {
     cursor: grabbing
-    transform: scale(.96)
+    transform: scale(.94)
   }
 `;
 

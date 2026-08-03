@@ -597,20 +597,6 @@ export class Elements extends Tool {
     const node = this.resolveNode(element.dataset.nodeId ?? "");
     if (!node) return;
 
-    if (
-      event.target instanceof Element
-      && event.target.hasAttribute("data-toggle-node")
-    ) {
-      if (this.expanded.has(node)) {
-        this.expanded.delete(node);
-      } else {
-        this.expanded.add(node);
-      }
-
-      this.invalidateTree();
-      return;
-    }
-
     this.detailsOpenState.set(false);
     this.select(node, {
       addHistory: true,
@@ -618,6 +604,15 @@ export class Elements extends Tool {
       reveal: false,
       highlight: false,
     });
+
+    // A single tap follows Eruda/DevTools semantics: select the node and
+    // expand or collapse its tree branch. Details remain a deliberate action.
+    if (node.childNodes.length > 0) {
+      if (this.expanded.has(node)) this.expanded.delete(node);
+      else this.expanded.add(node);
+      this.invalidateTree();
+    }
+
     this.invalidateDetail();
   }
 
@@ -853,6 +848,15 @@ export class Elements extends Tool {
         });
         break;
 
+      case "copy-text":
+        await copyText(node.textContent ?? "");
+        this.context?.notify("Text copied", { type: "success" });
+        break;
+
+      case "edit-html":
+        await this.editHtml(node);
+        break;
+
       case "edit-attributes":
         await this.editAttributes(node);
         break;
@@ -983,6 +987,24 @@ export class Elements extends Tool {
         expandAncestors: false,
         reveal: false,
       });
+    }
+  }
+
+  private async editHtml(element: Element): Promise<void> {
+    const next = await this.context?.prompt("Edit element HTML", element.outerHTML);
+    if (next == null || next === element.outerHTML) return;
+
+    try {
+      const template = document.createElement("template");
+      template.innerHTML = next.trim();
+      const replacement = template.content.firstElementChild;
+      if (!replacement) throw new Error("The HTML must contain one root element.");
+      element.replaceWith(replacement);
+      this.select(replacement, { addHistory: true, expandAncestors: true, reveal: true });
+      this.invalidateTree();
+      this.invalidateDetail();
+    } catch (error) {
+      this.context?.notify(plainText(error), { type: "error" });
     }
   }
 

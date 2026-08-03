@@ -1,7 +1,7 @@
 import { signal } from "@rodkisten/broto";
 import type { RenderValue } from "@rodkisten/fabrica";
 import { ConfigStore } from "@rodkisten/devtools/core/config";
-import { NetworkCapture } from "@rodkisten/devtools/core/network-capture";
+import { NetworkCapture, sharedNetworkCapture } from "@rodkisten/devtools/core/network-capture";
 import { copyText, icon } from "@rodkisten/devtools/utils";
 import { Tool } from "@rodkisten/devtools/tool";
 import { html } from "@rodkisten/devtools/core/runtime";
@@ -54,7 +54,7 @@ export class Network extends Tool {
     switchDetailTab: (tab) => this.switchDetailTab(tab),
   };
 
-  constructor(capture = new NetworkCapture()) {
+  constructor(capture = sharedNetworkCapture) {
     super();
     this.capture = capture;
     this.recording.set(capture.isRecording());

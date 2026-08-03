@@ -945,6 +945,8 @@ export const ElementsContextMenuView = component<{
     ["toggle-children", "Expand / collapse"],
     ["copy-element", "Copy element"],
     ["copy-selector", "Copy selector"],
+    ["copy-text", "Copy text"],
+    ["edit-html", "Edit HTML"],
     ["edit-attributes", "Edit attributes"],
     ["edit-props", "Edit props"],
     ["edit-class", "Edit class"],

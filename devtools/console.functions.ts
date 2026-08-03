@@ -13,28 +13,11 @@ const ConsoleRecordView = component<{
   record: ConsoleRecord;
   displayExtraInfo: boolean;
 }>("RodConsoleRecordView", function RodConsoleRecordView(props, ctx) {
-  const expanded = ctx.signal(false, { name: `console.record.${props.record.id}.expanded` });
-  const toggle = (): void => expanded.update((value) => !value);
-
   return html`
     <RodConsoleRow
       :level=${props.record.level}
       :recordId=${props.record.id}
-      :expanded=${expanded}
       style=${`--rd-console-depth: ${props.record.groupDepth}`}
-      tabindex="0"
-      role="button"
-      aria-expanded=${() => String(expanded())}
-      @click=${event.click((click) => {
-        const target = click.target;
-        if (target instanceof Element && target.closest("details,summary,a,button,input,textarea,select")) return;
-        toggle();
-      })}
-      @keydown=${event.keydown((keyboard) => {
-        if (keyboard.key !== "Enter" && keyboard.key !== " ") return;
-        keyboard.preventDefault();
-        toggle();
-      })}
     >
       ${(props.record.repeat ?? 1) > 1
         ? html`<RodConsoleRepeat>${String(props.record.repeat ?? 1)}</RodConsoleRepeat>`

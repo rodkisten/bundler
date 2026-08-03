@@ -138,12 +138,20 @@ export const devtoolsStyles = sheet.css`
    * making this a global rendering primitive rather than panel UI chrome.
    */
   details.roderuda-object {
-    display: inline;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+  }
+
+  details.roderuda-object[open] {
+    display: block;
   }
 
   details.roderuda-object > summary {
-    display: inline;
+    display: inline-block;
     cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
     list-style: none;
     color: $primary;
   }
@@ -166,8 +174,8 @@ export const devtoolsStyles = sheet.css`
   .roderuda-object-body {
     min-width: 0;
     max-width: 100%;
-    margin: 3px 0 3px 15px;
-    padding-left: 8px;
+    margin: 1px 0 1px 12px;
+    padding-left: 6px;
     overflow-wrap: anywhere;
     border-left: 1px solid $border;
   }
@@ -175,7 +183,7 @@ export const devtoolsStyles = sheet.css`
   .roderuda-object-row {
     min-width: 0;
     max-width: 100%;
-    min-height: 20px;
+    min-height: 18px;
     overflow-wrap: anywhere;
   }
 
