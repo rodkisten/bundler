@@ -53,7 +53,9 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   logPreviewLines: 6,
 });
 
-const sharedCapture = new ConsoleCapture();
+export const sharedConsoleCapture = new ConsoleCapture();
+
+const sharedCapture = sharedConsoleCapture;
 
 export class Console extends Tool {
   readonly name: string;
@@ -340,7 +342,11 @@ export class Console extends Tool {
     const filterValue = tracked ? this.state.filterValue() : this.state.filterValue.peek();
     if (!filterValue) return true;
     if (typeof filterValue === "function") return filterValue(record);
-    const text = mapJoinArray(record.args, plainText, " ");
+    const text = [
+      record.origin?.source,
+      record.origin?.label,
+      mapJoinArray(record.args, plainText, " "),
+    ].filter(Boolean).join(" ");
     if (filterValue instanceof RegExp) {
       filterValue.lastIndex = 0;
       return filterValue.test(text);
