@@ -30,4 +30,4 @@ export const DEVTOOLS_BUILD_INFO: DevtoolsBuildInfo = Object.freeze(
     : FALLBACK_BUILD_INFO,
 );
 
-export const DEVTOOLS_BUILD_BADGE = `${DEVTOOLS_BUILD_INFO.shortSha} · ${DEVTOOLS_BUILD_INFO.buildDateShort} ${DEVTOOLS_BUILD_INFO.buildTimeShort}`;
+export const DEVTOOLS_BUILD_BADGE = `${DEVTOOLS_BUILD_INFO.shortSha} <br> ${DEVTOOLS_BUILD_INFO.buildDateShort} ${DEVTOOLS_BUILD_INFO.buildTimeShort}`;
