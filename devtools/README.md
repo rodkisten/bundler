@@ -52,6 +52,63 @@ older launchers through `DevTools.api`, `DevTools.default`, `DevTools.devtools`,
 `globalThis.DevTools` explicitly so `@require` works even when a userscript
 manager wraps required files in an isolated function scope.
 
+### Public external log ingestion
+
+`DevTools.ingestLogs()` writes directly into the Console stream, including before
+`DevTools.init()` mounts the UI. Every ingested record receives a tiny `ext`
+badge; `source` is kept in the badge tooltip and is also searchable by the
+Console filter.
+
+```js
+// One direct record, using native console semantics.
+DevTools.ingestLogs("warn", "worker is slow", { elapsed: 824 });
+
+// Structured record with an explicit source and badge.
+DevTools.ingestLogs({
+  level: "info",
+  args: ["socket connected", { id: 42 }],
+  source: "realtime-client",
+  badge: "ws",
+});
+
+// A reusable console-compatible stream.
+const workerLogs = DevTools.ingestLogs({
+  source: "image-worker",
+  badge: "wrk",
+});
+
+workerLogs.group("decode");
+workerLogs.time("frame");
+workerLogs.log("started", { frame: 12 });
+workerLogs.append("info", "raw append in the current group");
+workerLogs.timeEnd("frame");
+workerLogs.groupEnd();
+
+// Patch an existing console-like object in place. Original methods continue
+// running by default, and destroy/restore puts every descriptor back.
+const stop = workerLogs.intercept(worker.console);
+stop();
+
+// Or intercept immediately while creating the stream.
+const sdkLogs = DevTools.ingestLogs(sdk.console, {
+  source: "vendor-sdk",
+  badge: "sdk",
+  passthrough: true,
+});
+
+sdkLogs.destroy();
+```
+
+`stream.append(level, ...args)` is the lowest-level append operation and keeps the
+stream's current group depth. `stream.ingest(method, ...args)` applies native
+console behavior explicitly.
+
+The stream supports the native console surface: `log`, `debug`, `trace`, `info`,
+`warn`, `error`, `dir`, `dirxml`, `table`, `assert`, counters, timers, groups,
+`timeStamp`, profiles, `exception`, and `clear`. Groups, timers and counters are
+isolated per external stream, so one source cannot corrupt another source's
+state or the page's own Console state.
+
 ## Styled CSS registry
 
 All DevTools panels keep using the shared `styled` factory from `core-runtime`.
