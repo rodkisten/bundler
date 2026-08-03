@@ -78,6 +78,43 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   button {
     @with($control-reset)
   }
+
+@media (max-width: 768px) {
+  :root {
+    /*
+     * Escala fluida no mobile:
+     * 320px → 0.75  → 12px visuais
+     * 768px → 0.875 → 14px visuais
+     */
+    --form-font-scale: clamp(
+      0.75,
+      calc(0.660714 + 2.790179vw),
+      0.875
+    );
+  }
+
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="color"],
+    [type="file"],
+    [type="button"],
+    [type="submit"],
+    [type="reset"]
+  ),
+  textarea,
+  select {
+    /* Mantém 16px computados para impedir o zoom do Safari/iOS */
+    font-size: 16px !important;
+
+    /* Escala visual equivalente a 12–14px */
+    scale: var(--form-font-scale) !important;
+
+    /* Evita o campo encolher em direção ao centro */
+    transform-origin: left center !important;
+  }
+}
 `;
 
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
