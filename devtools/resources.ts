@@ -132,6 +132,7 @@ export class Resources extends Tool {
     sharedNetworkCapture.off("request", this.onNetworkChange);
     sharedNetworkCapture.off("update", this.onNetworkChange);
     sharedNetworkCapture.off("clear", this.onNetworkChange);
+    sharedNetworkCapture.destroy();
 
     this.contentDispose?.();
     this.contentDispose = null;
@@ -175,12 +176,29 @@ export class Resources extends Tool {
     const requestBody = record.requestBody ?? "";
     const responseBody = record.responseBody ?? (record.state === "pending" ? "Pending…" : "");
     return html`
-      <tr>
+      <tr @click=${event.click(() => this.openNetworkSource(record))} style="cursor:pointer">
         <td title=${request}>${truncate(request, 160)}</td>
         <td><pre style="margin:0;white-space:pre-wrap;word-break:break-word;max-width:36vw">${truncate(requestBody, 20_000)}</pre></td>
         <td><pre style="margin:0;white-space:pre-wrap;word-break:break-word;max-width:44vw">${truncate(responseBody, 40_000)}</pre></td>
       </tr>
     `;
+  }
+
+  private openNetworkSource(record: NetworkRecord): void {
+    const body = record.responseBody ?? record.requestBody;
+    if (!body) {
+      this.context?.notify("No captured body for this request yet", { type: "warning" });
+      return;
+    }
+
+    const sources = this.context?.devtools.get("sources") as { set?: (payload: SourcePayload) => unknown } | undefined;
+    sources?.set?.({
+      type: "auto",
+      value: body,
+      url: record.url,
+      title: `${record.method} ${record.url}`,
+    });
+    this.context?.devtools.showTool("sources");
   }
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
