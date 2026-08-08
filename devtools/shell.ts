@@ -656,8 +656,8 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
         }}
       >
         ${icon("bug", {
-           width: 24,
-           height: 24,
+           width: 36,
+           height: 36,
         })}
       </RodDevtoolsEntryButton>
 
