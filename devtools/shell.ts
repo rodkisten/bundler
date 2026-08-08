@@ -715,7 +715,7 @@ component<ShellViewProps>("RodDevtoolsShell", function RodDevtoolsShell(props, c
               <RodDevtoolsTabLabel :slot="label">${() => item().title}</RodDevtoolsTabLabel>
             </RodDevtoolsTabButton>
           `)}
-          <RodDevtoolsBuildBadge :roderudaBuildBadge title=${`Build ${DEVTOOLS_BUILD_INFO.sha} · ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
+          <RodDevtoolsBuildBadge :roderudaBuildBadge title=${`build @ ${DEVTOOLS_BUILD_INFO.builtAtGmtMinus3}`}>${DEVTOOLS_BUILD_BADGE}</RodDevtoolsBuildBadge>
           <RodDevtoolsDockActionButton
             type="button"
             aria-label="Minimize developer tools"
