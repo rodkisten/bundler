@@ -96,7 +96,7 @@ export const ConsoleFilter = styled.input("RodConsoleFilter").css`
   border: 1px solid $border;
   border-radius: $pill;
   color: $primary;
-  background: $background;
+  background: alpha($background / 50%);
 `;
 
 export const ConsoleList = styled.div("RodConsoleList").css`
