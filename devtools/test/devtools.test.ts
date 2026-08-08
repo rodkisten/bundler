@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { polyfillBrowserApis } from "./_tests.setup";
-import devtools, { Console, Info, Settings, Snippets, Sources } from "@rodkisten/devtools";
+import devtools, { Console, Info, React as ReactPanel, Settings, Snippets, Sources } from "@rodkisten/devtools";
 
 
 describe("RodEruda native devtools", () => {
@@ -21,6 +21,7 @@ describe("RodEruda native devtools", () => {
     devtools.init({ autoScale: false });
     expect(devtools.isInitialized()).toBe(true);
     expect(devtools.get("console")).toBeInstanceOf(Console);
+    expect(devtools.get("react")).toBeInstanceOf(ReactPanel);
     expect(devtools.get("sources")).toBeInstanceOf(Sources);
     expect(devtools.get("info")).toBeInstanceOf(Info);
     expect(devtools.get("snippets")).toBeInstanceOf(Snippets);
