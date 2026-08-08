@@ -29,7 +29,7 @@ export const ConsoleSurface = styled.div("RodConsoleSurface").css`
 `;
 
 export const ConsoleControl = styled.div("RodConsoleControl").css`
-  position: fixed;
+  position: absolute;
   inset: 0 0 auto 0;
   z-index: var(--rd-z-toolbar, 2147483530);
   display: flex;
