@@ -24,8 +24,8 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   contain: style;
   color: $theme.colors.foreground;
   text(
-    size: var(--rd-ui-font-size, 14px),
-    lh: 1.35,
+    size: var(--rd-ui-font-size, 12px),
+    lh: 1.15,
     family: $font.ui
   )
   direction: ltr;
@@ -123,8 +123,8 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   pointer-events: auto !important
   touch-action: none
   position: fixed
-  width: var(--rd-entry-button-size, 24px)
-  height: var(--rd-entry-button-size, 24px)
+  width: var(--rd-entry-button-size, 36px)
+  height: var(--rd-entry-button-size, 36px)
   display: grid
   place-items: center
   padding: 0
@@ -141,8 +141,8 @@ const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
   box-shadow: 0 4px 14px rgb(0 0 0 / .24)
 
   svg {
-    width: 14px
-    height: 14px
+    width: 24px
+    height: 24px
   }
 
   x:hover {
