@@ -173,6 +173,8 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
   z-index: var(--rd-z-dock, 2147483520);
   display: none;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--rd-tab-height, 40px) minmax(0, 1fr);
   visibility: hidden;
   opacity: 0;
   background: $background;
@@ -189,14 +191,14 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   }
 
   state(active=true) {
-    display: block
+    display: grid
     visibility: visible
     pointer-events: auto !important
     opacity: var(--rd-transparency, .95)
   }
 
   state(inline=true) {
-    display: block
+    display: grid
     position: absolute
     bottom: 0
     height: 100%
@@ -229,11 +231,22 @@ const Resizer = styled.div("RodDevtoolsResizer").css`
 `;
 
 const Tabbar = styled.nav("RodDevtoolsTabbar").css`
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: var(--rd-tab-height, $$tabHeight);
+  /*
+   * Keep the panel switcher in its own grid row.
+   *
+   * Older builds positioned both the tab bar and the tool viewport absolutely.
+   * On iOS/Safari a bad/custom-property layout pass could resolve the viewport
+   * to top:0 and let an active panel paint over every tab. The dock is now a
+   * two-row grid, so a panel can never geometrically occupy the tab row.
+   */
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  z-index: var(--rd-z-tabbar, 2147483540);
+  width: 100%;
+  min-width: 0;
+  height: var(--rd-tab-height, 40px);
+  min-height: var(--rd-tab-height, 40px);
   display: flex;
   align-items: stretch;
   overflow-x: auto;
@@ -243,6 +256,9 @@ const Tabbar = styled.nav("RodDevtoolsTabbar").css`
   border-bottom: 1px solid $border;
   color: $primary;
   overscroll-behavior-x: contain;
+  isolation: isolate;
+  pointer-events: auto !important;
+  touch-action: pan-x;
 
   group(dock, active=true) {
     visibility: visible
@@ -401,13 +417,17 @@ const DockActionButton = styled.button("RodDevtoolsDockActionButton").css`
 `;
 
 const Tools = styled.main("RodDevtoolsTools").css`
-  position: absolute;
-  inset: var(--rd-tab-height, $$tabHeight) 0 0;
-  width: auto;
-  height: auto;
+  /* Dedicated second dock row. Do not overlap the tab bar on Safari. */
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  isolation: isolate;
 `;
 
 const Notifications = styled.div("RodDevtoolsNotifications").css`

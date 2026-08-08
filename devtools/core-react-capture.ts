@@ -406,15 +406,39 @@ export class ReactCapture {
   private readonly hostNodeResolvers = new Set<(fiber: ReactFiberLike) => unknown>();
 
   constructor() {
+    /*
+     * Module-evaluation capture must be extremely conservative. This code runs
+     * before the DevTools UI itself in document-start/userscript builds.
+     *
+     * In particular, DO NOT patch WeakMap.prototype here. Fábrica, Broto and
+     * the host application may all bootstrap through WeakMaps. Wrapping the
+     * intrinsic before those runtimes initialize is needlessly invasive and on
+     * mobile Safari can destabilize unrelated UI. The expensive/invasive
+     * fallbacks are installed only by an explicit React scan.
+     */
     this.installEarlyHooks();
   }
 
-  /** Installs/patches React hooks in every directly reachable page realm. */
+  /**
+   * Installs only the low-risk React DevTools hook bridge in directly reachable
+   * page realms. Safe to call at module evaluation/document-start.
+   */
   installEarlyHooks(): void {
     for (const realm of this.realmCandidates()) {
       this.ensureHook(realm);
-      this.installWeakMapProbe(realm);
+    }
+  }
+
+  /**
+   * Enables fallbacks that intentionally monkey-patch host APIs. This is kept
+   * separate from `installEarlyHooks()` so merely loading Rod DevTools cannot
+   * perturb a non-React page or the DevTools renderer itself.
+   */
+  installAggressiveFallbacks(): void {
+    for (const realm of this.realmCandidates()) {
+      this.ensureHook(realm);
       this.instrumentReactDomGlobals(realm);
+      this.installWeakMapProbe(realm);
     }
   }
 
@@ -468,14 +492,12 @@ export class ReactCapture {
     };
   }
 
-  /** Re-patches replaced hooks and harvests renderer/root registries without scanning the DOM. */
+  /** Re-patches replaced hooks and harvests renderer/root registries without invasive host patches. */
   reconcileHooks(): void {
     const errors: string[] = [];
     const strategies = new Set<string>();
     for (const realm of this.realmCandidates()) {
       this.ensureHook(realm);
-      this.installWeakMapProbe(realm);
-      this.instrumentReactDomGlobals(realm);
       this.harvestHook(realm, errors, strategies);
     }
   }
