@@ -17,6 +17,8 @@ import api, {
   isDarkTheme,
   NativeProtocol,
   Network,
+  React as ReactPanel,
+  sharedReactCapture,
   resolveTheme,
   Resources,
   Settings,
@@ -57,6 +59,8 @@ export interface DevtoolsBrowserGlobal extends RodDevtoolsApi {
   readonly DevTools: typeof DevToolsController;
   readonly EntryBtn: typeof EntryBtn;
   readonly NativeProtocol: typeof NativeProtocol;
+  readonly React: typeof ReactPanel;
+  readonly reactCapture: typeof sharedReactCapture;
   readonly themes: typeof themes;
   readonly applyTheme: typeof applyTheme;
   readonly resolveTheme: typeof resolveTheme;
@@ -85,6 +89,8 @@ class RodDevtoolsBrowserGlobal implements DevtoolsBrowserGlobal {
   readonly Console = Console;
   readonly Elements = Elements;
   readonly Network = Network;
+  readonly React = ReactPanel;
+  readonly reactCapture = sharedReactCapture;
   readonly Sources = Sources;
   readonly Resources = Resources;
   readonly Info = Info;
@@ -170,6 +176,7 @@ const browserGlobal: DevtoolsBrowserGlobal = new RodDevtoolsBrowserGlobal();
 const browserScope = globalThis as typeof globalThis & {
   DevTools?: DevtoolsBrowserGlobal;
   __ROD_DEVTOOLS__?: RodDevtoolsApi;
+  __ROD_REACT_DEVTOOLS__?: typeof sharedReactCapture;
 };
 
 /*
@@ -179,5 +186,6 @@ const browserScope = globalThis as typeof globalThis & {
  */
 browserScope.DevTools = browserGlobal;
 browserScope.__ROD_DEVTOOLS__ = browserGlobal;
+browserScope.__ROD_REACT_DEVTOOLS__ = sharedReactCapture;
 
 export default browserGlobal;

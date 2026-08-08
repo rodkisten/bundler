@@ -1,3 +1,4 @@
+import { sharedReactCapture } from "@rodkisten/devtools/core/react-capture";
 import "@rodkisten/devtools/core/cipo-bootstrap";
 import {
   createDevtoolsContextValue,
@@ -48,6 +49,7 @@ import { Console, sharedConsoleCapture } from "@rodkisten/devtools/panels/consol
 import { Elements } from "@rodkisten/devtools/panels/elements";
 import { Info } from "@rodkisten/devtools/panels/info";
 import { Network } from "@rodkisten/devtools/panels/network";
+import { ReactPanel } from "@rodkisten/devtools/panels/react";
 import { Resources } from "@rodkisten/devtools/panels/resources";
 import { Settings } from "@rodkisten/devtools/panels/settings";
 import { Snippets } from "@rodkisten/devtools/panels/snippets";
@@ -121,6 +123,7 @@ export interface RodDevtoolsApi {
   readonly Console: typeof Console;
   readonly Elements: typeof Elements;
   readonly Network: typeof Network;
+  readonly React: typeof ReactPanel;
   readonly Sources: typeof Sources;
   readonly Resources: typeof Resources;
   readonly Info: typeof Info;
@@ -175,6 +178,7 @@ declare global {
     __GLOBAL_EVENTS_BAG__?: unknown[];
     __ROD_PRE_CAPTURE__?: PreCaptureBridge;
     __ROD_DEVTOOLS__?: RodDevtoolsApi;
+    __ROD_REACT_DEVTOOLS__?: typeof sharedReactCapture;
   }
 }
 
@@ -197,6 +201,7 @@ const util = Object.freeze({
 const defaultTools = [
   "console",
   "elements",
+  "react",
   "network",
   "resources",
   "sources",
@@ -207,6 +212,7 @@ const defaultTools = [
 const toolConstructors: Record<string, new () => ToolLike> = {
   console: Console,
   elements: Elements,
+  react: ReactPanel,
   network: Network,
   resources: Resources,
   sources: Sources,
@@ -476,6 +482,7 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
   readonly Console = Console;
   readonly Elements = Elements;
   readonly Network = Network;
+  readonly React = ReactPanel;
   readonly Sources = Sources;
   readonly Resources = Resources;
   readonly Info = Info;
@@ -525,6 +532,10 @@ class RodDevtoolsRuntime implements RodDevtoolsApi {
     if (typeof document === "undefined") {
       throw new Error("RodEruda requires a browser document");
     }
+
+    // Reconcile the React hook before any panel/UI work. In userscript page-world
+    // builds this catches renderers that inject while DevTools is mounting.
+    sharedReactCapture.installEarlyHooks();
 
     /*
      * Snapshot the boot buffer before touching console instrumentation. PRE
@@ -1639,10 +1650,13 @@ export const api = new RodDevtoolsRuntime();
 
 if (typeof window !== "undefined") {
   window.__ROD_DEVTOOLS__ = api;
+  window.__ROD_REACT_DEVTOOLS__ = sharedReactCapture;
 }
 
 export const devtools = api;
 export const eruda = api;
+
+export { sharedReactCapture };
 
 export {
   applyTheme,
@@ -1651,7 +1665,7 @@ export {
   Elements,
   EntryBtn,
   Info, isDarkTheme, NativeProtocol,
-  Network, resolveTheme, Resources,
+  Network, ReactPanel as React, resolveTheme, Resources,
   Settings,
   Snippets,
   Sources, themes, Tool

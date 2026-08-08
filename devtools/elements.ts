@@ -135,6 +135,12 @@ export class Elements extends Tool {
     return this.selectedState.peek();
   }
 
+  /** Public bridge used by other panels (React, Network, console DOM values). */
+  selectNode(node: Node | null): this {
+    this.select(node, { addHistory: true, expandAncestors: true, reveal: true, highlight: true });
+    return this;
+  }
+
   override init(container: HTMLElement, context: ToolContext): void {
     super.init(container, context);
 

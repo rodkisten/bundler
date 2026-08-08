@@ -191,6 +191,18 @@ export interface ElementsConfig {
   maxVisibleChildren: number;
 }
 
+export interface ReactConfig {
+  autoRefresh: boolean;
+  searchValues: boolean;
+  hideHostNodes: boolean;
+  maxVisibleFibers: number;
+  maxDomScanNodes: number;
+  maxGlobalProperties: number;
+  commitRefreshDelay: number;
+  highlightDuration: number;
+  fallbackPollMs: number;
+}
+
 export interface NetworkConfig {
   preserveLog: boolean;
   captureResponseBody: boolean;
@@ -253,6 +265,7 @@ export interface DevToolsConfig {
 export interface DevtoolsInitPanelConfig {
   readonly console?: Partial<ConsoleConfig>;
   readonly elements?: Partial<ElementsConfig>;
+  readonly react?: Partial<ReactConfig>;
   readonly network?: Partial<NetworkConfig>;
   readonly resources?: Partial<ResourcesConfig>;
   readonly sources?: Partial<SourcesConfig>;
