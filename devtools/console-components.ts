@@ -14,7 +14,7 @@ export const visibleLevels: readonly ConsoleLevel[] = ["debug", "log", "info", "
 /* *************** */
 
 export const ConsoleSurface = styled.div("RodConsoleSurface").css`
-  position: absolute;
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;
