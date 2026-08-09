@@ -13,11 +13,13 @@ const ConsoleRecordView = component<{
   record: ConsoleRecord;
   displayExtraInfo: boolean;
 }>("RodConsoleRecordView", function RodConsoleRecordView(props, ctx) {
+  const visualGroupDepth = Math.max(0, Math.min(3, Number(props.record.groupDepth) || 0));
+
   return html`
     <RodConsoleRow
       :level=${props.record.level}
       :recordId=${props.record.id}
-      style=${`--rd-console-depth: ${props.record.groupDepth}`}
+      style=${`--rd-console-depth: ${visualGroupDepth}`}
     >
       ${(props.record.repeat ?? 1) > 1
         ? html`<RodConsoleRepeat>${String(props.record.repeat ?? 1)}</RodConsoleRepeat>`

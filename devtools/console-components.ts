@@ -61,7 +61,8 @@ export const ConsoleSurface = styled.div("RodConsoleSurface").css`
   grid-template-rows:
     auto
     auto
-    minmax(0, 1fr);
+    minmax(0, 1fr)
+    auto;
 
   width: 100%;
   height: 100%;
@@ -332,13 +333,13 @@ export const ConsoleList = styled.div("RodConsoleList").css`
   min-height: 0;
 
   /*
-   * The JS prompt overlays the very bottom of the panel, so preserve enough
-   * room for the final record to remain fully visible.
+   * The REPL is a real grid row now, not an overlay. Keep only a small visual
+   * tail so the final log does not feel glued to the prompt.
    */
   padding:
-    3px
+    2px
     0
-    calc(38px + var(--rd-safe-bottom));
+    var(--rd-console-bottom-padding, 6px);
 
   overflow-x: hidden;
   overflow-y: auto;
@@ -375,19 +376,19 @@ export const ConsoleRow = styled.div("RodConsoleRow").css`
   min-width: 0;
   min-height: 24px;
 
-  margin: 0;
+  margin: 0 0 var(--rd-console-row-gap, 0px);
 
   /*
-   * Reserve the right side for ConsoleTime so timestamps never cover values.
+   * Keep logs dense on phones. Group indentation is deliberately shallow and
+   * is clamped by the renderer, preventing a page with many unbalanced
+   * console.group() calls from pushing every DevTools record halfway across
+   * the screen. Timestamps are opt-in, so do not reserve 62px permanently.
    */
   padding:
-    4px
-    62px
-    4px
-    calc(
-      8px +
-      var(--rd-console-depth, 0) * 12px
-    );
+    var(--rd-console-row-padding, 4px)
+    8px
+    var(--rd-console-row-padding, 4px)
+    calc(5px + var(--rd-console-depth, 0) * 7px);
 
   border: 0;
   border-left: 2px solid transparent;
@@ -608,10 +609,13 @@ export const ConsoleExternalBadge = styled.span(
 export const ConsoleTime = styled.span("RodConsoleTime").css`
   position: absolute;
 
-  top: 5px;
-  right: 7px;
+  top: 3px;
+  right: 5px;
 
   max-width: 52px;
+  padding-left: 5px;
+  border-radius: $sm;
+  background: alpha($background / 92%);
 
   overflow: hidden;
 
@@ -636,37 +640,49 @@ export const ConsoleTime = styled.span("RodConsoleTime").css`
 /* *********************** */
 
 export const ConsoleInputWrap = styled.div("RodConsoleInputWrap").css`
-  position: absolute;
-
-  right: 0;
-  bottom: 0;
-  left: 0;
+  position: relative;
+  grid-row: 4;
 
   z-index: var(--rd-z-sticky, 2147483540);
 
   display: flex;
   align-items: stretch;
 
+  width: 100%;
   min-width: 0;
-
-  height: calc(34px + var(--rd-safe-bottom));
+  min-height: calc(42px + var(--rd-safe-bottom));
+  height: calc(42px + var(--rd-safe-bottom));
 
   padding-bottom: var(--rd-safe-bottom);
 
   border-top: 1px solid alpha($border / 82%);
 
-  background: alpha($background / 96%);
+  background: alpha($background / 98%);
 
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+
+  &:focus-within {
+    border-top-color: alpha($accent / 56%);
+    background: $background;
+  }
 
   &:jsExecution='false' {
     !display: none
   }
 
+  /*
+   * Expanded editor is the only mode allowed to overlay the console. Normal
+   * REPL input is a dedicated grid row, so it can never be buried under logs
+   * or the Safari bottom toolbar while the panel itself remains visible.
+   */
   state(expanded=true) {
-    top: 0
-    h-full
+    position: absolute
+    inset: 0
+    z-index: var(--rd-z-sticky, 2147483540)
+    width: 100%
+    height: 100%
+    min-height: 100%
     p: 0 0 calc(46px + var(--rd-safe-bottom))
     bg: $background
   }
@@ -677,7 +693,7 @@ export const ConsolePrompt = styled.span("RodConsolePrompt").css`
   flex: 0 0 auto;
   place-items: center;
 
-  width: 27px;
+  width: 30px;
 
   color: $accent;
 
@@ -694,7 +710,7 @@ export const ConsoleInput = styled.textarea("RodConsoleInput").css`
   width: 100%;
   min-width: 0;
 
-  padding: 6px 6px 4px 0;
+  padding: 8px 8px 6px 0;
 
   resize: none;
 
@@ -745,7 +761,7 @@ export const ConsoleCodeEditorHost = styled.div(
   .cm-content {
     min-height: 100%;
 
-    padding: 8px 8px 8px 0;
+    padding: 8px 8px 8px 2px;
   }
 `;
 
@@ -1061,12 +1077,12 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
           },
         )}
       </RodConsoleList>
-    </RodConsoleSurface>
 
-    <!--
-      JavaScript prompt remains fixed at the bottom of the console panel.
-    -->
-    <RodConsoleInputWrap
+      <!--
+        JavaScript prompt is the fourth grid row. It remains reachable on iOS
+        without overlaying the final log record.
+      -->
+      <RodConsoleInputWrap
       :jsExecution=${state.jsExecution}
       :expanded=${state.editorExpanded}
       :consoleInputWrap
@@ -1151,6 +1167,7 @@ component("RodConsoleView", function RodConsoleView(_props, ctx) {
           Run
         </RodConsoleEditorButton>
       </RodConsoleEditorActions>
-    </RodConsoleInputWrap>
+      </RodConsoleInputWrap>
+    </RodConsoleSurface>
   `;
 });

@@ -45,9 +45,9 @@ const DEFAULT_CONSOLE_CONFIG: Readonly<ConsoleConfig> = Object.freeze({
   captureLockConsole: false,
   historyLimit: 100,
   hiddenErrorNoticeDelay: 350,
-  logRowGap: 8,
-  logRowPadding: 10,
-  listBottomPadding: 84,
+  logRowGap: 0,
+  logRowPadding: 4,
+  listBottomPadding: 6,
   filterMinWidth: 150,
   editorMinHeight: 120,
   logPreviewLines: 6,
@@ -322,9 +322,17 @@ export class Console extends Tool {
   private applyTweakVariables(): void {
     const target = this.container;
     if (!target) return;
-    target.style.setProperty("--rd-console-row-gap", `${this.config.get("logRowGap")}px`);
-    target.style.setProperty("--rd-console-row-padding", `${this.config.get("logRowPadding")}px`);
-    target.style.setProperty("--rd-console-bottom-padding", `${this.config.get("listBottomPadding")}px`);
+
+    // Older persisted settings used very large spacing because the REPL used
+    // to overlay the list. Clamp legacy values so upgrading does not leave an
+    // 80px+ empty moat around logs on an iPhone.
+    const rowGap = Math.max(0, Math.min(6, Number(this.config.get("logRowGap")) || 0));
+    const rowPadding = Math.max(2, Math.min(8, Number(this.config.get("logRowPadding")) || 0));
+    const bottomPadding = Math.max(0, Math.min(20, Number(this.config.get("listBottomPadding")) || 0));
+
+    target.style.setProperty("--rd-console-row-gap", `${rowGap}px`);
+    target.style.setProperty("--rd-console-row-padding", `${rowPadding}px`);
+    target.style.setProperty("--rd-console-bottom-padding", `${bottomPadding}px`);
     target.style.setProperty("--rd-console-filter-min-width", `${this.config.get("filterMinWidth")}px`);
     target.style.setProperty("--rd-console-editor-min-height", `${this.config.get("editorMinHeight")}px`);
     target.style.setProperty("--rd-console-preview-lines", String(this.config.get("logPreviewLines")));
@@ -382,6 +390,18 @@ export class Console extends Tool {
 
   private mountCodeEditor(textarea: HTMLTextAreaElement): void {
     if (this.codeEditor || !textarea.parentElement) return;
+
+    /*
+     * Native textarea wins on iPhone/iPad. CodeMirror is excellent on desktop,
+     * but iOS Safari coordinates IME/caret/VisualViewport most reliably with a
+     * real form control. Keeping the native REPL on coarse, narrow viewports
+     * also gives the user a much larger and easier focus target.
+     */
+    if (this.prefersNativeMobileEditor()) {
+      textarea.hidden = false;
+      return;
+    }
+
     const host = ConsoleCodeEditorHost({ class: "roderuda-console-codemirror" }) as HTMLElement;
     textarea.before(host);
     textarea.hidden = true;
@@ -401,6 +421,18 @@ export class Console extends Tool {
       isolateKeyboardEvents: true,
       modifiedEnter: "newline",
     });
+  }
+
+
+  private prefersNativeMobileEditor(): boolean {
+    try {
+      const width = window.visualViewport?.width ?? window.innerWidth;
+      const coarsePointer = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+      const touchCapable = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      return width <= 900 && (coarsePointer || touchCapable);
+    } catch {
+      return false;
+    }
   }
 
   private destroyCodeEditor(): void {

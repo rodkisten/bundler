@@ -175,8 +175,9 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
   z-index: var(--rd-z-dock, 2147483520);
   display: none;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--rd-tab-height, 40px) minmax(0, 1fr);
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   visibility: hidden;
   opacity: 0;
   background: $background;
@@ -193,14 +194,14 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   }
 
   state(active=true) {
-    display: grid
+    display: flex
     visibility: visible
     pointer-events: auto !important
     opacity: var(--rd-transparency, .95)
   }
 
   state(inline=true) {
-    display: grid
+    display: flex
     position: absolute
     bottom: 0
     height: 100%
@@ -234,22 +235,25 @@ const Resizer = styled.div("RodDevtoolsResizer").css`
 
 const Tabbar = styled.nav("RodDevtoolsTabbar").css`
   /*
-   * Keep the panel switcher in its own grid row.
+   * Keep the panel switcher as a non-shrinking flex row.
    *
-   * Older builds positioned both the tab bar and the tool viewport absolutely.
-   * On iOS/Safari a bad/custom-property layout pass could resolve the viewport
-   * to top:0 and let an active panel paint over every tab. The dock is now a
-   * two-row grid, so a panel can never geometrically occupy the tab row.
+   * iOS Safari aggressively recomputes viewport geometry while its toolbar and
+   * software keyboard animate. The tab strip therefore owns a physical flex
+   * row with an explicit height and a higher stacking context; tool panels live
+   * only in the remaining flex area and cannot paint over it.
    */
   position: relative;
-  grid-column: 1;
-  grid-row: 1;
-  z-index: var(--rd-z-tabbar, 2147483540);
+  flex: 0 0 var(--rd-tab-height, 40px);
+  order: 0;
+  z-index: var(--rd-z-tabbar, 2147483580);
   width: 100%;
   min-width: 0;
   height: var(--rd-tab-height, 40px);
   min-height: var(--rd-tab-height, 40px);
-  display: flex;
+  max-height: var(--rd-tab-height, 40px);
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
   align-items: stretch;
   overflow-x: auto;
   overflow-y: hidden;
@@ -419,13 +423,17 @@ const DockActionButton = styled.button("RodDevtoolsDockActionButton").css`
 `;
 
 const Tools = styled.main("RodDevtoolsTools").css`
-  /* Dedicated second dock row. Do not overlap the tab bar on Safari. */
+  /*
+   * Flex child instead of an overlapping absolute/grid surface. Safari can
+   * temporarily resolve custom-property grid tracks incorrectly while its
+   * browser chrome/keyboard animates; a fixed-height tab bar + flex remainder
+   * gives the switcher a physical row that the active tool cannot cover.
+   */
   position: relative;
-  grid-column: 1;
-  grid-row: 2;
+  flex: 1 1 auto;
+  order: 1;
   z-index: 0;
   width: 100%;
-  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

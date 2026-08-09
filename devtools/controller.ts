@@ -251,11 +251,15 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   show(): this {
-    if (this.sharedContext.visible.peek()) return this;
+    if (this.sharedContext.visible.peek()) {
+      this.repairShellLayout();
+      return this;
+    }
 
     this.sharedContext.visible.set(true);
     this.refs.root.style.setProperty("--rd-transparency", String(this.config.get("transparency")));
     this.refs.root.style.setProperty("--rd-blur", `${this.config.get("blur")}px`);
+    this.repairShellLayout();
 
     this.emit("show");
     return this;
@@ -609,6 +613,28 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     this.refs.root.style.setProperty("--rd-visual-viewport-top", `${top}px`);
     this.refs.root.style.setProperty("--rd-visual-viewport-height", `${height}px`);
     this.refs.root.style.setProperty("--rd-visual-viewport-bottom", `${bottom}px`);
+
+    if (this.sharedContext.visible.peek() || this.inline) this.repairShellLayout();
+  }
+
+  private repairShellLayout(): void {
+    /*
+     * Safari occasionally leaves a stale computed layout after browser chrome
+     * or keyboard transitions. Keep the global panel switcher as a hard shell
+     * invariant rather than trusting the last style/layout pass.
+     */
+    const configuredTabHeight = Number(this.config.get("tabHeight"));
+    const tabHeight = Math.max(32, Math.min(64, Number.isFinite(configuredTabHeight) ? configuredTabHeight : 40));
+
+    this.refs.root.style.setProperty("--rd-tab-height", `${tabHeight}px`);
+    this.refs.tabbar.hidden = false;
+    this.refs.tabbar.removeAttribute("aria-hidden");
+    this.refs.tabbar.style.setProperty("display", "flex", "important");
+    this.refs.tabbar.style.setProperty("visibility", "visible", "important");
+    this.refs.tabbar.style.setProperty("opacity", "1", "important");
+    this.refs.tabbar.style.setProperty("flex", `0 0 ${tabHeight}px`);
+    this.refs.tools.style.setProperty("flex", "1 1 auto");
+    this.refs.tools.style.setProperty("min-height", "0");
   }
 
   private applyConfiguration(key?: string): void {
@@ -659,6 +685,12 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const configSnapshot = this.config.snapshot();
     forEachObject(cssVariables, (variable, configKey) => {
       if (variable === undefined || (key && key !== configKey)) return;
+      if (configKey === "tabHeight") {
+        const raw = Number(configSnapshot[configKey]);
+        const tabHeight = Math.max(32, Math.min(64, Number.isFinite(raw) ? raw : 40));
+        this.refs.root.style.setProperty(variable, `${tabHeight}px`);
+        return;
+      }
       this.refs.root.style.setProperty(variable, `${configSnapshot[configKey]}px`);
     });
 
@@ -674,6 +706,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
       this.sharedContext.visible.set(true);
       this.refs.resizer.hidden = true;
     }
+
+    if (this.sharedContext.visible.peek() || this.inline) this.repairShellLayout();
   }
 
   private async configureActivePanels(): Promise<void> {
