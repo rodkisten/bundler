@@ -34,6 +34,7 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
   --rd-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--rd-safe-area-minimum, 20px));
   --rd-visual-viewport-top: 0px;
   --rd-visual-viewport-height: 100dvh;
+  --rd-visual-viewport-bottom: 0px;
 
   &[data-inline="true"] {
     position: relative;
@@ -79,42 +80,38 @@ const ShellRoot = styled.div("RodDevtoolsShellRoot").css`
     @with($control-reset)
   }
 
+  /*
+   * iOS/Safari input stability
+   *
+   * Never transform/scale a focused native control. Safari computes caret,
+   * selection handles and VisualViewport scrolling from the untransformed
+   * control box; scaling the control makes those coordinate systems disagree
+   * and can cause focus loss, keyboard bouncing and seemingly random scrolls.
+   *
+   * Keep the *real* text size at 16px on touch-sized viewports. Compactness is
+   * provided by the surrounding controls/padding instead of transforming the
+   * input itself. Máquina follows the same rule for its native textarea.
+   */
   @media (max-width: 768px) {
-  :root {
-    /*
-     * Escala fluida no mobile:
-     * 320px → 0.75  → 12px visuais
-     * 768px → 0.875 → 14px visuais
-     */
-    --form-font-scale: clamp(
-      0.75,
-      calc(0.660714 + 2.790179vw),
-      0.875
-    );
+    input:not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="range"],
+      [type="color"],
+      [type="file"],
+      [type="button"],
+      [type="submit"],
+      [type="reset"]
+    ),
+    textarea,
+    select,
+    [contenteditable="true"] {
+      font-size: 16px !important;
+      scale: none !important;
+      transform: none !important;
+      zoom: 1 !important;
+    }
   }
-
-  input:not(
-    [type="checkbox"],
-    [type="radio"],
-    [type="range"],
-    [type="color"],
-    [type="file"],
-    [type="button"],
-    [type="submit"],
-    [type="reset"]
-  ),
-  textarea,
-  select {
-    /* Mantém 16px computados para impedir o zoom do Safari/iOS */
-    font-size: 16px !important;
-
-    /* Escala visual equivalente a 12–14px */
-    scale: var(--form-font-scale) !important;
-
-    /* Evita o campo encolher em direção ao centro */
-    transform-origin: left center !important;
-  }
-}
 `;
 
 const EntryButtonView = styled.button("RodDevtoolsEntryButton").css`
@@ -164,13 +161,18 @@ const DevtoolsDock = styled.section("RodDevtoolsDock").css`
   pointer-events: none !important;
   position: fixed;
   left: 0;
-  bottom: calc(var(--rd-safe-bottom) + var(--rd-dock-bottom-gap, 0px));
+  /* Follow the *visual* viewport when the iOS software keyboard is open. */
+  bottom: calc(
+    var(--rd-safe-bottom) +
+    var(--rd-dock-bottom-gap, 0px) +
+    var(--rd-visual-viewport-bottom, 0px)
+  );
   width: 100%;
   height: min(
     calc(80% - var(--rd-safe-bottom)),
-    calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px)
+    calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px)
   );
-  max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-visual-viewport-top, 0px) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
+  max-height: calc(var(--rd-visual-viewport-height, 100dvh) - var(--rd-safe-top, env(safe-area-inset-top, 0px)) - var(--rd-safe-bottom) - 12px);
   z-index: var(--rd-z-dock, 2147483520);
   display: none;
   grid-template-columns: minmax(0, 1fr);

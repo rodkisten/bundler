@@ -44,6 +44,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   private resizeStartY = 0;
   private resizeStartSize = 0;
   private resizing = false;
+  private viewportFrame = 0;
+  private viewportMetricsKey = "";
+  private editingControl: Element | null = null;
 
   constructor(
     host: HTMLElement,
@@ -498,6 +501,8 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   destroy(): void {
+    if (this.viewportFrame) cancelAnimationFrame(this.viewportFrame);
+    this.viewportFrame = 0;
     for (const cleanup of drainArray(this.cleanup)) cleanup();
     for (const id of this.notificationTimers.keys()) this.clearNotificationTimer(id);
     this.sharedContext.notifications.set([]);
@@ -508,16 +513,54 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
   }
 
   private bind(): void {
-    const updateViewport = () => this.updateViewportMetrics();
+    // VisualViewport can emit a burst of resize/scroll events while iOS opens,
+    // pans or closes the software keyboard. Batch geometry writes to one RAF
+    // and, while a DevTools field owns focus, ignore viewport *scroll* events.
+    // Reacting to those pan events by moving the focused control creates a
+    // Safari feedback loop: pan -> move input -> pan again -> caret/focus jump.
+    const updateViewport = () => this.scheduleViewportMetrics();
+    const updateViewportFromScroll = () => {
+      if (!this.editingControl) this.scheduleViewportMetrics();
+    };
+
     this.cleanup.push(on(window, "resize", updateViewport));
     this.cleanup.push(on(window, "orientationchange", updateViewport));
+
+    const handleFocusIn = (focusEvent: Event) => {
+      const target = focusEvent.composedPath?.()[0] ?? focusEvent.target;
+      if (!(target instanceof Element) || !this.isEditableControl(target)) return;
+      this.editingControl = target;
+      this.refs.root.setAttribute("data-editing", "true");
+      this.scheduleViewportMetrics();
+    };
+
+    const handleFocusOut = () => {
+      queueMicrotask(() => {
+        const active = this.shadowRoot?.activeElement ?? document.activeElement;
+        if (active instanceof Element && this.isEditableControl(active)) {
+          this.editingControl = active;
+          return;
+        }
+        this.editingControl = null;
+        this.refs.root.removeAttribute("data-editing");
+        this.scheduleViewportMetrics();
+      });
+    };
+
+    this.refs.root.addEventListener("focusin", handleFocusIn);
+    this.refs.root.addEventListener("focusout", handleFocusOut);
+    this.cleanup.push(() => {
+      this.refs.root.removeEventListener("focusin", handleFocusIn);
+      this.refs.root.removeEventListener("focusout", handleFocusOut);
+    });
+
     const viewport = window.visualViewport;
     if (viewport) {
-      viewport.addEventListener("resize", updateViewport);
-      viewport.addEventListener("scroll", updateViewport);
+      viewport.addEventListener("resize", updateViewport, { passive: true });
+      viewport.addEventListener("scroll", updateViewportFromScroll, { passive: true });
       this.cleanup.push(() => {
         viewport.removeEventListener("resize", updateViewport);
-        viewport.removeEventListener("scroll", updateViewport);
+        viewport.removeEventListener("scroll", updateViewportFromScroll);
       });
     }
 
@@ -539,11 +582,30 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     }
   }
 
+  private scheduleViewportMetrics(): void {
+    if (this.viewportFrame) return;
+    this.viewportFrame = requestAnimationFrame(() => {
+      this.viewportFrame = 0;
+      this.updateViewportMetrics();
+    });
+  }
+
+  private isEditableControl(element: Element): boolean {
+    return element.matches(
+      'input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable="true"], [contenteditable=""]',
+    );
+  }
+
   private updateViewportMetrics(): void {
     const viewport = window.visualViewport;
     const top = Math.max(0, viewport?.offsetTop ?? 0);
     const height = Math.max(240, viewport?.height ?? window.innerHeight);
     const bottom = Math.max(0, window.innerHeight - (top + height));
+    const key = `${Math.round(top * 10) / 10}|${Math.round(height * 10) / 10}|${Math.round(bottom * 10) / 10}`;
+
+    if (key === this.viewportMetricsKey) return;
+    this.viewportMetricsKey = key;
+
     this.refs.root.style.setProperty("--rd-visual-viewport-top", `${top}px`);
     this.refs.root.style.setProperty("--rd-visual-viewport-height", `${height}px`);
     this.refs.root.style.setProperty("--rd-visual-viewport-bottom", `${bottom}px`);

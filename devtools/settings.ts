@@ -233,7 +233,10 @@ export class Settings extends Tool {
     const entry = findArray(this.entries, (candidate) => candidate.id === id);
     if (!entry) return null;
 
-    entry.version();
+    // Keep the setting row itself DOM-stable. Individual properties below
+    // subscribe to entry.version instead. Recreating the complete row on every
+    // config write made Safari drop native focus and reset the settings
+    // scroller, especially for range/select controls while the keyboard was up.
     return this.renderEntry(entry);
   }
 
@@ -259,7 +262,7 @@ export class Settings extends Tool {
             <SettingsText>${entry.label ?? ""}</SettingsText>
             <SettingsInput
               type="checkbox"
-              .checked=${entry.getValue()}
+              .checked=${() => { entry.version(); return entry.getValue(); }}
               @change=${event.change((change) => {
                 entry.setValue(change.target instanceof HTMLInputElement && change.target.checked);
               })}
@@ -268,18 +271,17 @@ export class Settings extends Tool {
         `;
 
       case "select": {
-        const value = entry.getValue();
         return html`
           <SettingsRow>
             <SettingsText>${entry.label ?? ""}</SettingsText>
             <SettingsSelect
-              .value=${value}
+              .value=${() => { entry.version(); return entry.getValue(); }}
               @change=${event.change((change) => {
                 if (change.target instanceof HTMLSelectElement) entry.setValue(change.target.value);
               })}
             >
               ${mapArray(entry.selections, (selection) => html`
-                <option value=${selection} .selected=${selection === value}>${selection}</option>
+                <option value=${selection} .selected=${() => { entry.version(); return selection === entry.getValue(); }}>${selection}</option>
               `)}
             </SettingsSelect>
           </SettingsRow>
@@ -287,7 +289,6 @@ export class Settings extends Tool {
       }
 
       case "number": {
-        const value = entry.getValue();
         return html`
           <SettingsRow>
             <SettingsText>${entry.label ?? ""}</SettingsText>
@@ -296,7 +297,7 @@ export class Settings extends Tool {
               min=${String(entry.range.min ?? "")}
               max=${String(entry.range.max ?? "")}
               step=${String(entry.range.step ?? 1)}
-              .value=${String(value)}
+              .value=${() => { entry.version(); return String(entry.getValue()); }}
               @change=${event.change((change) => {
                 if (!(change.currentTarget instanceof HTMLInputElement)) return;
                 const next = change.currentTarget.valueAsNumber;
@@ -308,16 +309,15 @@ export class Settings extends Tool {
       }
 
       case "range": {
-        const value = entry.getValue();
         return html`
           <SettingsRow>
-            <SettingsText>${entry.label ?? ""}: ${String(value)}</SettingsText>
+            <SettingsText>${entry.label ?? ""}: ${() => { entry.version(); return String(entry.getValue()); }}</SettingsText>
             <SettingsInput
               type="range"
               min=${String(entry.range.min ?? 0)}
               max=${String(entry.range.max ?? 100)}
               step=${String(entry.range.step ?? 1)}
-              .value=${String(value)}
+              .value=${() => { entry.version(); return String(entry.getValue()); }}
               @input=${event.input((input) => {
                 if (input.target instanceof HTMLInputElement) entry.setValue(Number(input.target.value));
               })}
