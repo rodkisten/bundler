@@ -12,6 +12,7 @@ export const DEFAULT_ERUDA_BUNDLE_URL = "https://cdn.jsdelivr.net/npm/eruda@late
 export const LANDING_PANEL_NAMES = [
   "console",
   "elements",
+  "react",
   "network",
   "resources",
   "sources",
@@ -25,6 +26,7 @@ export type LandingTheme = "AMOLED" | "Dark" | "Light" | "System preference";
 export interface LandingPanelSelection {
   readonly console: boolean;
   readonly elements: boolean;
+  readonly react: boolean;
   readonly network: boolean;
   readonly resources: boolean;
   readonly sources: boolean;
@@ -55,6 +57,13 @@ export interface DevtoolsLandingState {
   readonly maxLogs: number;
   readonly editorFontSize: number;
   readonly panels: LandingPanelSelection;
+  readonly reactAutoRefresh: boolean;
+  readonly reactSearchValues: boolean;
+  readonly reactHideHostNodes: boolean;
+  readonly reactMaxVisibleFibers: number;
+  readonly reactMaxDomScanNodes: number;
+  readonly reactMaxGlobalProperties: number;
+  readonly reactFallbackPollMs: number;
   readonly overrideConsole: boolean;
   readonly catchGlobalErr: boolean;
   readonly bridgePageRealm: boolean;
@@ -131,12 +140,20 @@ export const DEFAULT_LANDING_STATE: DevtoolsLandingState = Object.freeze({
   panels: {
     console: true,
     elements: true,
+    react: true,
     network: true,
     resources: true,
     sources: true,
     info: true,
     snippets: true,
   },
+  reactAutoRefresh: true,
+  reactSearchValues: true,
+  reactHideHostNodes: false,
+  reactMaxVisibleFibers: 5_000,
+  reactMaxDomScanNodes: 25_000,
+  reactMaxGlobalProperties: 4_000,
+  reactFallbackPollMs: 1_500,
   overrideConsole: true,
   catchGlobalErr: true,
   bridgePageRealm: true,
@@ -221,6 +238,15 @@ export function createLandingInitOptions(
           showWhitespace: state.showWhitespace,
           wrapLines: state.wrapDomRows,
         },
+        react: {
+          autoRefresh: state.reactAutoRefresh,
+          searchValues: state.reactSearchValues,
+          hideHostNodes: state.reactHideHostNodes,
+          maxVisibleFibers: Math.round(clamp(state.reactMaxVisibleFibers, 250, 50_000)),
+          maxDomScanNodes: Math.round(clamp(state.reactMaxDomScanNodes, 500, 150_000)),
+          maxGlobalProperties: Math.round(clamp(state.reactMaxGlobalProperties, 100, 20_000)),
+          fallbackPollMs: Math.round(clamp(state.reactFallbackPollMs, 500, 15_000)),
+        },
         network: {
           preserveLog: state.preserveNetworkLog,
           captureResponseBody: state.captureResponseBody,
@@ -247,25 +273,12 @@ export function createLandingUserscript(state: DevtoolsLandingState): string {
   const erudaUrl = normalizeInjectableScriptUrl(state.erudaUrl);
   const options = createLandingInitOptions(state);
   const serializedOptions = JSON.stringify(options, null, 2);
-  const erudaRequire = state.loadEruda ? `// @require      ${erudaUrl}\n` : "";
-  const erudaInit = state.loadEruda
-    ? `\n  globalThis.eruda?.destroy?.();\n  globalThis.eruda?.init?.();\n`
-    : "";
-
-  return `// ==UserScript==
-// @name         🧪 RodEruda DevTools Launcher
-// @namespace    https://rod.dev/userscripts
-// @version      1.0.0
-// @description  Inject RodEruda with a generated configuration.
-// @match        *://*/*
-// @run-at       document-end
-// @require      ${bundleUrl}
-${erudaRequire}// @grant        none
-// ==/UserScript==
-
-(function launchRodEruda() {
-  "use strict";
-
+  const requires = [
+    state.loadDevtools ? `// @require      ${bundleUrl}` : "",
+    state.loadEruda ? `// @require      ${erudaUrl}` : "",
+  ].filter(Boolean).join("\n");
+  const devtoolsInit = state.loadDevtools
+    ? `
   const candidate =
     typeof DevTools !== "undefined"
       ? DevTools
@@ -276,21 +289,51 @@ ${erudaRequire}// @grant        none
       : candidate?.api ?? candidate?.default?.api ?? candidate?.default;
 
   if (!api || typeof api.init !== "function") {
-    console.error("[RodEruda] DevTools API was not found.");
-    return;
+    console.error("[Rod DevTools] DevTools API was not found.");
+  } else {
+    ${state.reinitialize ? "api.destroy?.();" : "// Preserve an existing initialized instance."}
+    api.init(${indent(serializedOptions, 4)});
+    ${state.openAfterInject ? `api.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}
   }
+`
+    : "";
+  const erudaInit = state.loadEruda
+    ? `
+  ${state.reinitialize ? "globalThis.eruda?.destroy?.();" : ""}
+  globalThis.eruda?.init?.();
+`
+    : "";
 
-  api.destroy?.();
-  api.init(${indent(serializedOptions, 2)});
-  ${state.openAfterInject ? `api.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}${erudaInit}
-})();
+  return `// ==UserScript==
+// @name         🧪 Rod DevTools Launcher
+// @namespace    https://rod.dev/userscripts
+// @version      2.0.0
+// @description  Inject Rod DevTools with React Fiber capture and mobile-safe diagnostics.
+// @match        *://*/*
+// @run-at       document-start
+// @noframes
+${requires}
+// @grant        none
+// ==/UserScript==
+
+(function launchRodDevTools() {
+  "use strict";
+${devtoolsInit}${erudaInit}})();
 `;
 }
 
 export function createLandingBookmarklet(state: DevtoolsLandingState): string {
   const bundleUrl = normalizeInjectableScriptUrl(state.bundleUrl);
+  const erudaUrl = normalizeInjectableScriptUrl(state.erudaUrl);
   const options = createLandingInitOptions(state);
-  const source = `(()=>{const d=document,s=d.createElement('script');s.src=${JSON.stringify(bundleUrl)}+${state.cacheBust ? "('?landing='+Date.now())" : "''"};s.onload=()=>{const c=globalThis.DevTools,a=typeof c?.init==='function'?c:c?.api??c?.default?.api??c?.default;if(!a?.init)throw new Error('RodEruda API not found');a.destroy?.();a.init(${JSON.stringify(options)});${state.openAfterInject ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}};d.documentElement.append(s)})()`;
+  const cacheSuffix = state.cacheBust ? "(u.includes('?')?'&landing=':'?landing=')+Date.now()" : "''";
+  const devtoolsStep = state.loadDevtools
+    ? `await l(${JSON.stringify(bundleUrl)});const c=globalThis.DevTools,a=typeof c?.init==='function'?c:c?.api??c?.default?.api??c?.default;if(!a?.init)throw new Error('Rod DevTools API not found');${state.reinitialize ? "a.destroy?.();" : ""}a.init(${JSON.stringify(options)});${state.openAfterInject ? `a.show?.(${JSON.stringify(resolveInitialLandingTool(state))});` : ""}`
+    : "";
+  const erudaStep = state.loadEruda
+    ? `await l(${JSON.stringify(erudaUrl)});${state.reinitialize ? "globalThis.eruda?.destroy?.();" : ""}globalThis.eruda?.init?.();`
+    : "";
+  const source = `(async()=>{const d=document,l=u=>new Promise((r,j)=>{const s=d.createElement('script');s.src=u+${cacheSuffix};s.onload=()=>r();s.onerror=()=>j(new Error('Unable to load '+u));d.documentElement.append(s)});${devtoolsStep}${erudaStep}})()`;
   return `javascript:${encodeURIComponent(source)}`;
 }
 
@@ -411,12 +454,20 @@ function mergeLandingState(input: Partial<DevtoolsLandingState>): DevtoolsLandin
     panels: {
       console: booleanValue(panels.console, defaults.panels.console),
       elements: booleanValue(panels.elements, defaults.panels.elements),
+      react: booleanValue(panels.react, defaults.panels.react),
       network: booleanValue(panels.network, defaults.panels.network),
       resources: booleanValue(panels.resources, defaults.panels.resources),
       sources: booleanValue(panels.sources, defaults.panels.sources),
       info: booleanValue(panels.info, defaults.panels.info),
       snippets: booleanValue(panels.snippets, defaults.panels.snippets),
     },
+    reactAutoRefresh: booleanValue(input.reactAutoRefresh, defaults.reactAutoRefresh),
+    reactSearchValues: booleanValue(input.reactSearchValues, defaults.reactSearchValues),
+    reactHideHostNodes: booleanValue(input.reactHideHostNodes, defaults.reactHideHostNodes),
+    reactMaxVisibleFibers: clampNumber(input.reactMaxVisibleFibers, 250, 50_000, defaults.reactMaxVisibleFibers),
+    reactMaxDomScanNodes: clampNumber(input.reactMaxDomScanNodes, 500, 150_000, defaults.reactMaxDomScanNodes),
+    reactMaxGlobalProperties: clampNumber(input.reactMaxGlobalProperties, 100, 20_000, defaults.reactMaxGlobalProperties),
+    reactFallbackPollMs: clampNumber(input.reactFallbackPollMs, 500, 15_000, defaults.reactFallbackPollMs),
     overrideConsole: booleanValue(input.overrideConsole, defaults.overrideConsole),
     catchGlobalErr: booleanValue(input.catchGlobalErr, defaults.catchGlobalErr),
     bridgePageRealm: booleanValue(input.bridgePageRealm, defaults.bridgePageRealm),

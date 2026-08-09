@@ -181,7 +181,7 @@ async function injectConfiguredTools(): Promise<void> {
       await ensureDevtoolsBundleLoaded(state);
 
       const api = resolveApiFromWindow();
-      if (!api) throw new Error("RodEruda loaded, but its public API could not be resolved.");
+      if (!api) throw new Error("Rod DevTools loaded, but its public API could not be resolved.");
 
       if (state.reinitialize) api.destroy();
 
@@ -193,7 +193,7 @@ async function injectConfiguredTools(): Promise<void> {
       activeApi = api;
 
       if (state.openAfterInject) api.show(resolveInitialLandingTool(state));
-      appendStatusLine(`RodEruda initialized with ${selectedPanelCount(state)} panels.`);
+      appendStatusLine(`Rod DevTools initialized with ${selectedPanelCount(state)} panels.`);
     }
 
     if (sequence !== actionSequence) return;
@@ -209,7 +209,7 @@ async function injectConfiguredTools(): Promise<void> {
 function openDevtools(): void {
   const api = activeApi ?? resolveApiFromWindow();
   if (!api) {
-    setStatus("OFFLINE", "Inject RodEruda before opening it.", "warning");
+    setStatus("OFFLINE", "Inject Rod DevTools before opening it.", "warning");
     return;
   } 
 
@@ -236,14 +236,14 @@ function hideDevtools(): void {
   const api = activeApi ?? resolveApiFromWindow();
   if (!api) return;
   api.hide();
-  setStatus("HIDDEN", "RodEruda remains initialized but is no longer covering the page.", "ready");
+  setStatus("HIDDEN", "Rod DevTools remains initialized but is no longer covering the page.", "ready");
 }
 
 function destroyDevtools(): void {
   const api = activeApi ?? resolveApiFromWindow();
   api?.destroy();
   activeApi = null;
-  setStatus("DESTROYED", "RodEruda state and DOM were removed.", "warning");
+  setStatus("DESTROYED", "Rod DevTools state and DOM were removed.", "warning");
 }
 
 async function toggleEruda(): Promise<void> {
@@ -353,6 +353,13 @@ function readStateFromForm(form: HTMLFormElement): DevtoolsLandingState {
     maxLogs: fieldNumber(data, "maxLogs", DEFAULT_LANDING_STATE.maxLogs),
     editorFontSize: fieldNumber(data, "editorFontSize", DEFAULT_LANDING_STATE.editorFontSize),
     panels,
+    reactAutoRefresh: data.has("reactAutoRefresh"),
+    reactSearchValues: data.has("reactSearchValues"),
+    reactHideHostNodes: data.has("reactHideHostNodes"),
+    reactMaxVisibleFibers: fieldNumber(data, "reactMaxVisibleFibers", DEFAULT_LANDING_STATE.reactMaxVisibleFibers),
+    reactMaxDomScanNodes: fieldNumber(data, "reactMaxDomScanNodes", DEFAULT_LANDING_STATE.reactMaxDomScanNodes),
+    reactMaxGlobalProperties: fieldNumber(data, "reactMaxGlobalProperties", DEFAULT_LANDING_STATE.reactMaxGlobalProperties),
+    reactFallbackPollMs: fieldNumber(data, "reactFallbackPollMs", DEFAULT_LANDING_STATE.reactFallbackPollMs),
     overrideConsole: data.has("overrideConsole"),
     catchGlobalErr: data.has("catchGlobalErr"),
     bridgePageRealm: data.has("bridgePageRealm"),
@@ -393,6 +400,14 @@ function writeStateToForm(form: HTMLFormElement, state: DevtoolsLandingState): v
   for (const panelName of LANDING_PANEL_NAMES) {
     setFormChecked(form, `panel-${panelName}`, state.panels[panelName]);
   }
+
+  setFormChecked(form, "reactAutoRefresh", state.reactAutoRefresh);
+  setFormChecked(form, "reactSearchValues", state.reactSearchValues);
+  setFormChecked(form, "reactHideHostNodes", state.reactHideHostNodes);
+  setFormValue(form, "reactMaxVisibleFibers", state.reactMaxVisibleFibers);
+  setFormValue(form, "reactMaxDomScanNodes", state.reactMaxDomScanNodes);
+  setFormValue(form, "reactMaxGlobalProperties", state.reactMaxGlobalProperties);
+  setFormValue(form, "reactFallbackPollMs", state.reactFallbackPollMs);
 
   setFormChecked(form, "overrideConsole", state.overrideConsole);
   setFormChecked(form, "catchGlobalErr", state.catchGlobalErr);

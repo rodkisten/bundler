@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07060d" />
-  <meta name="description" content="Configure and inject RodEruda browser DevTools and Eruda into any page from a maximalist browser laboratory." />
-  <title>RodEruda Browser Laboratory</title>
+  <meta name="description" content="Configure and inject Rod DevTools with React Fiber inspection, external log streams, page-realm capture, source tooling and iPhone-safe controls." />
+  <title>Rod DevTools · Browser Laboratory</title>
   <link rel="stylesheet" href="./landing.css" />
 </head>
 <body>
@@ -14,33 +14,33 @@
       <nav class="landing-nav" aria-label="Primary navigation">
         <a class="landing-brand" href="#top">
           <span class="landing-brand-mark" aria-hidden="true">⌁</span>
-          <span>RodEruda / Browser Laboratory</span>
+          <span>Rod DevTools / Browser Laboratory</span>
         </a>
         <div class="landing-nav-links">
+          <a href="#panels">Panels</a>
           <a href="#injector">Injector</a>
+          <a href="#api">API</a>
           <a href="#tokens">Tokens</a>
-          <a href="#capabilities">Capabilities</a>
         </div>
       </nav>
 
       <div class="hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">Mobile-first / Shadow DOM / Zero permission theatre</p>
-          <h1 class="hero-title">Hack the <span>browser.</span></h1>
+          <p class="eyebrow">Fiber-aware / Page-realm capture / iPhone-first</p>
+          <h1 class="hero-title">See through <span>the page.</span></h1>
           <p class="hero-summary">
-            A maximalist control room for injecting RodEruda and Eruda, selecting panels,
-            tuning capture strategies, and generating a ready-to-use userscript without touching the bundle.
+            A pocket browser laboratory with Console, DOM inspection, React Fiber trees, Network, Resources, Sources, Snippets and a public log-ingestion API. Built to survive userscripts, SPAs and Safari keyboards.
           </p>
         </div>
 
         <aside class="hero-aside" aria-label="Quick launch">
-          <div class="hero-sticker">Inspect<br />everything</div>
+          <div class="hero-sticker">Trace<br />everything</div>
           <code class="hero-command">https://rod.migos.club/bundler/devtools.iife.js</code>
         </aside>
       </div>
 
       <div class="hero-actions">
-        <a class="brutal-button" href="#injector">Configure injection</a>
+        <a class="brutal-button" href="#injector">Build launcher</a>
         <button class="brutal-button" data-variant="hot" id="open-devtools" type="button">Open DevTools</button>
         <button class="brutal-button" data-variant="electric" id="toggle-eruda" type="button">Toggle Eruda</button>
       </div>
@@ -48,13 +48,30 @@
 
     <div class="marquee" aria-hidden="true">
       <div class="marquee-track">
-        <span>Console</span><span>Elements</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span>
-        <span>Console</span><span>Elements</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span>
+        <span>Console</span><span>Elements</span><span>React Fiber</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span><span>External logs</span>
+        <span>Console</span><span>Elements</span><span>React Fiber</span><span>Network</span><span>Resources</span><span>Sources</span><span>Snippets</span><span>External logs</span>
       </div>
     </div>
 
+    <section class="landing-section" id="panels">
+      <p class="section-kicker">01 / Instrument rack</p>
+      <h2 class="section-title">Eight tools. <em>One page truth.</em></h2>
+      <p class="section-lede">The dock is now a real mobile toolchain, not a console wearing a fake moustache. Every panel owns a focused debugging job and can hand nodes, requests and state to the others.</p>
+
+      <div class="panel-deck">
+        <article class="panel-card panel-card-console"><span class="panel-glyph">›_</span><div><span class="panel-tag">Console</span><h3>Native REPL + external streams</h3><p>Console methods, groups, timers, object inspection, startup errors and <code>DevTools.ingestLogs()</code> with source badges. On iPhone the REPL falls back to a stable native textarea.</p></div></article>
+        <article class="panel-card panel-card-react"><span class="panel-glyph">⚛</span><div><span class="panel-tag">React</span><h3>Fiber tree reconnaissance</h3><p>Hooks, props, state, context, owners and DOM ↔ Fiber selection. Capture starts through the DevTools hook and falls back through DOM expandos, renderer APIs, globals, Shadow DOM, frames and bounded aggressive scans that only activate when React discovery runs.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">⌘</span><div><span class="panel-tag">Elements</span><h3>DOM without losing the page</h3><p>Tree navigation, picker, highlight, context actions and programmatic <code>selectNode()</code>, with whitespace and line-wrapping controls.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">↗</span><div><span class="panel-tag">Network</span><h3>Fetch, XHR and response bodies</h3><p>Capture starts before panel mount, preserving requests for Network, Resources and Sources even during early application boot.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">{ }</span><div><span class="panel-tag">Sources</span><h3>Readable inline code</h3><p>Inspect JavaScript and CSS sources with formatting, line numbers, wrapping and the Máquina-backed editor where appropriate.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">◫</span><div><span class="panel-tag">Resources</span><h3>Storage and page resources</h3><p>Browse runtime resources and structured data without leaving the touch-sized dock.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">✂</span><div><span class="panel-tag">Snippets</span><h3>Keep tiny experiments nearby</h3><p>Write and run reusable snippets inside the same environment you are inspecting.</p></div></article>
+        <article class="panel-card"><span class="panel-glyph">⚙</span><div><span class="panel-tag">Info + Settings</span><h3>Runtime diagnostics that stay editable</h3><p>Stable controls avoid remounting focused inputs, while the shell accounts for Safari VisualViewport and safe-area changes.</p></div></article>
+      </div>
+    </section>
+
     <section class="landing-section" id="injector">
-      <p class="section-kicker">01 / Injection console</p>
+      <p class="section-kicker">02 / Injection console</p>
       <h2 class="section-title">Build your own <em>debug creature.</em></h2>
 
       <div class="config-layout">
@@ -63,7 +80,7 @@
             <h3 class="config-group-title">Bundle matrix <span>01</span></h3>
             <div class="control-grid" data-columns="1">
               <label class="field">
-                <span>RodEruda bundle URL</span>
+                <span>Rod DevTools bundle URL</span>
                 <input class="text-control" name="bundleUrl" type="url" autocomplete="url" spellcheck="false" />
               </label>
               <label class="field">
@@ -72,7 +89,7 @@
               </label>
             </div>
             <div class="check-grid stack-top-4">
-              <label class="check-card"><input name="loadDevtools" type="checkbox" /><span class="check-box"></span><span>Inject RodEruda</span></label>
+              <label class="check-card"><input name="loadDevtools" type="checkbox" /><span class="check-box"></span><span>Inject Rod DevTools</span></label>
               <label class="check-card"><input name="loadEruda" type="checkbox" /><span class="check-box"></span><span>Inject Eruda too</span></label>
               <label class="check-card"><input name="cacheBust" type="checkbox" /><span class="check-box"></span><span>Fresh cache-busted build</span></label>
               <label class="check-card"><input name="reinitialize" type="checkbox" /><span class="check-box"></span><span>Destroy before re-init</span></label>
@@ -92,7 +109,7 @@
             </div>
             <div class="control-grid stack-top-4">
               <label class="field"><span>Theme</span><select class="select-control" name="theme"><option>AMOLED</option><option>Dark</option><option>Light</option><option>System preference</option></select></label>
-              <label class="field"><span>Initial panel</span><select class="select-control" name="initialTool"><option value="console">Console</option><option value="elements">Elements</option><option value="network">Network</option><option value="resources">Resources</option><option value="sources">Sources</option><option value="info">Info</option><option value="snippets">Snippets</option></select></label>
+              <label class="field"><span>Initial panel</span><select class="select-control" name="initialTool"><option value="console">Console</option><option value="elements">Elements</option><option value="react">React</option><option value="network">Network</option><option value="resources">Resources</option><option value="sources">Sources</option><option value="info">Info</option><option value="snippets">Snippets</option></select></label>
               <label class="field"><span>Debug level</span><select class="select-control" name="debugLevel"><option>trace</option><option>debug</option><option>info</option><option>warn</option><option>error</option><option>silent</option></select></label>
             </div>
           </section>
@@ -102,6 +119,7 @@
             <div class="check-grid">
               <label class="check-card"><input name="panel-console" type="checkbox" /><span class="check-box"></span><span>Console</span></label>
               <label class="check-card"><input name="panel-elements" type="checkbox" /><span class="check-box"></span><span>Elements</span></label>
+              <label class="check-card"><input name="panel-react" type="checkbox" /><span class="check-box"></span><span>React Fiber</span></label>
               <label class="check-card"><input name="panel-network" type="checkbox" /><span class="check-box"></span><span>Network</span></label>
               <label class="check-card"><input name="panel-resources" type="checkbox" /><span class="check-box"></span><span>Resources</span></label>
               <label class="check-card"><input name="panel-sources" type="checkbox" /><span class="check-box"></span><span>Sources</span></label>
@@ -138,6 +156,22 @@
             </div>
           </section>
 
+          <section class="config-group config-group-react">
+            <h3 class="config-group-title">React reconnaissance <span>06</span></h3>
+            <p class="config-note">The low-risk React hook installs as early as the bundle executes. Aggressive DOM/global/WeakMap fallbacks only wake up when the React panel scans.</p>
+            <div class="check-grid">
+              <label class="check-card"><input name="reactAutoRefresh" type="checkbox" /><span class="check-box"></span><span>Refresh on commits</span></label>
+              <label class="check-card"><input name="reactSearchValues" type="checkbox" /><span class="check-box"></span><span>Search props/state values</span></label>
+              <label class="check-card"><input name="reactHideHostNodes" type="checkbox" /><span class="check-box"></span><span>Hide DOM host Fibers</span></label>
+            </div>
+            <div class="control-grid stack-top-4">
+              <label class="field"><span>Visible Fiber limit</span><input class="text-control" name="reactMaxVisibleFibers" type="number" min="250" max="50000" step="250" inputmode="numeric" /></label>
+              <label class="field"><span>DOM fallback budget</span><input class="text-control" name="reactMaxDomScanNodes" type="number" min="500" max="150000" step="500" inputmode="numeric" /></label>
+              <label class="field"><span>Global scan budget</span><input class="text-control" name="reactMaxGlobalProperties" type="number" min="100" max="20000" step="100" inputmode="numeric" /></label>
+              <label class="field"><span>Fallback retry interval</span><input class="text-control" name="reactFallbackPollMs" type="number" min="500" max="15000" step="250" inputmode="numeric" /></label>
+            </div>
+          </section>
+
           <div class="form-actions">
             <button class="brutal-button" data-variant="hot" id="inject-devtools" type="submit">Inject now ↗</button>
             <button class="brutal-button" id="hide-devtools" type="button">Hide</button>
@@ -162,8 +196,60 @@
       </div>
     </section>
 
+    <section class="landing-section" id="api">
+      <p class="section-kicker">03 / Public surface</p>
+      <h2 class="section-title">Wire your tools <em>straight in.</em></h2>
+      <p class="section-lede">Userscripts and page tooling can feed Rod DevTools directly instead of proxying everything through the native console.</p>
+
+      <div class="api-grid">
+        <article class="api-card">
+          <div class="api-card-heading"><span>External console stream</span><span>source badge</span></div>
+          <pre><code>const logs = DevTools.ingestLogs({
+  source: "aio-downloader",
+  badge: "wrk",
+});
+
+logs.info("media discovered", media);
+logs.warn("fallback selected", strategy);
+logs.error(error);</code></pre>
+        </article>
+        <article class="api-card">
+          <div class="api-card-heading"><span>Intercept a console-like object</span><span>native semantics</span></div>
+          <pre><code>const stream = DevTools.ingestLogs(workerConsole, {
+  source: "worker",
+  badge: "W",
+  passthrough: true,
+});
+
+stream.time("download");
+stream.group("segment 42");
+stream.table(rows);</code></pre>
+        </article>
+        <article class="api-card api-card-react">
+          <div class="api-card-heading"><span>React capture</span><span>DOM ↔ Fiber</span></div>
+          <pre><code>DevTools.show("react");
+
+const fiber = DevTools.reactCapture
+  .fiberFromNode(document.querySelector("button"));
+
+DevTools.get("react")?.selectFiber(fiber);
+DevTools.reactCapture.diagnostics();</code></pre>
+        </article>
+        <article class="api-card">
+          <div class="api-card-heading"><span>Cross-panel handoff</span><span>Elements</span></div>
+          <pre><code>const button = document.querySelector("button");
+
+DevTools
+  .get("elements")
+  ?.selectNode(button);
+
+DevTools.show("elements");</code></pre>
+        </article>
+      </div>
+    </section>
+
     <section class="landing-section" id="tokens">
-      <p class="section-kicker">02 / Visual operating system</p>
+      <p class="section-kicker">04 / Visual operating system</p>
       <h2 class="section-title">Every pixel is a <em>design token.</em></h2>
 
       <form class="token-lab" id="token-lab">
@@ -191,20 +277,23 @@
     </section>
 
     <section class="landing-section" id="capabilities">
-      <p class="section-kicker">03 / Field manual</p>
+      <p class="section-kicker">05 / Field manual</p>
       <h2 class="section-title">One launcher. <em>Several realities.</em></h2>
       <div class="feature-grid">
-        <article class="feature-card"><span class="feature-number">01</span><h3>Direct injection</h3><p>Loads the production IIFE with timeout, cache busting, replacement controls, and resilient API discovery.</p></article>
-        <article class="feature-card"><span class="feature-number">02</span><h3>Userscript factory</h3><p>Exports a complete launcher with your chosen panels, capture strategy, theme, sizing, and startup behavior.</p></article>
-        <article class="feature-card"><span class="feature-number">03</span><h3>Eruda duet</h3><p>Run RodEruda alone or pair it with Eruda for a double-layer diagnostic rig.</p></article>
-        <article class="feature-card"><span class="feature-number">04</span><h3>Mobile first</h3><p>Every input stays at Safari-safe sizing, every action is touchable, and the layout respects viewport-safe interaction zones.</p></article>
-        <article class="feature-card"><span class="feature-number">05</span><h3>Token machine</h3><p>The entire page is controlled by semantic CSS custom properties, including colors, borders, radius, noise, spacing, typography, motion, and shadows.</p></article>
+        <article class="feature-card"><span class="feature-number">01</span><h3>Document-start React</h3><p>The generated userscript now starts at <code>document-start</code>, giving the React hook a chance to observe renderer injection before the app mounts.</p></article>
+        <article class="feature-card"><span class="feature-number">02</span><h3>Fallback ladder</h3><p>React discovery escalates from the global hook to DOM expandos, containers, renderer host APIs, globals, Shadow DOM, same-origin frames and aggressive probes.</p></article>
+        <article class="feature-card"><span class="feature-number">03</span><h3>External log bus</h3><p>Feed logs directly, create isolated streams or intercept console-like objects while preserving native groups, timers, counts and source badges.</p></article>
+        <article class="feature-card"><span class="feature-number">04</span><h3>Safari keyboard armor</h3><p>16px real inputs, stable settings controls, VisualViewport batching and a native mobile REPL stop focus, caret and scroll from pinballing around iOS.</p></article>
+        <article class="feature-card"><span class="feature-number">05</span><h3>Stable dock shell</h3><p>The tab strip and active panel occupy separate layout tracks, so Console cannot paint over the panel navigation when the viewport changes.</p></article>
+        <article class="feature-card"><span class="feature-number">06</span><h3>Early network capture</h3><p>Network instrumentation is installed before the UI mounts so fetch/XHR bodies can still reach Network, Resources and Sources during startup.</p></article>
+        <article class="feature-card"><span class="feature-number">07</span><h3>Userscript factory</h3><p>Export a document-start launcher with selected panels, React scanning budgets, theme, capture strategy and optional Eruda pairing.</p></article>
+        <article class="feature-card"><span class="feature-number">08</span><h3>Token machine</h3><p>The laboratory itself remains controlled by semantic CSS custom properties for colors, borders, radius, noise, typography, motion and shadows.</p></article>
       </div>
     </section>
 
     <footer class="landing-footer">
       <h2 class="footer-title">Break it.<br />See it.<br />Fix it.</h2>
-      <div class="footer-meta"><span>RodEruda Browser Laboratory</span><span>GMT-3 / Built for the unruly web</span></div>
+      <div class="footer-meta"><span>Rod DevTools Browser Laboratory</span><span>GMT-3 / Built for the unruly web</span></div>
     </footer>
   </main>
 
