@@ -108,6 +108,7 @@ export class Elements extends Tool {
   private longPressTimer = 0;
   private longPressPoint: { x: number; y: number } | null = null;
   private scrollIdleTimer = 0;
+  private rowRevealTimer = 0;
 
   private treeInvalidationTimer = 0;
   private detailInvalidationTimer = 0;
@@ -209,6 +210,7 @@ export class Elements extends Tool {
 
     window.clearTimeout(this.treeInvalidationTimer);
     window.clearTimeout(this.detailInvalidationTimer);
+    window.clearTimeout(this.rowRevealTimer);
 
     if (this.scrollIdleTimer) {
       window.clearTimeout(this.scrollIdleTimer);
@@ -272,6 +274,7 @@ export class Elements extends Tool {
 
     if (expandAncestors) {
       this.expandAncestors(element);
+      if (this.active) this.invalidateTree();
     }
 
     if (addHistory) {
@@ -289,15 +292,45 @@ export class Elements extends Tool {
     }
 
     if (reveal) {
-      queueMicrotask(() => {
-        this.tree
-          ?.querySelector<HTMLElement>("[data-selected='true']")
-          ?.scrollIntoView({
-            block: "nearest",
-            inline: "nearest",
-          });
-      });
+      this.revealSelectedRow(element);
     }
+  }
+
+  /**
+   * Center a freshly selected node in the DOM tree and briefly emphasize the
+   * corresponding row. Picker selection can remount ancestor rows, so this
+   * uses a small bounded rAF retry instead of assuming one microtask is enough.
+   */
+  private revealSelectedRow(element: Element): void {
+    const nodeId = this.nodeId(element);
+    let attempts = 0;
+
+    const reveal = (): void => {
+      const row = this.tree?.querySelector<HTMLElement>(
+        `[data-node-id="${nodeId}"]`,
+      );
+
+      if (!row) {
+        attempts += 1;
+        if (attempts < 4) requestAnimationFrame(reveal);
+        return;
+      }
+
+      row.scrollIntoView({
+        block: "center",
+        inline: "nearest",
+        behavior: "auto",
+      });
+
+      window.clearTimeout(this.rowRevealTimer);
+      row.dataset.revealHighlight = "true";
+      this.rowRevealTimer = window.setTimeout(() => {
+        delete row.dataset.revealHighlight;
+        this.rowRevealTimer = 0;
+      }, Math.max(650, this.config.get("highlightDuration")));
+    };
+
+    requestAnimationFrame(reveal);
   }
 
   private readonly onConfigChange = (key: string, value: unknown): void => {
@@ -827,22 +860,57 @@ export class Elements extends Tool {
 
   private mountContextMenu(menu: HTMLElement, x: number, y: number): Cleanup {
     this.contextMenu = menu;
-    const menuHost = this.container ?? this.context?.root;
-    const hostRect = menuHost?.getBoundingClientRect();
     const viewport = window.visualViewport;
-    const viewportOffsetX = viewport?.offsetLeft ?? 0;
-    const viewportOffsetY = viewport?.offsetTop ?? 0;
-    const localX = x + viewportOffsetX - (hostRect?.left ?? 0);
-    const localY = y + viewportOffsetY - (hostRect?.top ?? 0);
-    const rect = menu.getBoundingClientRect?.();
-    const width = rect && Number.isFinite(rect.width) && rect.width > 0 ? rect.width : menu.offsetWidth || 180;
-    const height = rect && Number.isFinite(rect.height) && rect.height > 0 ? rect.height : menu.offsetHeight || 220;
-    const availableWidth = hostRect?.width || viewport?.width || window.innerWidth || width + 16;
-    const availableHeight = hostRect?.height || viewport?.height || window.innerHeight || height + 16;
     const margin = this.config.get("contextMenuMargin");
+    const gap = 8;
 
-    menu.style.left = `${clamp(localX, margin, availableWidth - width - margin)}px`;
-    menu.style.top = `${clamp(localY, margin, availableHeight - height - margin)}px`;
+    const place = (): void => {
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportWidth = viewport?.width || document.documentElement.clientWidth || window.innerWidth;
+      const viewportHeight = viewport?.height || document.documentElement.clientHeight || window.innerHeight;
+      const viewportRight = viewportLeft + viewportWidth;
+      const viewportBottom = viewportTop + viewportHeight;
+
+      /* CSS containment can turn the dock into the containing block of a
+       * position:fixed descendant. Measure local 0/0 so viewport coordinates
+       * can be converted correctly without browser-specific assumptions. */
+      menu.style.left = "0px";
+      menu.style.top = "0px";
+      menu.style.maxHeight = `${Math.max(96, Math.min(360, viewportHeight - margin * 2))}px`;
+      menu.style.overflowY = "auto";
+      menu.style.overscrollBehavior = "contain";
+
+      const zeroRect = menu.getBoundingClientRect();
+      const width = zeroRect.width || menu.offsetWidth || 180;
+      const height = zeroRect.height || menu.offsetHeight || 220;
+
+      let targetLeft = x + gap;
+      let targetTop = y + gap;
+
+      if (targetLeft + width > viewportRight - margin) {
+        targetLeft = x - width - gap;
+      }
+      if (targetTop + height > viewportBottom - margin) {
+        targetTop = y - height - gap;
+      }
+
+      targetLeft = clamp(
+        targetLeft,
+        viewportLeft + margin,
+        Math.max(viewportLeft + margin, viewportRight - width - margin),
+      );
+      targetTop = clamp(
+        targetTop,
+        viewportTop + margin,
+        Math.max(viewportTop + margin, viewportBottom - height - margin),
+      );
+
+      menu.style.left = `${targetLeft - zeroRect.left}px`;
+      menu.style.top = `${targetTop - zeroRect.top}px`;
+    };
+
+    place();
 
     const close = (closeEvent: Event): void => {
       if (closeEvent.target instanceof Node && menu.contains(closeEvent.target)) return;
@@ -854,10 +922,14 @@ export class Elements extends Tool {
 
     document.addEventListener("pointerdown", close, true);
     document.addEventListener("keydown", onKey, true);
+    viewport?.addEventListener("resize", place);
+    viewport?.addEventListener("scroll", place);
 
     const cleanup = (): void => {
       document.removeEventListener("pointerdown", close, true);
       document.removeEventListener("keydown", onKey, true);
+      viewport?.removeEventListener("resize", place);
+      viewport?.removeEventListener("scroll", place);
       if (this.contextMenu === menu) this.contextMenu = null;
       if (this.contextMenuCleanup === cleanup) this.contextMenuCleanup = null;
     };
@@ -1215,7 +1287,7 @@ export class Elements extends Tool {
         this.detailsOpenState.set(false);
         this.select(target, {
           expandAncestors: true,
-          reveal: false,
+          reveal: true,
           highlight: true,
         });
       }

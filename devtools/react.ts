@@ -13,7 +13,7 @@ import { renderValue } from "@rodkisten/devtools/core/serialize";
 import { html } from "@rodkisten/devtools/core/runtime";
 import { Tool } from "@rodkisten/devtools/tool";
 import type { Cleanup, ReactConfig, ToolContext } from "@rodkisten/devtools/types";
-import { copyText, isDevtoolsNode } from "@rodkisten/devtools/utils";
+import { copyText, icon, isDevtoolsNode } from "@rodkisten/devtools/utils";
 import {
   collectContexts,
   collectHooks,
@@ -118,7 +118,7 @@ type FlattenResult = {
 export class ReactPanel extends Tool {
   readonly name = "react";
   readonly title = "react";
-  readonly icon = "⚛";
+  readonly icon = icon("react");
 
   readonly config = new ConfigStore<ReactPanelConfig>("react", {
     autoRefresh: true,

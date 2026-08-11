@@ -317,6 +317,25 @@ const DomRow = styled.div("RodElementsDomRow").css`
     bg: $contrast
     color: $selectedForeground
   }
+
+  /*
+   * Short-lived tree-side confirmation used after picker/reveal actions.
+   * This is intentionally stronger than the regular selected state so the
+   * row is easy to reacquire on a small phone viewport.
+   */
+  state(revealHighlight=true) {
+    background: mix($accent, $background, 22%);
+    box-shadow:
+      inset 3px 0 0 $accent,
+      inset 0 0 0 1px mix($accent, transparent, 48%);
+  }
+`;
+
+const DomClosingRow = styled.div("RodElementsDomClosingRow").css`
+  min-height: 20px;
+  padding: 1px 8px 1px 15px;
+  color: $tag;
+  white-space: normal;
 `;
 
 const DomToggle = styled.span("RodElementsDomToggle").css`
@@ -1005,6 +1024,7 @@ const ELEMENTS_STYLED_COMPONENTS = Object.freeze([
   DomItem,
   DomMoreItem,
   DomRow,
+  DomClosingRow,
   DomToggle,
   DomTag,
   DomAttrName,
@@ -1726,6 +1746,10 @@ export const ElementsDomNodeView = component<{
                     `
                   : ""}
               </RodElementsDomList>
+
+              ${props.node instanceof Element
+                ? html`<RodElementsDomClosingRow>&lt;/${props.node.tagName.toLowerCase()}&gt;</RodElementsDomClosingRow>`
+                : ""}
             `
           : ""}
       </RodElementsDomItem>
@@ -1750,51 +1774,27 @@ export const ElementsNodeLabelView = component<{
         .trim();
 
       return text
-        ? html`
-            <RodElementsDomText>
-              "${truncate(text, 300)}"
-            </RodElementsDomText>
-          `
+        ? html`<RodElementsDomText>"${truncate(text, 300)}"</RodElementsDomText>`
         : null;
     }
 
     if (node.nodeType === Node.COMMENT_NODE) {
-      return html`
-        <RodElementsDomText>
-          &lt;!--${truncate(
-            node.textContent || "",
-            300,
-          )}--&gt;
-        </RodElementsDomText>
-      `;
+      const comment = (node.textContent || "")
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return html`<RodElementsDomText>&lt;!--${truncate(comment, 300)}--&gt;</RodElementsDomText>`;
     }
 
     if (!(node instanceof Element)) {
       return node.nodeName;
     }
 
-    return html`
-      <RodElementsDomTag>
-        &lt;${node.tagName.toLowerCase()}
-      </RodElementsDomTag>
-
-      ${mapArray(
-        take(node.attributes, 24),
-        (attribute) => html`
-          ${" "}
-          <RodElementsDomAttrName>
-            ${attribute.name}
-          </RodElementsDomAttrName>
-          ="<RodElementsDomAttrValue>
-            ${truncate(attribute.value, 200)}
-          </RodElementsDomAttrValue>"
-        `,
-      )}
-
-      <RodElementsDomTag>
-        &gt;
-      </RodElementsDomTag>
-    `;
+    return html`<RodElementsDomTag>&lt;${node.tagName.toLowerCase()}</RodElementsDomTag>${mapArray(
+      take(node.attributes, 24),
+      (attribute) => html`${" "}<RodElementsDomAttrName>${attribute.name}</RodElementsDomAttrName>="<RodElementsDomAttrValue>${truncate(attribute.value, 200)}</RodElementsDomAttrValue>"`,
+    )}<RodElementsDomTag>&gt;</RodElementsDomTag>`;
   },
 );
 
