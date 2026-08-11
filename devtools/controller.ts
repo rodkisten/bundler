@@ -269,6 +269,9 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     if (this.inline || !this.sharedContext.visible.peek()) return this;
 
     this.sharedContext.visible.set(false);
+    // repairShellLayout() uses an !important display invariant while visible.
+    // Mirror it here so hiding the dock remains deterministic as well.
+    this.refs.devtools.style.setProperty("display", "none", "important");
     this.emit("hide");
     return this;
   }
@@ -627,14 +630,45 @@ export class DevTools extends Emitter<ControllerEvents> implements DevtoolsContr
     const tabHeight = Math.max(32, Math.min(64, Number.isFinite(configuredTabHeight) ? configuredTabHeight : 40));
 
     this.refs.root.style.setProperty("--rd-tab-height", `${tabHeight}px`);
+
+    /*
+     * Do not rely exclusively on generated stylesheet state here. Instagram
+     * and iOS Safari can both trigger style/layout recovery passes while the
+     * dock is already mounted. If the dock momentarily loses its flex layout,
+     * the absolute active tool expands over the first row and visually erases
+     * the panel tabs. Keep the shell geometry as inline invariants so a later
+     * stylesheet recalculation cannot collapse the top bar to zero height.
+     */
+    this.refs.devtools.style.setProperty("display", "flex", "important");
+    this.refs.devtools.style.setProperty("flex-direction", "column", "important");
+    this.refs.devtools.style.setProperty("align-items", "stretch");
+    this.refs.devtools.style.setProperty("justify-content", "flex-start");
+
     this.refs.tabbar.hidden = false;
     this.refs.tabbar.removeAttribute("aria-hidden");
     this.refs.tabbar.style.setProperty("display", "flex", "important");
     this.refs.tabbar.style.setProperty("visibility", "visible", "important");
     this.refs.tabbar.style.setProperty("opacity", "1", "important");
-    this.refs.tabbar.style.setProperty("flex", `0 0 ${tabHeight}px`);
-    this.refs.tools.style.setProperty("flex", "1 1 auto");
-    this.refs.tools.style.setProperty("min-height", "0");
+    this.refs.tabbar.style.setProperty("position", "relative", "important");
+    this.refs.tabbar.style.setProperty("order", "0", "important");
+    this.refs.tabbar.style.setProperty("flex", `0 0 ${tabHeight}px`, "important");
+    this.refs.tabbar.style.setProperty("width", "100%", "important");
+    this.refs.tabbar.style.setProperty("height", `${tabHeight}px`, "important");
+    this.refs.tabbar.style.setProperty("min-height", `${tabHeight}px`, "important");
+    this.refs.tabbar.style.setProperty("max-height", `${tabHeight}px`, "important");
+    this.refs.tabbar.style.setProperty("z-index", "2147483580", "important");
+    this.refs.tabbar.style.setProperty("overflow-x", "auto");
+    this.refs.tabbar.style.setProperty("overflow-y", "hidden");
+    this.refs.tabbar.style.setProperty("pointer-events", "auto", "important");
+
+    this.refs.tools.style.setProperty("position", "relative", "important");
+    this.refs.tools.style.setProperty("order", "1", "important");
+    this.refs.tools.style.setProperty("flex", "1 1 0%", "important");
+    this.refs.tools.style.setProperty("width", "100%", "important");
+    this.refs.tools.style.setProperty("min-width", "0");
+    this.refs.tools.style.setProperty("min-height", "0", "important");
+    this.refs.tools.style.setProperty("overflow", "hidden", "important");
+    this.refs.tools.style.setProperty("z-index", "0", "important");
   }
 
   private applyConfiguration(key?: string): void {
